@@ -49,7 +49,8 @@ swarm-cli list
 | `uninstall <name>` | Remove a compiled blueprint executable from the user bin directory |
 | `add` / `delete` | Add or remove a blueprint from the user blueprint library |
 | `config` | Manage LLM profiles and MCP servers (`list` \| `add` \| `remove`) |
-| `cli-agents` / `agents` | Autodiscover configured agentic CLIs (`--check-auth`, `--init`, `--smoke`, `--suggest`, …) |
+| `cli-agents` / `agents` | Autodiscover configured agentic CLIs (`--check-auth`, `--init`, `--smoke`, `--suggest`, `--list-models`, …) |
+| `list-models` | Probe a catalogued CLI for the models it actually offers (`{cli, models: [...]}`) |
 | `skills` | List reusable `SKILL.md` capabilities (apply via `cli_agent` `skill=` param) |
 | `wizard` | Scaffold a new team blueprint (supports `--non-interactive`) |
 | `moa` | Mixture of Agents (`--backend fake\|grok\|acpx`; `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for scripted consensus→team — not a live Runner) |
@@ -387,6 +388,8 @@ swarm-cli cli-agents --check-auth        # also run each CLI's auth_check
 swarm-cli cli-agents --suggest           # propose config for installed-but-unconfigured CLIs
 swarm-cli cli-agents --smoke             # one trivial one-shot per installed CLI (uses quota)
 swarm-cli cli-agents --json              # machine-readable (combine with the flags above)
+swarm-cli cli-agents --list-models       # live {cli, models} for each catalog CLI
+swarm-cli list-models grok               # one CLI; omit the name to probe all
 swarm-cli cli-agents --config ./swarm_config.json
 
 # Generate a starter swarm_config wiring cli_agents + fusion/orchestrator/map

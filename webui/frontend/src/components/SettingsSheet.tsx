@@ -1,14 +1,25 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, FileCode2, Server } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, FileCode2, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
 import {
+  createRemote,
+  deleteRemote,
   fetchBlueprintSource,
   fetchLlmProfiles,
+  fetchModels,
+  fetchRemotes,
   patchLlmProfiles,
   type BlueprintSource,
   type LlmTaskClass,
 } from '../lib/api'
+import { RemoteSelect } from './RemoteSelect'
+import {
+  configuredRemotes,
+  remoteKindLabel,
+  remoteKinds,
+  unusedRemoteKinds,
+} from '../lib/remotes'
 import { TASK_CLASS_LABELS, missingProfileWarning } from '../lib/llmProfiles'
 import {
   agentRole,
@@ -34,9 +45,7 @@ export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
   | 'blueprint'
-  | 'remotes-hermes'
-  | 'remotes-omb'
-  | 'remotes-rakazo'
+  | 'remotes'
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
@@ -50,20 +59,11 @@ export function openSettingsSheet(detail?: OpenSettingsDetail): void {
   window.dispatchEvent(new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail }))
 }
 
-const REMOTE_PANES = [
-  { id: 'remotes-hermes' as const, label: 'Hermes' },
-  { id: 'remotes-omb' as const, label: 'OMB' },
-  { id: 'remotes-rakazo' as const, label: 'Rakazo' },
-]
-
-function isRemoteSection(section: SettingsSection): boolean {
-  return section.startsWith('remotes-')
-}
-
 export interface SettingsSheetProps {
   isOpen: boolean
   onClose: () => void
   blueprintId?: string | null
+  initialSection?: SettingsSection
 }
 
 /**
@@ -74,10 +74,14 @@ export interface SettingsSheetProps {
  * roled agent selects the Blueprint editor for that agent's blueprint id —
  * not the Teams drop-zone roster. Django `/settings/` stays the operator dump.
  */
-export default function SettingsSheet({ isOpen, onClose, blueprintId }: SettingsSheetProps) {
+export default function SettingsSheet({
+  isOpen,
+  onClose,
+  blueprintId,
+  initialSection,
+}: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
-  const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
 
@@ -87,10 +91,12 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
     setRetention(loadRetentionMode())
     if (blueprintId) {
       setSection('blueprint')
+    } else if (initialSection) {
+      setSection(initialSection)
     } else {
       setSection((current) => (current === 'blueprint' ? 'retention' : current))
     }
-  }, [isOpen, blueprintId])
+  }, [isOpen, blueprintId, initialSection])
 
   const handleSaveHostname = (event: FormEvent) => {
     event.preventDefault()
@@ -130,26 +136,12 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
             <li>
               <button
                 type="button"
-                className={`menu-dropdown-toggle ${remotesOpen ? 'menu-dropdown-show' : ''}`}
-                aria-expanded={remotesOpen}
-                onClick={() => setRemotesOpen((open) => !open)}
+                className={section === 'remotes' ? 'menu-active' : undefined}
+                aria-current={section === 'remotes' ? 'page' : undefined}
+                onClick={() => setSection('remotes')}
               >
                 Remotes
               </button>
-              <ul className={`menu-dropdown ${remotesOpen ? 'menu-dropdown-show' : ''}`}>
-                {REMOTE_PANES.map((remote) => (
-                  <li key={remote.id}>
-                    <button
-                      type="button"
-                      className={section === remote.id ? 'menu-active' : undefined}
-                      aria-current={section === remote.id ? 'page' : undefined}
-                      onClick={() => setSection(remote.id)}
-                    >
-                      {remote.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </li>
             <li>
               <button
@@ -188,7 +180,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {section === 'remotes' && <RemotesCatalogPane />}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -367,24 +359,209 @@ function ModuleLink({
   )
 }
 
-function RemotePane({ section }: { section: SettingsSection }) {
-  const remote = REMOTE_PANES.find((item) => item.id === section)
-  const label = remote?.label ?? 'Remote'
+function RemotesCatalogPane() {
+  const { success, error: toastError } = useToast()
+  const queryClient = useQueryClient()
+  const [adding, setAdding] = useState(false)
+  const [kind, setKind] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [selectedId, setSelectedId] = useState('')
+
+  const remotesQuery = useQuery({
+    queryKey: ['settings-remotes'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
+  const catalog = remotesQuery.data
+  const configured = configuredRemotes(catalog)
+  const kinds = remoteKinds(catalog)
+  const unused = unusedRemoteKinds(catalog)
+
+  useEffect(() => {
+    if (!kind && unused[0]) setKind(unused[0].id)
+  }, [kind, unused])
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      createRemote({
+        kind,
+        ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+        ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+      }),
+    onSuccess: (created) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: [...configuredRemotes(prev).filter((row) => row.id !== created.id), created],
+        data: prev?.data ?? [],
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+      void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      setAdding(false)
+      setBaseUrl('')
+      setApiKey('')
+      setKind('')
+      setSelectedId(created.id)
+      success('Remote added', `${remoteKindLabel(created.kind || created.id, kinds)} is now configured.`)
+    },
+    onError: (err: Error) => {
+      toastError('Could not add remote', err.message)
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (remoteId: string) => deleteRemote(remoteId),
+    onSuccess: (_void, remoteId) => {
+      queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
+        object: 'list' as const,
+        kinds: remoteKinds(prev),
+        configured: configuredRemotes(prev).filter((row) => row.id !== remoteId),
+        data: prev?.data ?? [],
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+      void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      if (selectedId === remoteId) setSelectedId('')
+      success('Remote removed', 'Dropped from Settings and remote dropdowns.')
+    },
+    onError: (err: Error) => {
+      toastError('Could not remove remote', err.message)
+    },
+  })
+
+  const handleAdd = (event: FormEvent) => {
+    event.preventDefault()
+    if (!kind) return
+    addMutation.mutate()
+  }
+
   return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">{label}</h4>
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="font-medium">{label}</span> is a placeholder remote.
-            The remotes API has not landed — this pane is the settings-sheet
-            shell only.
-          </p>
-          <p className="text-base-content/70">
-            Hermes, OMB, and Rakazo will connect here once the backend exists.
-          </p>
-        </div>
-      </Alert>
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Remotes</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Only remotes you add appear here and in remote dropdowns. Unused kinds
+          stay off the list.
+        </p>
+      </div>
+
+      {configured.length > 0 ? (
+        <RemoteSelect
+          remotes={catalog}
+          value={selectedId}
+          onChange={setSelectedId}
+          label="Remote"
+        />
+      ) : null}
+
+      {configured.length === 0 && !adding ? (
+        <Alert type="info" icon={<Server className="h-5 w-5" />}>
+          <span className="text-sm">No remotes configured yet.</span>
+        </Alert>
+      ) : configured.length === 0 ? null : (
+        <ul className="space-y-2" aria-label="Configured remotes">
+          {configured.map((remote) => {
+            const label = remoteKindLabel(remote.kind || remote.id, kinds)
+            return (
+              <li
+                key={remote.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">{label}</p>
+                  <p className="truncate font-mono text-xs text-base-content/60">
+                    {remote.base_url || 'localhost'}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => removeMutation.mutate(remote.id)}
+                  disabled={removeMutation.isPending}
+                >
+                  Remove
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {adding ? (
+        <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>
+          <Select
+            label="Kind"
+            name="remote-kind"
+            size="sm"
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+          >
+            {unused.length === 0 ? (
+              <option value="" disabled>
+                All kinds added
+              </option>
+            ) : (
+              unused.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))
+            )}
+          </Select>
+          <Input
+            label="URL"
+            name="remote-url"
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {kind === 'swarm' ? (
+            <p className="text-sm text-base-content/70">
+              Nested open-swarm is another process (own DB). Do not add this
+              instance as its own remote.
+            </p>
+          ) : null}
+          <Input
+            label="API key"
+            name="remote-api-key"
+            type="password"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            placeholder="${API_KEY}"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!kind || addMutation.isPending}
+            >
+              Save remote
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setAdding(false)
+                setApiKey('')
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add remote
+        </Button>
+      )}
     </div>
   )
 }

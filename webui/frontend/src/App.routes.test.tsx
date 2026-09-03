@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App, { chatPathWithSearch } from './App'
 
@@ -75,17 +75,9 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     expect(screen.queryByRole('link', { name: /^Chat$/ })).not.toBeInTheDocument()
   })
 
-  it('aliases /agents onto /chat and keeps the composer', async () => {
-    renderAppAt('/agents?blueprint=codey')
-    await waitFor(() => {
-      expect(window.location.pathname).toBe('/chat')
-    })
-    expect(window.location.search).toBe('?blueprint=codey')
-    await act(async () => {
-      MockWebSocket.instances[0]?.open()
-    })
-    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Connection status')).toHaveTextContent('')
-    expect(screen.getByRole('heading', { name: 'codey' })).toBeInTheDocument()
+  it('keeps /agents as Agent Router (not an alias of /chat)', async () => {
+    renderAppAt('/agents')
+    expect(window.location.pathname).toBe('/agents')
+    expect(screen.getByLabelText('Agent sidebar')).toBeInTheDocument()
   })
 })

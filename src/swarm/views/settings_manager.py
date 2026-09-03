@@ -97,8 +97,9 @@ class SettingsManager:
             'remotes': {
                 'title': 'Remote Harnesses',
                 'description': (
-                    'Hermes, OpenMausBot, and Rakazo as Team members (handoff/as_tool). '
-                    'Persist base URL + auth. Not the /teams/ profile-alias registry.'
+                    'Hermes, OpenMausBot, Rakazo, and nested open-swarm as Team members '
+                    '(handoff/as_tool). Persist base URL + auth. Not the /teams/ '
+                    'profile-alias registry.'
                 ),
                 'icon': '🛰️',
                 'settings': {}
@@ -156,7 +157,7 @@ class SettingsManager:
         # MCP server settings
         self._collect_mcp_settings()
 
-        # Remote harnesses (Hermes / OMB / Rakazo)
+        # Remote harnesses (Hermes / OMB / Rakazo / nested swarm)
         self._collect_remotes_settings()
 
         # Database settings
@@ -529,7 +530,7 @@ class SettingsManager:
         self.settings_groups['mcp_servers']['settings'] = mcp_settings
 
     def _collect_remotes_settings(self):
-        """Collect Hermes / OMB / Rakazo remote harness settings (secrets redacted)."""
+        """Collect Hermes / OMB / Rakazo / nested-swarm harness settings (secrets redacted)."""
         try:
             from swarm.core import remotes as remotes_core
 
@@ -562,6 +563,7 @@ class SettingsManager:
                         "hermes": "HERMES_BASE_URL / HERMES_API_KEY",
                         "omb": "OMB_BASE_URL / OMB_API_KEY",
                         "rakazo": "RAKAZO_BASE_URL / RAKAZO_API_KEY / RAKAZO_SESSION_COOKIE",
+                        "swarm": "SWARM_REMOTE_BASE_URL / SWARM_REMOTE_API_KEY",
                     }.get(spec.id),
                     "type": "object",
                     "description": spec.notes,
