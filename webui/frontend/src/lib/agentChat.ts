@@ -25,6 +25,12 @@ export function conversationIdForAgent(agentId: string): string {
   }
 }
 
+export const AGENT_THREAD_QUERY_KEY = 'agent-thread'
+
+export function agentThreadQueryKey(agentId: string) {
+  return [AGENT_THREAD_QUERY_KEY, agentIdFromBlueprint(agentId)] as const
+}
+
 export interface AgentThreadMessage {
   role: 'user' | 'assistant'
   content: string
@@ -43,6 +49,33 @@ function isThreadMessage(value: unknown): value is AgentThreadMessage {
     (row.role === 'user' || row.role === 'assistant') &&
     typeof row.content === 'string'
   )
+}
+
+/** One-line rail subtitle. Never the blueprint purpose/description. */
+export function lastMessageSnippet(content: string | null | undefined): string {
+  if (!content) return ''
+  const trimmed = content.replace(/\s+/g, ' ').trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as { assistant?: unknown }
+      if (typeof parsed.assistant === 'string' && parsed.assistant.trim()) {
+        return `Message from ${parsed.assistant.trim()}`
+      }
+    } catch {
+      /* ordinary text that happens to start with { */
+    }
+  }
+  return trimmed
+}
+
+export function lastThreadSnippet(thread: Pick<AgentThread, 'messages'> | null | undefined): string {
+  if (!thread?.messages?.length) return ''
+  for (let i = thread.messages.length - 1; i >= 0; i -= 1) {
+    const snippet = lastMessageSnippet(thread.messages[i]?.content)
+    if (snippet) return snippet
+  }
+  return ''
 }
 
 /** GET /chat/thread/?agent= — empty on auth/network failure (chat still works). */

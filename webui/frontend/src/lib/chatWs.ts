@@ -31,10 +31,32 @@ export type ChatWsEvent =
   | { kind: 'assistant_start'; id: string }
   | { kind: 'assistant_chunk'; id: string; text: string }
   | { kind: 'assistant_final'; id: string; text: string }
+  | {
+      kind: 'interbot_hop'
+      id: string
+      agentId: string
+      name: string
+      pending: boolean
+    }
   | { kind: 'unknown'; raw: string }
 
 const OOB_CHUNK_PREFIX = 'beforeend:#'
 const ASSISTANT_ID_PREFIX = 'message-response-'
+
+function parseInterBotHop(el: Element | null): ChatWsEvent | null {
+  if (!el?.classList.contains('os-interbot-hop')) return null
+  const name = (el.getAttribute('data-agent-name') || el.textContent || '').trim()
+  const agentId = (el.getAttribute('data-agent-id') || name).trim()
+  if (!name && !agentId) return null
+  const pending = el.getAttribute('data-pending') === 'true'
+  return {
+    kind: 'interbot_hop',
+    id: el.id || `hop-${agentId || name}`,
+    agentId: agentId || name,
+    name: name || agentId,
+    pending,
+  }
+}
 
 export function buildChatWsUrl(
   conversationId: string,
@@ -85,6 +107,10 @@ export function parseChatWsMessage(raw: string): ChatWsEvent {
       text: root.textContent ?? '',
     }
   }
+
+  const hopEl = root.id === 'message-list' ? root.firstElementChild : root
+  const hop = parseInterBotHop(hopEl)
+  if (hop) return hop
 
   // 1 + 2. Appends to the global #message-list.
   if (root.id === 'message-list' && oob === 'beforeend') {

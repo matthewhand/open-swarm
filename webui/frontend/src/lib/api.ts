@@ -162,6 +162,8 @@ export interface Blueprint {
   tags: string[]
   installed: boolean | null
   compiled: boolean | null
+  /** Optional seat role when the API (or a later PR) sends it. */
+  role?: string | null
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */

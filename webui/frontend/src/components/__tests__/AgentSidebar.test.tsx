@@ -129,6 +129,61 @@ describe('AgentSidebar Grok rail', () => {
     ])
   })
 
+  it('shows the last message as the subtitle, never agent.description', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/') && url.includes('codey')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'codey',
+              conversation_id: 'agt-codey',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'ship the last line' },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ agent_id: 'x', conversation_id: 'x', messages: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
+    )
+
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    expect(within(codey).getByText('ship the last line')).toBeInTheDocument()
+    expect(within(codey).queryByText('Code assistant')).not.toBeInTheDocument()
+    expect(screen.queryByText('Talk about the other agents.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Helpful agent')).not.toBeInTheDocument()
+  })
+
+  it('right-stacks role badges and uses role outline classes, not a purpose fill', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const support = await within(list).findByRole('link', { name: /Support/ })
+    const stack = within(support).getByTestId('agent-role-stack')
+    expect(stack).toHaveClass('os-agent-role-stack')
+    expect(stack).toHaveTextContent('support')
+    expect(support.className).toContain('os-agent-row--support')
+    expect(support.parentElement).toHaveAttribute('data-role', 'support')
+    expect(within(list).queryByText('Talk about the other agents.')).not.toBeInTheDocument()
+  })
+
   it('exposes Plugins and an editable hostname after the conversation list', async () => {
     renderSidebar()
     await screen.findByRole('navigation', { name: 'Agent list' })

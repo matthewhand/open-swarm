@@ -8,9 +8,15 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { Eye, EyeOff, Pin, PinOff, Plug, Search, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
+import { agentRole, roleBadges, roleCssClass } from '../lib/agentRoles'
+import {
+  agentThreadQueryKey,
+  fetchAgentThread,
+  lastThreadSnippet,
+} from '../lib/agentChat'
 import {
   agentMarkIndex,
   hideAgentId,
@@ -30,7 +36,6 @@ import {
 import {
   agentLabel,
   defaultBlueprintId,
-  isSupportAgent,
   supportFirstAgents,
 } from '../lib/supportAgent'
 import { openSearchPalette } from './SearchPalette'
@@ -78,6 +83,20 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     () => agents.filter((agent) => !hiddenIds.includes(agent.id)),
     [agents, hiddenIds],
   )
+  const threadQueries = useQueries({
+    queries: visibleAgents.map((agent) => ({
+      queryKey: agentThreadQueryKey(agent.id),
+      queryFn: () => fetchAgentThread(agent.id),
+      staleTime: 15_000,
+    })),
+  })
+  const lastLines = useMemo(() => {
+    const map = new Map<string, string>()
+    visibleAgents.forEach((agent, index) => {
+      map.set(agent.id, lastThreadSnippet(threadQueries[index]?.data))
+    })
+    return map
+  }, [threadQueries, visibleAgents])
   const hiddenAgents = useMemo(
     () => agents.filter((agent) => hiddenIds.includes(agent.id)),
     [agents, hiddenIds],
@@ -160,38 +179,55 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
     const name = agentLabel(agent)
     const active = selectedId === agent.id
-    const support = isSupportAgent(agent)
+    const role = agentRole(agent)
+    const badges = roleBadges(agent)
+    const lastLine = lastLines.get(agent.id) || ''
     return (
-      <Link
-        to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
-          support ? 'os-agent-row--support' : ''
-        }`}
-        aria-current={active ? 'page' : undefined}
-        draggable={!hidden}
-        onDragStart={(event) => {
-          writeAgentDragPayload(event.dataTransfer, { id: agent.id, name })
-          event.dataTransfer.effectAllowed = 'copy'
-        }}
-        onDragEnd={() => endAgentDrag()}
-        onClick={onClose}
-        onContextMenu={(event) => openMenu(event, agent, hidden)}
-      >
-        <span
-          className="os-agent-dot mt-1.5"
-          data-mark={String(agentMarkIndex(agent.id))}
-          data-role={support ? 'support' : undefined}
-          aria-hidden="true"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-          {agent.description ? (
-            <span className="mt-0.5 block truncate text-xs text-base-content/45">
-              {agent.description}
+      <div className={`os-agent-row-wrap ${roleCssClass(role)}`} data-role={role}>
+        <Link
+          to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
+          className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+            role !== 'default' ? `os-agent-row--${role}` : ''
+          }`}
+          aria-current={active ? 'page' : undefined}
+          draggable={!hidden}
+          onDragStart={(event) => {
+            writeAgentDragPayload(event.dataTransfer, { id: agent.id, name })
+            event.dataTransfer.effectAllowed = 'copy'
+          }}
+          onDragEnd={() => endAgentDrag()}
+          onClick={onClose}
+          onContextMenu={(event) => openMenu(event, agent, hidden)}
+        >
+          <span
+            className="os-agent-dot mt-1.5"
+            data-mark={String(agentMarkIndex(agent.id))}
+            data-role={role !== 'default' ? role : undefined}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {lastLine ? (
+              <span className="os-agent-last-line mt-0.5 block truncate text-xs text-base-content/45">
+                {lastLine}
+              </span>
+            ) : null}
+          </span>
+          {badges.length > 0 ? (
+            <span className="os-agent-role-stack" data-testid="agent-role-stack">
+              {badges.map((badge) => (
+                <span
+                  key={badge}
+                  className={`os-agent-role-badge ${roleCssClass(badge)}`}
+                  data-role={badge}
+                >
+                  {badge}
+                </span>
+              ))}
             </span>
           ) : null}
-        </span>
-      </Link>
+        </Link>
+      </div>
     )
   }
 

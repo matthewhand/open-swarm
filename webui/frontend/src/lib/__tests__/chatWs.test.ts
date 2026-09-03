@@ -79,6 +79,27 @@ describe('parseChatWsMessage', () => {
     })
   })
 
+  it('parses pending and completed inter-bot hop frames', () => {
+    const pending =
+      '<div id="message-list" hx-swap-oob="beforeend"><div id="hop-1" class="os-interbot-hop" data-agent-id="hass" data-agent-name="HASS" data-pending="true"></div></div>'
+    expect(parseChatWsMessage(pending)).toEqual({
+      kind: 'interbot_hop',
+      id: 'hop-1',
+      agentId: 'hass',
+      name: 'HASS',
+      pending: true,
+    })
+    const done =
+      '<div id="hop-1" class="os-interbot-hop" hx-swap-oob="true" data-agent-id="hass" data-agent-name="HASS" data-pending="false"></div>'
+    expect(parseChatWsMessage(done)).toEqual({
+      kind: 'interbot_hop',
+      id: 'hop-1',
+      agentId: 'hass',
+      name: 'HASS',
+      pending: false,
+    })
+  })
+
   it('falls back to unknown for empty or unrecognized frames', () => {
     expect(parseChatWsMessage('')).toEqual({ kind: 'unknown', raw: '' })
     const weird = '<div id="something-else" hx-swap-oob="beforeend"><span>x</span></div>'

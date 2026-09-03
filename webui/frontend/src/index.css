@@ -220,6 +220,12 @@ html[data-theme="light"] #root {
   background: color-mix(in srgb, var(--color-base-content) 12%, transparent);
 }
 
+.os-agent-row-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.15rem;
+  position: relative;
+}
 .os-agent-row {
   display: flex;
   min-width: 0;
@@ -239,9 +245,113 @@ html[data-theme="light"] #root {
   background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
   color: var(--color-base-content);
 }
-.os-agent-row--support {
-  box-shadow: inset 2px 0 0 #3d8f8a;
+
+/* Role highlight is outline/border only — no filled wash. */
+.os-agent-row--support { --os-role-accent: #3d8f8a; }
+.os-agent-row--gate { --os-role-accent: #c47a3a; }
+.os-agent-row--skeptic { --os-role-accent: #7a6b9b; }
+.os-agent-row--cos { --os-role-accent: #4a7a9b; }
+.os-agent-row--support,
+.os-agent-row--gate,
+.os-agent-row--skeptic,
+.os-agent-row--cos {
+  background-color: transparent;
+  box-shadow: none;
+  outline: 1px solid var(--os-role-accent);
+  outline-offset: -1px;
 }
+.os-agent-row--active.os-agent-row--support,
+.os-agent-row--active.os-agent-row--gate,
+.os-agent-row--active.os-agent-row--skeptic,
+.os-agent-row--active.os-agent-row--cos {
+  background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
+}
+
+.os-agent-role-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
+  gap: 0.15rem;
+  flex: 0 0 auto;
+}
+.os-agent-role-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  line-height: 1.35;
+  background: transparent;
+  border: 1px solid currentColor;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+.os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
+.os-agent-role-badge[data-role="gate"] { color: #c47a3a; }
+.os-agent-role-badge[data-role="skeptic"] { color: #7a6b9b; }
+.os-agent-role-badge[data-role="cos"] { color: #4a7a9b; }
+
+/* Complete bubbles neutralize DaisyUI's squared tail corner. Streaming
+   assistant keeps three rounded corners and a near-square bottom-left. */
+.os-chat-bubble--complete {
+  border-radius: var(--radius-field) !important;
+}
+.os-chat-bubble--complete::before {
+  display: none;
+}
+.os-chat-bubble--streaming {
+  border-start-start-radius: var(--radius-field) !important;
+  border-start-end-radius: var(--radius-field) !important;
+  border-end-end-radius: var(--radius-field) !important;
+  border-end-start-radius: 0.15rem !important;
+}
+.os-chat-bubble--streaming::before {
+  display: none;
+}
+
+.os-interbot-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.85rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--color-base-content) 52%, transparent);
+}
+.os-interbot-name {
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.os-interbot-avatars {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+}
+.os-interbot-avatar {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-base-100);
+  flex: 0 0 auto;
+  position: relative;
+}
+.os-interbot-avatar--stacked {
+  margin-inline-start: -0.42rem;
+}
+.os-interbot-avatar--stacked:first-child {
+  margin-inline-start: 0;
+}
+.os-interbot-avatars .os-interbot-avatar--stacked:nth-child(1) { z-index: 1; }
+.os-interbot-avatars .os-interbot-avatar--stacked:nth-child(2) { z-index: 2; }
+.os-interbot-avatars .os-interbot-avatar--stacked:nth-child(3) { z-index: 3; }
+.os-interbot-avatars .os-interbot-avatar--stacked:nth-child(4) { z-index: 4; }
+.os-interbot-avatars .os-interbot-avatar--stacked:nth-child(5) { z-index: 5; }
+.os-interbot-avatars .os-interbot-avatar--stacked:nth-child(n+6) { z-index: 6; }
 
 .os-rail-hostname {
   margin-top: 0.35rem;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -401,6 +401,51 @@ describe('ChatPage markdown bubbles', () => {
     resetConversationThreads()
   })
 
+  it('uses a near-square bottom-left while streaming and equal corners when complete', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-geo1" class="assistant-message"></div></div>',
+        }),
+      )
+    })
+
+    const streaming = document.querySelector('[data-streaming="true"]')
+    expect(streaming?.className).toContain('os-chat-bubble--streaming')
+    expect(streaming?.className).not.toContain('os-chat-bubble--complete')
+    expect(screen.getAllByRole('status', { name: 'Loading' }).length).toBeGreaterThan(0)
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div hx-swap-oob="beforeend:#message-response-geo1">partial</div>',
+        }),
+      )
+    })
+    expect(document.querySelector('[data-streaming="true"]')?.className).toContain(
+      'os-chat-bubble--streaming',
+    )
+    expect(screen.getByText('partial')).toBeInTheDocument()
+    expect(screen.getAllByRole('status', { name: 'Loading' }).length).toBeGreaterThan(0)
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-geo1" hx-swap-oob="true" class="assistant-message">done</div>',
+        }),
+      )
+    })
+    const complete = document.querySelector('[data-streaming="false"]')
+    expect(complete?.className).toContain('os-chat-bubble--complete')
+    expect(complete?.className).not.toContain('os-chat-bubble--streaming')
+  })
+
   it('renders assistant markdown (bold/code) in the bubble', async () => {
     renderChat()
     await act(async () => {
@@ -475,6 +520,80 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(screen.queryByText(/Empty trash/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Disk used/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('ChatPage inter-bot hop lines', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('keeps progress dots (no avatars) until hops complete, then collapses to Messaged N Bots', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="hop-a" class="os-interbot-hop" data-agent-id="a" data-agent-name="Alpha" data-pending="true"></div></div>',
+        }),
+      )
+    })
+    expect(screen.getByRole('status', { name: 'Inter-bot communication in progress' })).toBeInTheDocument()
+    expect(document.querySelector('.os-interbot-avatar')).toBeNull()
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="hop-a" class="os-interbot-hop" hx-swap-oob="true" data-agent-id="a" data-agent-name="Alpha" data-pending="false"></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="hop-b" class="os-interbot-hop" data-agent-id="b" data-agent-name="Beta" data-pending="false"></div></div>',
+        }),
+      )
+    })
+
+    expect(screen.queryByRole('status', { name: 'Inter-bot communication in progress' })).not.toBeInTheDocument()
+    expect(screen.getByText('Messaged')).toBeInTheDocument()
+    expect(screen.getByText('2 Bots')).toBeInTheDocument()
+    expect(document.querySelectorAll('.os-interbot-avatar').length).toBe(2)
+  })
+
+  it('renders a single-origin hop as Message from Name', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    await act(async () => {
+      MockWebSocket.instances[0]?.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="hop-hass" class="os-interbot-hop" data-agent-id="hass" data-agent-name="HASS" data-pending="false"></div></div>',
+        }),
+      )
+    })
+    expect(screen.getByText('Message from')).toBeInTheDocument()
+    expect(screen.getByText('HASS')).toBeInTheDocument()
+    expect(screen.queryByText(/Bots/)).not.toBeInTheDocument()
   })
 })
 

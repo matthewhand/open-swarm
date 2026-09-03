@@ -9,16 +9,26 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { fetchBlueprints } from '../lib/api'
 import {
   agentIdFromBlueprint,
+  agentThreadQueryKey,
   conversationIdForAgent,
   fetchAgentThread,
+  type AgentThread,
 } from '../lib/agentChat'
+import { chatBubbleClassName } from '../lib/chatBubble'
+import {
+  groupChatItems,
+  hopFromAssistantName,
+  parseHandoffAssistant,
+  type ChatItem,
+} from '../lib/interBot'
+import InterBotLine from '../components/InterBotLine'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
@@ -51,14 +61,7 @@ const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 
-interface ChatMessage {
-  /** Stable key; for assistant messages this is the server-issued container id. */
-  key: string
-  role: 'user' | 'assistant'
-  text: string
-  /** True while the assistant message is still streaming. */
-  streaming: boolean
-}
+type ChatMessage = Extract<ChatItem, { type: 'message' }>
 
 const OPERATOR_LINKS = [
   { href: '/blueprint-library/', label: 'Blueprints', icon: Book },
@@ -81,13 +84,15 @@ export {
   formatElapsed,
   formatTokenCount,
 } from '../lib/chatMeter'
+export { chatBubbleClassName, CHAT_BUBBLE_COMPLETE, CHAT_BUBBLE_STREAMING } from '../lib/chatBubble'
 
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
   const selectedBlueprint = defaultBlueprintId(searchParams.get('blueprint'))
 
-  const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  const queryClient = useQueryClient()
+  const [threads, setThreads] = useState<Record<string, ChatItem[]>>({})
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [connectAttempt, setConnectAttempt] = useState(0)
@@ -98,10 +103,15 @@ const ChatPage = () => {
     conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
   )
 
-  const messages = useMemo(
+  const threadItems = useMemo(
     () => threads[selectedBlueprint] ?? [],
     [threads, selectedBlueprint],
   )
+  const messages = useMemo(
+    () => threadItems.filter((item): item is ChatMessage => item.type === 'message'),
+    [threadItems],
+  )
+  const conversationRows = useMemo(() => groupChatItems(threadItems), [threadItems])
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(conversationId)
@@ -162,18 +172,39 @@ const ChatPage = () => {
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.messages.map((message, index) => ({
-          key: `hist-${index}-${message.role}`,
-          role: message.role,
-          text: message.content,
-          streaming: false,
-        })),
+        [selectedBlueprint]: thread.messages.map((message, index) => {
+          const handoff = parseHandoffAssistant(message.content)
+          if (handoff) {
+            const key = `hist-hop-${index}`
+            return { type: 'hop' as const, key, hop: hopFromAssistantName(key, handoff, false) }
+          }
+          return {
+            type: 'message' as const,
+            key: `hist-${index}-${message.role}`,
+            role: message.role,
+            text: message.content,
+            streaming: false,
+          }
+        }),
       }))
     })()
     return () => {
       cancelled = true
     }
   }, [selectedBlueprint])
+
+  const rememberThreadLine = useCallback(
+    (role: 'user' | 'assistant', content: string) => {
+      const agent = agentIdFromBlueprint(selectedBlueprint)
+      queryClient.setQueryData<AgentThread>(agentThreadQueryKey(agent), (prev) => ({
+        agent_id: prev?.agent_id ?? agent,
+        conversation_id: prev?.conversation_id ?? conversationIdForAgent(agent),
+        messages: [...(prev?.messages ?? []), { role, content }],
+      }))
+      void queryClient.invalidateQueries({ queryKey: agentThreadQueryKey(agent) })
+    },
+    [queryClient, selectedBlueprint],
+  )
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -190,6 +221,7 @@ const ChatPage = () => {
             next = [
               ...current,
               {
+                type: 'message',
                 key: `user-${userKeyCounterRef.current}-${Date.now()}`,
                 role: 'user',
                 text: event.text,
@@ -198,24 +230,57 @@ const ChatPage = () => {
             ]
             break
           case 'assistant_start':
-            if (current.some((m) => m.key === event.id)) return prev
-            next = [...current, { key: event.id, role: 'assistant', text: '', streaming: true }]
+            if (current.some((item) => item.key === event.id)) return prev
+            next = [
+              ...current,
+              { type: 'message', key: event.id, role: 'assistant', text: '', streaming: true },
+            ]
             break
           case 'assistant_chunk':
-            next = current.map((m) =>
-              m.key === event.id ? { ...m, text: m.text + event.text } : m,
+            next = current.map((item) =>
+              item.type === 'message' && item.key === event.id
+                ? { ...item, text: item.text + event.text }
+                : item,
             )
             break
-          case 'assistant_final':
-            next = current.map((m) =>
-              m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
+          case 'assistant_final': {
+            const handoff = parseHandoffAssistant(event.text)
+            if (handoff) {
+              next = current.filter((item) => item.key !== event.id)
+              next = [
+                ...next,
+                { type: 'hop', key: event.id, hop: hopFromAssistantName(event.id, handoff, false) },
+              ]
+              break
+            }
+            next = current.map((item) =>
+              item.type === 'message' && item.key === event.id
+                ? { ...item, text: event.text, streaming: false }
+                : item,
             )
             break
+          }
+          case 'interbot_hop': {
+            const hop = hopFromAssistantName(event.id, event.name, event.pending, event.agentId)
+            const existing = current.findIndex((item) => item.key === event.id || (item.type === 'hop' && item.hop.id === event.id))
+            if (existing >= 0) {
+              next = current.map((item, index) =>
+                index === existing ? { type: 'hop', key: event.id, hop } : item,
+              )
+            } else {
+              next = [...current, { type: 'hop', key: event.id, hop }]
+            }
+            break
+          }
         }
         return { ...prev, [selectedBlueprint]: next }
       })
+      if (event.kind === 'user_echo') rememberThreadLine('user', event.text)
+      if (event.kind === 'assistant_final' && !parseHandoffAssistant(event.text)) {
+        rememberThreadLine('assistant', event.text)
+      }
     },
-    [selectedBlueprint],
+    [rememberThreadLine, selectedBlueprint],
   )
 
   useEffect(() => {
@@ -471,13 +536,17 @@ const ChatPage = () => {
           pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
         }}
       >
-        {messages.length === 0 ? (
+        {conversationRows.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
-          messages.map((message, idx) => {
-            const isLast = idx === messages.length - 1
+          conversationRows.map((row, idx) => {
+            if (row.type === 'hop-line') {
+              return <InterBotLine key={`hop-${idx}-${row.line.kind}`} line={row.line} />
+            }
+            const message = row.message
+            const isLast = idx === conversationRows.length - 1
             const retryEnabled =
               SHOW_MESSAGE_ACTIONS &&
               isLast &&
@@ -493,11 +562,8 @@ const ChatPage = () => {
                   {message.role === 'user' ? 'You' : selectedAgentName}
                 </div>
                 <div
-                  className={`chat-bubble ${
-                    message.role === 'user'
-                      ? 'bg-neutral text-neutral-content'
-                      : 'bg-base-200 text-base-content'
-                  }`}
+                  className={chatBubbleClassName(message.role, message.streaming)}
+                  data-streaming={message.streaming ? 'true' : 'false'}
                 >
                   <ChatBubbleBody text={message.text} streaming={message.streaming} />
                 </div>
@@ -624,11 +690,14 @@ const ChatBubbleBody = memo(
       )
     }
     return (
-      <div
-        data-testid="chat-md"
-        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
-      />
+      <>
+        <div
+          data-testid="chat-md"
+          className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
+          dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
+        />
+        {streaming ? <LoadingDots size="sm" /> : null}
+      </>
     )
   },
   (prev, next) => prev.text === next.text && prev.streaming === next.streaming,

@@ -4,6 +4,8 @@ import {
   agentIdFromBlueprint,
   conversationIdForAgent,
   fetchAgentThread,
+  lastMessageSnippet,
+  lastThreadSnippet,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -25,6 +27,22 @@ describe('conversationIdForAgent', () => {
     const second = conversationIdForAgent('codey')
     expect(first).toBe(second)
     expect(conversationIdForAgent('other')).not.toBe(first)
+  })
+})
+
+describe('lastMessageSnippet', () => {
+  it('uses last message content, not a purpose string', () => {
+    expect(lastMessageSnippet('  prior answer \n next ')).toBe('prior answer next')
+    expect(lastMessageSnippet('{"assistant":"HASS"}')).toBe('Message from HASS')
+    expect(
+      lastThreadSnippet({
+        messages: [
+          { role: 'user', content: 'purpose must not win' },
+          { role: 'assistant', content: 'latest line' },
+        ],
+      }),
+    ).toBe('latest line')
+    expect(lastThreadSnippet({ messages: [] })).toBe('')
   })
 })
 
