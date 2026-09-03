@@ -138,13 +138,13 @@ test('left-rail Search opens the command palette overlay, not an in-place filter
   await expect(palette).toHaveCount(0)
 })
 
-test('legacy /agents lands on chat chrome with query', async ({ page }) => {
+test('/agents is Agent Router (not redirected to /chat)', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
-  await page.goto('/agents?blueprint=codey')
-  await expect(page).toHaveURL(/\/chat\/?\?blueprint=codey/)
-  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
+  await page.goto('/agents')
+  await expect(page).toHaveURL(/\/agents\/?$/)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

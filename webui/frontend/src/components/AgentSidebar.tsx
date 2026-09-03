@@ -10,7 +10,14 @@ import {
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
-import { fetchBlueprints, fetchHerdrAgents, type Blueprint, type HerdrAgent } from '../lib/api'
+import {
+  fetchBlueprints,
+  fetchCliAgents,
+  fetchHerdrAgents,
+  type Blueprint,
+  type CliRailAgent,
+  type HerdrAgent,
+} from '../lib/api'
 import {
   agentRole,
   exampleRoleAgents,
@@ -64,6 +71,7 @@ interface ContextMenuState {
 type SidebarAgent = Blueprint & {
   kind?: string
   remote?: string
+  cli?: string
 }
 
 function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
@@ -73,6 +81,27 @@ function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
 function sidebarHref(agent: { id: string; kind?: string }): string {
   if (isHerdrAgent(agent)) return '/teams/#herdr-members'
   return `/chat?blueprint=${encodeURIComponent(agent.id)}`
+}
+
+function toSidebarCli(row: CliRailAgent): SidebarAgent {
+  return {
+    id: row.id,
+    object: 'blueprint',
+    name: row.name,
+    description: row.installed ? row.description : `${row.description} (not on PATH)`,
+    abbreviation: null,
+    required_mcp_servers: [],
+    tags: ['cli'],
+    installed: row.installed,
+    compiled: true,
+    kind: 'cli',
+    cli: row.cli,
+  }
+}
+
+/** Host CLI verify rows (grok_agent, agy_agent, …) stay on the rail. */
+function isCliRailAgent(agent: { id?: string; kind?: string }): boolean {
+  return agent.kind === 'cli'
 }
 
 function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
@@ -129,6 +158,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     queryFn: fetchHerdrAgents,
     retry: 1,
   })
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+    retry: 1,
+  })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
   const teams = teamsQuery.data ?? []
   const agents = useMemo<SidebarAgent[]>(() => {
@@ -155,15 +189,21 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
       }
     }
     const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
-    const list = [...fromRosters, ...fromBlueprints, ...herdr]
-    return [...list].sort((a, b) => {
-      const ac = isChiefOfStaff(roleFromAgent(a)) ? 0 : 1
-      const bc = isChiefOfStaff(roleFromAgent(b)) ? 0 : 1
-      if (isSupportAgent(a) || isSupportAgent(b)) return 0
-      if (ac !== bc) return ac - bc
-      return 0
-    })
-  }, [catalog, herdrQuery.data, teams])
+    const clis = (cliQuery.data?.rail ?? []).map(toSidebarCli)
+    const cliIds = new Set(clis.map((a) => a.id))
+    const fromBlueprintsNoCli = fromBlueprints.filter((a) => !cliIds.has(a.id))
+    const list = [...fromRosters, ...fromBlueprintsNoCli, ...herdr]
+    const support = list.filter((a) => isSupportAgent(a))
+    const rest = list.filter((a) => !isSupportAgent(a))
+    const merged = [...support, ...clis, ...rest]
+    const railRank = (a: SidebarAgent) => {
+      if (isSupportAgent(a)) return 0
+      if (a.kind === 'cli') return 1
+      if (isChiefOfStaff(roleFromAgent(a))) return 2
+      return 3
+    }
+    return merged.sort((a, b) => railRank(a) - railRank(b))
+  }, [catalog, cliQuery.data, herdrQuery.data, teams])
   const rosterById = useMemo(() => new Map(teams.map((r) => [r.id, r])), [teams])
   const childTeamIds = useMemo(() => {
     const ids = new Set<string>()
@@ -187,11 +227,17 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   }, [hiddenIds, blueprintsQuery.isPending, agents])
 
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !resolvedHiddenIds.includes(agent.id)),
+    () =>
+      agents.filter(
+        (agent) => isCliRailAgent(agent) || !resolvedHiddenIds.includes(agent.id),
+      ),
     [agents, resolvedHiddenIds],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => resolvedHiddenIds.includes(agent.id)),
+    () =>
+      agents.filter(
+        (agent) => !isCliRailAgent(agent) && resolvedHiddenIds.includes(agent.id),
+      ),
     [agents, resolvedHiddenIds],
   )
   const visibleTeams = useMemo(
@@ -211,7 +257,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const loadingList = blueprintsQuery.isPending && teamsQuery.isPending
   const loadFailed = blueprintsQuery.isError && teamsQuery.isError && visibleCount === 0
   const supportAgents = visibleAgents.filter((agent) => isSupportAgent(agent))
-  const otherAgents = visibleAgents.filter((agent) => !isSupportAgent(agent))
+  const cliAgents = visibleAgents.filter((agent) => agent.kind === 'cli')
+  const otherAgents = visibleAgents.filter(
+    (agent) => !isSupportAgent(agent) && agent.kind !== 'cli',
+  )
   const visiblePins = useMemo(
     () => pins.filter((pin) => !resolvedHiddenIds.includes(pin.id)),
     [pins, resolvedHiddenIds],
@@ -274,6 +323,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
    */
   const hideFromRail = (id: string) => {
     if (!id) return
+    if (agents.some((agent) => agent.id === id && isCliRailAgent(agent))) return
     setHiddenIds((current) => hideAgentId(id, current ?? resolvedHiddenIds))
     setPins((current) => unpinAgent(id, current))
   }
@@ -677,6 +727,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           ) : (
             <ul className="space-y-0.5">
               {supportAgents.map((agent) => (
+                <li key={agent.id}>{renderAgentRow(agent, false)}</li>
+              ))}
+              {cliAgents.map((agent) => (
                 <li key={agent.id}>{renderAgentRow(agent, false)}</li>
               ))}
               {visibleRootTeams.map((team) => renderTeamRow(team))}

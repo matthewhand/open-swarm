@@ -276,7 +276,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 |---|---|---|
 | `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | dev only: fixed insecure fallback |
 | `DJANGO_DEBUG` | Debug mode (verbose errors, DEBUG logging, relaxed auth). Keep **off** in prod. | `false` |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** | dev: `localhost,127.0.0.1` |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** In debug, `*` is prepended so LAN Host / websocket Origin work. | dev: `*,localhost,127.0.0.1` |
+| `SWARM_ALLOW_ANONYMOUS` | Auth-free preview user. Unset: auto-on for DEBUG + LAN/loopback (HTTP session + websocket). `1` force on (any IP); `0` force off. Never implicit in pytest or production. | unset (debug LAN) |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). Must include scheme + host + port. Add LAN/proxy origins (e.g. `http://10.0.0.30:8000`) when the UI is not on localhost. | `http://localhost:8000,http://127.0.0.1:8000` |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. Primary when set. **Required in production** (`DEBUG=False`) unless `SWARM_ALLOW_NO_AUTH=true` — server refuses to start without any token. | none |
 | `SWARM_API_KEY` | Legacy alias for `API_AUTH_TOKEN` (used if the latter is unset). | none |

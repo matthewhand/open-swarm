@@ -116,8 +116,32 @@ def apply_skill_to_prompt(
 
 
 def build_registry(config: dict[str, Any] | None) -> CliAdapterRegistry:
-    """Build the CLI adapter registry from the top-level swarm config."""
-    return CliAdapterRegistry.from_config(config or {})
+    """Build the CLI adapter registry from swarm config, else host catalog CLIs.
+
+    Live runs with an empty ``cli_agents`` block still pick up grok/claude/…
+    from :mod:`swarm.core.cli_catalog` when those binaries are on PATH. Pytest
+    stays config-only so empty-config tests remain deterministic.
+    """
+    import os
+
+    cfg = dict(config or {})
+    agents = dict(cfg.get("cli_agents") or {})
+    if not agents and not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("SWARM_TEST_MODE"):
+        from swarm.core.cli_catalog import catalog_entry, installed_catalog_clis
+
+        # Operator rail CLIs (grok/agy/opencode/pi). Do not auto-wire
+        # claude/gemini as hybrid orchestrators just because they are on PATH.
+        from swarm.core.cli_catalog import SIDEBAR_CLIS
+
+        for name in installed_catalog_clis():
+            if name not in SIDEBAR_CLIS:
+                continue
+            entry = catalog_entry(name)
+            if entry:
+                agents[name] = entry
+        if agents:
+            cfg["cli_agents"] = agents
+    return CliAdapterRegistry.from_config(cfg)
 
 
 def _fusion_config(config: dict[str, Any] | None) -> dict[str, Any]:
