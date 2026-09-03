@@ -271,6 +271,9 @@ export interface LlmProfilesSettings {
   routes: Partial<Record<LlmTaskClass, LlmTaskRoute>>
   task_classes: LlmTaskClass[]
   persisted_to?: string
+  /** req44 when #360 helper is present; stub = /v1/models + fixtures. */
+  list_models_source?: 'req44' | 'stub'
+  cli_model_lists?: Array<{ cli: string; models: string[]; warning?: string }>
 }
 
 export interface PatchLlmProfilesRequest {

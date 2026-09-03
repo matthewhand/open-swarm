@@ -53,6 +53,8 @@ class LlmProfilesView(APIView):
                     "warnings": ["Failed to load LLM profiles; using default."],
                     "routes": {},
                     "task_classes": list(routing.TASK_CLASSES),
+                    "list_models_source": "stub",
+                    "cli_model_lists": [],
                 },
                 status=status.HTTP_200_OK,
             )

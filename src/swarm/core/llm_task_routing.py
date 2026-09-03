@@ -9,7 +9,10 @@ Task classes (roles, not required model ids):
 ``orchestration`` / ``auxiliary`` / ``delegation`` are optional LiteLLM-style
 aliases. Most catalogs use boring ids (``gpt-5.6-terra``). Auto-pick chooses
 three models from whatever the user connected (CLI, API vendor, remote). If
-the user never opens Settings, those auto-picks **are** the defaults.
+the user never opens Settings, those auto-picks **are** the defaults. CLI
+lists come from sibling #360 (`{cli, models}`) when that helper is present;
+otherwise the picker stubs on ``/v1/models`` + fixtures and never scrapes
+``--help``.
 
 Persistence is the existing SoT: ``settings.default_llm_profile`` plus
 ``settings.override_per_task`` and ``settings.task_llm_profiles``. Do not
@@ -27,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from swarm.core import cli_catalog, inference_profile
+from swarm.core import cli_catalog, inference_profile, llm_list_models
 
 logger = logging.getLogger("swarm.llm_task_routing")
 
@@ -558,8 +561,17 @@ def auto_pick_task_models(
     )
 
 
-def collect_catalog(config: dict[str, Any] | None) -> list[CatalogEntry]:
-    """Connected CLIs, API profiles, and remotes — no secrets, no live cloud call."""
+def collect_catalog(
+    config: dict[str, Any] | None,
+    *,
+    discovery_payloads: Iterable[Any] | None = None,
+) -> list[CatalogEntry]:
+    """Connected CLIs, API profiles, remotes, plus REQ-44 ``{cli, models}``.
+
+    Does not scrape CLI ``--help``. Live lists come from #360's helper when
+    present; otherwise OpenAI ``/v1/models`` + fixtures (see
+    :mod:`swarm.core.llm_list_models`).
+    """
     config = config or {}
     entries: list[CatalogEntry] = []
     seen: set[str] = set()
@@ -641,24 +653,77 @@ def collect_catalog(config: dict[str, Any] | None) -> list[CatalogEntry]:
                             )
                         )
 
+    if discovery_payloads is None:
+        discovery_payloads = []
+    for row in llm_list_models.normalize_list_models_payload(
+        list(discovery_payloads) if not isinstance(discovery_payloads, list) else discovery_payloads
+    ):
+        cli = str(row.get("cli") or "catalog")
+        for mid in row.get("models") or []:
+            if not isinstance(mid, str) or not mid.strip():
+                continue
+            model_id = mid.strip()
+            _add(
+                CatalogEntry(
+                    id=model_id,
+                    source="list_models",
+                    owned_by=cli,
+                    model=model_id,
+                    traits=resolve_traits(model_id, owned_by=cli),
+                )
+            )
+
     return entries
 
 
-def effective_auto_picks(config: dict[str, Any] | None) -> AutoPickResult:
-    catalog = collect_catalog(config)
-    aliases = [entry.id for entry in catalog if entry.id in TASK_CLASSES]
-    vendors = {entry.id: infer_vendor(entry.id, owned_by=entry.owned_by) for entry in catalog}
-    return auto_pick_task_models(catalog, aliases=aliases, vendors=vendors)
+def discover_and_collect(
+    config: dict[str, Any] | None,
+    *,
+    discovery_payloads: Iterable[Any] | None = None,
+    probe: bool | None = None,
+) -> tuple[list[CatalogEntry], list[dict[str, Any]], str, list[str]]:
+    """One discovery pass, then catalog. Used so Settings does not re-probe."""
+    warnings: list[str] = []
+    source = llm_list_models.SOURCE_STUB
+    if discovery_payloads is None:
+        rows, source, warnings = llm_list_models.discover_cli_model_lists(
+            config, probe=probe
+        )
+    else:
+        rows = llm_list_models.normalize_list_models_payload(list(discovery_payloads))
+        source = (
+            llm_list_models.SOURCE_REQ44
+            if llm_list_models.req44_helper_available()
+            else llm_list_models.SOURCE_STUB
+        )
+    catalog = collect_catalog(config, discovery_payloads=rows)
+    return catalog, rows, source, warnings
 
 
-def effective_default_profile(config: dict[str, Any] | None) -> tuple[str, list[str]]:
+def effective_auto_picks(
+    config: dict[str, Any] | None,
+    *,
+    catalog: Iterable[CatalogEntry] | None = None,
+) -> AutoPickResult:
+    entries = list(catalog) if catalog is not None else collect_catalog(config)
+    aliases = [entry.id for entry in entries if entry.id in TASK_CLASSES]
+    vendors = {entry.id: infer_vendor(entry.id, owned_by=entry.owned_by) for entry in entries}
+    return auto_pick_task_models(entries, aliases=aliases, vendors=vendors)
+
+
+def effective_default_profile(
+    config: dict[str, Any] | None,
+    *,
+    catalog: Iterable[CatalogEntry] | None = None,
+) -> tuple[str, list[str]]:
     """Stored default if present, else auto-pick. Empty catalog → ``default``."""
     warnings: list[str] = []
     stored = stored_default_profile(config)
-    auto = effective_auto_picks(config)
+    entries = list(catalog) if catalog is not None else collect_catalog(config)
+    auto = effective_auto_picks(config, catalog=entries)
     warnings.extend(auto.warnings)
     if stored:
-        if profile_exists(stored, config) or any(entry.id == stored for entry in collect_catalog(config)):
+        if profile_exists(stored, config) or any(entry.id == stored for entry in entries):
             return stored, warnings
         warning = (
             f"LLM profile {stored!r} not found; falling back to "
@@ -675,6 +740,7 @@ def resolve_for_task(
     config: dict[str, Any] | None = None,
     *,
     catalog_ids: Iterable[str] | None = None,
+    catalog: Iterable[CatalogEntry] | None = None,
 ) -> TaskRoute:
     """Resolve the profile id for a task class.
 
@@ -682,8 +748,12 @@ def resolve_for_task(
     alias, else auto-pick, else Default + visible warning.
     """
     config = config if config is not None else load_swarm_config()
-    known_ids = set(catalog_ids) if catalog_ids is not None else {e.id for e in collect_catalog(config)}
-    default, warnings = effective_default_profile(config)
+    if catalog is not None:
+        entries = list(catalog)
+    else:
+        entries, _rows, _source, _warnings = discover_and_collect(config)
+    known_ids = set(catalog_ids) if catalog_ids is not None else {e.id for e in entries}
+    default, warnings = effective_default_profile(config, catalog=entries)
     cls = task_class if is_task_class(task_class) else TASK_CLASS_ORCHESTRATION
     override = override_per_task_enabled(config)
     if not override:
@@ -720,7 +790,7 @@ def resolve_for_task(
             source="fallback",
         )
 
-    auto = effective_auto_picks(config)
+    auto = effective_auto_picks(config, catalog=entries)
     picked = auto.picks.get(cls)
     if picked and (picked in known_ids or profile_exists(picked, config)):
         source = "alias" if picked in TASK_CLASSES and picked in known_ids else "auto"
@@ -804,9 +874,10 @@ def persist_llm_settings(
 def settings_public_payload(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """SPA / API payload. Auto-picks fill unsaved defaults. No secrets."""
     config = config if config is not None else load_swarm_config()
-    catalog = collect_catalog(config)
-    auto = effective_auto_picks(config)
-    default, warnings = effective_default_profile(config)
+    catalog, cli_lists, list_source, discover_warnings = discover_and_collect(config)
+    auto = effective_auto_picks(config, catalog=catalog)
+    default, warnings = effective_default_profile(config, catalog=catalog)
+    warnings = list(discover_warnings) + list(warnings)
     stored_default = stored_default_profile(config)
     override = override_per_task_enabled(config)
     stored_map = stored_task_map(config)
@@ -824,7 +895,10 @@ def settings_public_payload(config: dict[str, Any] | None = None) -> dict[str, A
             )
             if warning not in warnings:
                 warnings.append(warning)
-    routes = {cls: resolve_for_task(cls, config).public_dict() for cls in TASK_CLASSES}
+    routes = {
+        cls: resolve_for_task(cls, config, catalog=catalog).public_dict()
+        for cls in TASK_CLASSES
+    }
     return {
         "object": "llm_profiles",
         "profiles": [entry.public_dict() for entry in catalog],
@@ -840,4 +914,6 @@ def settings_public_payload(config: dict[str, Any] | None = None) -> dict[str, A
         "warnings": warnings + ([f"Missing profile {mid!r}." for mid in missing] if missing else []),
         "routes": routes,
         "task_classes": list(TASK_CLASSES),
+        "list_models_source": list_source,
+        "cli_model_lists": cli_lists,
     }
