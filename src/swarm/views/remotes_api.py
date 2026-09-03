@@ -1,4 +1,4 @@
-"""REST surface for remote agent harnesses (Hermes, OpenMousBot, Rakazo).
+"""REST surface for remote agent harnesses (Hermes, OpenMousBot, Rakazo, nested swarm).
 
 GET    /v1/remotes/                 kinds + configured remotes (secrets redacted)
 POST   /v1/remotes/                 add a remote (kind + URL / auth)
@@ -58,7 +58,7 @@ class RemotesListView(APIView):
         request=inline_serializer(
             name="RemoteCreateRequest",
             fields={
-                "kind": serializers.CharField(required=False, help_text="hermes, omb, rakazo, herdr, open-swarm"),
+                "kind": serializers.CharField(required=False, help_text="hermes, omb, rakazo, herdr, swarm"),
                 "id": serializers.CharField(required=False),
                 "base_url": serializers.CharField(required=False, allow_blank=True),
                 "api_key": serializers.CharField(required=False, allow_blank=True),
@@ -73,7 +73,7 @@ class RemotesListView(APIView):
         kind = body.get("kind") or body.get("id") or body.get("remote_id")
         if not kind:
             return Response(
-                {"error": "Provide kind (hermes, omb, rakazo, herdr, or open-swarm)."},
+                {"error": "Provide kind (hermes, omb, rakazo, herdr, or swarm)."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         kwargs: dict[str, str] = {}

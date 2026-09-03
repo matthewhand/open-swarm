@@ -10,7 +10,7 @@ A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defin
 
 ## Team (handoff members — REQ-11)
 
-A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`.
+A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo, nested open-swarm) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`, `consult_swarm`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`. Nested swarm is a network remote (own process, own DB); do not auto-add this instance as its own remote.
 
 This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 

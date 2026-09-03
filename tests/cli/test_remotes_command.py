@@ -15,6 +15,7 @@ def test_remotes_list(tmp_path: Path):
     assert "hermes" in proc.stdout
     assert "omb" in proc.stdout
     assert "rakazo" in proc.stdout
+    assert "swarm" in proc.stdout
 
 
 def test_remotes_set_persists(tmp_path: Path):
@@ -129,3 +130,25 @@ def test_remotes_get_json(tmp_path: Path):
     payload = json.loads(result.stdout)
     assert payload["base_url"] == "http://10.0.0.32:3100"
     assert payload["api_key_set"] is False
+
+
+def test_remotes_set_swarm_stub(tmp_path: Path):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    proc = run_swarm_cli(
+        "remotes",
+        "set",
+        "swarm",
+        "--base-url",
+        "http://127.0.0.1:9",
+        "--api-key-env",
+        "CHANGE_ME",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["swarm"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["swarm"]["api_key"] == "${CHANGE_ME}"
