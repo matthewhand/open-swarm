@@ -444,12 +444,11 @@ def test_tour_captions_claim_sticky_banner_in_checked_in_spa_pngs():
 
 
 def test_spa_app_mobile_dock_omits_settings_tab():
-    """SPA mobile dock stays five tabs; Settings is desktop/gear (matches mobile PNGs)."""
+    """SPA product chrome is left rail + chat; no mobile Settings tab / top nav."""
     app = (REPO / "webui" / "frontend" / "src" / "App.tsx").read_text()
-    # Five MobileTab labels in the bottom nav; no Settings href tab.
-    assert 'label="Sessions"' in app
     assert 'MobileTab href="/settings/"' not in app
-    assert 'label="Chat"' in app
+    assert 'NavLink to="/"' not in app
+    assert "MobileTab" not in app
 
 
 def test_feature_status_mobile_dock_omits_settings():
