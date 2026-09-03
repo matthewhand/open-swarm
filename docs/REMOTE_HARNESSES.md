@@ -11,8 +11,21 @@ Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`).
 
 That is **not** the Django `/teams/` JSON registry. `/teams/` today is
 LLM-profile aliases (`DynamicTeamBlueprint`). New copy should not call those
-aliases “teams”; prefer **Profiles**. `GET /v1/remotes/` repeats this collision
-in `vocabulary` + `team_members`.
+aliases “teams”; prefer **Profiles**. `GET /v1/remotes/` and
+`GET /v1/agent-team/` repeat this collision in `vocabulary` + `team_members`.
+
+Place or unplace remotes in that Team (`agent_team.members` in
+`swarm_config.json`; missing key = all three placed; `[]` = empty Team):
+
+```bash
+swarm-cli remotes team
+swarm-cli remotes unplace rakazo
+swarm-cli remotes place rakazo
+```
+
+REST: `GET /v1/agent-team/` · `PATCH /v1/agent-team/` `{"members":["hermes","omb"]}`
+or `{"place":"rakazo"}` / `{"unplace":"hermes"}`. `remote_harness` only attaches
+`consult_*` as_tool specialists for **placed** members.
 
 LAN LLM for *this* swarm: `http://10.0.0.30:8000/v1`. Do **not** point remotes
 at Fly open-litellm.

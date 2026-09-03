@@ -502,6 +502,19 @@ class SettingsManager:
             from swarm.core import remotes as remotes_core
 
             remote_settings: dict[str, Any] = {}
+            placed = remotes_core.load_placed_members()
+            remote_settings["TEAM_MEMBERS"] = {
+                "value": placed,
+                "env_var": None,
+                "type": "list",
+                "description": (
+                    "Remotes placed in the handoff Team (see/talk via as_tool). "
+                    "Not /teams/ LLM-profile aliases (Profiles). "
+                    "PATCH /v1/agent-team/ or swarm-cli remotes place|unplace."
+                ),
+                "category": "remote",
+                "sensitive": False,
+            }
             for spec in remotes_core.load_all_remotes().values():
                 pub = spec.public_dict()
                 remote_settings[spec.id.upper()] = {

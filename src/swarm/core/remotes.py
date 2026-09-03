@@ -329,10 +329,36 @@ def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSp
     return {rid: load_remote(rid, cfg) for rid in REMOTE_IDS}
 
 
+def load_placed_members(config: dict[str, Any] | None = None) -> list[str]:
+    """Remote ids currently placed in the handoff Team (not /teams/ aliases).
+
+    Missing ``agent_team.members`` means all three remotes are placed (default
+    REQ-11 roster). An explicit empty list is an empty Team.
+    """
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    block = cfg.get("agent_team") if isinstance(cfg.get("agent_team"), dict) else {}
+    if "members" not in block:
+        return list(REMOTE_IDS)
+    raw = block.get("members") or []
+    if not isinstance(raw, list):
+        return list(REMOTE_IDS)
+    out: list[str] = []
+    for item in raw:
+        try:
+            rid = _require_id(str(item))
+        except RemoteError:
+            continue
+        if rid not in out:
+            out.append(rid)
+    return out
+
+
 def list_team_members(config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Remote harnesses as Team members (handoff / as_tool), not profile aliases."""
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    placed = set(load_placed_members(cfg))
     members = []
-    for spec in load_all_remotes(config).values():
+    for spec in load_all_remotes(cfg).values():
         pub = spec.public_dict()
         members.append(
             {
@@ -342,9 +368,66 @@ def list_team_members(config: dict[str, Any] | None = None) -> list[dict[str, An
                 "base_url": spec.base_url,
                 "talk": pub["member"]["talk"],
                 "via": "as_tool",
+                "placed": spec.id in placed,
             }
         )
     return members
+
+
+def agent_team_public(
+    config: dict[str, Any] | None = None,
+    *,
+    config_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Handoff Team roster (not /v1/teams/ Profiles aliases)."""
+    cfg = config if isinstance(config, dict) else load_raw_config(config_path)[0]
+    return {
+        "object": "agent_team",
+        "vocabulary": TEAM_VOCABULARY,
+        "members": load_placed_members(cfg),
+        "team_members": list_team_members(cfg),
+        "not": "/v1/teams/ LLM-profile aliases (Profiles)",
+    }
+
+
+def persist_agent_team(
+    members: list[str],
+    *,
+    config_path: str | Path | None = None,
+) -> tuple[list[str], Path]:
+    """Persist which remotes sit in the handoff Team (``agent_team.members``)."""
+    resolved: list[str] = []
+    for item in members:
+        rid = _require_id(str(item))
+        if rid not in resolved:
+            resolved.append(rid)
+    cfg, path = load_raw_config(config_path)
+    if "llm" not in cfg or not isinstance(cfg.get("llm"), dict):
+        cfg.setdefault("llm", {})
+    team = cfg.get("agent_team") if isinstance(cfg.get("agent_team"), dict) else {}
+    team = dict(team)
+    team["members"] = resolved
+    cfg["agent_team"] = team
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
+    logger.info("Persisted agent_team.members=%s to %s", resolved, path)
+    return resolved, path
+
+
+def place_team_member(remote_id: str, *, config_path: str | Path | None = None) -> tuple[list[str], Path]:
+    rid = _require_id(remote_id)
+    cfg, path = load_raw_config(config_path)
+    current = load_placed_members(cfg)
+    if rid not in current:
+        current.append(rid)
+    return persist_agent_team(current, config_path=path)
+
+
+def unplace_team_member(remote_id: str, *, config_path: str | Path | None = None) -> tuple[list[str], Path]:
+    rid = _require_id(remote_id)
+    cfg, path = load_raw_config(config_path)
+    current = [m for m in load_placed_members(cfg) if m != rid]
+    return persist_agent_team(current, config_path=path)
 
 
 def persist_remote(

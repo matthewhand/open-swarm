@@ -25,8 +25,9 @@ here is verified against `swarm-cli --help`.
 > Session vs Bearer, websocket **4401**, and Explorer bridge:
 > **[docs/AUTH.md](./docs/AUTH.md)**.
 > **`/v1/teams` / Django `/teams/`** register **LLM-profile aliases**
-> (`id`/`description`/`llm_profile`), not multi-agent team graphs — see
-> [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
+> (prefer **Profiles**: `id`/`description`/`llm_profile`). A **Team** is
+> API/CLI/remote members that see/talk via handoff (`/v1/agent-team/`) —
+> see [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
 > `scripts/capture_user_journey.py`.
 
 ---

@@ -72,6 +72,43 @@ def test_remotes_health_uses_core(tmp_path: Path):
     assert "hermes" in result.stdout
 
 
+def test_remotes_place_unplace_team(tmp_path: Path):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    proc = run_swarm_cli(
+        "remotes",
+        "unplace",
+        "omb",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["agent_team"]["members"] == ["hermes", "rakazo"]
+    assert "Persisted agent_team.members" in proc.stdout
+
+    proc = run_swarm_cli(
+        "remotes",
+        "place",
+        "omb",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert "omb" in data["agent_team"]["members"]
+
+    proc = run_swarm_cli("remotes", "team", xdg_root=tmp_path / "xdg", timeout=30)
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    payload = json.loads(proc.stdout)
+    assert payload["object"] == "agent_team"
+    assert "not_teams_page" in payload["vocabulary"]
+
+
 def test_remotes_get_json(tmp_path: Path):
     from typer.testing import CliRunner
 

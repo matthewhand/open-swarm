@@ -152,3 +152,81 @@ class RemoteOperateView(APIView):
             target=str(body.get("target") or body.get("bot_id") or ""),
         )
         return Response(result.as_dict(), status=status.HTTP_200_OK)
+
+
+class AgentTeamView(APIView):
+    """Handoff Team roster — remotes (and later CLI/API agents) that see/talk.
+
+    Distinct from ``/v1/teams/`` (LLM-profile aliases / Profiles).
+    """
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    @extend_schema(
+        operation_id="v1_agent_team_get",
+        summary="Handoff Team members (not /v1/teams/ Profiles)",
+        description=(
+            "A Team wires API, CLI, and remote agents so they can see and talk "
+            "via openai-agents handoff / as_tool. This is not the /v1/teams/ "
+            "LLM-profile alias registry."
+        ),
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, _request, *_args, **_kwargs):
+        return Response(remotes_core.agent_team_public())
+
+    @extend_schema(
+        operation_id="v1_agent_team_patch",
+        summary="Place remotes into the handoff Team",
+        request=inline_serializer(
+            name="AgentTeamPatchRequest",
+            fields={
+                "members": serializers.ListField(
+                    child=serializers.CharField(),
+                    required=False,
+                    help_text="Full roster of remote ids (hermes, omb, rakazo).",
+                ),
+                "place": serializers.CharField(
+                    required=False, allow_blank=True, help_text="Remote id to add"
+                ),
+                "unplace": serializers.CharField(
+                    required=False, allow_blank=True, help_text="Remote id to remove"
+                ),
+            },
+        ),
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+    )
+    def patch(self, request, *_args, **_kwargs):
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            if "members" in body:
+                raw = body.get("members")
+                if isinstance(raw, str):
+                    raw = [part.strip() for part in raw.split(",") if part.strip()]
+                if not isinstance(raw, list):
+                    return Response(
+                        {"error": "members must be a list of remote ids."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                _members, path = remotes_core.persist_agent_team([str(item) for item in raw])
+            elif body.get("place"):
+                _members, path = remotes_core.place_team_member(str(body["place"]))
+            elif body.get("unplace"):
+                _members, path = remotes_core.unplace_team_member(str(body["unplace"]))
+            else:
+                return Response(
+                    {"error": "Provide members, place, or unplace."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except remotes_core.RemoteError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except OSError as exc:
+            logger.exception("Failed to persist agent_team")
+            return Response(
+                {"error": f"failed to persist: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        payload = remotes_core.agent_team_public()
+        payload["persisted_to"] = str(path)
+        return Response(payload)

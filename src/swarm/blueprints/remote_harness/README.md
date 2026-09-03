@@ -4,7 +4,9 @@ Open Swarm as a **harness for other harnesses**: Hermes, OpenMausBot (OMB), and 
 
 This blueprint does **not** clone Grok / OMB / Rakazo seats. It configures remotes,
 probes health, and (when the remote exposes an API) lists or sends a job through
-`swarm.core.remotes`. Specialists are openai-agents **agent-as-tool** wrappers.
+`swarm.core.remotes`. Specialists are openai-agents **agent-as-tool** wrappers
+for remotes **placed** in a Team (`agent_team.members`). That Team is not the
+`/teams/` LLM-profile alias registry (prefer **Profiles** for that page).
 
 Grok-Bot chrome is **not** claimed live.
 

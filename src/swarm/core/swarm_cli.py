@@ -675,7 +675,10 @@ def moa(
 
 @app.command(name="remotes")
 def remotes_cmd(
-    action: str = typer.Argument("list", help="list | get | set | health | operate"),
+    action: str = typer.Argument(
+        "list",
+        help="list | get | set | health | operate | team | place | unplace",
+    ),
     name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo"),
     op: str = typer.Option("list", "--op", help="For operate: list or send"),
     base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
@@ -687,7 +690,7 @@ def remotes_cmd(
     target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
 ):
-    """Configure, probe, and operate remote agent harnesses (Hermes / OMB / Rakazo)."""
+    """Configure remotes and place them in a handoff Team (not /teams/ profile aliases)."""
     import json as _json
 
     from swarm.core import remotes as _remotes
@@ -762,7 +765,31 @@ def remotes_cmd(
         typer.echo(_json.dumps(result.as_dict(), indent=2, default=str))
         raise typer.Exit(code=0 if result.ok else 1)
 
-    typer.echo(f"Unknown action '{action}'. Use: list, get, set, health, operate", err=True)
+    if act == "team":
+        payload = _remotes.agent_team_public(config_path=config)
+        typer.echo(_json.dumps(payload, indent=2))
+        return
+
+    if act in ("place", "unplace"):
+        if not rid:
+            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo)", err=True)
+            raise typer.Exit(code=1)
+        try:
+            if act == "place":
+                members, path = _remotes.place_team_member(rid, config_path=config)
+            else:
+                members, path = _remotes.unplace_team_member(rid, config_path=config)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"Persisted agent_team.members={members} to {path}")
+        typer.echo(_json.dumps(_remotes.agent_team_public(config_path=path), indent=2))
+        return
+
+    typer.echo(
+        f"Unknown action '{action}'. Use: list, get, set, health, operate, team, place, unplace",
+        err=True,
+    )
     raise typer.Exit(code=1)
 
 

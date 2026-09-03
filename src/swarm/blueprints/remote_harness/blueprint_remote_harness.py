@@ -156,59 +156,60 @@ class RemoteHarnessBlueprint(BlueprintBase):
 
                 return Agent(name=name, instructions=instructions, tools=tools)
 
-        try:
-            hermes = _agent(
+        placed = set(
+            remotes_core.load_placed_members(
+                self.config if isinstance(getattr(self, "config", None), dict) else None
+            )
+        )
+        specialist_specs = {
+            "hermes": (
                 "HermesRemote",
                 "You operate the remote Hermes gateway via tools. Never pretend to be Hermes locally.",
-                shared,
-            )
-            omb = _agent(
+                "consult_hermes",
+                "Hand off to the Hermes remote operator (health/list/send).",
+            ),
+            "omb": (
                 "OmbRemote",
                 "You operate remote OpenMausBot via tools. Never clone an OMB seat locally.",
-                shared,
-            )
-            rakazo = _agent(
+                "consult_omb",
+                "Hand off to the OpenMausBot remote operator.",
+            ),
+            "rakazo": (
                 "RakazoRemote",
                 "You operate remote Rakazo via tools. Do not claim Grok-Bot chrome is live.",
-                shared,
-            )
+                "consult_rakazo",
+                "Hand off to the Rakazo remote operator.",
+            ),
+        }
+
+        try:
+            specialists: dict[str, Any] = {}
+            talk_names = []
+            for rid, (agent_name, instructions, tool_name, tool_desc) in specialist_specs.items():
+                if rid not in placed:
+                    continue
+                agent = _agent(agent_name, instructions, shared)
+                specialists[rid] = agent
+                talk_names.append(tool_name)
+            talk_hint = ", ".join(talk_names) if talk_names else "remote_* function tools"
             coordinator = _agent(
                 "RemoteCoordinator",
                 (
-                    "You are Open Swarm coordinating remote harnesses. "
-                    "Use consult_hermes, consult_omb, or consult_rakazo (agent-as-tool) "
-                    "or the remote_* function tools. Do not spin up concurrent local seats."
+                    "You are Open Swarm coordinating a Team of remote harnesses. "
+                    f"Use {talk_hint} (agent-as-tool) or the remote_* function tools. "
+                    "Only placed remotes can see/talk. Do not spin up concurrent local seats. "
+                    "This is not the /teams/ LLM-profile alias registry."
                 ),
                 list(shared),
             )
             coordinator.tools = list(coordinator.tools or [])
-            if hasattr(hermes, "as_tool"):
-                coordinator.tools.append(
-                    hermes.as_tool(
-                        tool_name="consult_hermes",
-                        tool_description="Hand off to the Hermes remote operator (health/list/send).",
+            for rid, agent in specialists.items():
+                _name, _instr, tool_name, tool_desc = specialist_specs[rid]
+                if hasattr(agent, "as_tool"):
+                    coordinator.tools.append(
+                        agent.as_tool(tool_name=tool_name, tool_description=tool_desc)
                     )
-                )
-            if hasattr(omb, "as_tool"):
-                coordinator.tools.append(
-                    omb.as_tool(
-                        tool_name="consult_omb",
-                        tool_description="Hand off to the OpenMausBot remote operator.",
-                    )
-                )
-            if hasattr(rakazo, "as_tool"):
-                coordinator.tools.append(
-                    rakazo.as_tool(
-                        tool_name="consult_rakazo",
-                        tool_description="Hand off to the Rakazo remote operator.",
-                    )
-                )
-            self._agents = {
-                "coordinator": coordinator,
-                "hermes": hermes,
-                "omb": omb,
-                "rakazo": rakazo,
-            }
+            self._agents = {"coordinator": coordinator, **specialists}
         except Exception as exc:
             logger.debug("remote_harness agent wiring skipped: %s", exc)
             self._agents = {}

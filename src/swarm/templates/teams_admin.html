@@ -8,9 +8,18 @@
   <div class="ta-head">
     <div>
       <h1 class="h3">Teams Admin</h1>
-      <div class="os-meta">Register teams as OpenAI-compatible models &middot; callable at <code>/v1/chat/completions</code></div>
+      <div class="os-meta">LLM-profile aliases (prefer <strong>Profiles</strong>) &middot; callable at <code>/v1/chat/completions</code></div>
     </div>
     <span class="os-chip"><strong>{{ teams|length }}</strong>&nbsp;team{{ teams|length|pluralize }}</span>
+  </div>
+
+  <div class="alert alert-info" role="note">
+    <strong>Profiles, not a Team.</strong>
+    This page registers LLM-profile aliases (model ids over <code>llm_profile</code>).
+    A Team is API, CLI, and remote agents that see and talk via openai-agents
+    handoff / as_tool — place Hermes / OMB / Rakazo with
+    <code>swarm-cli remotes place</code> or <code>PATCH /v1/agent-team/</code>.
+    URLs stay <code>/teams/</code> and <code>/v1/teams/</code> (name collision).
   </div>
 
   <h2 class="visually-hidden">Primary actions</h2>

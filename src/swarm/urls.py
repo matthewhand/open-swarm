@@ -61,6 +61,7 @@ from swarm.views.settings_views import (
     settings_dashboard,
 )
 from swarm.views.remotes_api import (
+    AgentTeamView,
     RemoteDetailView,
     RemoteHealthView,
     RemoteOperateView,
@@ -164,6 +165,9 @@ urlpatterns = [
     path("v1/remotes/<str:remote_id>/health/", RemoteHealthView.as_view(), name="remotes-health"),
     path("v1/remotes/<str:remote_id>/operate", RemoteOperateView.as_view(), name="remotes-operate-no-slash"),
     path("v1/remotes/<str:remote_id>/operate/", RemoteOperateView.as_view(), name="remotes-operate"),
+    # Handoff Team (API/CLI/remote members) — not /v1/teams/ Profiles aliases.
+    path("v1/agent-team", AgentTeamView.as_view(), name="agent-team-no-slash"),
+    path("v1/agent-team/", AgentTeamView.as_view(), name="agent-team"),
     # JSON Blueprint Library API (REST counterpart to /blueprint-library/)
     path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
     path("v1/library/", LibraryAPIView.as_view(), name="library-api"),

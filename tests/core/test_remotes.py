@@ -61,8 +61,42 @@ def test_team_members_are_handoff_not_profile_aliases():
     ids = {m["id"] for m in members}
     assert ids == {"hermes", "omb", "rakazo"}
     assert all(m["via"] == "as_tool" for m in members)
+    assert all(m["placed"] is True for m in members)
     assert "DynamicTeam" not in remotes_core.TEAM_VOCABULARY["team"]
     assert "/teams/" in remotes_core.TEAM_VOCABULARY["not_teams_page"]
+
+
+def test_placed_members_missing_key_means_all():
+    assert remotes_core.load_placed_members({"llm": {}}) == ["hermes", "omb", "rakazo"]
+
+
+def test_placed_members_empty_list_is_empty_team():
+    cfg = {"llm": {}, "agent_team": {"members": []}}
+    assert remotes_core.load_placed_members(cfg) == []
+    members = remotes_core.list_team_members(cfg)
+    assert all(m["placed"] is False for m in members)
+    pub = remotes_core.agent_team_public(cfg)
+    assert pub["object"] == "agent_team"
+    assert pub["members"] == []
+    assert "Profiles" in pub["not"]
+
+
+def test_place_unplace_persist(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
+    monkeypatch.delenv("HERMES_BASE_URL", raising=False)
+    members, path = remotes_core.unplace_team_member("rakazo", config_path=cfg)
+    assert path == cfg
+    assert members == ["hermes", "omb"]
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["agent_team"]["members"] == ["hermes", "omb"]
+    assert data["llm"]["default"]["model"] == "x"
+    members, _ = remotes_core.place_team_member("rakazo", config_path=cfg)
+    assert members == ["hermes", "omb", "rakazo"]
+    members, _ = remotes_core.persist_agent_team([], config_path=cfg)
+    assert members == []
+    with pytest.raises(remotes_core.RemoteError):
+        remotes_core.place_team_member("not-a-harness", config_path=cfg)
 
 
 def test_unknown_remote_raises():

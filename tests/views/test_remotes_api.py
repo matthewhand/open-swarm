@@ -98,3 +98,56 @@ class TestRemoteOperate:
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
         mock_op.assert_called_once()
+
+
+class TestAgentTeam:
+    @patch("swarm.views.remotes_api.remotes_core.agent_team_public")
+    def test_get(self, mock_pub, api_client):
+        mock_pub.return_value = {
+            "object": "agent_team",
+            "members": ["hermes", "omb", "rakazo"],
+            "team_members": [
+                {"id": "hermes", "placed": True, "talk": "consult_hermes"},
+            ],
+            "not": "/v1/teams/ LLM-profile aliases (Profiles)",
+        }
+        resp = api_client.get("/v1/agent-team/")
+        assert resp.status_code == 200
+        assert resp.json()["object"] == "agent_team"
+        assert "Profiles" in resp.json()["not"]
+
+    @patch("swarm.views.remotes_api.remotes_core.agent_team_public")
+    @patch("swarm.views.remotes_api.remotes_core.persist_agent_team")
+    def test_patch_members(self, mock_persist, mock_pub, api_client):
+        mock_persist.return_value = (["hermes"], "/tmp/swarm_config.json")
+        mock_pub.return_value = {
+            "object": "agent_team",
+            "members": ["hermes"],
+            "team_members": [
+                {"id": "hermes", "placed": True},
+                {"id": "omb", "placed": False},
+                {"id": "rakazo", "placed": False},
+            ],
+        }
+        resp = api_client.patch(
+            "/v1/agent-team/",
+            {"members": ["hermes"]},
+            format="json",
+        )
+        assert resp.status_code == 200
+        mock_persist.assert_called_once()
+        assert resp.json()["persisted_to"] == "/tmp/swarm_config.json"
+        assert resp.json()["members"] == ["hermes"]
+
+    @patch("swarm.views.remotes_api.remotes_core.agent_team_public")
+    @patch("swarm.views.remotes_api.remotes_core.unplace_team_member")
+    def test_patch_unplace(self, mock_unplace, mock_pub, api_client):
+        mock_unplace.return_value = (["hermes", "omb"], "/tmp/swarm_config.json")
+        mock_pub.return_value = {"object": "agent_team", "members": ["hermes", "omb"]}
+        resp = api_client.patch("/v1/agent-team/", {"unplace": "rakazo"}, format="json")
+        assert resp.status_code == 200
+        mock_unplace.assert_called_once()
+
+    def test_patch_empty(self, api_client):
+        resp = api_client.patch("/v1/agent-team/", {}, format="json")
+        assert resp.status_code == 400
