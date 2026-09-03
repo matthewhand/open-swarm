@@ -222,13 +222,11 @@
       link.setAttribute("aria-label", name);
       if (role !== "default") {
         link.setAttribute("data-role", role);
-        link.className += " os-agent-role-" + role;
       }
 
       var dot = document.createElement("span");
       dot.className = "os-agent-dot";
       dot.setAttribute("data-mark", markIndex(agent.id));
-      if (role !== "default") dot.setAttribute("data-role", role);
       dot.setAttribute("aria-hidden", "true");
 
       var text = document.createElement("span");

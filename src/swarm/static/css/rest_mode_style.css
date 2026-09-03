@@ -624,18 +624,7 @@ html[data-os-theme="light"] .os-agent-sidebar {
   border-radius: 999px;
   padding: 0.05rem 0.4rem;
 }
-.os-agent-dot[data-role="support"] { background: #3d8f8a; }
-.os-agent-dot[data-role="gate"] { background: #c9a227; }
-.os-agent-dot[data-role="skeptic"] { background: #8a5a9b; }
-.os-agent-dot[data-role="chief_of_staff"] { background: #4f8ec9; }
-.os-agent-item[data-role="support"],
-.os-agent-item.os-agent-role-support { box-shadow: inset 2px 0 0 #3d8f8a; }
-.os-agent-item[data-role="gate"],
-.os-agent-item.os-agent-role-gate { box-shadow: inset 2px 0 0 #c9a227; }
-.os-agent-item[data-role="skeptic"],
-.os-agent-item.os-agent-role-skeptic { box-shadow: inset 2px 0 0 #8a5a9b; }
-.os-agent-item[data-role="chief_of_staff"],
-.os-agent-item.os-agent-role-chief_of_staff { box-shadow: inset 2px 0 0 #4f8ec9; }
+/* REQ-67: role colour lives on .os-agent-role-badge only — no row fill/border. */
 .os-agent-item[data-kind="team"] { box-shadow: inset 2px 0 0 #6b7c8a; }
 .os-agent-item--nested { margin-left: 0.85rem; }
 .os-agent-role-badge {

@@ -348,18 +348,16 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     const role = agentRole(agent)
     const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
-    const cos = isChiefOfStaff(role)
     const badge = roleBadgeLabel(role)
     const dataRole = role !== 'default' ? role : undefined
-    const className = `os-agent-row ${roleCssClass(role)} ${active ? 'os-agent-row--active' : ''} ${
-      role !== 'default' ? `os-agent-row--${role}` : ''
-    } ${cos ? 'os-agent-row--cos' : ''} ${dragging ? 'os-agent-row--dragging' : ''}`
+    const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+      dragging ? 'os-agent-row--dragging' : ''
+    }`
     const body = (
       <>
         <span
           className="os-agent-dot mt-1.5"
           data-mark={String(agentMarkIndex(agent.id))}
-          data-role={dataRole}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
@@ -406,7 +404,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     }
     return (
       <div
-        className={`os-agent-row-wrap ${roleCssClass(role)}`}
+        className="os-agent-row-wrap"
         data-role={role}
       >
         <Link
