@@ -182,6 +182,8 @@ html[data-theme="light"] #root {
   flex-direction: row;
   align-items: center;
   flex: 0 0 auto;
+  flex-shrink: 0;
+  align-self: flex-start;
   margin-top: 0.2rem;
   min-height: 1.15rem;
 }
