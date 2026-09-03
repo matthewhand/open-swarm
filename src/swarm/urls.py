@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.http import FileResponse, HttpResponse
 from django.urls import path, re_path
 from django.views.generic import RedirectView
@@ -65,6 +66,11 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
+from swarm.views.herdr_api import (
+    HerdrAgentDetailAPIView,
+    HerdrAgentsAPIView,
+    HerdrDiscoverAPIView,
+)
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.responses_views import (
     ResponsesCancelView,
@@ -105,6 +111,7 @@ from swarm.views.webui import WebUIView
 # Prefer the AllowAny variant if it's present in URL mappings elsewhere; for tests,
 # wire the open variant to avoid auth blocking. If needed, switch to ProtectedModelsView.
 urlpatterns = [
+    path("admin/", admin.site.urls),
     path("", index, name="index"),  # Root path for web UI
     # First-class SPA Chat (composer + Connected). Agent Router is /agents.
     path("chat", spa_chat, name="spa_chat"),
@@ -211,6 +218,13 @@ urlpatterns = [
     path("v1/agents/<str:agent_id>/status/", get_agent_status_view, name="get_agent_status"),
     path("v1/agents/<str:agent_id>/delegate/", delegate_agent_view, name="delegate_agent"),
     path("v1/agents/<str:agent_id>/context/", agent_context_view, name="agent_context"),
+    # Herdr members (REQ-21): name + optional --remote. Empty remote = localhost.
+    path("v1/herdr-agents", HerdrAgentsAPIView.as_view(), name="herdr-agents-api-no-slash"),
+    path("v1/herdr-agents/", HerdrAgentsAPIView.as_view(), name="herdr-agents-api"),
+    path("v1/herdr-agents/discover", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover-no-slash"),
+    path("v1/herdr-agents/discover/", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover"),
+    path("v1/herdr-agents/<str:agent_id>", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail-no-slash"),
+    path("v1/herdr-agents/<str:agent_id>/", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),

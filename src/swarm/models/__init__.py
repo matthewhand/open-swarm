@@ -44,6 +44,7 @@ from swarm.models.core_models import (  # noqa: E402
     MarketplaceIndex,
     MCPConfig,
 )
+from swarm.models.herdr import HerdrAgent  # noqa: E402
 
 __all__ = [
     "ChatConversation",
@@ -51,5 +52,6 @@ __all__ = [
     "Blueprint",
     "MCPConfig",
     "MarketplaceIndex",
+    "HerdrAgent",
 ]
 

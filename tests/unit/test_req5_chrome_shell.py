@@ -54,6 +54,7 @@ def test_agent_sidebar_js_hides_and_persists():
     assert "/v1/blueprints/" in js
     assert "team_rosters.json" in js
     assert "/v1/teams/" not in js
+    assert "/v1/herdr-agents/" in js
     assert "no hide-all" in js
 
 

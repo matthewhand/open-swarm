@@ -163,7 +163,8 @@ function showToast(message, type = 'info') {
 }
 
 function csrfToken() {
-  return document.querySelector('.chat-retention-card [name=csrfmiddlewaretoken]')?.value
+  return document.querySelector('#herdr-add-form [name=csrfmiddlewaretoken]')?.value
+    || document.querySelector('.chat-retention-card [name=csrfmiddlewaretoken]')?.value
     || document.querySelector('[name=csrfmiddlewaretoken]')?.value
     || '';
 }
@@ -217,6 +218,200 @@ function chatRestoreOne(agentId) {
   postChatRetention('restore', agentId);
 }
 
+function getCsrfToken() {
+  const fromForm = csrfToken();
+  if (fromForm) return fromForm;
+  try {
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("csrftoken="));
+    return match ? decodeURIComponent(match.split("=").slice(1).join("=")) : "";
+  } catch {
+    return "";
+  }
+}
+
+function setHerdrStatus(message, kind) {
+  const el = document.getElementById("herdr-agent-status");
+  if (!el) return;
+  el.textContent = message || "";
+  el.className = kind ? `os-meta mb-2 text-${kind}` : "os-meta mb-2";
+}
+
+function renderHerdrRows(agents) {
+  const tbody = document.getElementById("herdr-agent-rows");
+  if (!tbody) return;
+  tbody.replaceChildren();
+  if (!agents.length) {
+    const tr = document.createElement("tr");
+    tr.className = "herdr-empty-row";
+    const td = document.createElement("td");
+    td.colSpan = 3;
+    td.textContent = "No Herdr agents yet. Add one to target localhost or a remote host.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  for (const agent of agents) {
+    const tr = document.createElement("tr");
+    const nameTd = document.createElement("td");
+    nameTd.textContent = agent.name || "";
+    const remoteTd = document.createElement("td");
+    remoteTd.textContent = agent.remote ? agent.remote : "localhost";
+    const actionTd = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-sm btn-outline-danger";
+    btn.dataset.action = "remove-herdr-agent";
+    btn.dataset.herdrId = String(agent.id);
+    btn.dataset.herdrName = agent.name || "";
+    btn.textContent = "Remove";
+    actionTd.appendChild(btn);
+    tr.appendChild(nameTd);
+    tr.appendChild(remoteTd);
+    tr.appendChild(actionTd);
+    tbody.appendChild(tr);
+  }
+}
+
+async function refreshHerdrAgents() {
+  const response = await fetch("/v1/herdr-agents/", {
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    throw new Error(`List failed (${response.status})`);
+  }
+  const body = await response.json();
+  renderHerdrRows(Array.isArray(body.data) ? body.data : []);
+}
+
+async function addHerdrMember(name, remote) {
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRFToken"] = csrf;
+  const response = await fetch("/v1/herdr-agents/", {
+    method: "POST",
+    headers,
+    credentials: "same-origin",
+    body: JSON.stringify({ name, remote: remote || "" }),
+  });
+  return response;
+}
+
+async function discoverHerdrAgents() {
+  setHerdrStatus("Discovering live Herdr members…");
+  const remote = (document.getElementById("herdr-remote")?.value || "").trim();
+  const qs = remote ? `?remote=${encodeURIComponent(remote)}` : "";
+  const response = await fetch(`/v1/herdr-agents/discover/${qs}`, {
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  const wrap = document.getElementById("herdr-discover-wrap");
+  const list = document.getElementById("herdr-discover-list");
+  if (!wrap || !list) return;
+  if (!response.ok) {
+    setHerdrStatus(`Discover failed (${response.status}).`, "danger");
+    return;
+  }
+  const body = await response.json();
+  const items = Array.isArray(body.data) ? body.data : [];
+  list.replaceChildren();
+  wrap.hidden = false;
+  if (!items.length) {
+    const empty = document.createElement("li");
+    empty.textContent = body.herdr_available === false
+      ? "herdr CLI not available here (cloud CI mocks it). On .30, live list comes from localhost sockets."
+      : "No live Herdr agents or workspaces.";
+    list.appendChild(empty);
+    setHerdrStatus(empty.textContent);
+    return;
+  }
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = "d-flex align-items-center gap-2 mb-1";
+    const label = document.createElement("span");
+    const remoteLabel = item.remote ? item.remote : "localhost";
+    label.textContent = `${item.name} · ${item.source || "agent"} · ${remoteLabel}`;
+    li.appendChild(label);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-sm btn-outline-primary";
+    btn.textContent = item.added ? "Added" : "Add as member";
+    btn.disabled = Boolean(item.added);
+    btn.dataset.herdrName = item.name || "";
+    btn.dataset.herdrRemote = item.remote || "";
+    btn.addEventListener("click", async () => {
+      const res = await addHerdrMember(item.name, item.remote || "");
+      if (res.status === 409 || res.ok) {
+        btn.textContent = "Added";
+        btn.disabled = true;
+        setHerdrStatus(`Added ${item.name}.`, "success");
+        await refreshHerdrAgents();
+        return;
+      }
+      setHerdrStatus(`Add failed (${res.status}).`, "danger");
+    });
+    li.appendChild(btn);
+    list.appendChild(li);
+  }
+  setHerdrStatus(`Found ${items.length} live Herdr member(s).`);
+}
+
+async function addHerdrAgent() {
+  const nameInput = document.getElementById("herdr-name");
+  const remoteInput = document.getElementById("herdr-remote");
+  const name = (nameInput?.value || "").trim();
+  const remote = (remoteInput?.value || "").trim();
+  if (!name) {
+    setHerdrStatus("Name is required.", "danger");
+    return;
+  }
+  const response = await addHerdrMember(name, remote);
+  if (response.status === 409) {
+    setHerdrStatus(`Herdr agent "${name}" already exists.`, "danger");
+    return;
+  }
+  if (!response.ok) {
+    let detail = `Add failed (${response.status})`;
+    try {
+      const err = await response.json();
+      detail = err.error || err.name?.[0] || detail;
+    } catch {
+      // keep status text
+    }
+    setHerdrStatus(detail, "danger");
+    return;
+  }
+  if (nameInput) nameInput.value = "";
+  if (remoteInput) remoteInput.value = "";
+  setHerdrStatus(`Added ${name}.`, "success");
+  await refreshHerdrAgents();
+}
+
+async function removeHerdrAgent(button) {
+  const id = button?.dataset?.herdrId;
+  const name = button?.dataset?.herdrName || id;
+  if (!id) return;
+  const headers = { Accept: "application/json" };
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRFToken"] = csrf;
+  const response = await fetch(`/v1/herdr-agents/${encodeURIComponent(id)}/`, {
+    method: "DELETE",
+    headers,
+    credentials: "same-origin",
+  });
+  if (!response.ok && response.status !== 204) {
+    setHerdrStatus(`Remove failed (${response.status}).`, "danger");
+    return;
+  }
+  setHerdrStatus(`Removed ${name}.`, "success");
+  await refreshHerdrAgents();
+}
+
 const SETTINGS_DASHBOARD_ACTIONS = {
   'export-settings': exportSettings,
   'refresh-settings': refreshSettings,
@@ -224,6 +419,8 @@ const SETTINGS_DASHBOARD_ACTIONS = {
   'copy-object-content': copyObjectContent,
   'chat-archive-all': chatArchiveAll,
   'chat-empty-trash': chatEmptyTrash,
+  'add-herdr-agent': addHerdrAgent,
+  'discover-herdr-agents': discoverHerdrAgents,
 };
 
 document.querySelector('.settings-page')?.addEventListener('click', (event) => {
@@ -238,8 +435,22 @@ document.querySelector('.settings-page')?.addEventListener('click', (event) => {
     chatRestoreOne(btn.getAttribute('data-agent-id') || '');
     return;
   }
+  if (action === 'remove-herdr-agent') {
+    event.preventDefault();
+    removeHerdrAgent(btn);
+    return;
+  }
+  if (action === 'add-herdr-agent' && btn.type === 'submit') {
+    // Form submit handler owns this; avoid double-fire from the click delegate.
+    return;
+  }
   const handler = SETTINGS_DASHBOARD_ACTIONS[action];
   if (typeof handler === 'function') handler();
+});
+
+document.getElementById('herdr-add-form')?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  addHerdrAgent();
 });
 
 document.addEventListener('DOMContentLoaded', function() {

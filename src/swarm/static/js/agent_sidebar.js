@@ -108,7 +108,7 @@
 
   function matchesFilter(agent, query) {
     if (!query) return true;
-    var hay = (agentLabel(agent) + " " + (agent.id || "") + " " + (agent.description || "")).toLowerCase();
+    var hay = (agentLabel(agent) + " " + (agent.id || "") + " " + (agent.description || "") + " " + (agent.kind || "") + " " + (agent.remote || "")).toLowerCase();
     return hay.indexOf(query) !== -1;
   }
 
@@ -191,10 +191,17 @@
       if (backdrop) backdrop.hidden = true;
     }
 
+    function agentHref(agent) {
+      if (agent.kind === "herdr") {
+        return "/teams/#herdr-members";
+      }
+      return "/chat?blueprint=" + encodeURIComponent(agent.id);
+    }
+
     function makeLink(agent, hidden) {
       var link = document.createElement("a");
       var role = agentRole(agent);
-      link.href = "/chat?blueprint=" + encodeURIComponent(agent.id);
+      link.href = agentHref(agent);
       link.className = "os-agent-item" + (role ? " os-agent-item--" + role : "");
       var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
@@ -224,7 +231,14 @@
         titleRow.appendChild(pill);
       }
       text.appendChild(titleRow);
-      if (agent.description) {
+      if (agent.kind === "herdr") {
+        var badge = document.createElement("span");
+        badge.className = "os-agent-item__desc";
+        badge.textContent = agent.remote
+          ? "Herdr · " + agent.remote
+          : "Herdr · localhost";
+        text.appendChild(badge);
+      } else if (agent.description) {
         var desc = document.createElement("span");
         desc.className = "os-agent-item__desc";
         desc.textContent = agent.description;
@@ -419,13 +433,31 @@
     if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
     if (backdrop) backdrop.addEventListener("click", closeDrawer);
 
-    fetch("/v1/blueprints/")
-      .then(function (res) {
+    Promise.all([
+      fetch("/v1/blueprints/").then(function (res) {
         if (!res.ok) throw new Error("status " + res.status);
         return res.json();
-      })
-      .then(function (payload) {
-        agents = Array.isArray(payload && payload.data) ? payload.data : [];
+      }),
+      fetch("/v1/herdr-agents/").then(function (res) {
+        if (!res.ok) return { data: [] };
+        return res.json();
+      }).catch(function () {
+        return { data: [] };
+      }),
+    ])
+      .then(function (results) {
+        var blueprints = Array.isArray(results[0] && results[0].data) ? results[0].data : [];
+        var herdr = Array.isArray(results[1] && results[1].data) ? results[1].data : [];
+        var herdrAgents = herdr.map(function (row) {
+          return {
+            id: "herdr:" + (row.name || row.id),
+            name: row.name,
+            kind: "herdr",
+            remote: row.remote || "",
+            description: row.remote ? "Herdr · " + row.remote : "Herdr · localhost",
+          };
+        });
+        agents = blueprints.concat(herdrAgents);
         hiddenIds = seedHidden(agents);
         if (!agents.length && !teams.length) statusEl.textContent = "No agents yet.";
         loadTeams(render);
