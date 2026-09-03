@@ -259,7 +259,7 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    expect(await screen.findByRole('heading', { name: 'just_launched_team' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Agent name')).toHaveValue('just_launched_team')
     expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
   })
 
@@ -281,7 +281,7 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    expect(await screen.findByRole('heading', { name: 'Codey' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Agent name')).toHaveValue('Codey')
     expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
   })
 })
@@ -324,8 +324,9 @@ describe('ChatPage Send button honesty while streaming', () => {
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
 
-    const loaders = screen.getAllByRole('status', { name: 'Loading' })
+    const loaders = screen.getAllByRole('status', { name: /is working$|^Working$/ })
     expect(loaders.length).toBeGreaterThan(0)
+    expect(loaders[0]).toHaveAttribute('aria-label', expect.stringMatching(/is working$|^Working$/))
   })
 })
 
@@ -419,7 +420,8 @@ describe('ChatPage markdown bubbles', () => {
     const streaming = document.querySelector('[data-streaming="true"]')
     expect(streaming?.className).toContain('os-chat-bubble--streaming')
     expect(streaming?.className).not.toContain('os-chat-bubble--complete')
-    expect(screen.getAllByRole('status', { name: 'Loading' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('status', { name: /is working$|^Working$/ }).length).toBeGreaterThan(0)
+    expect(screen.getByTitle(/is working$|^Working$/)).toBeInTheDocument()
 
     await act(async () => {
       ws.onmessage?.(
@@ -432,7 +434,7 @@ describe('ChatPage markdown bubbles', () => {
       'os-chat-bubble--streaming',
     )
     expect(screen.getByText('partial')).toBeInTheDocument()
-    expect(screen.getAllByRole('status', { name: 'Loading' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('status', { name: /is working$|^Working$/ }).length).toBeGreaterThan(0)
 
     await act(async () => {
       ws.onmessage?.(
@@ -635,7 +637,28 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.getByRole('menuitem', { name: 'Teams' })).toHaveAttribute('href', '/teams/launch/')
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings/')
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
+    const header = document.querySelector('.os-chat-header')
+    const footer = document.querySelector('.os-chat-footer')
+    expect(header?.querySelector('[aria-label="Tokens in context"]')).toBeTruthy()
+    expect(header?.textContent).toMatch(/tok/)
+    expect(footer?.querySelector('[aria-label="Tokens in context"]')).toBeFalsy()
+  })
+
+  it('renames the header agent and persists the override', async () => {
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const title = await screen.findByLabelText('Agent name')
+    expect(title).toHaveValue('codey')
+    fireEvent.change(title, { target: { value: 'Coder' } })
+    fireEvent.blur(title)
+    expect(title).toHaveValue('Coder')
+    expect(JSON.parse(localStorage.getItem('swarm_agent_names') || '{}').codey).toBe('Coder')
+
+    fireEvent.change(title, { target: { value: 'temp' } })
+    fireEvent.keyDown(title, { key: 'Escape' })
+    expect(title).toHaveValue('Coder')
   })
 
   it('opens a unique websocket thread per agent', async () => {

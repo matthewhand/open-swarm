@@ -76,7 +76,7 @@ test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ pa
   await expect(page.getByRole('link', { name: /^Home$/ })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /^Chat$/ })).toHaveCount(0)
 
-  await expect(page.getByRole('heading', { name: 'Support' })).toBeVisible()
+  await expect(page.getByLabel('Agent name')).toHaveValue('Support')
   await expect(page.getByRole('textbox', { name: 'Chat message' })).toHaveAttribute(
     'placeholder',
     'Message …',

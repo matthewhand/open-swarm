@@ -266,6 +266,12 @@ html[data-theme="light"] #root {
 .os-agent-row--active.os-agent-row--cos {
   background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
 }
+.os-agent-row--hidden {
+  background-color: transparent;
+  box-shadow: none;
+  outline: 1px dashed color-mix(in srgb, var(--color-base-content) 38%, transparent);
+  outline-offset: -1px;
+}
 
 .os-agent-role-stack {
   display: flex;
@@ -370,13 +376,49 @@ html[data-theme="light"] #root {
 }
 
 .os-chat-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
   min-height: 3rem;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
+}
+.os-chat-header__start {
+  justify-self: start;
+  min-width: 0;
+}
+.os-chat-header__center {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+}
+.os-chat-header__end {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.os-chat-title {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0.15rem 0.2rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: inherit;
+  text-overflow: ellipsis;
+}
+.os-chat-title:focus {
+  background: color-mix(in srgb, var(--color-base-300) 40%, transparent);
+  border-radius: 0.35rem;
 }
 
 .os-composer-wrap {

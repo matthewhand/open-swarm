@@ -3,6 +3,7 @@ import {
   CHAT_BUBBLE_COMPLETE,
   CHAT_BUBBLE_STREAMING,
   chatBubbleClassName,
+  workingLabel,
 } from '../chatBubble'
 
 describe('chatBubbleClassName', () => {
@@ -17,6 +18,12 @@ describe('chatBubbleClassName', () => {
     const complete = chatBubbleClassName('assistant', false)
     expect(complete.split(' ')).toContain(CHAT_BUBBLE_COMPLETE)
     expect(complete.split(' ')).not.toContain(CHAT_BUBBLE_STREAMING)
+  })
+
+  it('names typing-dot progress Working / {Agent} is working', () => {
+    expect(workingLabel(undefined)).toBe('Working')
+    expect(workingLabel('')).toBe('Working')
+    expect(workingLabel('Support')).toBe('Support is working')
   })
 
   it('keeps user chat-end bubbles fully rounded even if streaming is true', () => {

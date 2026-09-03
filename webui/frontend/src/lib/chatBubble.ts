@@ -5,6 +5,12 @@
 export const CHAT_BUBBLE_COMPLETE = 'os-chat-bubble--complete'
 export const CHAT_BUBBLE_STREAMING = 'os-chat-bubble--streaming'
 
+/** Hover / a11y name for in-bubble typing dots (not inter-bot hops). */
+export function workingLabel(agentName?: string | null): string {
+  const name = (agentName || '').trim()
+  return name ? `${name} is working` : 'Working'
+}
+
 export function chatBubbleClassName(
   role: 'user' | 'assistant',
   streaming: boolean,

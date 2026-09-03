@@ -3,6 +3,7 @@ import { render, screen, waitFor, within, fireEvent } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
+import { AGENT_NAMES_STORAGE_KEY } from '../../lib/agentNames'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
@@ -182,6 +183,64 @@ describe('AgentSidebar Grok rail', () => {
     expect(support.className).toContain('os-agent-row--support')
     expect(support.parentElement).toHaveAttribute('data-role', 'support')
     expect(within(list).queryByText('Talk about the other agents.')).not.toBeInTheDocument()
+  })
+
+  it('caps the Hidden dialog to the viewport and scrolls a long list', async () => {
+    const crowd = Array.from({ length: 45 }, (_, index) => ({
+      id: `bot-${index}`,
+      object: 'blueprint' as const,
+      name: `Bot ${index}`,
+      description: 'purpose must not show',
+      abbreviation: null,
+      required_mcp_servers: [],
+      tags: [],
+      installed: true,
+      compiled: true,
+    }))
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify(crowd.map((agent) => agent.id)))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: crowd }),
+      } as Response),
+    )
+    renderSidebar()
+    fireEvent.click(await screen.findByRole('button', { name: /45 hidden/i }))
+    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    expect(dialog.className).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/)
+    const list = dialog.querySelector('ul')
+    expect(list?.className).toMatch(/overflow-y-auto/)
+    expect(list?.className).toMatch(/min-h-0/)
+    expect(within(dialog).getAllByRole('button', { name: /Unhide/i })).toHaveLength(45)
+  })
+
+  it('shows a selected hidden agent in the main list with hidden border chrome', async () => {
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify(['codey']))
+    const first = renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    expect(codey).toHaveAttribute('data-hidden', 'selected')
+    expect(codey.className).toContain('os-agent-row--hidden')
+    expect(screen.getByRole('button', { name: /1 hidden/i })).toBeInTheDocument()
+    first.unmount()
+
+    renderSidebar('/chat?blueprint=stewie')
+    const nextList = await screen.findByRole('navigation', { name: 'Agent list' })
+    expect(await within(nextList).findByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+    expect(within(nextList).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /1 hidden/i }))
+    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    expect(within(dialog).getByText('Codey')).toBeInTheDocument()
+  })
+
+  it('uses a persisted name override on the rail', async () => {
+    localStorage.setItem(AGENT_NAMES_STORAGE_KEY, JSON.stringify({ codey: 'Coder' }))
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    expect(await within(list).findByRole('link', { name: /Coder/ })).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /^Codey$/ })).not.toBeInTheDocument()
   })
 
   it('exposes Plugins and an editable hostname after the conversation list', async () => {

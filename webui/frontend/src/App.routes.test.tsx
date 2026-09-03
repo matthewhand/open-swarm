@@ -86,6 +86,6 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     })
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
     expect(screen.getByLabelText('Connection status')).toHaveTextContent('')
-    expect(screen.getByRole('heading', { name: 'codey' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Agent name')).toHaveValue('codey')
   })
 })

@@ -33,6 +33,7 @@ import {
   unpinAgent,
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
+import { AGENT_RENAME_EVENT } from '../lib/agentNames'
 import {
   agentLabel,
   defaultBlueprintId,
@@ -70,7 +71,14 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [dropActive, setDropActive] = useState(false)
+  const [nameTick, setNameTick] = useState(0)
   const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const onRename = () => setNameTick((n) => n + 1)
+    window.addEventListener(AGENT_RENAME_EVENT, onRename)
+    return () => window.removeEventListener(AGENT_RENAME_EVENT, onRename)
+  }, [])
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -80,8 +88,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const agents = supportFirstAgents(blueprintsQuery.data?.data ?? [])
 
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !hiddenIds.includes(agent.id)),
-    [agents, hiddenIds],
+    () =>
+      agents.filter(
+        (agent) => !hiddenIds.includes(agent.id) || agent.id === selectedId,
+      ),
+    [agents, hiddenIds, selectedId],
   )
   const threadQueries = useQueries({
     queries: visibleAgents.map((agent) => ({
@@ -96,7 +107,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
       map.set(agent.id, lastThreadSnippet(threadQueries[index]?.data))
     })
     return map
-  }, [threadQueries, visibleAgents])
+  }, [nameTick, threadQueries, visibleAgents])
   const hiddenAgents = useMemo(
     () => agents.filter((agent) => hiddenIds.includes(agent.id)),
     [agents, hiddenIds],
@@ -182,13 +193,15 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     const role = agentRole(agent)
     const badges = roleBadges(agent)
     const lastLine = lastLines.get(agent.id) || ''
+    const stillHidden = hiddenIds.includes(agent.id)
     return (
       <div className={`os-agent-row-wrap ${roleCssClass(role)}`} data-role={role}>
         <Link
           to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
           className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
             role !== 'default' ? `os-agent-row--${role}` : ''
-          }`}
+          } ${stillHidden ? 'os-agent-row--hidden' : ''}`}
+          data-hidden={stillHidden ? 'selected' : undefined}
           aria-current={active ? 'page' : undefined}
           draggable={!hidden}
           onDragStart={(event) => {
@@ -392,9 +405,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             role="dialog"
             aria-modal="true"
             aria-labelledby="os-hidden-agents-title"
-            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+            className="os-hidden-dialog fixed left-1/2 top-1/2 z-50 flex w-[20rem] max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
           >
-            <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
               <h2 id="os-hidden-agents-title" className="text-sm font-semibold">
                 Hidden agents
               </h2>
@@ -410,7 +423,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             {hiddenAgents.length === 0 ? (
               <p className="text-sm text-base-content/60">No hidden agents.</p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="os-hidden-dialog__list min-h-0 flex-1 space-y-1 overflow-y-auto">
                 {hiddenAgents.map((agent) => (
                   <li key={agent.id} className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>

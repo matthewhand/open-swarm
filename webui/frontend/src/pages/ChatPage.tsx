@@ -21,7 +21,12 @@ import {
   fetchAgentThread,
   type AgentThread,
 } from '../lib/agentChat'
-import { chatBubbleClassName } from '../lib/chatBubble'
+import { chatBubbleClassName, workingLabel } from '../lib/chatBubble'
+import {
+  AGENT_RENAME_EVENT,
+  catalogAgentName,
+  saveAgentNameOverride,
+} from '../lib/agentNames'
 import {
   groupChatItems,
   hopFromAssistantName,
@@ -84,7 +89,12 @@ export {
   formatElapsed,
   formatTokenCount,
 } from '../lib/chatMeter'
-export { chatBubbleClassName, CHAT_BUBBLE_COMPLETE, CHAT_BUBBLE_STREAMING } from '../lib/chatBubble'
+export {
+  CHAT_BUBBLE_COMPLETE,
+  CHAT_BUBBLE_STREAMING,
+  chatBubbleClassName,
+  workingLabel,
+} from '../lib/chatBubble'
 
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -139,12 +149,34 @@ const ChatPage = () => {
   })
   const blueprints = supportFirstAgents(blueprintsQuery.data?.data ?? [])
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
-  const selectedAgentName = selectedAgent
-    ? agentLabel(selectedAgent)
+  const catalogName = selectedAgent
+    ? catalogAgentName(selectedAgent)
     : selectedBlueprint === SUPPORT_AGENT_ID
       ? 'Support'
       : selectedBlueprint
+  const [nameTick, setNameTick] = useState(0)
+  const selectedAgentName = useMemo(() => {
+    return selectedAgent ? agentLabel(selectedAgent) : agentLabel({ id: selectedBlueprint, name: catalogName })
+  }, [catalogName, nameTick, selectedAgent, selectedBlueprint])
+  const [nameDraft, setNameDraft] = useState(selectedAgentName)
+  const skipNameCommitRef = useRef(false)
   const signInHref = chatLoginHref(searchParams)
+
+  useEffect(() => {
+    setNameDraft(selectedAgentName)
+  }, [selectedAgentName])
+
+  useEffect(() => {
+    const onRename = () => setNameTick((n) => n + 1)
+    window.addEventListener(AGENT_RENAME_EVENT, onRename)
+    return () => window.removeEventListener(AGENT_RENAME_EVENT, onRename)
+  }, [])
+
+  const commitAgentName = useCallback(() => {
+    const next = saveAgentNameOverride(selectedBlueprint, nameDraft, catalogName)
+    setNameDraft(next)
+    setNameTick((n) => n + 1)
+  }, [catalogName, nameDraft, selectedBlueprint])
 
   useEffect(() => {
     if (!searchParams.get('blueprint')) {
@@ -514,8 +546,54 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
-        <div className="flex items-center gap-1">
+        <h1 className="os-chat-header__start min-w-0">
+          <label className="sr-only" htmlFor="os-agent-name">
+            Agent name
+          </label>
+          <input
+            id="os-agent-name"
+            className="os-chat-title"
+            value={nameDraft}
+            spellCheck={false}
+            onChange={(event) => setNameDraft(event.target.value)}
+            onBlur={() => {
+              if (skipNameCommitRef.current) {
+                skipNameCommitRef.current = false
+                return
+              }
+              commitAgentName()
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                event.currentTarget.blur()
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                skipNameCommitRef.current = true
+                setNameDraft(selectedAgentName)
+                event.currentTarget.blur()
+              }
+            }}
+          />
+        </h1>
+        <div className="os-chat-header__center">
+          <div
+            className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
+            role="meter"
+            aria-label="Tokens in context"
+            aria-valuemin={0}
+            aria-valuemax={CONTEXT_METER_TOKENS}
+            aria-valuenow={tokenCount}
+          >
+            <div
+              className="h-full rounded-full bg-base-content/45"
+              style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+            />
+          </div>
+          <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
+        </div>
+        <div className="os-chat-header__end">
           <ThemeToggle />
         </div>
       </header>
@@ -565,7 +643,11 @@ const ChatPage = () => {
                   className={chatBubbleClassName(message.role, message.streaming)}
                   data-streaming={message.streaming ? 'true' : 'false'}
                 >
-                  <ChatBubbleBody text={message.text} streaming={message.streaming} />
+                  <ChatBubbleBody
+                    text={message.text}
+                    streaming={message.streaming}
+                    agentName={selectedAgentName}
+                  />
                 </div>
                 {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
                   <ChatMessageActions
@@ -649,27 +731,13 @@ const ChatPage = () => {
         </button>
       </form>
 
-      <footer className="os-chat-footer" aria-live="polite">
-        <div
-          className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
-          role="meter"
-          aria-label="Tokens in context"
-          aria-valuemin={0}
-          aria-valuemax={CONTEXT_METER_TOKENS}
-          aria-valuenow={tokenCount}
-        >
-          <div
-            className="h-full rounded-full bg-base-content/45"
-            style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
-          />
-        </div>
-        <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
-        {streamingMessage ? (
+      {streamingMessage ? (
+        <footer className="os-chat-footer" aria-live="polite">
           <span className="min-w-0 truncate">
             {selectedAgentName} · {streamElapsed ?? '0s'}
           </span>
-        ) : null}
-      </footer>
+        </footer>
+      ) : null}
     </div>
   )
 }
@@ -678,16 +746,19 @@ const ChatBubbleBody = memo(
   function ChatBubbleBody({
     text,
     streaming,
+    agentName,
   }: {
     text: string
     streaming: boolean
+    agentName: string
   }) {
+    const dots = streaming ? (
+      <span title={workingLabel(agentName)}>
+        <LoadingDots size="sm" aria-label={workingLabel(agentName)} />
+      </span>
+    ) : null
     if (text.length === 0) {
-      return streaming ? (
-        <LoadingDots size="sm" />
-      ) : (
-        <span className="opacity-60">(empty response)</span>
-      )
+      return streaming ? dots : <span className="opacity-60">(empty response)</span>
     }
     return (
       <>
@@ -696,11 +767,12 @@ const ChatBubbleBody = memo(
           className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
           dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
         />
-        {streaming ? <LoadingDots size="sm" /> : null}
+        {dots}
       </>
     )
   },
-  (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
+  (prev, next) =>
+    prev.text === next.text && prev.streaming === next.streaming && prev.agentName === next.agentName,
 )
 
 export default ChatPage

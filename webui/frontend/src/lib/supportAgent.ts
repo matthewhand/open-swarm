@@ -1,3 +1,4 @@
+import { displayAgentName } from './agentNames'
 import type { Blueprint } from './api'
 
 /** Default Support seat — first + highlighted in the conversation rail. */
@@ -46,5 +47,5 @@ export function defaultBlueprintId(fromUrl: string | null | undefined): string {
 }
 
 export function agentLabel(agent: { id: string; name?: string | null }): string {
-  return agent.name || agent.id
+  return displayAgentName(agent)
 }
