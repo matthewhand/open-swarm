@@ -192,6 +192,20 @@ describe('AgentSidebar Grok rail', () => {
     ])
   })
 
+  it('keeps CLI rail rows listed even if they were previously hidden', async () => {
+    localStorage.setItem(
+      HIDDEN_AGENTS_STORAGE_KEY,
+      JSON.stringify(['grok_agent', 'agy_agent', 'opencode_agent', 'pi_agent', 'codey']),
+    )
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await within(list).findByRole('link', { name: /grok_agent/ })
+    expect(within(list).getByRole('link', { name: /agy_agent/ })).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /opencode_agent/ })).toBeInTheDocument()
+    expect(within(list).getByRole('link', { name: /pi_agent/ })).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+  })
+
   it('seeds Hidden with gate and skeptic on first load; Support stays visible', async () => {
     renderSidebar()
 

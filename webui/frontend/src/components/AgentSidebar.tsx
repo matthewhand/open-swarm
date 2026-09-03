@@ -99,6 +99,11 @@ function toSidebarCli(row: CliRailAgent): SidebarAgent {
   }
 }
 
+/** Host CLI verify rows (grok_agent, agy_agent, …) stay on the rail. */
+function isCliRailAgent(agent: { id?: string; kind?: string }): boolean {
+  return agent.kind === 'cli'
+}
+
 function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
   return {
     id: `herdr:${row.name}`,
@@ -222,11 +227,17 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   }, [hiddenIds, blueprintsQuery.isPending, agents])
 
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !resolvedHiddenIds.includes(agent.id)),
+    () =>
+      agents.filter(
+        (agent) => isCliRailAgent(agent) || !resolvedHiddenIds.includes(agent.id),
+      ),
     [agents, resolvedHiddenIds],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => resolvedHiddenIds.includes(agent.id)),
+    () =>
+      agents.filter(
+        (agent) => !isCliRailAgent(agent) && resolvedHiddenIds.includes(agent.id),
+      ),
     [agents, resolvedHiddenIds],
   )
   const visibleTeams = useMemo(
@@ -312,6 +323,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
    */
   const hideFromRail = (id: string) => {
     if (!id) return
+    if (agents.some((agent) => agent.id === id && isCliRailAgent(agent))) return
     setHiddenIds((current) => hideAgentId(id, current ?? resolvedHiddenIds))
     setPins((current) => unpinAgent(id, current))
   }
