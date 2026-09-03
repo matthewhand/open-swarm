@@ -596,6 +596,41 @@ class TestBlueprintSelection:
                 }
 
     @pytest.mark.asyncio
+    async def test_blueprint_session_notice_is_bubbleless_status(self, consumer, monkeypatch):
+        """REQ-52: CLI session notice is a status line, not an assistant bubble."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        async def fake_run(messages, **kwargs):
+            yield {
+                "type": "cli_session_notice",
+                "content": "Started a new echo session.",
+                "resumed": False,
+            }
+            yield {"messages": [{"role": "assistant", "content": "ok"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+        instance._params = {}
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("cli_agent", "message-response-cli")
+
+                frames = [
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                ]
+                assert any("chat-status-line" in frame for frame in frames)
+                assert any("Started a new echo session." in frame for frame in frames)
+                assert "Restored" not in "".join(frames)
+                assert {"role": "status", "content": "Started a new echo session."} in consumer.messages
+                instance.set_params.assert_called()
+                passed = instance.set_params.call_args[0][0]
+                assert passed.get("agent") == "cli_agent"
+
+    @pytest.mark.asyncio
     async def test_blueprint_run_uses_compacted_context(self, consumer, monkeypatch):
         """REQ-37: blueprint.run sees the summary tree, not covered raw turns."""
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)

@@ -12,6 +12,25 @@ def test_catalog_names_are_sorted_and_known():
     assert {"claude", "gemini", "codex", "opencode", "grok", "agy", "pi"} <= set(names)
 
 
+def test_every_catalog_cli_documents_session_resume():
+    for name in cli_catalog.catalog_names():
+        policy = cli_catalog.session_policy(name)
+        assert policy is not None, f"{name} missing SESSION policy"
+        assert policy.get("resume_argv"), f"{name} has no resume_argv"
+        assert "{session_id}" in " ".join(policy["resume_argv"])
+        assert policy.get("notes")
+    assert cli_catalog.session_policy("antigravity") is None
+    grok = cli_catalog.session_policy("grok")
+    assert grok["resume_argv"] == ["--resume", "{session_id}"]
+    claude = cli_catalog.session_policy("claude")
+    assert ".session_id" in claude["session_id_paths"]
+    codex = cli_catalog.session_policy("codex")
+    assert codex["resume_argv"] == ["resume", "{session_id}"]
+    assert codex["resume_insert"] == 2
+    opencode = cli_catalog.session_policy("opencode")
+    assert opencode["resume_argv"] == ["--session", "{session_id}"]
+
+
 def test_every_catalog_entry_is_a_valid_adapter_config():
     # The catalog must never ship a config the adapter layer would reject.
     for name in cli_catalog.catalog_names():

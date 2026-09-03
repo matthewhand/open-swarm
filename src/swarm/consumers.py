@@ -92,6 +92,15 @@ async def _compacted_context(conversation_id, messages):
         return list(messages or [])
 
 
+def _status_line_html(text: str) -> str:
+    """Bubble-less transcript line (CLI session notice; related to #362)."""
+    return (
+        '<div id="message-list" hx-swap-oob="beforeend">'
+        f'<div class="chat-status-line os-chat-status">{escape(text)}</div>'
+        "</div>"
+    )
+
+
 def _oob_append_html(contents_div_id: str, text: str) -> str:
     """HTMX OOB append chunk with HTML-escaped body text.
 
@@ -246,7 +255,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if params and params.get("team"):
             await self.respond_with_team_stub(params, message_text, contents_div_id)
         elif blueprint_id:
-            await self.respond_with_blueprint(blueprint_id, contents_div_id, params)
+            await self.respond_with_blueprint(blueprint_id, contents_div_id, params=params)
         else:
             await self.respond_with_default_model(contents_div_id)
 
@@ -329,6 +338,26 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
+        thread_params = {
+            "conversation_id": getattr(self, "conversation_id", ""),
+            "agent": blueprint_id,
+            "agent_id": blueprint_id,
+        }
+        if getattr(self.user, "is_authenticated", False):
+            try:
+                from swarm.core import chat_store
+
+                thread_params["user_key"] = chat_store.user_key_for(self.user)
+            except Exception:
+                logger.exception("Could not resolve chat user_key for CLI session")
+        if isinstance(params, dict):
+            thread_params.update(params)
+        if hasattr(blueprint_instance, "set_params") and callable(blueprint_instance.set_params):
+            existing = getattr(blueprint_instance, "_params", None)
+            if not isinstance(existing, dict):
+                existing = {}
+            blueprint_instance.set_params({**existing, **thread_params})
+
         final_message = None
         try:
             model_messages = await _compacted_context(
@@ -336,6 +365,12 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 self.messages,
             )
             async for chunk in blueprint_instance.run(model_messages):
+                if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
+                    notice = str(chunk.get("content") or "").strip()
+                    if notice:
+                        await self.send(text_data=_status_line_html(notice))
+                        self.messages.append({"role": "status", "content": notice})
+                    continue
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     continue
