@@ -25,6 +25,12 @@ Environment=API_AUTH_TOKEN=CHANGE_ME_GENERATE_A_TOKEN
 ExecStart=/home/YOURUSER/open-swarm/.venv/bin/uvicorn swarm.asgi:application --host 127.0.0.1 --port 8001 --workers 1
 Restart=always
 RestartSec=3
+# The app exits 78 (EX_CONFIG) when the configured database is permanently
+# unusable (e.g. a quota-exhausted Neon Postgres in DATABASE_URL). Restart=always
+# restarts on ANY exit status — clean or not — so without this exemption systemd
+# crash-loops forever on a failure no restart can fix. With it, an exit-78 leaves
+# the unit stopped (state: failed) for an operator to fix the config.
+RestartPreventExitStatus=78
 
 [Install]
 WantedBy=default.target

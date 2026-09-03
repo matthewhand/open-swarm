@@ -1,0 +1,930 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Agent Router - Open Swarm{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 px-md-3 py-2">
+    <!-- Top Header Bar -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex flex-wrap justify-content-between align-items-center pb-2 border-bottom border-secondary-subtle gap-2">
+                <div>
+                    <h1 class="h4 mb-1 d-flex align-items-center gap-2">
+                        <i class="fas fa-network-wired text-primary" aria-hidden="true"></i>
+                        <span>Agent Router</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 ms-2">Swarm</span>
+                    </h1>
+                    <p class="text-muted small mb-0">
+                        Multi-agent workspace with grouped inference endpoints, automatic handoffs, and multi-agent consensus.
+                    </p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                        <i class="fas fa-circle text-success me-1" style="font-size: 8px;"></i>
+                        <span id="apiStatusBadge">Backend Ready</span>
+                    </span>
+                    <a href="/agents/" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>
+                        Reset
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 3-Panel Main Layout -->
+    <div class="row g-3">
+        <!-- 1. Left Panel: Swarm agent sidebar & routing -->
+        <div class="col-xl-3 col-lg-4 col-md-5">
+            <!-- Available Agents Card -->
+            <div class="card bg-dark border-secondary-subtle mb-3 shadow-sm">
+                <div class="card-header bg-dark-subtle border-secondary-subtle d-flex justify-content-between align-items-center py-2">
+                    <h2 class="h6 mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-users text-primary" aria-hidden="true"></i>
+                        <span>Available Agents</span>
+                    </h2>
+                    <span class="badge bg-secondary" id="agentCountBadge">{{ agent_count|default:"5" }}</span>
+                </div>
+                <div class="p-2 border-bottom border-secondary-subtle">
+                    <input 
+                        type="text" 
+                        id="agentSearchInput" 
+                        class="form-control form-control-sm bg-dark text-light border-secondary" 
+                        placeholder="Search agents..."
+                        aria-label="Search agents"
+                    />
+                </div>
+                <div class="card-body p-0">
+                    <div id="agentsList" class="list-group list-group-flush" role="tablist">
+                        {% if agents %}
+                            {% for agent in agents %}
+                            <button 
+                                type="button"
+                                class="list-group-item list-group-item-action agent-item d-flex align-items-center justify-content-between p-2.5 bg-transparent border-secondary-subtle text-light {% if forloop.first %}active-agent{% endif %}"
+                                data-agent-id="{{ agent.agent_id }}"
+                                data-agent-name="{{ agent.name }}"
+                                data-agent-specialty="{{ agent.specialty }}"
+                                data-agent-group="{{ agent.group|default:'specialist' }}"
+                                data-agent-color="{{ agent.color|default:'#3b82f6' }}"
+                                data-agent-icon="{{ agent.icon|default:'🤖' }}"
+                                data-agent-desc="{{ agent.description }}"
+                            >
+                                <div class="d-flex align-items-center gap-2.5 min-w-0">
+                                    <div class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                         style="background-color: {{ agent.color|default:'#3b82f6' }}22; border: 1.5px solid {{ agent.color|default:'#3b82f6' }};">
+                                        <span>{{ agent.icon|default:'🤖' }}</span>
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <div class="fw-bold small text-truncate agent-name-label">{{ agent.name }}</div>
+                                        <div class="text-muted text-truncate agent-specialty-label">{{ agent.specialty }}</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary agent-status-pill" id="status-{{ agent.agent_id }}">idle</span>
+                            </button>
+                            {% endfor %}
+                        {% else %}
+                            <!-- Default Fallback 5 Agents -->
+                            <button type="button" class="list-group-item list-group-item-action agent-item d-flex align-items-center justify-content-between p-2.5 bg-transparent border-secondary-subtle text-light active-agent"
+                                    data-agent-id="router" data-agent-name="Agent Router" data-agent-specialty="message coordination and routing" data-agent-group="orchestration" data-agent-color="#ef4444" data-agent-icon="🎯" data-agent-desc="Master orchestrator routing queries, coordinating multi-agent consensus, and handling delegations.">
+                                <div class="d-flex align-items-center gap-2.5 min-w-0">
+                                    <div class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="background-color: #ef444422; border: 1.5px solid #ef4444;">
+                                        <span>🎯</span>
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <div class="fw-bold small text-truncate">Agent Router</div>
+                                        <div class="text-muted text-truncate agent-specialty-label">Coordinator</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary agent-status-pill">idle</span>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action agent-item d-flex align-items-center justify-content-between p-2.5 bg-transparent border-secondary-subtle text-light"
+                                    data-agent-id="researcher" data-agent-name="Researcher" data-agent-specialty="information gathering and analysis" data-agent-group="specialists" data-agent-color="#3b82f6" data-agent-icon="🔍" data-agent-desc="Gathers information, analyzes data, and provides comprehensive background on topics.">
+                                <div class="d-flex align-items-center gap-2.5 min-w-0">
+                                    <div class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="background-color: #3b82f622; border: 1.5px solid #3b82f6;">
+                                        <span>🔍</span>
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <div class="fw-bold small text-truncate">Researcher</div>
+                                        <div class="text-muted text-truncate agent-specialty-label">Information gathering</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary agent-status-pill">idle</span>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action agent-item d-flex align-items-center justify-content-between p-2.5 bg-transparent border-secondary-subtle text-light"
+                                    data-agent-id="writer" data-agent-name="Writer" data-agent-specialty="content creation and writing" data-agent-group="specialists" data-agent-color="#10b981" data-agent-icon="✍️" data-agent-desc="Creates high-quality written content, reports, and documentation.">
+                                <div class="d-flex align-items-center gap-2.5 min-w-0">
+                                    <div class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="background-color: #10b98122; border: 1.5px solid #10b981;">
+                                        <span>✍️</span>
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <div class="fw-bold small text-truncate">Writer</div>
+                                        <div class="text-muted text-truncate agent-specialty-label">Content creation</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary agent-status-pill">idle</span>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action agent-item d-flex align-items-center justify-content-between p-2.5 bg-transparent border-secondary-subtle text-light"
+                                    data-agent-id="analyst" data-agent-name="Analyst" data-agent-specialty="data analysis and problem solving" data-agent-group="specialists" data-agent-color="#8b5cf6" data-agent-icon="📊" data-agent-desc="Analyzes complex problems, breaks them down into components, and structures solutions.">
+                                <div class="d-flex align-items-center gap-2.5 min-w-0">
+                                    <div class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="background-color: #8b5cf622; border: 1.5px solid #8b5cf6;">
+                                        <span>📊</span>
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <div class="fw-bold small text-truncate">Analyst</div>
+                                        <div class="text-muted text-truncate agent-specialty-label">Data analysis</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary agent-status-pill">idle</span>
+                            </button>
+                            <button type="button" class="list-group-item list-group-item-action agent-item d-flex align-items-center justify-content-between p-2.5 bg-transparent border-secondary-subtle text-light"
+                                    data-agent-id="coder" data-agent-name="Coder" data-agent-specialty="software development and coding" data-agent-group="tools" data-agent-color="#f59e0b" data-agent-icon="💻" data-agent-desc="Writes, reviews, and debugs code with automated verification.">
+                                <div class="d-flex align-items-center gap-2.5 min-w-0">
+                                    <div class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="background-color: #f59e0b22; border: 1.5px solid #f59e0b;">
+                                        <span>💻</span>
+                                    </div>
+                                    <div class="min-w-0 text-start">
+                                        <div class="fw-bold small text-truncate">Coder</div>
+                                        <div class="text-muted text-truncate agent-specialty-label">Software development</div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary agent-status-pill">idle</span>
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Routing Options & Consensus Card -->
+            <div class="card bg-dark border-secondary-subtle shadow-sm">
+                <div class="card-header bg-dark-subtle border-secondary-subtle py-2">
+                    <h2 class="h6 mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-random text-primary" aria-hidden="true"></i>
+                        <span>Routing Strategy</span>
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <!-- Quick Consensus Action -->
+                    <button type="button" id="consensusQuickBtn" class="btn btn-outline-primary btn-sm w-100 mb-3 d-flex align-items-center justify-content-center gap-2">
+                        <i class="fas fa-magic text-primary" aria-hidden="true"></i>
+                        <span class="fw-semibold">Multi-Agent Consensus</span>
+                    </button>
+                    
+                    <div class="mb-2">
+                        <label for="routingStrategySelect" class="form-label small fw-bold text-light mb-1">Strategy Mode</label>
+                        <select id="routingStrategySelect" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <option value="auto_route" selected>Auto Route (Intent-based)</option>
+                            <option value="direct">Direct to Agent</option>
+                            <option value="router">Router Agent</option>
+                            <option value="consensus">Multi-Agent Consensus</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-2" id="targetAgentSelectWrapper" style="display: none;">
+                        <label for="targetAgentSelect" class="form-label small fw-bold text-light mb-1">Target Specialist</label>
+                        <select id="targetAgentSelect" class="form-select form-select-sm bg-dark text-light border-secondary">
+                            <option value="researcher" selected>Researcher (🔍 Search & Facts)</option>
+                            <option value="writer">Writer (✍️ Composition)</option>
+                            <option value="analyst">Analyst (📊 Architecture & Tradeoffs)</option>
+                            <option value="coder">Coder (💻 Implementation)</option>
+                            <option value="router">Agent Router (🎯 Coordinator)</option>
+                        </select>
+                    </div>
+                    
+                    <p class="text-muted small mb-0" style="font-size: 11px;">
+                        Auto-route matches query intent; Consensus fans out to specialists and synthesizes a joint answer.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 2. Middle Panel: Dynamic Chat & Execution View (col-xl-6 col-lg-5 col-md-7) -->
+        <div class="col-xl-6 col-lg-5 col-md-7">
+            <div class="card bg-dark border-secondary-subtle h-100 d-flex flex-column shadow-sm overflow-hidden">
+                <!-- Chat Header Bar -->
+                <div class="card-header bg-dark-subtle border-secondary-subtle d-flex flex-wrap align-items-center justify-content-between py-2 px-3 gap-2">
+                    <div id="activeAgentHeader" class="d-flex align-items-center gap-2 min-w-0">
+                        <div id="activeAgentIcon" class="agent-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                             style="width: 32px; height: 32px; background-color: #ef444422; border: 1.5px solid #ef4444; font-size: 15px;">
+                            <span>🎯</span>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="d-flex align-items-center gap-1.5">
+                                <span id="activeAgentName" class="fw-bold small text-light">Agent Router</span>
+                                <span id="activeAgentStatus" class="badge bg-secondary-subtle text-secondary" style="font-size: 9px;">idle</span>
+                            </div>
+                            <div id="activeAgentSpecialty" class="text-muted text-truncate" style="font-size: 11px;">message coordination and routing</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Strategy Pills & Clear Button -->
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="btn-group btn-group-sm" role="group" id="strategyButtonGroup" aria-label="Strategy mode toggle">
+                            <button type="button" class="btn btn-sm btn-primary active" data-strategy="auto_route">Auto</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-strategy="direct">Direct</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-strategy="router">Router</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-strategy="consensus">Consensus</button>
+                        </div>
+                        <button type="button" id="clearChatBtn" class="btn btn-sm btn-outline-secondary" title="Clear chat messages">
+                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Chat Messages Scrollable Area -->
+                <div id="chatMessages" class="card-body p-3 overflow-y-auto flex-grow-1" style="min-height: 480px; max-height: 520px;">
+                    <!-- Welcome Screen -->
+                    <div id="welcomeScreen" class="text-center py-4 text-muted">
+                        <div class="mb-3 d-inline-flex align-items-center justify-content-center p-3 rounded-circle bg-primary-subtle text-primary">
+                            <i class="fas fa-network-wired fa-2x" aria-hidden="true"></i>
+                        </div>
+                        <h3 class="h5 fw-bold text-light mb-1">Swarm</h3>
+                        <p class="small text-muted mb-4 max-w-lg mx-auto">
+                            Coordinate specialized agents across research, technical coding, analysis, and content drafting with automated handoffs and multi-agent consensus.
+                        </p>
+                        
+                        <!-- 4 Quick Starter Prompts -->
+                        <div class="row g-2 text-start">
+                            <div class="col-sm-6">
+                                <button type="button" class="quick-prompt-btn w-100 p-2.5 rounded border border-secondary bg-dark-subtle text-light text-start transition"
+                                        data-prompt="Explain Open Swarm: what it is, how agents, teams, and blueprints fit together, and how I talk to them here.">
+                                    <div class="fw-semibold small text-primary mb-1">Explain Open Swarm</div>
+                                    <div class="text-muted text-truncate" style="font-size: 11px;">what it is and how agents work</div>
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button type="button" class="quick-prompt-btn w-100 p-2.5 rounded border border-secondary bg-dark-subtle text-light text-start transition"
+                                        data-prompt="Help me customise this experience: hide extra agents, pick CLI vs API vs remote, and set a default LLM.">
+                                    <div class="fw-semibold small text-primary mb-1">Customise experience</div>
+                                    <div class="text-muted text-truncate" style="font-size: 11px;">hide agents, CLI / API / remote</div>
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button type="button" class="quick-prompt-btn w-100 p-2.5 rounded border border-secondary bg-dark-subtle text-light text-start transition"
+                                        data-prompt="How do I install and use a CLI agent (grok or agy) from this sidebar?">
+                                    <div class="fw-semibold small text-primary mb-1">Install CLI</div>
+                                    <div class="text-muted text-truncate" style="font-size: 11px;">grok or agy on this host</div>
+                                </button>
+                            </div>
+                            <div class="col-sm-6">
+                                <button type="button" class="quick-prompt-btn w-100 p-2.5 rounded border border-secondary bg-dark-subtle text-light text-start transition"
+                                        data-prompt="How do I connect a remote team like Hermes, OpenMausBot, or DeepSeek Harness?">
+                                    <div class="fw-semibold small text-primary mb-1">Connect remote (Hermes)</div>
+                                    <div class="text-muted text-truncate" style="font-size: 11px;">Hermes, OMB, or DSH</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Chat Input Dock -->
+                <div class="card-footer bg-dark-subtle border-secondary-subtle p-3">
+                    <form id="messageForm" class="d-flex flex-column gap-2">
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                id="messageInput" 
+                                class="form-control bg-dark text-light border-secondary" 
+                                placeholder="Type a message (auto-routed by content analysis)..."
+                                autocomplete="off"
+                            />
+                            <button type="submit" id="sendBtn" class="btn btn-primary px-3">
+                                <i class="fas fa-paper-plane me-1" aria-hidden="true"></i>
+                                Send
+                            </button>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center text-muted px-1" style="font-size: 11px;">
+                            <div>
+                                Mode: <strong id="footerModeLabel" class="text-light">AUTO_ROUTE</strong>
+                                <span class="mx-1">•</span>
+                                Target: <strong id="footerTargetLabel" class="text-light">Dynamic</strong>
+                                <span class="mx-1">•</span>
+                                Session: <button type="button" id="sessionModeBtn" class="btn btn-link btn-sm p-0 align-baseline text-light text-decoration-none" aria-label="Session mode" title="Shift+Tab cycles Default → Plan → Auto-edit">Default</button>
+                            </div>
+                            <div>Enter send · Shift+Tab session mode</div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 3. Right Panel: Agent Overview / Inspector & Delegations Timeline (col-xl-3 col-lg-3 col-12) -->
+        <div class="col-xl-3 col-lg-3 col-12">
+            <!-- Agent Inspector Card -->
+            <div class="card bg-dark border-secondary-subtle mb-3 shadow-sm">
+                <div class="card-header bg-dark-subtle border-secondary-subtle py-2">
+                    <h2 class="h6 mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-shield-alt text-primary" aria-hidden="true"></i>
+                        <span>Agent Overview</span>
+                    </h2>
+                </div>
+                <div class="card-body p-3 text-center">
+                    <div id="inspectorAvatar" class="agent-avatar mx-auto rounded-circle d-flex align-items-center justify-content-center mb-2"
+                         style="width: 54px; height: 54px; background-color: #ef444422; border: 2px solid #ef4444; font-size: 24px;">
+                        <span>🎯</span>
+                    </div>
+                    <h3 id="inspectorName" class="h6 fw-bold text-light mb-1">Agent Router</h3>
+                    <div class="mb-2">
+                        <span id="inspectorGroup" class="badge bg-secondary-subtle text-secondary font-monospace" style="font-size: 10px;">orchestration</span>
+                    </div>
+                    
+                    <div class="text-start mb-2">
+                        <div class="text-muted fw-bold mb-1" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Domain Specialty</div>
+                        <div id="inspectorSpecialty" class="p-2 rounded bg-dark-subtle border border-secondary small text-light">
+                            message coordination and routing
+                        </div>
+                    </div>
+                    
+                    <div class="text-start">
+                        <div class="text-muted fw-bold mb-1" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Role &amp; Responsibilities</div>
+                        <div id="inspectorDesc" class="small text-muted" style="font-size: 11px; line-height: 1.4;">
+                            Master orchestrator routing queries, coordinating multi-agent consensus, and handling delegations.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Inter-Agent Delegations Display Card -->
+            <div class="card bg-dark border-secondary-subtle shadow-sm">
+                <div class="card-header bg-dark-subtle border-secondary-subtle d-flex justify-content-between align-items-center py-2">
+                    <h2 class="h6 mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-network-wired text-info" aria-hidden="true"></i>
+                        <span>Delegations Timeline</span>
+                    </h2>
+                    <span id="delegationCountBadge" class="badge bg-info-subtle text-info">0</span>
+                </div>
+                <div class="card-body p-2">
+                    <div id="delegationsList" class="d-flex flex-column gap-2" style="max-height: 280px; overflow-y: auto;">
+                        {% if delegations %}
+                            {% for del in delegations %}
+                            <div class="delegation-card p-2 rounded border border-secondary bg-dark-subtle cursor-pointer transition"
+                                 data-del-id="{{ del.id }}"
+                                 data-from="{{ del.from_agent_name|default:del.from_agent }}"
+                                 data-to="{{ del.to_agent_name|default:del.to_agent }}"
+                                 data-query="{{ del.query }}"
+                                 data-response="{{ del.response }}"
+                                 data-timestamp="{{ del.timestamp }}">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <span class="badge bg-primary-subtle text-primary font-monospace" style="font-size: 10px;">
+                                        {{ del.from_agent }} → {{ del.to_agent }}
+                                    </span>
+                                    <small class="text-muted" style="font-size: 10px;">{{ del.timestamp }}</small>
+                                </div>
+                                <div class="text-truncate small text-light" style="font-size: 11px;">{{ del.query }}</div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div id="noDelegationsMsg" class="text-center py-3 text-muted" style="font-size: 11px;">
+                                <i class="fas fa-exchange-alt mb-2 d-block text-secondary" style="font-size: 18px;"></i>
+                                No delegations recorded yet. Inter-agent handoffs and consensus calls will appear here.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inter-Agent Delegation Detail Modal (Popup) -->
+<div class="modal fade" id="delegationModal" tabindex="-1" aria-labelledby="delegationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary text-light">
+            <div class="modal-header border-secondary-subtle py-2">
+                <h5 class="modal-title h6 d-flex align-items-center gap-2" id="delegationModalLabel">
+                    <i class="fas fa-exchange-alt text-info" aria-hidden="true"></i>
+                    <span>Inter-Agent Communication</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="d-flex align-items-center justify-content-between mb-3 p-2 rounded bg-dark-subtle border border-secondary">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="modalFromBadge" class="badge bg-primary">Router</span>
+                        <i class="fas fa-long-arrow-alt-right text-muted"></i>
+                        <span id="modalToBadge" class="badge bg-success">Coder</span>
+                    </div>
+                    <small id="modalTimestamp" class="text-muted" style="font-size: 11px;">Timestamp</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label text-muted fw-bold" style="font-size: 10px; text-transform: uppercase;">Delegated Task / Query</label>
+                    <div id="modalQueryContent" class="p-2.5 rounded bg-dark-subtle border border-secondary small text-light font-monospace"></div>
+                </div>
+                
+                <div>
+                    <label class="form-label text-muted fw-bold" style="font-size: 10px; text-transform: uppercase;">Specialist Response</label>
+                    <div id="modalResponseContent" class="p-2.5 rounded bg-dark-subtle border border-secondary small text-light" style="max-height: 200px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary-subtle py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // State
+    let currentStrategy = 'auto_route';
+    let selectedAgentId = 'router';
+    let selectedAgentData = {
+        id: 'router',
+        name: 'Agent Router',
+        specialty: 'message coordination and routing',
+        group: 'orchestration',
+        color: '#ef4444',
+        icon: '🎯',
+        desc: 'Master orchestrator routing queries, coordinating multi-agent consensus, and handling delegations.'
+    };
+    
+    // UI Elements
+    const strategySelect = document.getElementById('routingStrategySelect');
+    const targetAgentWrapper = document.getElementById('targetAgentSelectWrapper');
+    const targetAgentSelect = document.getElementById('targetAgentSelect');
+    const strategyButtonGroup = document.getElementById('strategyButtonGroup');
+    const consensusQuickBtn = document.getElementById('consensusQuickBtn');
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const chatMessages = document.getElementById('chatMessages');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    const agentSearchInput = document.getElementById('agentSearchInput');
+    const agentsList = document.getElementById('agentsList');
+    const footerModeLabel = document.getElementById('footerModeLabel');
+    const footerTargetLabel = document.getElementById('footerTargetLabel');
+    const delegationCountBadge = document.getElementById('delegationCountBadge');
+    const delegationsList = document.getElementById('delegationsList');
+    const noDelegationsMsg = document.getElementById('noDelegationsMsg');
+    
+    // Modal Elements
+    const delegationModalEl = document.getElementById('delegationModal');
+    const delegationModal = bootstrap.Modal ? new bootstrap.Modal(delegationModalEl) : null;
+    const modalFromBadge = document.getElementById('modalFromBadge');
+    const modalToBadge = document.getElementById('modalToBadge');
+    const modalTimestamp = document.getElementById('modalTimestamp');
+    const modalQueryContent = document.getElementById('modalQueryContent');
+    const modalResponseContent = document.getElementById('modalResponseContent');
+    
+    let delegations = [];
+    const sessionModes = ['default', 'plan', 'auto-edit'];
+    let sessionMode = 'default';
+    const sessionModeBtn = document.getElementById('sessionModeBtn');
+    function sessionModeLabel(mode) {
+        if (mode === 'plan') return 'Plan';
+        if (mode === 'auto-edit') return 'Auto-edit';
+        return 'Default';
+    }
+    function renderSessionMode() {
+        if (sessionModeBtn) sessionModeBtn.textContent = sessionModeLabel(sessionMode);
+    }
+    function cycleSessionMode() {
+        const idx = sessionModes.indexOf(sessionMode);
+        sessionMode = sessionModes[(idx + 1) % sessionModes.length];
+        renderSessionMode();
+    }
+    if (sessionModeBtn) {
+        sessionModeBtn.addEventListener('click', cycleSessionMode);
+    }
+    if (messageInput) {
+        messageInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Tab' && event.shiftKey) {
+                event.preventDefault();
+                cycleSessionMode();
+            }
+        });
+    }
+    
+    // Initial fetch of recorded delegations
+    fetch('/v1/agents/delegations/')
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success' && Array.isArray(data.delegations)) {
+                delegations = data.delegations;
+                renderDelegations();
+            }
+        })
+        .catch(err => console.debug('Could not load delegations:', err));
+        
+    function renderDelegations() {
+        if (!delegationCountBadge || !delegationsList) return;
+        delegationCountBadge.textContent = delegations.length;
+        
+        if (delegations.length === 0) {
+            if (noDelegationsMsg) noDelegationsMsg.style.display = 'block';
+            return;
+        }
+        
+        if (noDelegationsMsg) noDelegationsMsg.style.display = 'none';
+        
+        // Render up to 10 latest delegations
+        const itemsHtml = delegations.slice(-10).reverse().map(del => `
+            <div class="delegation-card p-2 rounded border border-secondary bg-dark-subtle cursor-pointer mb-1 transition"
+                 data-del-id="${del.id || ''}"
+                 data-from="${del.from_agent_name || del.from_agent || 'Router'}"
+                 data-to="${del.to_agent_name || del.to_agent || 'Specialist'}"
+                 data-query="${(del.query || del.message || '').replace(/"/g, '&quot;')}"
+                 data-response="${(del.response || '').replace(/"/g, '&quot;')}"
+                 data-timestamp="${del.timestamp ? new Date(del.timestamp * 1000).toLocaleTimeString() : 'Just now'}">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="badge bg-primary-subtle text-primary font-monospace" style="font-size: 10px;">
+                        ${del.from_agent || 'router'} → ${del.to_agent || 'specialist'}
+                    </span>
+                    <small class="text-muted" style="font-size: 10px;">
+                        ${del.timestamp ? new Date(del.timestamp * 1000).toLocaleTimeString() : 'Just now'}
+                    </small>
+                </div>
+                <div class="text-truncate small text-light" style="font-size: 11px;">
+                    ${del.query || del.message || 'Task delegation'}
+                </div>
+            </div>
+        `).join('');
+        
+        delegationsList.innerHTML = itemsHtml;
+        
+        // Attach click listeners to cards
+        delegationsList.querySelectorAll('.delegation-card').forEach(card => {
+            card.addEventListener('click', function() {
+                showDelegationModal({
+                    from: this.dataset.from,
+                    to: this.dataset.to,
+                    query: this.dataset.query,
+                    response: this.dataset.response,
+                    timestamp: this.dataset.timestamp
+                });
+            });
+        });
+    }
+    
+    function showDelegationModal(info) {
+        if (!delegationModal) return;
+        modalFromBadge.textContent = info.from || 'Router';
+        modalToBadge.textContent = info.to || 'Specialist';
+        modalTimestamp.textContent = info.timestamp || 'Recorded event';
+        modalQueryContent.textContent = info.query || '(No query recorded)';
+        modalResponseContent.textContent = info.response || '(Task completed with execution stream)';
+        delegationModal.show();
+    }
+    
+    // Switch strategy function
+    function setStrategy(strategy) {
+        currentStrategy = strategy;
+        if (strategySelect) strategySelect.value = strategy;
+        
+        // Update strategy button pills
+        if (strategyButtonGroup) {
+            strategyButtonGroup.querySelectorAll('button').forEach(btn => {
+                if (btn.dataset.strategy === strategy) {
+                    btn.className = strategy === 'consensus' ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-primary active';
+                } else {
+                    btn.className = btn.dataset.strategy === 'consensus' ? 'btn btn-sm btn-outline-primary' : 'btn btn-sm btn-outline-secondary';
+                }
+            });
+        }
+        
+        // Show/hide direct target agent dropdown
+        if (targetAgentWrapper) {
+            targetAgentWrapper.style.display = (strategy === 'direct') ? 'block' : 'none';
+        }
+        
+        // Update footer label & placeholder
+        if (footerModeLabel) footerModeLabel.textContent = strategy.toUpperCase();
+        if (footerTargetLabel) {
+            footerTargetLabel.textContent = (strategy === 'direct') 
+                ? (targetAgentSelect ? targetAgentSelect.value : selectedAgentData.name)
+                : (strategy === 'consensus' ? 'Consensus Panel' : 'Dynamic');
+        }
+        
+        if (messageInput) {
+            if (strategy === 'consensus') {
+                messageInput.placeholder = 'Query the multi-agent consensus panel...';
+            } else if (strategy === 'direct') {
+                messageInput.placeholder = `Message ${selectedAgentData.name} directly...`;
+            } else {
+                messageInput.placeholder = 'Type a message (auto-routed by content analysis)...';
+            }
+        }
+    }
+    
+    // Handle Strategy Dropdown Change
+    if (strategySelect) {
+        strategySelect.addEventListener('change', function() {
+            setStrategy(this.value);
+        });
+    }
+    
+    // Handle Strategy Button Group Click
+    if (strategyButtonGroup) {
+        strategyButtonGroup.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                setStrategy(this.dataset.strategy);
+            });
+        });
+    }
+    
+    // Handle Consensus Quick Button
+    if (consensusQuickBtn) {
+        consensusQuickBtn.addEventListener('click', function() {
+            setStrategy('consensus');
+            if (messageInput) messageInput.focus();
+        });
+    }
+    
+    // Handle Target Agent Dropdown Change
+    if (targetAgentSelect) {
+        targetAgentSelect.addEventListener('change', function() {
+            if (footerTargetLabel) footerTargetLabel.textContent = this.value;
+        });
+    }
+    
+    // Handle Agent Selection in Left Panel
+    const agentItems = document.querySelectorAll('.agent-item');
+    agentItems.forEach(item => {
+        item.addEventListener('click', function() {
+            agentItems.forEach(i => i.classList.remove('active-agent'));
+            this.classList.add('active-agent');
+            
+            selectedAgentId = this.dataset.agentId;
+            selectedAgentData = {
+                id: this.dataset.agentId,
+                name: this.dataset.agentName,
+                specialty: this.dataset.agentSpecialty,
+                group: this.dataset.agentGroup,
+                color: this.dataset.agentColor,
+                icon: this.dataset.agentIcon,
+                desc: this.dataset.agentDesc
+            };
+            
+            // Update Active Agent Header in Middle Panel
+            const activeAgentIcon = document.getElementById('activeAgentIcon');
+            const activeAgentName = document.getElementById('activeAgentName');
+            const activeAgentSpecialty = document.getElementById('activeAgentSpecialty');
+            if (activeAgentIcon) {
+                activeAgentIcon.innerHTML = `<span>${selectedAgentData.icon}</span>`;
+                activeAgentIcon.style.borderColor = selectedAgentData.color;
+                activeAgentIcon.style.backgroundColor = selectedAgentData.color + '22';
+            }
+            if (activeAgentName) activeAgentName.textContent = selectedAgentData.name;
+            if (activeAgentSpecialty) activeAgentSpecialty.textContent = selectedAgentData.specialty;
+            
+            // Update Inspector in Right Panel
+            const inspAvatar = document.getElementById('inspectorAvatar');
+            const inspName = document.getElementById('inspectorName');
+            const inspGroup = document.getElementById('inspectorGroup');
+            const inspSpecialty = document.getElementById('inspectorSpecialty');
+            const inspDesc = document.getElementById('inspectorDesc');
+            if (inspAvatar) {
+                inspAvatar.innerHTML = `<span>${selectedAgentData.icon}</span>`;
+                inspAvatar.style.borderColor = selectedAgentData.color;
+                inspAvatar.style.backgroundColor = selectedAgentData.color + '22';
+            }
+            if (inspName) inspName.textContent = selectedAgentData.name;
+            if (inspGroup) inspGroup.textContent = selectedAgentData.group;
+            if (inspSpecialty) inspSpecialty.textContent = selectedAgentData.specialty;
+            if (inspDesc) inspDesc.textContent = selectedAgentData.desc;
+            
+            // If in direct strategy, also set target agent
+            if (targetAgentSelect) {
+                targetAgentSelect.value = selectedAgentId;
+                if (currentStrategy === 'direct') {
+                    if (footerTargetLabel) footerTargetLabel.textContent = selectedAgentData.name;
+                    if (messageInput) messageInput.placeholder = `Message ${selectedAgentData.name} directly...`;
+                }
+            }
+        });
+    });
+    
+    // Quick prompt buttons
+    document.querySelectorAll('.quick-prompt-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const prompt = this.dataset.prompt;
+            const strat = this.dataset.strategy;
+            if (strat) setStrategy(strat);
+            if (messageInput) {
+                messageInput.value = prompt;
+                messageInput.focus();
+            }
+        });
+    });
+    
+    // Filter agents list
+    if (agentSearchInput) {
+        agentSearchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            agentItems.forEach(item => {
+                const name = (item.dataset.agentName || '').toLowerCase();
+                const spec = (item.dataset.agentSpecialty || '').toLowerCase();
+                if (name.includes(query) || spec.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    // Clear chat
+    if (clearChatBtn) {
+        clearChatBtn.addEventListener('click', function() {
+            if (chatMessages) {
+                chatMessages.innerHTML = '';
+                if (welcomeScreen) chatMessages.appendChild(welcomeScreen);
+            }
+        });
+    }
+    
+    // Append message helper
+    function appendMessage(role, text, agentName = 'Agent Router', agentIcon = '🎯', extraMeta = null) {
+        if (welcomeScreen && welcomeScreen.parentNode === chatMessages) {
+            welcomeScreen.remove();
+        }
+        
+        const msgDiv = document.createElement('div');
+        msgDiv.className = role === 'user' ? 'd-flex justify-content-end mb-3' : 'd-flex justify-content-start mb-3';
+        
+        if (role === 'user') {
+            msgDiv.innerHTML = `
+                <div class="bg-primary text-white p-3 rounded-3 max-w-75 shadow-sm">
+                    <div class="small fw-semibold mb-1 opacity-75">You</div>
+                    <div class="text-break">${escapeHtml(text)}</div>
+                </div>
+            `;
+        } else {
+            let consensusHtml = '';
+            if (extraMeta && extraMeta.consensus_data) {
+                const participants = (extraMeta.consensus_data.participants || []).join(', ');
+                consensusHtml = `
+                    <div class="mt-2 p-2 rounded bg-dark border border-secondary small">
+                        <div class="fw-bold text-info mb-1"><i class="fas fa-sparkles me-1"></i>Consensus Synthesis</div>
+                        <div class="text-muted" style="font-size: 10px;">Panelists: ${escapeHtml(participants)}</div>
+                    </div>
+                `;
+            }
+            
+            let delegatedHtml = '';
+            if (extraMeta && extraMeta.delegated) {
+                delegatedHtml = `<span class="badge bg-info-subtle text-info ms-2" style="font-size: 9px;">Delegated from Router</span>`;
+            }
+            
+            msgDiv.innerHTML = `
+                <div class="bg-dark-subtle border border-secondary-subtle p-3 rounded-3 max-w-75 text-light shadow-sm">
+                    <div class="d-flex align-items-center gap-1.5 mb-1.5">
+                        <span class="me-1">${agentIcon}</span>
+                        <strong class="small text-light">${escapeHtml(agentName)}</strong>
+                        ${delegatedHtml}
+                    </div>
+                    <div class="text-break small" style="line-height: 1.5; white-space: pre-wrap;">${escapeHtml(text)}</div>
+                    ${consensusHtml}
+                </div>
+            `;
+        }
+        
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return msgDiv;
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+    
+    // Handle Message Form Submission
+    if (messageForm) {
+        messageForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            messageInput.value = '';
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            // Append User Message
+            appendMessage('user', message);
+            
+            // Append Temporary Thinking Placeholder
+            const thinkingDiv = appendMessage('assistant', 'Thinking & routing to specialist...', 'Agent Router', '⏳');
+            
+            // Set active agent status to working
+            const statusPill = document.getElementById(`status-${selectedAgentId}`);
+            if (statusPill) statusPill.textContent = 'working';
+            
+            try {
+                const targetAgent = (currentStrategy === 'direct')
+                    ? (targetAgentSelect ? targetAgentSelect.value : selectedAgentId)
+                    : null;
+                    
+                const payload = {
+                    message: message,
+                    routing_strategy: currentStrategy,
+                    target_agent: targetAgent,
+                    agent_ids: (currentStrategy === 'consensus') ? ['researcher', 'writer', 'analyst', 'coder'] : undefined,
+                    params: { session_mode: sessionMode }
+                };
+                
+                const response = await fetch('/v1/agents/route/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (thinkingDiv && thinkingDiv.parentNode) {
+                    thinkingDiv.remove();
+                }
+                
+                if (data.status === 'success') {
+                    const respText = data.response || (data.consensus_data ? data.consensus_data.synthesis : 'Task completed.');
+                    const agentName = data.agent || (data.consensus_data ? 'Consensus Panel' : selectedAgentData.name);
+                    const isDelegated = data.routing_decision && data.routing_decision.strategy === 'auto_route' && data.routing_decision.target_agent !== 'router';
+                    
+                    appendMessage('assistant', respText, agentName, '🤖', {
+                        consensus_data: data.consensus_data,
+                        delegated: isDelegated
+                    });
+                    
+                    // If delegation occurred, record in timeline
+                    if (data.routing_decision && data.routing_decision.target_agent !== 'router') {
+                        const newDel = {
+                            id: 'del-' + Date.now().toString(36),
+                            from_agent: 'router',
+                            from_agent_name: 'Agent Router',
+                            to_agent: data.routing_decision.target_agent,
+                            to_agent_name: data.agent || data.routing_decision.target_agent,
+                            query: message,
+                            response: respText,
+                            timestamp: Math.floor(Date.now() / 1000)
+                        };
+                        delegations.push(newDel);
+                        renderDelegations();
+                    }
+                } else {
+                    appendMessage('assistant', `Error: ${data.error || 'Failed to process request.'}`, 'System', '⚠️');
+                }
+            } catch (err) {
+                if (thinkingDiv && thinkingDiv.parentNode) {
+                    thinkingDiv.remove();
+                }
+                appendMessage('assistant', `Error contacting agent service: ${err.message}`, 'System', '⚠️');
+            } finally {
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+                if (statusPill) statusPill.textContent = 'idle';
+            }
+        });
+    }
+});
+</script>
+
+<style>
+.agent-item {
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+}
+.agent-item:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+.agent-item.active-agent {
+    background-color: rgba(59, 130, 246, 0.12) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+}
+.quick-prompt-btn:hover {
+    border-color: #3b82f6 !important;
+    background-color: rgba(59, 130, 246, 0.1) !important;
+}
+.delegation-card:hover {
+    border-color: #3b82f6 !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+.agent-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+}
+.agent-specialty-label {
+    font-size: 11px;
+}
+.agent-status-pill {
+    font-size: 10px;
+}
+.cursor-pointer {
+    cursor: pointer;
+}
+.max-w-75 {
+    max-width: 80%;
+}
+.transition {
+    transition: all 0.15s ease-in-out;
+}
+</style>
+{% endblock %}

@@ -97,7 +97,9 @@ class TestLoadEnvironment:
                 f.write(env_content)
 
             with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=temp_path):
-                with patch.dict(os.environ, {}, clear=True):
+                xdg = temp_path / "xdg"
+                xdg.mkdir()
+                with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(xdg)}, clear=True):
                     load_environment()
 
                     # Should have loaded the variables
@@ -106,9 +108,13 @@ class TestLoadEnvironment:
 
     def test_load_environment_no_dotenv_file(self):
         """Test loading environment when no .env file exists."""
-        with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=Path('/nonexistent')):
-            # Should not raise an exception
-            load_environment()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            xdg = Path(temp_dir) / "xdg"
+            xdg.mkdir()
+            with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=Path('/nonexistent')):
+                with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(xdg)}, clear=False):
+                    # Should not raise an exception
+                    load_environment()
 
     def test_load_environment_invalid_dotenv_file(self):
         """Test loading environment with invalid .env file."""
@@ -118,8 +124,13 @@ class TestLoadEnvironment:
 
         try:
             with patch('src.swarm.core.config_loader.get_project_root_dir', return_value=dotenv_path.parent):
-                # Should handle invalid lines gracefully
-                load_environment()
+                with patch.dict(
+                    os.environ,
+                    {"XDG_CONFIG_HOME": str(dotenv_path.parent / "xdg-empty")},
+                    clear=False,
+                ):
+                    # Should handle invalid lines gracefully
+                    load_environment()
         finally:
             os.unlink(dotenv_path)
 

@@ -1,16 +1,22 @@
-import { ReactNode, useEffect, useRef, useId } from 'react';
+import { ReactNode, useEffect, useRef, useId, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import { Alert } from './Alert';
+import { LoadingButton } from './Loading';
 
 /**
- * Modal component using DaisyUI classes
+ * Modal component using DaisyUI classes.
  * Docs: https://daisyui.com/components/modal/
  */
+export type ModalPlacement = 'middle' | 'end' | 'start' | 'top' | 'bottom';
+
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
   title?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'sheet';
+  /** Horizontal/vertical dock. `end` is a right-docked sheet (`modal-end`). */
+  placement?: ModalPlacement;
   className?: string;
   'aria-label'?: string;
 }
@@ -21,6 +27,7 @@ export const Modal = ({
   children,
   title,
   size = 'md',
+  placement = 'middle',
   className = '',
   'aria-label': ariaLabel,
 }: ModalProps) => {
@@ -62,20 +69,18 @@ export const Modal = ({
     return () => dialog.removeEventListener('cancel', handleCancel);
   }, [onClose]);
 
-  // Handle backdrop clicks (clicking outside the modal-box)
+  // Handle backdrop clicks (outside `.modal-box`). The `<dialog class="modal">`
+  // is full-viewport, so the dialog rect itself is not a useful hit test —
+  // especially for `modal-end` sheets that leave a clickable gutter.
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+    const raw = e.target as Node;
+    const el = raw instanceof Element ? raw : raw.parentElement;
+    // Form `.modal-backdrop` (or its submit button / text node) has its own handler.
+    if (el?.closest('.modal-backdrop')) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
-
-    const rect = dialog.getBoundingClientRect();
-    const isInDialog = (
-      rect.top <= e.clientY &&
-      e.clientY <= rect.top + rect.height &&
-      rect.left <= e.clientX &&
-      e.clientX <= rect.left + rect.width
-    );
-
-    if (!isInDialog) {
+    const box = dialog.querySelector('.modal-box');
+    if (box && !box.contains(raw)) {
       onClose();
     }
   };
@@ -85,7 +90,10 @@ export const Modal = ({
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
+    sheet: 'h-full max-h-full w-full max-w-4xl rounded-none rounded-s-box',
   };
+
+  const placementClass = placement === 'middle' ? '' : `modal-${placement}`;
 
   // Keep FocusTrap mounted and toggle `active` so DaisyUI open/close
   // transitions are not interrupted by remounting the dialog tree.
@@ -100,12 +108,11 @@ export const Modal = ({
     >
       <dialog
         ref={dialogRef}
-        className={`modal ${isOpen ? 'modal-open' : ''}`}
+        className={`modal ${placementClass} ${isOpen ? 'modal-open' : ''}`.replace(/\s+/g, ' ').trim()}
         onClick={handleBackdropClick}
         aria-labelledby={title ? titleId : undefined}
         aria-label={!title ? (ariaLabel || 'Dialog') : undefined}
         aria-modal={isOpen ? true : undefined}
-        tabIndex={-1}
       >
         <div
           className={`modal-box ${sizeClasses[size]} ${className}`}
@@ -118,15 +125,28 @@ export const Modal = ({
             {children}
           </div>
         </div>
-        <button
-          type="button"
+        <form
+          method="dialog"
           className="modal-backdrop"
-          onClick={onClose}
-          aria-label="Close modal"
-          tabIndex={-1}
+          aria-hidden="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
         >
-          close
-        </button>
+          <button
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            aria-label="Close modal"
+            tabIndex={-1}
+          >
+            close
+          </button>
+        </form>
       </dialog>
     </FocusTrap>
   );
@@ -136,7 +156,7 @@ export const Modal = ({
  * Confirmation Modal
  */
 export interface ConfirmModalProps extends ModalProps {
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   confirmText?: string;
   cancelText?: string;
   confirmVariant?: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'error';
@@ -153,18 +173,66 @@ export const ConfirmModal = ({
   confirmVariant = 'primary',
   ...props
 }: ConfirmModalProps) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSubmitting(false);
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const handleConfirm = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await onConfirm();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (typeof err === 'string') {
+        setError(err);
+      } else {
+        setError('An unknown error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} {...props}>
       <div className="mb-6">
         {children}
       </div>
+
+      {error && (
+        <Alert type="error" className="mb-4">
+          {error}
+        </Alert>
+      )}
+
       <div className="modal-action flex gap-2">
-        <button type="button" className="btn btn-outline" onClick={onClose}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={onClose}
+          disabled={isSubmitting}
+        >
           {cancelText}
         </button>
-        <button type="button" className={`btn btn-${confirmVariant}`} onClick={onConfirm}>
+        <LoadingButton
+          type="button"
+          className={`btn btn-${confirmVariant}`}
+          onClick={handleConfirm}
+          loading={isSubmitting}
+        >
           {confirmText}
-        </button>
+        </LoadingButton>
       </div>
     </Modal>
   );

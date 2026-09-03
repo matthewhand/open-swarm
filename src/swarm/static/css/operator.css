@@ -1,119 +1,120 @@
 /* Aggregated operator UI styles extracted from Django templates (CSP residual). */
 
-/* === account/login.html === */
-/* Dark palette aligned with the app theme (rest_mode_style.css --os-*),
-           so the login entry point matches the dark UI it gates instead of
-           flashing a light page first. */
-        :root {
-            --bg: #0f1219;
-            --card-bg: #1b1f29;
-            --field-bg: #0f1219;
-            --border: #2b3140;
-            --text: #e2e8f0;
-            --text-muted: #94a3b8;
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --error-bg: rgba(239, 68, 68, 0.10);
-            --error-border: #5b2330;
-            --error-text: #fca5a5;
-        }
-        * {
-            box-sizing: border-box;
-        }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg);
-            background-image: radial-gradient(circle at 1px 1px, #1e2430 1px, transparent 0);
-            background-size: 24px 24px;
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                "Helvetica Neue", Arial, sans-serif;
-        }
-        .login-card {
-            width: 100%;
-            max-width: 24rem;
-            margin: 1rem;
-            padding: 2rem 2rem 1.75rem;
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 0.75rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08),
-                        0 4px 10px -6px rgba(0, 0, 0, 0.05);
-        }
-        .brand {
-            text-align: center;
-            margin-bottom: 1.5rem;
-        }
-        .brand-name {
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 700;
-            letter-spacing: -0.025em;
-        }
-        .brand-sub {
-            margin: 0.25rem 0 0;
-            font-size: 0.875rem;
-            color: var(--text-muted);
-        }
-        .error-message {
-            margin: 0 0 1rem;
-            padding: 0.625rem 0.75rem;
-            background: var(--error-bg);
-            border: 1px solid var(--error-border);
-            border-radius: 0.5rem;
-            color: var(--error-text);
-            font-size: 0.875rem;
-        }
-        .field {
-            margin-bottom: 1rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.375rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-        input[type="text"],
-        input[type="password"] {
-            width: 100%;
-            padding: 0.5rem 0.75rem;
-            font-size: 1rem;
-            font-family: inherit;
-            color: var(--text);
-            background: var(--field-bg);
-            border: 1px solid var(--border);
-            border-radius: 0.5rem;
-        }
-        input[type="text"]:focus,
-        input[type="password"]:focus {
-            outline: 2px solid var(--primary);
-            outline-offset: 1px;
-            border-color: var(--primary);
-        }
-        button[type="submit"] {
-            width: 100%;
-            margin-top: 0.5rem;
-            padding: 0.625rem 0.75rem;
-            font-size: 1rem;
-            font-family: inherit;
-            font-weight: 600;
-            color: #ffffff;
-            background: var(--primary);
-            border: none;
-            border-radius: 0.5rem;
-            cursor: pointer;
-        }
-        button[type="submit"]:hover {
-            background: var(--primary-hover);
-        }
-        button[type="submit"]:focus-visible {
-            outline: 2px solid var(--primary);
-            outline-offset: 2px;
-        }
+/* === account/login.html ===
+   Scoped to body.os-login. These rules used to target bare `body` / `label` /
+   `input` / `button[type=submit]`, which leaked onto every Django operator
+   page that also loads this file (base.html). The leaked `body { display:flex;
+   align-items:center; justify-content:center }` put `.os-header` in a leftover
+   flex column beside `.os-shell` (which already docks AGENTS), producing the
+   ~35% black void and shoving the nav out of the first viewport. */
+body.os-login {
+    --bg: #121212;
+    --card-bg: #1a1a1a;
+    --field-bg: #101010;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --text-muted: #8a8a8a;
+    --primary: #3d5a80;
+    --primary-hover: #334c6e;
+    --error-bg: rgba(239, 68, 68, 0.10);
+    --error-border: #5b2330;
+    --error-text: #fca5a5;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, #1e2430 1px, transparent 0);
+    background-size: 24px 24px;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+}
+body.os-login * {
+    box-sizing: border-box;
+}
+body.os-login .login-card {
+    width: 100%;
+    max-width: 24rem;
+    margin: 1rem;
+    padding: 2rem 2rem 1.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08),
+                0 4px 10px -6px rgba(0, 0, 0, 0.05);
+}
+body.os-login .brand {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+body.os-login .brand-name {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+body.os-login .brand-sub {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+body.os-login .error-message {
+    margin: 0 0 1rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    border-radius: 0.5rem;
+    color: var(--error-text);
+    font-size: 0.875rem;
+}
+body.os-login .field {
+    margin-bottom: 1rem;
+}
+body.os-login label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+body.os-login input[type="text"],
+body.os-login input[type="password"] {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--field-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+body.os-login input[type="text"]:focus,
+body.os-login input[type="password"]:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+    border-color: var(--primary);
+}
+body.os-login button[type="submit"] {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 1rem;
+    font-family: inherit;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--primary);
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+body.os-login button[type="submit"]:hover {
+    background: var(--primary-hover);
+}
+body.os-login button[type="submit"]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
 
 /* === agent_creator.html === */
 .ac-wrap { max-width: 1200px; margin: 0 auto; }
@@ -298,12 +299,21 @@
      are NOT re-declared here (deduped). */
   .se-chip { font-size:.8rem; padding:.2rem .6rem; border-radius:999px; background:var(--os-border); color:var(--os-text); }
   .se-card { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:.85rem 1rem;
-             margin:.5rem 0; transition:border-color .15s, transform .05s; }
+             margin:.5rem 0; transition:border-color .15s, transform .05s;
+             min-width: 0; max-width: 100%; overflow: visible; }
   .se-card:hover { border-color:var(--os-accent); }
   .se-card a.se-id { color:var(--os-link); text-decoration:none; font-family:ui-monospace,monospace; font-size:.9rem; }
   .se-row { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
   .se-meta { color:var(--os-muted); font-size:.82rem; }
-  .se-preview { color:var(--os-text); margin-top:.45rem; font-size:.9rem; }
+  .se-preview {
+    color: var(--os-text);
+    margin-top: .45rem;
+    font-size: .9rem;
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
   .se-deleg { display:inline-flex; gap:.3rem; align-items:center; }
   .dot { width:.6rem; height:.6rem; border-radius:50%; display:inline-block; }
   .dot.completed { background:#22c55e; } .dot.failed { background:#ef4444; }
@@ -320,7 +330,8 @@
   .se-filter.active { outline:2px solid var(--os-accent); }
   .se-filter:focus-visible { outline:2px solid var(--os-link); outline-offset:2px; }
   .se-error { background:#4c1d1d; color:#fecaca; border:1px solid #7f1d1d;
-              border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem; }
+              border-radius:8px; padding:.6rem .9rem; margin:.65rem 0; font-size:.85rem;
+              white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
   .se-live-dot { width:.5rem; height:.5rem; border-radius:50%; background:#22c55e; display:inline-block;
                  margin-right:.35rem; vertical-align:middle; transition:background .2s; }
   .se-live-dot.refreshing { background:#3b82f6; animation:se-pulse 1s ease-in-out infinite; }
@@ -330,17 +341,18 @@
 
 /* === settings_dashboard.html === */
 .settings-dashboard {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
+  background: transparent;
+  min-height: auto;
   padding-bottom: 2rem;
 }
 
 .dashboard-header-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
-  color: white;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  color: var(--os-text-strong);
+  box-shadow: none;
 }
 
 .dashboard-header-top {
@@ -370,8 +382,8 @@
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
+  background: var(--os-panel-2);
+  border: 1px solid var(--os-border);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   text-align: center;
@@ -381,7 +393,7 @@
 .stat-number {
   font-size: 1.75rem;
   font-weight: 700;
-  color: white;
+  color: var(--os-text-strong);
   line-height: 1.2;
 }
 
@@ -391,19 +403,51 @@
   white-space: nowrap;
 }
 
+.chat-retention-card {
+  background: var(--os-panel);
+  border: 1px solid var(--os-border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.chat-retention-subhead {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.chat-retention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chat-retention-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--os-border);
+}
+
+.chat-retention-row .os-meta {
+  display: block;
+}
+
 .configuration-progress {
   margin-top: 1.5rem;
 }
 
 .config-progress-track {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--os-well);
+  border: 1px solid var(--os-border);
   border-radius: 10px;
   height: 10px;
   overflow: hidden;
 }
 
 .config-progress-fill {
-  background: linear-gradient(90deg, #28a745, #20c997);
+  background: var(--os-accent);
   height: 100%;
   border-radius: 10px;
   transition: width 0.3s ease;
@@ -481,7 +525,7 @@
 
 .group-description {
   padding: 1rem 1.5rem;
-  background: rgba(129, 140, 248, 0.06);
+  background: var(--os-panel-2);
   color: var(--os-muted);
   font-size: 0.95rem;
   border-bottom: 1px solid var(--os-border);
@@ -506,12 +550,12 @@
 }
 
 .table-header > div {
-  background: #343a40;
-  color: white;
+  background: var(--os-panel-2);
+  color: var(--os-muted);
   padding: 1rem;
   font-weight: 600;
   font-size: 0.9rem;
-  border-right: 1px solid #495057;
+  border-right: 1px solid var(--os-border);
 }
 
 .setting-row {
@@ -627,12 +671,12 @@
 
 /* dark-tinted type tags (were light pastel chips that failed WCAG AA on the dark
    table — colored text on a light bg; now light colored text on a dark tint, all >=8:1) */
-.type-string { background: #0f2942; color: #93c5fd; }
-.type-boolean { background: #2a1a3a; color: #d8b4fe; }
-.type-integer { background: #0f2a1a; color: #86efac; }
-.type-list { background: #2e2410; color: #fcd34d; }
-.type-object { background: #3a1426; color: #f9a8d4; }
-.type-path { background: #0f2a20; color: #a7f3d0; }
+.type-string,
+.type-boolean,
+.type-integer,
+.type-list,
+.type-object,
+.type-path { background: var(--os-panel-2); color: var(--os-text); }
 .type-error { background: #3a1620; color: #fca5a5; }
 
 .category-badge {

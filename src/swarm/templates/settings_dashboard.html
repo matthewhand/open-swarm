@@ -56,27 +56,205 @@
     </span>
   </div>
 
-  <!-- Quick Actions -->
-  <div class="mb-3">
-    <h2 class="visually-hidden">Quick actions</h2>
-    <div class="d-flex flex-wrap gap-2">
-      <button type="button" class="btn btn-primary" data-action="export-settings">
-        <i class="fas fa-download" aria-hidden="true"></i> Export Settings
-      </button>
-      <button type="button" class="btn btn-outline-secondary" data-action="refresh-settings">
-        <i class="fas fa-sync" aria-hidden="true"></i> Refresh
-      </button>
-      <button type="button" class="btn btn-outline-info" data-action="view-environment">
-        <i class="fas fa-list" aria-hidden="true"></i> Environment Variables
-      </button>
-      <button type="button" class="btn btn-outline-secondary" disabled
-              title="Config validation is not available"
-              aria-disabled="true">
-        <i class="fas fa-check-circle" aria-hidden="true"></i> Validate Config (not available)
-      </button>
-      <a class="btn btn-outline-secondary" href="{% url 'profiles_page' %}">LLM profiles</a>
+  <!-- REQ-14: per-agent chat persistence + retention (Settings only; not in Chat chrome) -->
+  <section class="chat-retention-card mb-4" aria-labelledby="chat-retention-title">
+    {% csrf_token %}
+    <div class="dashboard-header-top">
+      <div>
+        <h2 class="dashboard-title" id="chat-retention-title">Chat persistence</h2>
+        <p class="dashboard-subtitle mb-0">
+          One JSON file per agent. Switching agents or reloading Chat restores that thread.
+          Retention stays on this page — not in the Chat chrome.
+        </p>
+      </div>
+      <div class="settings-stats">
+        <div class="stat-card">
+          <div class="stat-number">{{ chat_stats.active_count }}</div>
+          <div class="stat-label">Chats</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ chat_stats.trash_count }}</div>
+          <div class="stat-label">In trash</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ chat_stats.bytes_label }}</div>
+          <div class="stat-label">Disk used</div>
+        </div>
+      </div>
     </div>
+    <p class="os-meta mt-3 mb-2">
+      Files: <code>{{ chat_stats.store_dir }}</code>
+      (<code>active/&lt;user&gt;/&lt;agent&gt;.json</code>).
+      Format: JSON.
+      Auto-move to trash after <strong>{{ chat_stats.max_age_days }}</strong> days
+      (set <code>{{ chat_stats.env_max_age }}</code>; <code>0</code> disables).
+      Override the directory with <code>{{ chat_stats.env_dir }}</code>.
+    </p>
+    <div class="os-action-grid">
+      <button type="button" class="os-action-card" data-action="chat-archive-all"
+              {% if not chat_stats.active_count %}disabled{% endif %}>
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-box-archive"></i></span>
+        <span>
+          <span class="os-action-card__title">Move all chats to trash</span>
+          <span class="os-action-card__desc">Archive every active agent thread. Recoverable until you empty trash.</span>
+        </span>
+      </button>
+      <button type="button" class="os-action-card" data-action="chat-empty-trash"
+              {% if not chat_stats.trash_count %}disabled{% endif %}>
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-trash"></i></span>
+        <span>
+          <span class="os-action-card__title">Empty trash</span>
+          <span class="os-action-card__desc">Permanently delete archived chat files. This cannot be undone.</span>
+        </span>
+      </button>
+    </div>
+    {% if chat_stats.chats %}
+    <h3 class="chat-retention-subhead">Active chats</h3>
+    <ul class="chat-retention-list">
+      {% for chat in chat_stats.chats %}
+      <li class="chat-retention-row">
+        <div>
+          <strong>{{ chat.agent_id }}</strong>
+          <span class="os-meta">{{ chat.message_count }} messages · updated {{ chat.updated_at }}</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-action="chat-archive-one" data-agent-id="{{ chat.agent_id }}">
+          Move to trash
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if chat_stats.trash %}
+    <h3 class="chat-retention-subhead">Trash</h3>
+    <ul class="chat-retention-list">
+      {% for item in chat_stats.trash %}
+      <li class="chat-retention-row">
+        <div>
+          <strong>{{ item.agent_id }}</strong>
+          <span class="os-meta">{{ item.message_count }} messages · {{ item.filename }}</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-action="chat-restore-one" data-agent-id="{{ item.agent_id }}">
+          Restore
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <!-- Quick Actions -->
+  <div class="mb-4">
+    <h2 class="visually-hidden">Quick actions</h2>
+    <div class="os-action-grid">
+      <button type="button" class="os-action-card" data-action="export-settings">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-download"></i></span>
+        <span>
+          <span class="os-action-card__title">Export Settings</span>
+          <span class="os-action-card__desc">Download the current settings snapshot as JSON.</span>
+        </span>
+      </button>
+      <button type="button" class="os-action-card" data-action="refresh-settings">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-sync"></i></span>
+        <span>
+          <span class="os-action-card__title">Refresh</span>
+          <span class="os-action-card__desc">Reload this page to pick up environment changes.</span>
+        </span>
+      </button>
+      <button type="button" class="os-action-card" data-action="view-environment">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-list"></i></span>
+        <span>
+          <span class="os-action-card__title">Environment Variables</span>
+          <span class="os-action-card__desc">Inspect the process environment the operator can see.</span>
+        </span>
+      </button>
+      <a class="os-action-card" href="{% url 'profiles_page' %}">
+        <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-sliders"></i></span>
+        <span>
+          <span class="os-action-card__title">LLM profiles</span>
+          <span class="os-action-card__desc">Review detected model profiles used by teams.</span>
+        </span>
+      </a>
+    </div>
+    <p class="os-meta mt-2 mb-0">Validate Config (not available)</p>
   </div>
+
+  <!-- Herdr members (REQ-21). DaisyUI SPA settings sheet is not in this tree. -->
+  <section class="settings-group mb-4" id="group-herdr" aria-labelledby="herdr-agents-heading">
+    <h2 class="h4" id="herdr-agents-heading">Herdr agents</h2>
+    <p class="os-meta mb-3">
+      Drive Herdr as a member <code>kind=herdr</code> without owning the TUI.
+      This is <strong>not</strong> Hermes, OMB, or Rakazo.
+      Default is the Herdr already on this host (no <code>--remote</code>; local
+      server + unix sockets, typically <code>~/.config/herdr/</code>).
+      Optional remote is a <code>herdr --remote</code> target such as
+      <code>matthewh@10.0.0.36</code>, <code>workbox</code>, or
+      <code>ssh://you@server:2222</code>.
+      If an agent is blocked, submit is rejected. If it is already working,
+      <code>--wait</code> may finish the in-flight turn, not a new one.
+    </p>
+    <form id="herdr-add-form" class="row g-2 align-items-end mb-3">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <label class="form-label" for="herdr-name">Name</label>
+        <input class="form-control" id="herdr-name" name="name" required maxlength="200"
+               placeholder="e.g. local-herdr" autocomplete="off">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="herdr-remote">Remote (optional)</label>
+        <input class="form-control" id="herdr-remote" name="remote" maxlength="255"
+               placeholder="empty = localhost" autocomplete="off">
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary" data-action="add-herdr-agent">Add Herdr agent</button>
+      </div>
+    </form>
+    <div class="mb-3">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-action="discover-herdr-agents">
+        Discover live Herdr (agent list + workspace list)
+      </button>
+    </div>
+    <div id="herdr-discover-wrap" class="mb-3" hidden>
+      <h3 class="h6">Addable live members</h3>
+      <p class="os-meta">From <code>herdr agent list</code> / <code>herdr workspace list</code> (localhost unless remote is set). Add one to persist it for Teams and the sidepane.</p>
+      <ul id="herdr-discover-list" class="list-unstyled mb-0"></ul>
+    </div>
+    <div id="herdr-agent-status" class="os-meta mb-2" role="status"></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="herdr-agents-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Remote</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="herdr-agent-rows">
+          {% for agent in herdr_agents %}
+          <tr>
+            <td>{{ agent.name }}</td>
+            <td>{% if agent.remote %}{{ agent.remote }}{% else %}localhost{% endif %}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      data-action="remove-herdr-agent" data-herdr-id="{{ agent.id }}"
+                      data-herdr-name="{{ agent.name }}">Remove</button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="herdr-empty-row">
+            <td colspan="3">No Herdr agents yet. Add one to target localhost or a remote host.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="os-meta mb-0">
+      REST: <code>GET/POST /v1/herdr-agents/</code>,
+      <code>DELETE /v1/herdr-agents/&lt;id&gt;/</code>.
+      Staff can also use Django admin. Docs: <code>docs/HERDR.md</code>.
+    </p>
+  </section>
 
   <!-- Settings Groups -->
   <div>

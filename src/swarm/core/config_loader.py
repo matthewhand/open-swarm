@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
-
 from .paths import (  # Import XDG path functions
     get_project_root_dir,
     get_swarm_config_file,
@@ -196,7 +194,27 @@ def create_default_config(config_path: Path):
         "agents": {},
         "settings": {
             "default_markdown_output": True
-        }
+        },
+        "remotes": {
+            "hermes": {
+                "base_url": "http://10.0.0.36:8642",
+                "api_key": "${HERMES_API_KEY}",
+            },
+            "omb": {
+                "base_url": "http://10.0.0.32:8802",
+                "api_key": "${OMB_API_KEY}",
+            },
+            "rakazo": {
+                "base_url": "http://10.0.0.32:3100",
+                "ui_url": "http://10.0.0.32:5173",
+                "api_key": "${RAKAZO_API_KEY}",
+                "cookie": "${RAKAZO_SESSION_COOKIE}",
+            },
+            "swarm": {
+                "base_url": "http://127.0.0.1:9",
+                "api_key": "${SWARM_REMOTE_API_KEY}",
+            },
+        },
     }
     logger.info(f"Creating default configuration file at {config_path}")
     try:
@@ -212,19 +230,22 @@ def create_default_config(config_path: Path):
         raise
 
 def load_environment():
-    """Loads environment variables from a `.env` file located at the project root."""
-    project_root = get_project_root_dir() # Use XDG utility to find project root
-    dotenv_path = project_root / ".env"
-    logger.debug(f"Checking for .env file at: {dotenv_path}")
+    """Load XDG ``~/.config/swarm/.env`` (primary) then project-root ``.env``."""
+    from swarm.utils.dotenv_load import load_swarm_dotenv
+
+    project_root = get_project_root_dir()
     try:
-        if dotenv_path.is_file():
-            loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
-            if loaded:
-                logger.debug(f".env file Loaded/Overridden at: {dotenv_path}")
+        loaded = load_swarm_dotenv(project_root=project_root)
+        if loaded:
+            logger.debug("dotenv loaded from: %s", ", ".join(loaded))
         else:
-            logger.debug(f"No .env file found at {dotenv_path}.")
+            logger.debug("No dotenv files found (XDG or project root).")
     except Exception as e:
-        logger.error(f"Error loading .env file '{dotenv_path}': {e}", exc_info=logger.level <= logging.DEBUG)
+        logger.error(
+            "Error loading dotenv files: %s",
+            e,
+            exc_info=logger.level <= logging.DEBUG,
+        )
 
 def load_full_configuration(
     blueprint_class_name: str,
@@ -296,6 +317,9 @@ def load_full_configuration(
     if "mcpServers" in base_config:
         final_config.setdefault("mcpServers", {}).update(base_config["mcpServers"])
         logger.debug("Merged base 'mcpServers'.")
+    if "remotes" in base_config and isinstance(base_config.get("remotes"), dict):
+        final_config.setdefault("remotes", {}).update(base_config["remotes"])
+        logger.debug("Merged base 'remotes'.")
 
     # 3. Merge blueprint-specific settings
     blueprint_settings = base_config.get("blueprints", {}).get(blueprint_class_name, {})
@@ -350,6 +374,7 @@ def load_full_configuration(
     # Ensure top-level keys exist
     final_config.setdefault("llm", {})
     final_config.setdefault("mcpServers", {})
+    final_config.setdefault("remotes", {})
 
     # 6. Substitute environment variables in the final config
     final_config = _substitute_env_vars(final_config)
@@ -499,6 +524,19 @@ def create_default_config(config_path: Path):
             }
         },
         "settings": {"default_markdown_output": True},
+        "remotes": {
+            "hermes": {"base_url": "http://10.0.0.36:8642", "api_key": "${HERMES_API_KEY}"},
+            "omb": {"base_url": "http://10.0.0.32:8802", "api_key": "${OMB_API_KEY}"},
+            "rakazo": {
+                "base_url": "http://10.0.0.32:3100",
+                "ui_url": "http://10.0.0.32:5173",
+                "api_key": "${RAKAZO_API_KEY}",
+            },
+            "swarm": {
+                "base_url": "http://127.0.0.1:9",
+                "api_key": "${SWARM_REMOTE_API_KEY}",
+            },
+        },
     }
     save_config(default, config_path)
     logger.warning(_hint("Set OPENAI_API_KEY or run config add for profiles."))

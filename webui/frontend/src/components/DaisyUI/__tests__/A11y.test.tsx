@@ -94,7 +94,7 @@ describe('Alert Accessibility', () => {
         Boom
       </Alert>,
     );
-    expect(screen.getByTestId('alert-icon').parentElement).toHaveAttribute(
+    expect(screen.getByTestId('alert-icon-wrapper')).toHaveAttribute(
       'aria-hidden',
       'true',
     );

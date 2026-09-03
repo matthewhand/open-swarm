@@ -285,12 +285,15 @@ class SuggestionBlueprint(BlueprintBase):
             import os
 
             from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("No OPENAI_API_KEY found and config not loaded")
-            logger.warning(f"Config not available, using fallback OpenAI model for {profile_name}")
+            from swarm.utils.env_utils import openai_client_kwargs
+            client_kwargs = openai_client_kwargs()
+            if not client_kwargs.get("api_key"):
+                raise ValueError("No OPENAI_API_KEY / LITELLM_* key found and config not loaded")
+            logger.warning(
+                f"Config not available, using fallback OpenAI/LiteLLM model for {profile_name}"
+            )
             from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=api_key)
+            client = AsyncOpenAI(**client_kwargs)
             model_instance = OpenAIChatCompletionsModel(model="gpt-4o-mini", openai_client=client)
             self._model_instance_cache[profile_name] = model_instance
             return model_instance

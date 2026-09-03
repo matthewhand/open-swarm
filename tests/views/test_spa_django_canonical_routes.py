@@ -49,6 +49,8 @@ class TestSpaToDjangoCanonicalRedirects:
         assert reverse("spa_blueprints_to_django") == "/blueprints"
         assert reverse("spa_settings_to_django") == "/settings"
         assert reverse("spa_agent_creator_to_django") == "/agent-creator"
+        assert reverse("spa_agents") == "/agents"
+        assert reverse("spa_chat") == "/chat"
 
     def test_trailing_slash_django_routes_not_redirect_loops(self, client, webui_on):
         """Canonical Django routes keep working (no redirect-to-self loops)."""
@@ -67,6 +69,69 @@ class TestSpaToDjangoCanonicalRedirects:
 
 
 @pytest.mark.django_db
+class TestSpaChatStaysChat:
+    """REQ-5d follow-up: GET /chat must not land on /agents."""
+
+    @pytest.mark.parametrize("path", ("/chat", "/chat/"))
+    def test_chat_does_not_redirect_to_agents(self, client, path):
+        response = client.get(path, follow=False)
+        location = response.get("Location", "")
+        assert "/agents" not in location
+        if response.status_code in (301, 302):
+            assert "/chat" in response.url
+        else:
+            assert response.status_code in (200, 404)
+
+    @pytest.mark.parametrize("path", ("/agents", "/agents/"))
+    def test_agents_does_not_redirect_to_chat(self, client, path):
+        response = client.get(path, follow=False)
+        location = response.get("Location", "")
+        assert "/chat" not in location
+        assert response.status_code in (200, 404)
+
+    def test_agents_preserves_query_string(self, client):
+        response = client.get("/agents?blueprint=codey", follow=False)
+        location = response.get("Location") or ""
+        assert "/chat" not in location
+        assert response.status_code in (200, 404)
+
+    def test_chat_serves_spa_when_dist_exists(self, client, tmp_path, monkeypatch):
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text(
+            "<html><body>spa-chat-composer Connected</body></html>",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("swarm.views.web_views._get_frontend_path", lambda: dist)
+        response = client.get("/chat", follow=False)
+        assert response.status_code == 200
+        # #428 / #425: SPA HTML is a buffered HttpResponse (not FileResponse.streaming_content).
+        assert getattr(response, "streaming", False) is False
+        body = response.content
+        assert b"spa-chat-composer" in body
+        assert b"Connected" in body
+        assert response.get("Location") is None
+
+    def test_django_chat_nav_href_is_chat_not_agents(self):
+        from pathlib import Path
+
+        base = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "swarm"
+            / "templates"
+            / "base.html"
+        ).read_text(encoding="utf-8")
+        assert 'href="/chat"' in base
+        assert 'href="/agents"' in base
+        assert 'id="moreNavDropdown"' in base
+        # Chat is under More, not a primary peer of Agents.
+        assert 'href="/chat">Chat</a>' in base
+        assert 'href="/agents"' in base
+        assert ">Agents</a>" in base
+
+
+@pytest.mark.django_db
 class TestUxShellTemplateContracts:
     """Structural contracts for shell IA / density shipped in templates."""
 
@@ -80,15 +145,47 @@ class TestUxShellTemplateContracts:
         response = client.get("/settings/")
         assert response.status_code == 200
         html = response.content.decode()
-        for label in ("Home", "Blueprints", "Teams", "Sessions", "Settings"):
+        for label in ("Home", "Chat", "Blueprints", "Teams", "Sessions", "Settings"):
             assert label in html
         assert "More" in html
         assert "os-bottom-nav" in html
         assert "Skip to main content" in html
         assert 'id="os-main"' in html
+        assert 'id="os-agent-sidebar"' in html
+        assert 'id="os-theme-toggle"' in html
         # GitHub not a bare primary peer string next to Settings as sole link —
         # demoted under More dropdown.
         assert 'id="moreNavDropdown"' in html
+
+    @pytest.mark.parametrize(
+        "path",
+        ("/teams/", "/sessions/", "/settings/", "/blueprint-library/"),
+    )
+    def test_operator_pages_use_chat_matched_shell(self, client, path):
+        """REQ-5d: Django tabs share Chat chrome — header then AGENTS+main, no login body."""
+        from django.contrib.auth.models import User
+
+        user = User.objects.create_user(
+            username="uxreq5d" + path.strip("/").replace("/", "_"),
+            password="ux-req5d-pass",
+        )
+        client.force_login(user)
+        response = client.get(path)
+        assert response.status_code == 200, path
+        html = response.content.decode()
+        assert 'class="os-app"' in html
+        assert 'class="os-header sticky-top"' in html
+        assert 'class="os-shell"' in html
+        assert 'id="os-agent-sidebar"' in html
+        assert 'id="os-main"' in html
+        header_at = html.find('class="os-header sticky-top"')
+        shell_at = html.find('class="os-shell"')
+        sidebar_at = html.find('id="os-agent-sidebar"')
+        main_at = html.find('id="os-main"')
+        assert 0 <= header_at < shell_at < sidebar_at < main_at
+        assert "os-login" not in html
+        for label in ("Home", "Chat", "Blueprints", "Teams", "Sessions", "Settings"):
+            assert label in html
 
     def test_profiles_marks_profiles_item_active_not_teams(self, client):
         import re
@@ -100,27 +197,22 @@ class TestUxShellTemplateContracts:
         response = client.get("/profiles/")
         assert response.status_code == 200
         html = response.content.decode()
-        # LLM profiles dropdown item is current page
-        profiles_item = re.search(
-            r'<a class="dropdown-item active"[^>]*href="/profiles/"[^>]*aria-current="page"',
+        # Settings is the parent chrome item for /profiles/ (More popup).
+        settings_link = re.search(
+            r'<a class="dropdown-item active"[^>]*href="/settings/"',
             html,
         )
-        assert profiles_item, "expected active Profiles dropdown item with aria-current"
-        # Teams primary toggle must not be active for /profiles/
-        teams_toggle = re.search(
-            r'<a class="nav-link dropdown-toggle([^"]*)"[^>]*id="teamsNavDropdown"',
+        assert settings_link, "expected active Settings dropdown item on /profiles/"
+        teams_link = re.search(
+            r'<a class="dropdown-item([^"]*)"[^>]*href="/teams/launch/"',
             html,
         )
-        assert teams_toggle, "expected Teams dropdown toggle"
-        assert "active" not in teams_toggle.group(1)
-        # Mobile bottom: Teams is-active only for /teams/, not /profiles/
-        teams_bottom = re.search(
-            r'<a class="os-bottom-nav__item([^"]*)"[^>]*>\s*'
-            r'<span class="os-bottom-nav__label">Teams</span>',
-            html,
-        )
-        assert teams_bottom, "expected Teams bottom-nav item"
-        assert "is-active" not in teams_bottom.group(1)
+        assert teams_link, "expected Teams dropdown item"
+        assert "active" not in teams_link.group(1)
+        # Mobile bottom: Agents + More; Teams is not a primary dock tab.
+        assert 'os-bottom-nav__label">Teams</span>' not in html
+        assert 'os-bottom-nav__label">Agents</span>' in html
+        assert 'id="moreNavDropdownMobile"' in html
 
     def test_sessions_marks_sessions_nav_active(self, client):
         import re
@@ -133,15 +225,15 @@ class TestUxShellTemplateContracts:
         assert response.status_code == 200
         html = response.content.decode()
         sessions_link = re.search(
-            r'<a class="nav-link active"[^>]*href="/sessions/"[^>]*aria-current="page"',
+            r'<a class="dropdown-item active"[^>]*href="/sessions/"',
             html,
         )
-        assert sessions_link, "expected active Sessions nav link"
-        teams_toggle = re.search(
-            r'<a class="nav-link dropdown-toggle([^"]*)"[^>]*id="teamsNavDropdown"',
+        assert sessions_link, "expected active Sessions dropdown item"
+        teams_link = re.search(
+            r'<a class="dropdown-item([^"]*)"[^>]*href="/teams/launch/"',
             html,
         )
-        assert teams_toggle and "active" not in teams_toggle.group(1)
+        assert teams_link and "active" not in teams_link.group(1)
 
     def test_blueprint_library_ships_client_pagination(self, client):
         from pathlib import Path
@@ -194,6 +286,8 @@ class TestUxShellTemplateContracts:
         assert 'id="acc-behavior" class="accordion-collapse collapse"' in html
         # Essentials open
         assert 'id="acc-identity" class="accordion-collapse collapse show"' in html
+        assert "Blueprint interface spec" in html
+        assert "class MyTeamBlueprint" in html
 
     def test_agent_creator_uses_data_action_not_onclick(self, client):
         """Static creator actions bind via data-action delegation (no inline onclick)."""
@@ -284,6 +378,7 @@ class TestUxShellTemplateContracts:
             / "my_blueprints.js"
         ).read_text(encoding="utf-8")
         assert "/v1/chat/completions" in js
+        assert "X-CSRFToken" in js
         assert "/chat?blueprint=" in js
 
     def test_settings_unwired_actions_are_disabled(self, client):
@@ -364,6 +459,8 @@ class TestUxShellTemplateContracts:
         response = client.get("/blueprint-library/creator/")
         assert response.status_code == 200
         html = response.content.decode()
+        assert "Blueprint interface spec" in html
+        assert "class MyTeamBlueprint" in html
         assert 'data-action="reset-form"' in html
         assert "onclick=" not in html
         assert "blueprint_creator.js" in html

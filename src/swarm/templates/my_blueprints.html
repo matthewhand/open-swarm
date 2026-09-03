@@ -15,16 +15,24 @@
                 Your personal collection of installed and custom blueprints. Run them directly from here.
             </p>
         </div>
-        <div class="col-auto">
-            <div class="d-flex gap-2">
-                <a href="{% url 'blueprint_library' %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-cube me-1"></i>Browse Library
-                </a>
-                <a href="{% url 'blueprint_creator' %}" class="btn btn-success">
-                    <i class="fas fa-plus me-1"></i>Create New
-                </a>
-            </div>
-        </div>
+    </div>
+
+    <h2 class="visually-hidden">Primary actions</h2>
+    <div class="os-action-grid mb-4">
+        <a href="{% url 'blueprint_library' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-book"></i></span>
+            <span>
+                <span class="os-action-card__title">Browse Library</span>
+                <span class="os-action-card__desc">Open the full catalog of discoverable blueprints.</span>
+            </span>
+        </a>
+        <a href="{% url 'blueprint_creator' %}" class="os-action-card">
+            <span class="os-action-card__icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+            <span>
+                <span class="os-action-card__title">Create New</span>
+                <span class="os-action-card__desc">Add a custom blueprint to this library.</span>
+            </span>
+        </a>
     </div>
 
     <h2 class="visually-hidden">Library overview</h2>
