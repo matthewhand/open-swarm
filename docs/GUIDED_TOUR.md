@@ -180,7 +180,7 @@ bottom primary bar on the login page).*
 
 ![Django teams admin: registration form and registered teams table](./screenshots/teams.png)
 
-*Register dynamic teams as OpenAI-compatible model ids.*
+*Register LLM-profile aliases (prefer **Profiles**) as OpenAI-compatible model ids. A Team is remotes/CLI/API members that see/talk via handoff — not this page.*
 
 ![Teams admin (mobile): form wraps; Teams tab active](./screenshots/mobile/teams.png)
 

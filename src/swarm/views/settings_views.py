@@ -163,6 +163,7 @@ def environment_variables(_request):
             'DJANGO_', 'SWARM_', 'API_', 'ENABLE_', 'OPENAI_',
             'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG', 'DATABASE_',
             'AWS_', 'MONGODB_', 'MONGO_',
+            'HERMES_', 'OMB_', 'RAKAZO_',
         ]
 
         env_vars = {}
