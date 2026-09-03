@@ -121,6 +121,9 @@ class CliAgentConfig:
     # a preferred whitelist (falls back to all-available if none match); a dict
     # ``{"panel": [...], "judge": "<cli>"}`` => explicit. None (default) => normal.
     consensus: bool | list[str] | dict[str, Any] | None = None
+    # Flag used when a stored CLI session id is passed (#369). REQ-65 on-mode
+    # callers pass resume_session_id=None so this flag is never appended.
+    resume_flag: str = "--resume"
 
     def __post_init__(self) -> None:
         if not self.cmd:
@@ -246,6 +249,7 @@ class CliAdapter:
             mode=raw.get("mode", "default"),
             auth_check=raw.get("auth_check"),
             consensus=raw.get("consensus"),
+            resume_flag=str(raw.get("resume_flag") or "--resume"),
         )
         return cls(cfg)
 
@@ -257,10 +261,22 @@ class CliAdapter:
         return shutil.which(exe) is not None
 
     def _build_invocation(
-        self, prompt: str, workdir: str
+        self,
+        prompt: str,
+        workdir: str,
+        *,
+        resume_session_id: str | None = None,
     ) -> tuple[list[str], bytes | None]:
-        """Return (argv, stdin_bytes) for the given prompt."""
+        """Return (argv, stdin_bytes) for the given prompt.
+
+        ``resume_session_id`` appends ``resume_flag`` + id (REQ-52). Callers
+        must pass ``None`` when the agent is in new-chat-per-task mode
+        (REQ-65) so a stored id is never resumed.
+        """
         argv = [_apply_tokens(part, prompt, workdir) for part in self.config.cmd]
+        if resume_session_id:
+            flag = (self.config.resume_flag or "--resume").strip() or "--resume"
+            argv.extend([flag, str(resume_session_id)])
         stdin_bytes: bytes | None = None
         if self.config.prompt_mode == "stdin":
             stdin_bytes = prompt.encode("utf-8")
@@ -295,6 +311,7 @@ class CliAdapter:
         *,
         workdir: str | None = None,
         extra_env: dict[str, str] | None = None,
+        resume_session_id: str | None = None,
     ) -> CliResult:
         """Launch the CLI, await its answer, and parse the result.
 
@@ -305,7 +322,12 @@ class CliAdapter:
         result (``stream_run`` always emits exactly one ``final`` chunk).
         """
         result: CliResult | None = None
-        async for chunk in self.stream_run(prompt, workdir=workdir, extra_env=extra_env):
+        async for chunk in self.stream_run(
+            prompt,
+            workdir=workdir,
+            extra_env=extra_env,
+            resume_session_id=resume_session_id,
+        ):
             if chunk.final:
                 result = chunk.result
         assert result is not None  # stream_run guarantees a terminal chunk
@@ -317,6 +339,7 @@ class CliAdapter:
         *,
         workdir: str | None = None,
         extra_env: dict[str, str] | None = None,
+        resume_session_id: str | None = None,
     ) -> AsyncIterator[CliStreamChunk]:
         """Like :meth:`run`, but yield stdout incrementally as it arrives.
 
@@ -334,7 +357,9 @@ class CliAdapter:
             if cfg.cwd
             else (workdir or os.getcwd())
         )
-        argv, stdin_bytes = self._build_invocation(prompt, effective_workdir)
+        argv, stdin_bytes = self._build_invocation(
+            prompt, effective_workdir, resume_session_id=resume_session_id
+        )
         env = self._build_env(prompt, effective_workdir, extra_env)
 
         if not self.is_available():

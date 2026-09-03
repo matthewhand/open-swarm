@@ -694,15 +694,24 @@ def _hermes_list(spec: RemoteSpec, timeout: float) -> OperateResult:
     )
 
 
-def _hermes_send(spec: RemoteSpec, prompt: str, timeout: float) -> OperateResult:
+def _hermes_send(
+    spec: RemoteSpec,
+    prompt: str,
+    timeout: float,
+    *,
+    session_id: str | None = None,
+) -> OperateResult:
     if not prompt.strip():
         return OperateResult(remote="hermes", op="send", ok=False, detail="prompt is required")
     headers = _auth_headers(spec)
+    body: dict[str, Any] = {"input": prompt}
+    if session_id:
+        body["session_id"] = session_id
     result = http_json(
         "POST",
         f"{spec.base_url}/v1/runs",
         headers=headers,
-        body={"input": prompt},
+        body=body,
         timeout=timeout,
     )
     if result.status in _UP or result.status == 202:
@@ -934,9 +943,17 @@ def operate(
     target: str = "",
     config: dict[str, Any] | None = None,
     timeout: float = _OPERATE_TIMEOUT_S,
+    session_id: str | None = None,
 ) -> OperateResult:
-    """List or send a job. Never raises; never crash-loops."""
+    """List or send a job. Never raises; never crash-loops.
+
+    ``session_id`` is a stored remote thread (#369-style). REQ-65 on-mode
+    agents drop it so each task starts a new remote job.
+    """
     try:
+        from swarm.core.session_policy import resume_remote_session_id
+
+        resume_id = resume_remote_session_id(remote_id, session_id)
         spec = load_remote(remote_id, config)
         rid = spec.id
         action = (op or "list").strip().lower()
@@ -954,7 +971,9 @@ def operate(
                 detail="Refusing to operate against a Fly open-litellm URL",
             )
         if rid == "hermes":
-            return _hermes_list(spec, timeout) if action == "list" else _hermes_send(spec, prompt, timeout)
+            return _hermes_list(spec, timeout) if action == "list" else _hermes_send(
+                spec, prompt, timeout, session_id=resume_id
+            )
         if rid == "omb":
             return _omb_list(spec, timeout) if action == "list" else _omb_send(spec, prompt, target, timeout)
         return _rakazo_list(spec, timeout) if action == "list" else _rakazo_send(spec, prompt, target, timeout)

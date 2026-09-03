@@ -53,6 +53,14 @@ def test_arg_mode_requires_prompt_token():
         CliAgentConfig(name="x", cmd=[PY, "-c", "print(1)"])  # no {prompt}
 
 
+def test_resume_flag_appended_only_when_id_provided():
+    adapter = CliAdapter.from_config("echo", _echo_cfg())
+    argv_off, _ = adapter._build_invocation("hi", "/tmp", resume_session_id=None)
+    assert "--resume" not in argv_off
+    argv_on, _ = adapter._build_invocation("hi", "/tmp", resume_session_id="sess-123")
+    assert argv_on[-2:] == ["--resume", "sess-123"]
+
+
 def test_stdin_mode_does_not_require_prompt_token():
     cfg = CliAgentConfig(name="x", cmd=["cat"], prompt_mode="stdin")
     assert cfg.prompt_mode == "stdin"

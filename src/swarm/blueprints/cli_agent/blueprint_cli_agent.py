@@ -19,8 +19,24 @@ from typing import Any, ClassVar
 from swarm.blueprints.common import cli_fusion_support as support
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.consensus import run_consensus
+from swarm.core.session_policy import resume_cli_session_id
 
 logger = logging.getLogger(__name__)
+
+
+def _resume_id_for(*agent_ids: str) -> str | None:
+    """Stored CLI session id, or None when new-chat-per-task is on (REQ-65)."""
+    from swarm.core.agent_settings import is_new_chat_per_task
+
+    for agent_id in agent_ids:
+        if not agent_id:
+            continue
+        if is_new_chat_per_task(agent_id):
+            return None
+        stored = resume_cli_session_id(agent_id)
+        if stored:
+            return stored
+    return None
 
 
 class CliAgentBlueprint(BlueprintBase):
@@ -162,7 +178,10 @@ class CliAgentBlueprint(BlueprintBase):
                 adapter = registry.get(target)
                 yield support.progress_chunk(f"_Streaming CLI agent `{target}`…_")
                 result = None
-                async for chunk in adapter.stream_run(prompt, workdir=workdir):
+                resume_id = _resume_id_for(target, getattr(self, "blueprint_id", "cli_agent"))
+                async for chunk in adapter.stream_run(
+                    prompt, workdir=workdir, resume_session_id=resume_id
+                ):
                     if chunk.final:
                         result = chunk.result
                     elif chunk.delta:
@@ -184,7 +203,8 @@ class CliAgentBlueprint(BlueprintBase):
                 yield support.progress_chunk(f"_Skipping `{name}` (not installed); failing over…_")
                 continue
             yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
-            result = await adapter.run(prompt, workdir=workdir)
+            resume_id = _resume_id_for(name, getattr(self, "blueprint_id", "cli_agent"))
+            result = await adapter.run(prompt, workdir=workdir, resume_session_id=resume_id)
             if result.ok:
                 if result.parse_error:
                     logger.warning("CLI %s parse issue: %s", name, result.parse_error)

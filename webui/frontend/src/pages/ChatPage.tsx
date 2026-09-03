@@ -14,12 +14,18 @@ import { Layers, Mic, Plus, Settings } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
+import {
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+  openAgentEditor,
+  type AgentSettingsChangedDetail,
+} from '../lib/agentSettings'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { fetchBlueprints } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
-  conversationIdForAgent,
+  conversationIdForTask,
   fetchAgentThread,
   type ConversationSummary,
 } from '../lib/agentChat'
@@ -100,8 +106,9 @@ const ChatPage = () => {
   const selectedBlueprint = teamFromUrl
     ? ''
     : defaultBlueprintId(searchParams.get('blueprint'))
-  const threadKey = teamFromUrl ? teamThreadId(teamFromUrl) : selectedBlueprint
-
+  const [newChatPerTask, setNewChatPerTask] = useState(() =>
+    teamFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
+  )
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [summariesByThread, setSummariesByThread] = useState<
     Record<string, ConversationSummary[]>
@@ -116,8 +123,17 @@ const ChatPage = () => {
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
-      : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+      : conversationIdForTask(agentIdFromBlueprint(selectedBlueprint), {
+          newChatPerTask: loadLocalNewChatPerTask(
+            defaultBlueprintId(searchParams.get('blueprint')),
+          ),
+        }),
   )
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : newChatPerTask
+      ? conversationId
+      : selectedBlueprint
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
   const summaries = useMemo(
@@ -184,6 +200,23 @@ const ChatPage = () => {
     setMemberTarget(ALL_MEMBERS_TARGET)
   }, [teamFromUrl])
 
+  useEffect(() => {
+    if (teamFromUrl) {
+      setNewChatPerTask(false)
+      return
+    }
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    setNewChatPerTask(loadLocalNewChatPerTask(agent))
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<AgentSettingsChangedDetail>).detail
+      if (detail?.agentId && detail.agentId === agent) {
+        setNewChatPerTask(detail.new_chat_per_task)
+      }
+    }
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+  }, [selectedBlueprint, teamFromUrl])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
@@ -203,15 +236,22 @@ const ChatPage = () => {
     }
 
     const agent = agentIdFromBlueprint(selectedBlueprint)
+    const fresh = newChatPerTask
+    const nextId = conversationIdForTask(agent, { newChatPerTask: fresh })
     const switched =
       lastHydratedAgentRef.current !== null &&
-      lastHydratedAgentRef.current !== agent
-    lastHydratedAgentRef.current = agent
-    setConversationId(conversationIdForAgent(agent))
+      lastHydratedAgentRef.current !== (fresh ? nextId : agent)
+    lastHydratedAgentRef.current = fresh ? nextId : agent
+    setConversationId(nextId)
     userKeyCounterRef.current = 0
+    const hydrateKey = fresh ? nextId : selectedBlueprint
     if (switched) {
-      setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
-      setSummariesByThread((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setThreads((prev) => ({ ...prev, [hydrateKey]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [hydrateKey]: [] }))
+    }
+    if (fresh) {
+      // New empty session — do not restore a prior transcript.
+      return
     }
     let cancelled = false
     ;(async () => {
@@ -235,7 +275,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, teamFromUrl])
+  }, [selectedBlueprint, teamFromUrl, newChatPerTask])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -433,9 +473,15 @@ const ChatPage = () => {
         )
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          selectedBlueprint || undefined,
+          newChatPerTask ? { new_session: messages.length === 0 } : undefined,
+        ),
+      )
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [selectedBlueprint, teamFromUrl, memberTarget, newChatPerTask, messages.length],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -552,7 +598,24 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
+          {!teamFromUrl && selectedBlueprint ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              aria-label={`Edit ${selectedAgentName}`}
+              onClick={() =>
+                openAgentEditor({
+                  agentId: selectedBlueprint,
+                  agentName: selectedAgentName,
+                })
+              }
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
         <div className="flex items-center gap-2">
           {teamFromUrl ? (
             <select

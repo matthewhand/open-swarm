@@ -551,6 +551,7 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.queryByRole('menuitem', { name: 'Teams' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Edit / })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
   })

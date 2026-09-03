@@ -144,6 +144,8 @@ def test_consult_tool_invokes_send_to_all_and_denies_strangers():
     assert result["send_to_all"] is True
     assert "ada" in result["recipients"]
     assert "lee" not in result["recipients"]
+    assert "sessions" in result
+    assert any(row["agent_id"] == "ada" for row in result["sessions"])
 
     blocked = TeamConsultTool(
         name="consult_team_ops",

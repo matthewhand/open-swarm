@@ -265,7 +265,23 @@ async def handle_tool_calls(
                       logger.warning(f"Multiple agent handoffs detected in one turn. Last handoff to '{getattr(processed_result.agent, 'name', 'UnnamedAgent')}' takes precedence.")
                  aggregated_response.agent = processed_result.agent
                  # Update context immediately for subsequent steps within this turn if needed
-                 context_variables["active_agent_name"] = getattr(processed_result.agent, 'name', None)
+                 target_name = getattr(processed_result.agent, 'name', None)
+                 context_variables["active_agent_name"] = target_name
+                 try:
+                     from swarm.core.session_policy import allocate_task_session, messages_for_task
+
+                     session = allocate_task_session(None, target_name or "")
+                     context_variables["task_session"] = {
+                         "conversation_id": session.conversation_id,
+                         "new_chat_per_task": session.new_chat_per_task,
+                         "empty": session.empty,
+                     }
+                     if session.empty:
+                         context_variables["task_messages"] = messages_for_task(
+                             target_name or "", None, new_task=True
+                         )
+                 except Exception:
+                     logger.debug("REQ-65 task session allocate skipped", exc_info=True)
                  logger.debug(f"Agent handoff triggered by tool '{tool_name}' to agent '{context_variables['active_agent_name']}'.")
 
         except Exception as e:

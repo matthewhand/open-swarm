@@ -31,25 +31,39 @@ def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
         return
     try:
         from swarm.core import chat_store
+        from swarm.core.agent_settings import is_new_chat_per_task
 
+        session_id = ""
+        if agent_id and is_new_chat_per_task(agent_id) and conversation_id:
+            session_id = conversation_id
         chat_store.save(
             chat_store.user_key_for(user),
             agent_id,
             messages,
             conversation_id=conversation_id,
+            session_id=session_id,
         )
     except Exception:
         logger.exception("Failed to persist agent chat JSON")
 
 
-def _load_agent_json(user, agent_id):
+def _load_agent_json(user, agent_id, *, conversation_id=""):
     """Best-effort load of the per-agent JSON thread."""
     if not getattr(user, "is_authenticated", False):
         return []
     try:
         from swarm.core import chat_store
+        from swarm.core.agent_settings import is_new_chat_per_task
 
-        record = chat_store.load(chat_store.user_key_for(user), agent_id)
+        session_id = ""
+        if agent_id and is_new_chat_per_task(agent_id) and conversation_id:
+            session_id = conversation_id
+        record = chat_store.load(
+            chat_store.user_key_for(user),
+            agent_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+        )
     except Exception:
         logger.exception("Failed to load agent chat JSON")
         return []
@@ -187,6 +201,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if not isinstance(params, dict):
             params = None
 
+        if params and params.get("new_session"):
+            # REQ-65: CoS/user task asked for an empty session on this socket.
+            self.messages = []
 
         self.messages.append(
             {
@@ -456,8 +473,24 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
 
+        agent_id = getattr(self, "default_blueprint", None)
+        try:
+            from swarm.core.agent_settings import is_new_chat_per_task
+
+            # REQ-65: on-mode tasks must not inherit the reused agent transcript.
+            if agent_id and is_new_chat_per_task(agent_id):
+                disk = _load_agent_json(
+                    self.user, agent_id, conversation_id=conversation_id
+                )
+                if disk:
+                    IN_MEMORY_CONVERSATIONS[cache_key] = disk
+                    return list(disk)
+                return []
+        except Exception:
+            logger.debug("new-chat-per-task check failed; using reuse fallback", exc_info=True)
+
         # Disk fallback: per-agent JSON (survives a new conversation UUID).
-        disk = _load_agent_json(self.user, getattr(self, "default_blueprint", None))
+        disk = _load_agent_json(self.user, agent_id)
         if disk:
             IN_MEMORY_CONVERSATIONS[cache_key] = disk
             return list(disk)

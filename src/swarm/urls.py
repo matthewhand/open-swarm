@@ -73,6 +73,7 @@ from swarm.views.remotes_api import (
     RemoteOperateView,
     RemotesListView,
 )
+from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
@@ -195,6 +196,11 @@ urlpatterns = [
     path("v1/herdr-agents/discover/", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover"),
     path("v1/herdr-agents/<str:agent_id>", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail-no-slash"),
     path("v1/herdr-agents/<str:agent_id>/", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail"),
+    # REQ-65: agent-scoped settings (new chat per task). Not global Settings.
+    path("v1/agents/<str:agent_id>/settings", AgentSettingsAPIView.as_view(), name="agent-settings-api-no-slash"),
+    path("v1/agents/<str:agent_id>/settings/", AgentSettingsAPIView.as_view(), name="agent-settings-api"),
+    path("v1/agents/<str:agent_id>/sessions", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api-no-slash"),
+    path("v1/agents/<str:agent_id>/sessions/", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),

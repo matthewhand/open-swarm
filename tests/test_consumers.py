@@ -304,6 +304,20 @@ class TestReceive:
                     consumers_module.os = original_os
 
     @pytest.mark.asyncio
+    async def test_receive_new_session_clears_prior_transcript(self, consumer):
+        """REQ-65: params.new_session starts an empty task session."""
+        consumer.messages = [{"role": "user", "content": "old"}, {"role": "assistant", "content": "prior"}]
+        text_data = json.dumps({"message": "fresh task", "params": {"new_session": True}})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div>user message</div>"):
+            with patch.object(consumer, 'respond_with_default_model', new_callable=AsyncMock):
+                with patch.object(consumer, 'send', new_callable=AsyncMock):
+                    await consumer.receive(text_data)
+
+        assert consumer.messages[0]["content"] == "fresh task"
+        assert all(m.get("content") != "old" for m in consumer.messages)
+
+    @pytest.mark.asyncio
     async def test_receive_empty_message_returns_early(self, consumer):
         """Empty message should be ignored."""
         consumer.messages = []

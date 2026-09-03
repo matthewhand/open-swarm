@@ -40,6 +40,12 @@ import {
 } from '../lib/pinnedAgents'
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
+import {
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+  openAgentEditor,
+} from '../lib/agentSettings'
+import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'
 import { openSettingsSheet } from './SettingsSheet'
 
@@ -108,6 +114,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [settingsTick, setSettingsTick] = useState(0)
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -185,6 +192,12 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     if (hiddenIds !== null || blueprintsQuery.isPending) return
     setHiddenIds(loadOrSeedHiddenAgentIds(agents))
   }, [hiddenIds, blueprintsQuery.isPending, agents])
+
+  useEffect(() => {
+    const onSettings = () => setSettingsTick((n) => n + 1)
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onSettings)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onSettings)
+  }, [])
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !resolvedHiddenIds.includes(agent.id)),
@@ -341,6 +354,12 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     onClose?.()
   }
 
+  const openAgentSettings = (agent: { id: string; name: string }) => {
+    openAgentEditor({ agentId: agent.id, agentName: agent.name })
+    closeMenu()
+    onClose?.()
+  }
+
   const renderAgentRow = (agent: SidebarAgent, hidden: boolean) => {
     const name = agentLabel(agent)
     const herdr = isHerdrAgent(agent)
@@ -350,6 +369,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     const dragging = draggingId === agent.id
     const cos = isChiefOfStaff(role)
     const badge = roleBadgeLabel(role)
+    const taskCount = settingsTick >= 0 && loadLocalNewChatPerTask(agent.id)
+      ? activeTaskSessionCount(agent.id)
+      : 0
     const dataRole = role !== 'default' ? role : undefined
     const className = `os-agent-row ${roleCssClass(role)} ${active ? 'os-agent-row--active' : ''} ${
       role !== 'default' ? `os-agent-row--${role}` : ''
@@ -368,6 +390,15 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             {badge ? (
               <span className={`os-agent-role-badge ${roleCssClass(role)}`} data-role={role}>
                 {badge}
+              </span>
+            ) : null}
+            {taskCount > 1 ? (
+              <span
+                className="badge badge-sm badge-outline"
+                data-task-sessions={taskCount}
+                title={`${taskCount} running chats`}
+              >
+                {taskCount} chats
               </span>
             ) : null}
           </span>
@@ -887,6 +918,15 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
               Hide from sidebar
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+            onClick={() => openAgentSettings({ id: menu.agentId, name: menu.agentName })}
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            Edit agent
+          </button>
           <button
             type="button"
             role="menuitem"

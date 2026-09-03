@@ -224,6 +224,21 @@ describe('AgentSidebar Grok rail', () => {
     expect(screen.getByRole('button', { name: /2 hidden/i })).toBeInTheDocument()
   })
 
+  it('opens the agent-scoped editor from the context menu', async () => {
+    const opened: Array<{ agentId?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent).detail || {})
+    }
+    window.addEventListener('swarm:open-agent-editor', onOpen)
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    fireEvent.contextMenu(codey)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Edit agent$/i }))
+    expect(opened).toEqual([{ agentId: 'codey', agentName: 'Codey' }])
+    window.removeEventListener('swarm:open-agent-editor', onOpen)
+  })
+
   it('pins from the context menu onto the unlabeled favourite grid', async () => {
     renderSidebar()
 
