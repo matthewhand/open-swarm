@@ -162,6 +162,39 @@ export interface Blueprint {
   tags: string[]
   installed: boolean | null
   compiled: boolean | null
+  /** Special sidepane roles: support | gate | skeptic. */
+  role?: string | null
+}
+
+/** GET /v1/support/context/ — live agents + inference for Support welcome. */
+export interface SupportChip {
+  label: string
+  href: string
+}
+
+export interface SupportContext {
+  object: 'support.context'
+  agents: Array<Pick<Blueprint, 'id' | 'name' | 'description' | 'role'>>
+  agent_count: number
+  inference: {
+    configured: boolean
+    profiles: string[]
+    env_signals: string[]
+    quickstart: {
+      doc: string
+      anchor: string
+      settings: string
+      profiles: string
+      cli: string
+    }
+  }
+  create: Record<string, string>
+  chips?: Record<string, SupportChip>
+  welcome: string
+}
+
+export function fetchSupportContext(): Promise<SupportContext> {
+  return apiGet<SupportContext>('/v1/support/context/')
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Support agent (REQ-7):** discoverable `support` blueprint (`role=support`) is first in the AGENTS sidepane (life-ring, not a diamond), default `/chat` landing, and injects a laconic welcome: current agents, inference on/off, chips (`New team`, `Set inference`, `Write blueprint`). Missing inference links `/settings/`, `/profiles/`, and `docs/QUICKSTART.md#4-configure-your-llm-provider`. Coordinator uses openai-agents `as_tool` specialists (no extra Grok/OMB/Rakazo seats). Chat Python fences get syntax highlighting. Stub `gate` / `skeptic` role markers are registered (one-line copy; execution loop later).
+
 ### Changed
 - **SPA + Django dark chrome (REQ-5 / REQ-5c):** DaisyUI cupcake/rainbow operator skin replaced with near-black Grok-like chrome. Home dashboard four quick actions are large cards. Django Blueprints / Teams / Sessions / Settings share the same nav + AGENTS sidepane (right-click Hide from sidebar, Hidden + Unhide, `localStorage.swarm_hidden_agents`). Settings purple gradient header removed. Primary actions on those pages are large cards, not tiny rainbow buttons.
 - **Mobile dock PNG honesty:** GUIDED_TOUR / SCREENSHOTS admit journey capture parks fixed bottom navs as `position:static` so full-page mobile PNGs show the tab bar after scrolled content (not a live viewport overlay) — locked by `tests/unit/test_screenshot_registry.py`

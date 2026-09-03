@@ -170,3 +170,61 @@ html[data-theme="light"] #root {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
+
+.os-agent-row--support {
+  background: color-mix(in srgb, #2f8f7b 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #2f8f7b 45%, transparent);
+}
+.os-agent-row--gate {
+  background: color-mix(in srgb, #c4a035 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #c4a035 50%, transparent);
+}
+.os-agent-row--skeptic {
+  background: color-mix(in srgb, #7a6b9b 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #7a6b9b 50%, transparent);
+}
+.os-agent-row--support .os-agent-role-mark { color: #3d8b7a; }
+.os-agent-row--gate .os-agent-role-mark { color: #c4a035; }
+.os-agent-row--skeptic .os-agent-role-mark { color: #9b8ec4; }
+.os-role-pill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  line-height: 1.2;
+}
+.os-role-pill--support { background: #2f8f7b; color: #04110e; }
+.os-role-pill--gate { background: #c4a035; color: #1a1403; }
+.os-role-pill--skeptic { background: #7a6b9b; color: #f4f1fb; }
+
+.os-support-welcome a {
+  display: inline-block;
+  margin: 0.15rem 0.2rem 0.15rem 0;
+  padding: 0.12rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 22%, transparent);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.os-support-welcome a:hover {
+  background: color-mix(in srgb, var(--color-base-content) 10%, transparent);
+}
+.os-code-python {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.os-py-kw { color: #7eb8ff; font-weight: 650; }
+.os-py-str { color: #9ad4a0; }
+.os-py-com { color: #8b93a7; font-style: italic; }
+.os-py-num { color: #e0b36a; }
+.os-py-dec { color: #d7a1ff; }
+.os-py-bi { color: #7fd4d0; }
+[data-theme="light"] .os-py-kw { color: #1d4f91; }
+[data-theme="light"] .os-py-str { color: #2d6a38; }
+[data-theme="light"] .os-py-com { color: #667085; }
+[data-theme="light"] .os-py-num { color: #9a5b10; }
+[data-theme="light"] .os-py-dec { color: #7a3ea8; }
+[data-theme="light"] .os-py-bi { color: #0e6e6a; }

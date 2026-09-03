@@ -45,6 +45,33 @@
     return agent.name || agent.id;
   }
 
+  function agentRole(agent) {
+    var role = String((agent && agent.role) || "").trim().toLowerCase();
+    if (role) return role;
+    var id = String((agent && agent.id) || "").trim().toLowerCase();
+    if (id === "support" || id === "gate" || id === "skeptic") return id;
+    return "";
+  }
+
+  function isSupport(agent) {
+    return agentRole(agent) === "support";
+  }
+
+  function roleRank(agent) {
+    var role = agentRole(agent);
+    if (role === "support") return 0;
+    if (role === "gate") return 1;
+    if (role === "skeptic") return 2;
+    return 10;
+  }
+
+  function sortRoles(list) {
+    return list.slice().sort(function (a, b) {
+      var diff = roleRank(a) - roleRank(b);
+      return diff;
+    });
+  }
+
   function matchesFilter(agent, query) {
     if (!query) return true;
     var hay = (agentLabel(agent) + " " + (agent.id || "") + " " + (agent.description || "")).toLowerCase();
@@ -90,22 +117,37 @@
 
     function makeLink(agent, hidden) {
       var link = document.createElement("a");
+      var role = agentRole(agent);
       link.href = "/chat?blueprint=" + encodeURIComponent(agent.id);
-      link.className = "os-agent-item";
+      link.className = "os-agent-item" + (role ? " os-agent-item--" + role : "");
       var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
+      if (role) link.setAttribute("data-role", role);
 
-      var dot = document.createElement("span");
-      dot.className = "os-agent-dot";
-      dot.setAttribute("data-mark", markIndex(agent.id));
-      dot.setAttribute("aria-hidden", "true");
+      var mark = document.createElement("span");
+      mark.setAttribute("aria-hidden", "true");
+      if (role === "support" || role === "gate" || role === "skeptic") {
+        mark.className = "os-agent-role-mark os-agent-role-mark--" + role;
+      } else {
+        mark.className = "os-agent-dot";
+        mark.setAttribute("data-mark", markIndex(agent.id));
+      }
 
       var text = document.createElement("span");
       text.className = "os-agent-item__text";
+      var titleRow = document.createElement("span");
+      titleRow.className = "os-agent-item__name-row";
       var title = document.createElement("span");
       title.className = "os-agent-item__name";
       title.textContent = name;
-      text.appendChild(title);
+      titleRow.appendChild(title);
+      if (role) {
+        var pill = document.createElement("span");
+        pill.className = "os-role-pill os-role-pill--" + role;
+        pill.textContent = role;
+        titleRow.appendChild(pill);
+      }
+      text.appendChild(titleRow);
       if (agent.description) {
         var desc = document.createElement("span");
         desc.className = "os-agent-item__desc";
@@ -113,9 +155,10 @@
         text.appendChild(desc);
       }
 
-      link.appendChild(dot);
+      link.appendChild(mark);
       link.appendChild(text);
       link.addEventListener("contextmenu", function (event) {
+        if (isSupport(agent)) return;
         event.preventDefault();
         openMenu(event, agent, hidden);
       });
@@ -147,12 +190,12 @@
 
     function render() {
       var q = filter.trim().toLowerCase();
-      var visible = agents.filter(function (agent) {
-        return hiddenIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
-      });
-      var hidden = agents.filter(function (agent) {
-        return hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);
-      });
+      var visible = sortRoles(agents.filter(function (agent) {
+        return (isSupport(agent) || hiddenIds.indexOf(agent.id) === -1) && matchesFilter(agent, q);
+      }));
+      var hidden = sortRoles(agents.filter(function (agent) {
+        return !isSupport(agent) && hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);
+      }));
 
       listEl.replaceChildren();
       hiddenListEl.replaceChildren();
