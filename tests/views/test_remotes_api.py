@@ -36,6 +36,9 @@ class TestRemotesList:
         assert data["object"] == "list"
         assert data["data"][0]["id"] == "hermes"
         assert data["data"][0]["api_key_set"] is False
+        assert "team_members" in data
+        assert data["vocabulary"]["not_teams_page"]
+        assert any(m["talk"] == "consult_hermes" for m in data["team_members"])
 
 
 class TestRemoteDetail:

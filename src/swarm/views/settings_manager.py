@@ -96,7 +96,10 @@ class SettingsManager:
             },
             'remotes': {
                 'title': 'Remote Harnesses',
-                'description': 'Hermes, OpenMausBot, and Rakazo base URL + auth (persisted in remotes.*)',
+                'description': (
+                    'Hermes, OpenMausBot, and Rakazo as Team members (handoff/as_tool). '
+                    'Persist base URL + auth. Not the /teams/ profile-alias registry.'
+                ),
                 'icon': '🛰️',
                 'settings': {}
             },

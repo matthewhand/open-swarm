@@ -56,6 +56,15 @@ def _cfg(host: str, port: int) -> dict:
     }
 
 
+def test_team_members_are_handoff_not_profile_aliases():
+    members = remotes_core.list_team_members({"llm": {}, "remotes": {}})
+    ids = {m["id"] for m in members}
+    assert ids == {"hermes", "omb", "rakazo"}
+    assert all(m["via"] == "as_tool" for m in members)
+    assert "DynamicTeam" not in remotes_core.TEAM_VOCABULARY["team"]
+    assert "/teams/" in remotes_core.TEAM_VOCABULARY["not_teams_page"]
+
+
 def test_unknown_remote_raises():
     with pytest.raises(remotes_core.RemoteError):
         remotes_core.load_remote("not-a-harness")

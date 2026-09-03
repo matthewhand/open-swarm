@@ -4,6 +4,16 @@ Open Swarm can sit **in front of** other agent harnesses: configure them, check
 they are up, and send work through **their** APIs. This is not a concurrent
 Grok / OMB / Rakazo seat clone, and **Grok-Bot chrome is not claimed live**.
 
+**Team vocabulary (REQ-11):** a Team is how you wire API agents, CLI agents, and
+**remote** agents (Hermes / OMB / Rakazo) so they can see and talk to each
+other via openai-agents **handoff / as_tool**. Hermes, OMB, and Rakazo are
+Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`).
+
+That is **not** the Django `/teams/` JSON registry. `/teams/` today is
+LLM-profile aliases (`DynamicTeamBlueprint`). New copy should not call those
+aliases “teams”; prefer **Profiles**. `GET /v1/remotes/` repeats this collision
+in `vocabulary` + `team_members`.
+
 LAN LLM for *this* swarm: `http://10.0.0.30:8000/v1`. Do **not** point remotes
 at Fly open-litellm.
 

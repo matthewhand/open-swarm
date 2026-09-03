@@ -33,6 +33,27 @@ logger = logging.getLogger(__name__)
 
 REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo")
 
+# Team (REQ-11 vocabulary): agents that SEE and TALK to each other via
+# openai-agents handoff / as_tool. This is NOT the /teams/ LLM-profile alias
+# registry (DynamicTeamBlueprint). Remotes are Team *members*.
+TEAM_VOCABULARY: dict[str, str] = {
+    "team": (
+        "A Team wires API agents, CLI agents, and remote agents "
+        "(Hermes / OMB / Rakazo) so they can see and talk to each other "
+        "via openai-agents handoff or as_tool."
+    ),
+    "not_teams_page": (
+        "The Django /teams/ JSON registry is LLM-profile aliases "
+        "(DynamicTeamBlueprint) — not this Team. Prefer 'Profiles' for that surface."
+    ),
+}
+
+_TOOL_NAMES: dict[str, str] = {
+    "hermes": "consult_hermes",
+    "omb": "consult_omb",
+    "rakazo": "consult_rakazo",
+}
+
 # Verified operator LAN facts (not reachable from every cloud VM).
 _DEFAULTS: dict[str, dict[str, Any]] = {
     "hermes": {
@@ -144,6 +165,12 @@ class RemoteSpec:
             "version_path": self.version_path,
             "notes": self.notes,
             "source": self.source,
+            "member": {
+                "kind": "remote",
+                "talk": _TOOL_NAMES[self.id],
+                "via": "as_tool",
+                "place_in": "Team (handoff members — not /teams/ profile aliases)",
+            },
         }
 
 
@@ -300,6 +327,24 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
 def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     return {rid: load_remote(rid, cfg) for rid in REMOTE_IDS}
+
+
+def list_team_members(config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Remote harnesses as Team members (handoff / as_tool), not profile aliases."""
+    members = []
+    for spec in load_all_remotes(config).values():
+        pub = spec.public_dict()
+        members.append(
+            {
+                "id": spec.id,
+                "kind": "remote",
+                "title": spec.title,
+                "base_url": spec.base_url,
+                "talk": pub["member"]["talk"],
+                "via": "as_tool",
+            }
+        )
+    return members
 
 
 def persist_remote(

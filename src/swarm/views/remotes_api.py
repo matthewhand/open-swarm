@@ -39,7 +39,9 @@ class RemotesListView(APIView):
         return Response(
             {
                 "object": "list",
+                "vocabulary": remotes_core.TEAM_VOCABULARY,
                 "data": [spec.public_dict() for spec in specs.values()],
+                "team_members": remotes_core.list_team_members(),
             }
         )
 

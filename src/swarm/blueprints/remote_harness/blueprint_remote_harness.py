@@ -88,10 +88,9 @@ class RemoteHarnessBlueprint(BlueprintBase):
         "name": "remote_harness",
         "title": "Remote Harnesses (Hermes / OMB / Rakazo)",
         "description": (
-            "Config, health, and operate for LAN remotes Hermes (ubuntu-gtx :8642), "
-            "OpenMausBot (Windows2 :8802), and Rakazo (Windows2 :3100). "
-            "openai-agents agent-as-tool — not a Grok/OMB/Rakazo seat clone. "
-            "Grok-Bot chrome is not claimed live."
+            "Team members: Hermes, OpenMausBot, Rakazo — they see/talk via "
+            "openai-agents as_tool (consult_hermes/omb/rakazo). Not a seat clone, "
+            "not the /teams/ LLM-profile alias registry. Grok-Bot chrome is not live."
         ),
         "version": "0.1.0",
         "author": "Open Swarm Team",
