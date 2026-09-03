@@ -133,6 +133,30 @@ test('/agents is Agent Router (not redirected to /chat)', async ({ page }) => {
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
+test('chat header Computer control icon opens a WIP modal (REQ-27b)', async ({ page }) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubAgentApis(page)
+  await page.goto('/chat')
+
+  const tools = page.getByRole('toolbar', { name: 'Chat tools' })
+  const trigger = page.getByRole('button', { name: 'Computer control' })
+  await expect(tools).toBeVisible()
+  await expect(trigger).toBeVisible()
+
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Computer control' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('WIP', { exact: true })).toBeVisible()
+  await expect(dialog).toContainText(
+    'Computer control will use a placed OMB or Rakazo remote; not implemented here.',
+  )
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+  await expect(dialog.getByRole('switch')).toHaveCount(0)
+
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
+
 test('right-click hide from sidebar persists across reload; unhide restores', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))

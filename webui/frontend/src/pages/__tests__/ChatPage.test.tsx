@@ -381,6 +381,43 @@ describe('ChatPage auto-reconnect backoff', () => {
   })
 })
 
+describe('ChatPage computer-control stub (REQ-27b)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows a top-right Computer control tool by default (not agent-attached)', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const tools = screen.getByRole('toolbar', { name: 'Chat tools' })
+    const trigger = screen.getByRole('button', { name: 'Computer control' })
+    expect(tools).toContainElement(trigger)
+
+    fireEvent.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
+    expect(dialog).toHaveClass('modal-open')
+    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OMB or Rakazo remote/)
+    expect(dialog).toHaveTextContent(/not implemented here/i)
+  })
+})
+
 describe('ChatPage markdown bubbles', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
