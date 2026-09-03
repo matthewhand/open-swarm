@@ -64,11 +64,11 @@ def test_compact_replaces_model_context(user):
     )
     assert raw == messages
     context = build_model_context(raw, [row])
-    joined = " ".join(m["content"] for m in context)
-    assert "alpha question" not in joined
-    assert "[Conversation summary]" in joined
+    assert len(context) == 1
     assert context[0]["role"] == "system"
-    assert all(m.get("content") != "alpha question" for m in context)
+    assert context[0]["content"].startswith("[Conversation summary]")
+    assert not any(m["role"] == "user" for m in context)
+    assert not any(m["role"] == "assistant" for m in context)
 
 
 @pytest.mark.django_db
@@ -86,10 +86,11 @@ def test_nested_compact_sets_parent_summary_id(user):
     assert raw == later
 
     context = context_for_conversation(cid, later)
-    joined = "\n".join(m["content"] for m in context)
-    assert "[Conversation summary]" in joined
-    assert "[nested summary]" in joined
-    assert "three" not in joined
+    assert len(context) == 1
+    assert context[0]["role"] == "system"
+    assert "[Conversation summary]" in context[0]["content"]
+    assert "[nested summary]" in context[0]["content"]
+    assert not any(m.get("role") == "user" and m.get("content") == "three" for m in context)
 
 
 @pytest.mark.django_db
@@ -132,7 +133,8 @@ def test_compact_endpoint_and_thread_payload(client, user):
     assert body["summary"]["span"] == {"start": 0, "end": 1}
     assert body["raw_count"] == 2
     assert body["context"][0]["role"] == "system"
-    assert "remember this" not in body["context"][0]["content"]
+    assert len(body["context"]) == 1
+    assert not any(m.get("role") == "user" for m in body["context"])
 
     thread = client.get(f"/chat/thread/?agent=jeeves&conversation_id={cid}")
     assert thread.status_code == 200

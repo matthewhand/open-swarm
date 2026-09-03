@@ -69,8 +69,7 @@ def _conversation_cache_key(user, conversation_id):
     return (user_id, conversation_id)
 
 
-@database_sync_to_async
-def _compacted_context(conversation_id, messages):
+async def _compacted_context(conversation_id, messages):
     """Model context: summary tree replaces covered raw turns (REQ-37).
 
     Raw ``messages`` stay on the consumer and on disk. Failures fall back
@@ -80,7 +79,9 @@ def _compacted_context(conversation_id, messages):
     try:
         from swarm.core.chat_compact import context_for_conversation
 
-        return context_for_conversation(conversation_id, messages)
+        return await database_sync_to_async(context_for_conversation)(
+            conversation_id, messages
+        )
     except Exception:
         logger.debug("compact context unavailable; using raw transcript", exc_info=True)
         return list(messages or [])
@@ -281,7 +282,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         final_message = None
         try:
-            model_messages = await _compacted_context(self.conversation_id, self.messages)
+            model_messages = await _compacted_context(
+                getattr(self, "conversation_id", ""),
+                self.messages,
+            )
             async for chunk in blueprint_instance.run(model_messages):
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
@@ -386,7 +390,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         full_message = ""
         try:
-            model_messages = await _compacted_context(self.conversation_id, self.messages)
+            model_messages = await _compacted_context(
+                getattr(self, "conversation_id", ""),
+                self.messages,
+            )
             stream = await client.chat.completions.create(
                 model=model,
                 messages=model_messages,
