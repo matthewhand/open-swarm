@@ -98,11 +98,13 @@ const ChatPage = () => {
     queryFn: fetchBlueprints,
   })
   const blueprints = blueprintsQuery.data?.data ?? []
+  const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
+  const agentAvatarSrc = selectedAgent?.avatar_path
   const blueprintMissingFromList =
     Boolean(selectedBlueprint) &&
     !blueprintsQuery.isPending &&
     !blueprintsQuery.isError &&
-    !blueprints.some((bp) => bp.id === selectedBlueprint)
+    !selectedAgent
   const signInHref = chatLoginHref(searchParams)
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
@@ -299,7 +301,7 @@ const ChatPage = () => {
           Stacks vertically below lg; single row on desktop. */}
       <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
-          <AgentAvatar size="lg" />
+          <AgentAvatar size="lg" src={agentAvatarSrc} />
           Chat
         </h1>
 
@@ -471,7 +473,7 @@ const ChatPage = () => {
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <AgentAvatar size="xl" />
+              <AgentAvatar size="xl" src={agentAvatarSrc} />
               <div>
                 <p className="font-medium text-base-content/70">
                   {status === 'open'
@@ -521,7 +523,7 @@ const ChatPage = () => {
                 >
                   {message.role === 'assistant' ? (
                     <div className="chat-image">
-                      <AgentAvatar size="md" />
+                      <AgentAvatar size="md" src={agentAvatarSrc} />
                     </div>
                   ) : null}
                   <div className="chat-header text-xs opacity-60">

@@ -45,3 +45,6 @@ def test_spa_wires_agent_avatar_as_default():
     assert "os-agent-dot" not in sidebar
     assert "agentMarkIndex" not in sidebar
     assert "AgentAvatar" in chat
+    # Custom avatar_path must reach all three chat faces (header / empty / bubbles).
+    assert chat.count("src={agentAvatarSrc}") == 3
+    assert "selectedAgent?.avatar_path" in chat
