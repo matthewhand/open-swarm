@@ -60,5 +60,13 @@ of `spa-chat.png` shows **Connected**. The checked-in desktop/mobile frames
 (2026-08-19) show **Connected**; **Unavailable** appears for 4401 / unreachable
 — see [SCREENSHOTS.md](./SCREENSHOTS.md).
 
+### Per-agent persistence (REQ-14)
+
+Each agent thread is a JSON file under `$SWARM_CHAT_DIR` (default
+`$SWARM_USER_DATA_DIR/chats`): `active/<user>/<agent>.json`. The consumer
+mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
+SPA after reload or agent switch. Retention (counts, disk, trash,
+`SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
+
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).

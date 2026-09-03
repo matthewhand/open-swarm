@@ -19,9 +19,13 @@ import {
 } from '../components/DaisyUI'
 import { fetchBlueprints, isAuthError } from '../lib/api'
 import {
+  agentIdFromBlueprint,
+  conversationIdForAgent,
+  fetchAgentThread,
+} from '../lib/agentChat'
+import {
   buildChatWsFrame,
   buildChatWsUrl,
-  newConversationId,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
@@ -78,9 +82,11 @@ const ChatPage = () => {
   const [connectAttempt, setConnectAttempt] = useState(0)
   /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
+  const [conversationId, setConversationId] = useState(() =>
+    conversationIdForAgent(agentIdFromBlueprint(searchParams.get('blueprint'))),
+  )
 
   const wsRef = useRef<WebSocket | null>(null)
-  const conversationIdRef = useRef(newConversationId())
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
@@ -91,6 +97,8 @@ const ChatPage = () => {
   const backoffAttemptRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
+  /** Last hydrated agent; used to clear bubbles only when the user switches. */
+  const lastHydratedAgentRef = useRef<string | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -103,6 +111,42 @@ const ChatPage = () => {
     !blueprintsQuery.isError &&
     !blueprints.some((bp) => bp.id === selectedBlueprint)
   const signInHref = chatLoginHref(searchParams)
+
+  // Sidebar links change ?blueprint= without remounting ChatPage.
+  const urlBlueprint = searchParams.get('blueprint') ?? ''
+  useEffect(() => {
+    setSelectedBlueprint(urlBlueprint)
+  }, [urlBlueprint])
+
+  // Per-agent thread: stable conversation id + hydrate from disk/DB.
+  // No history chrome — messages just come back after reload / agent switch.
+  useEffect(() => {
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    const switched =
+      lastHydratedAgentRef.current !== null &&
+      lastHydratedAgentRef.current !== agent
+    lastHydratedAgentRef.current = agent
+    setConversationId(conversationIdForAgent(agent))
+    userKeyCounterRef.current = 0
+    if (switched) setMessages([])
+    let cancelled = false
+    ;(async () => {
+      const thread = await fetchAgentThread(agent)
+      if (cancelled) return
+      if (thread.messages.length === 0) return
+      setMessages(
+        thread.messages.map((message, index) => ({
+          key: `hist-${index}-${message.role}`,
+          role: message.role,
+          text: message.content,
+          streaming: false,
+        })),
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedBlueprint])
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
     if (event.kind === 'unknown') {
@@ -158,7 +202,9 @@ const ChatPage = () => {
 
     let ws: WebSocket
     try {
-      ws = new WebSocket(buildChatWsUrl(conversationIdRef.current))
+      ws = new WebSocket(
+        buildChatWsUrl(conversationId, selectedBlueprint || undefined),
+      )
     } catch {
       setStatus('failed')
       const attempt = backoffAttemptRef.current
@@ -221,7 +267,7 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent])
+  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint])
 
   // Keep the latest message in view while streaming, but only while the user
   // is already at (or near) the bottom — never yank a reader who scrolled up.
