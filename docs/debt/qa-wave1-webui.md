@@ -367,6 +367,14 @@ already scored in [`tests-ci.md`](tests-ci.md) **D-04 / D-05** (and the
 original [`webui.md`](webui.md) P0-1 “out of scope” screenshot/journey
 lock). Do not re-file. Do not “fix” it in this PR.
 
+A later push of *this same docs paragraph* also saw Python 3.10/3.11/3.12
+fail `tests/views/test_spa_django_canonical_routes.py` (`HttpResponse` has
+no `streaming_content`). That is **#428 on `main`** (`asgi_file_response`
+now returns a buffered `HttpResponse`); the first commit on this branch
+was green against older `main` `841e953c`. GitHub PR CI merges current
+`main` into the check. Same failure is red on `main`. Not this file. Do
+not rebase other PRs to paper over it.
+
 ---
 
 ## Suggested later slices (not this file, not PR 344)
