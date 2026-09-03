@@ -103,7 +103,8 @@ class TestSpaChatStaysChat:
         monkeypatch.setattr("swarm.views.web_views._get_frontend_path", lambda: dist)
         response = client.get("/chat", follow=False)
         assert response.status_code == 200
-        body = b"".join(response.streaming_content)
+        # #428 buffers SPA files into HttpResponse (ASGI-safe); not FileResponse.
+        body = response.content
         assert b"spa-chat-composer" in body
         assert b"Connected" in body
         assert response.get("Location") is None
