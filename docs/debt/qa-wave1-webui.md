@@ -348,6 +348,27 @@ Closed in-range (already shipped — do not reopen as debt): **#350** REQ-37 Com
 
 ---
 
+## CI note — `golden-journey` red is not this file
+
+A docs-only PR still runs `visual-regression.yml` (no path filter). On this
+branch, `golden-journey` failed the same two timeouts already red on
+`origin/main`:
+
+- `test_landing_page_is_styled` waits for a **visible** `.btn-primary`. On
+  today’s `/` that locator resolves to the settings-sheet **Save retention**
+  button, which stays `hidden` until the overlay opens
+  (`tests/e2e_visual/test_golden_journey.py`).
+- `test_chat_websocket_connects` waits 20s for exact visible `Connected`.
+  Grok chrome hides healthy status (`e2e/chrome.spec.ts` asserts
+  `Connected` count 0; ChatPage uses a toast / `sr-only` live region).
+
+**Do not treat that job as a regression of this look-only file.** It is
+already scored in [`tests-ci.md`](tests-ci.md) **D-04 / D-05** (and the
+original [`webui.md`](webui.md) P0-1 “out of scope” screenshot/journey
+lock). Do not re-file. Do not “fix” it in this PR.
+
+---
+
 ## Suggested later slices (not this file, not PR 344)
 
 Look-only. If someone files follow-up work, keep slices small and **prefer existing Issues**:
