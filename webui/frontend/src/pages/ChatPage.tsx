@@ -96,7 +96,7 @@ export function formatElapsed(ms: number): string {
 const ChatPage = () => {
   // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
   const [searchParams] = useSearchParams()
-  const { error: toastError } = useToast()
+  const { addToast } = useToast()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
@@ -306,22 +306,26 @@ const ChatPage = () => {
       : status === 'failed'
         ? 'ASGI is not serving /ws/ or Origin does not match ALLOWED_HOSTS.'
         : 'The chat websocket closed. Message history is kept.'
-    toastError(
+    addToast({
+      type: 'error',
       title,
-      <span>
-        {detail}{' '}
-        {authRejected ? (
-          <a href={signInHref} className="link">
-            Sign in
-          </a>
-        ) : (
-          <button type="button" className="link" onClick={reconnect}>
-            Reconnect
-          </button>
-        )}
-      </span>,
-    )
-  }, [status, authRejected, signInHref, toastError, reconnect])
+      message: (
+        <span>
+          {detail}{' '}
+          {authRejected ? (
+            <a href={signInHref} className="link">
+              Sign in
+            </a>
+          ) : (
+            <button type="button" className="link" onClick={reconnect}>
+              Reconnect
+            </button>
+          )}
+        </span>
+      ),
+      position: 'bottom-right',
+    })
+  }, [status, authRejected, signInHref, addToast, reconnect])
 
   const canSend =
     status === 'open' && input.trim().length > 0
