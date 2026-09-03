@@ -299,7 +299,8 @@ body.os-login button[type="submit"]:focus-visible {
      are NOT re-declared here (deduped). */
   .se-chip { font-size:.8rem; padding:.2rem .6rem; border-radius:999px; background:var(--os-border); color:var(--os-text); }
   .se-card { background:var(--os-panel); border:1px solid var(--os-border); border-radius:12px; padding:.85rem 1rem;
-             margin:.5rem 0; transition:border-color .15s, transform .05s; }
+             margin:.5rem 0; transition:border-color .15s, transform .05s;
+             min-width: 0; max-width: 100%; overflow: visible; }
   .se-card:hover { border-color:var(--os-accent); }
   .se-card a.se-id { color:var(--os-link); text-decoration:none; font-family:ui-monospace,monospace; font-size:.9rem; }
   .se-row { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }

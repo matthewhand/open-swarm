@@ -95,9 +95,11 @@ def test_operator_shell_is_column_chrome_matching_chat():
 
 
 def test_session_error_preview_wraps_instead_of_clipping():
-    css = OPERATOR_CSS.read_text(encoding="utf-8")
-    assert re.search(r"\.se-preview\s*\{[^}]*overflow-wrap:\s*anywhere", css, re.S)
-    assert re.search(r"\.se-preview\s*\{[^}]*word-break:\s*break-word", css, re.S)
+    operator = OPERATOR_CSS.read_text(encoding="utf-8")
+    shell = SHELL_CSS.read_text(encoding="utf-8")
+    assert re.search(r"\.se-preview\s*\{[^}]*overflow-wrap:\s*anywhere", operator, re.S)
+    assert re.search(r"\.se-preview\s*\{[^}]*word-break:\s*break-word", operator, re.S)
+    assert re.search(r"\.se-preview,\s*\n\s*\.se-error\s*\{[^}]*overflow-wrap:\s*anywhere", shell, re.S)
 
 
 def test_spa_document_chrome_is_near_black():

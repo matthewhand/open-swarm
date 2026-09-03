@@ -660,7 +660,23 @@ html[data-os-theme="light"] .os-agent-sidebar {
   flex: 1 1 auto;
   min-width: 0;
   width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
   padding: 1rem 1.15rem 1.5rem;
+}
+.se-card,
+.se-preview,
+.se-error {
+  min-width: 0;
+  max-width: 100%;
+}
+.se-preview,
+.se-error {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 @media (max-width: 991.98px) {
   .os-agent-sidebar {
