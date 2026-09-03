@@ -27,18 +27,42 @@ def _spec(rid: str = "hermes") -> RemoteSpec:
 
 
 class TestRemotesList:
-    @patch("swarm.views.remotes_api.remotes_core.load_all_remotes")
-    def test_list(self, mock_load, api_client):
+    @patch("swarm.views.remotes_api.remotes_core.is_configured", return_value=True)
+    @patch("swarm.views.remotes_api.remotes_core.kind_catalog")
+    @patch("swarm.views.remotes_api.remotes_core.load_configured_remotes")
+    def test_list(self, mock_load, mock_kinds, _mock_cfg, api_client):
         mock_load.return_value = {"hermes": _spec()}
+        mock_kinds.return_value = [
+            {"id": "hermes", "label": "Hermes"},
+            {"id": "omb", "label": "OpenMousBot"},
+        ]
         resp = api_client.get("/v1/remotes/")
         assert resp.status_code == 200
         data = resp.json()
         assert data["object"] == "list"
         assert data["data"][0]["id"] == "hermes"
         assert data["data"][0]["api_key_set"] is False
+        assert data["kinds"][1]["label"] == "OpenMousBot"
+        assert all(k.get("label") != "OMB" for k in data["kinds"])
         assert "team_members" in data
         assert data["vocabulary"]["not_teams_page"]
         assert any(m["talk"] == "consult_hermes" for m in data["team_members"])
+
+    @patch("swarm.views.remotes_api.remotes_core.add_remote")
+    def test_add_openmousbot(self, mock_add, api_client):
+        mock_add.return_value = (_spec("omb"), "/tmp/swarm_config.json")
+        resp = api_client.post(
+            "/v1/remotes/",
+            {"kind": "omb", "base_url": "http://127.0.0.1:9", "api_key_env": "OMB_API_KEY"},
+            format="json",
+        )
+        assert resp.status_code == 201
+        mock_add.assert_called_once()
+        assert resp.json()["persisted_to"] == "/tmp/swarm_config.json"
+
+    def test_add_requires_kind(self, api_client):
+        resp = api_client.post("/v1/remotes/", {"base_url": "http://127.0.0.1:9"}, format="json")
+        assert resp.status_code == 400
 
 
 class TestRemoteDetail:
@@ -70,6 +94,14 @@ class TestRemoteDetail:
     def test_patch_empty(self, api_client):
         resp = api_client.patch("/v1/remotes/hermes/", {}, format="json")
         assert resp.status_code == 400
+
+    @patch("swarm.views.remotes_api.remotes_core.remove_remote")
+    def test_delete(self, mock_remove, api_client):
+        mock_remove.return_value = ("omb", "/tmp/swarm_config.json")
+        resp = api_client.delete("/v1/remotes/omb/")
+        assert resp.status_code == 200
+        assert resp.json()["removed"] is True
+        mock_remove.assert_called_once()
 
 
 class TestRemoteHealth:

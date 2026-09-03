@@ -1,8 +1,23 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, FileCode2, Server } from 'lucide-react'
+import { AlertCircle, FileCode2, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
-import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
+import {
+  fetchBlueprintSource,
+  fetchModels,
+  fetchRemotes,
+  type BlueprintSource,
+  type RemoteConnection,
+  type RemoteKind,
+} from '../lib/api'
+import { remoteKindLabel } from '../lib/remoteKinds'
+import {
+  AddRemoteForm,
+  EmptyRemotesPane,
+  REMOTES_QUERY_KEY,
+  RemoteOperatePane,
+  configuredRemoteSection,
+} from './RemotesSettings'
 import {
   agentRole,
   fallbackBlueprintSource,
@@ -27,9 +42,9 @@ export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
   | 'blueprint'
-  | 'remotes-hermes'
-  | 'remotes-omb'
-  | 'remotes-rakazo'
+  | 'remotes'
+  | 'remotes-add'
+  | `remotes-${string}`
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
@@ -43,14 +58,8 @@ export function openSettingsSheet(detail?: OpenSettingsDetail): void {
   window.dispatchEvent(new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail }))
 }
 
-const REMOTE_PANES = [
-  { id: 'remotes-hermes' as const, label: 'Hermes' },
-  { id: 'remotes-omb' as const, label: 'OMB' },
-  { id: 'remotes-rakazo' as const, label: 'Rakazo' },
-]
-
 function isRemoteSection(section: SettingsSection): boolean {
-  return section.startsWith('remotes-')
+  return section === 'remotes' || section === 'remotes-add' || section.startsWith('remotes-')
 }
 
 export interface SettingsSheetProps {
@@ -73,6 +82,14 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
   const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
+  const remotesQuery = useQuery({
+    queryKey: REMOTES_QUERY_KEY,
+    queryFn: fetchRemotes,
+    enabled: isOpen,
+    retry: false,
+  })
+  const configuredRemotes = remotesQuery.data?.data ?? []
+  const remoteKinds = remotesQuery.data?.kinds ?? []
 
   useEffect(() => {
     if (!isOpen) return
@@ -123,25 +140,45 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
             <li>
               <button
                 type="button"
-                className={`menu-dropdown-toggle ${remotesOpen ? 'menu-dropdown-show' : ''}`}
+                className={`menu-dropdown-toggle ${remotesOpen ? 'menu-dropdown-show' : ''} ${
+                  isRemoteSection(section) && configuredRemotes.length === 0 ? 'menu-active' : ''
+                }`}
                 aria-expanded={remotesOpen}
-                onClick={() => setRemotesOpen((open) => !open)}
+                onClick={() => {
+                  setRemotesOpen((open) => !open)
+                  setSection(configuredRemotes[0] ? configuredRemoteSection(configuredRemotes[0].id) : 'remotes')
+                }}
               >
                 Remotes
               </button>
               <ul className={`menu-dropdown ${remotesOpen ? 'menu-dropdown-show' : ''}`}>
-                {REMOTE_PANES.map((remote) => (
-                  <li key={remote.id}>
-                    <button
-                      type="button"
-                      className={section === remote.id ? 'menu-active' : undefined}
-                      aria-current={section === remote.id ? 'page' : undefined}
-                      onClick={() => setSection(remote.id)}
-                    >
-                      {remote.label}
-                    </button>
-                  </li>
-                ))}
+                <li>
+                  <button
+                    type="button"
+                    className={section === 'remotes-add' ? 'menu-active' : undefined}
+                    aria-current={section === 'remotes-add' ? 'page' : undefined}
+                    onClick={() => setSection('remotes-add')}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Add remote
+                  </button>
+                </li>
+                {configuredRemotes.map((remote) => {
+                  const id = configuredRemoteSection(remote.id)
+                  const label = remoteKindLabel(remote.id, remote.label || remote.title)
+                  return (
+                    <li key={remote.id}>
+                      <button
+                        type="button"
+                        className={section === id ? 'menu-active' : undefined}
+                        aria-current={section === id ? 'page' : undefined}
+                        onClick={() => setSection(id)}
+                      >
+                        {label}
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             </li>
             <li>
@@ -181,7 +218,16 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {isRemoteSection(section) && (
+            <RemotesSection
+              section={section}
+              configured={configuredRemotes}
+              kinds={remoteKinds}
+              loading={remotesQuery.isPending}
+              loadError={remotesQuery.isError}
+              onSelect={(next) => setSection(next)}
+            />
+          )}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -360,26 +406,45 @@ function ModuleLink({
   )
 }
 
-function RemotePane({ section }: { section: SettingsSection }) {
-  const remote = REMOTE_PANES.find((item) => item.id === section)
-  const label = remote?.label ?? 'Remote'
-  return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">{label}</h4>
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="font-medium">{label}</span> is a placeholder remote.
-            The remotes API has not landed — this pane is the settings-sheet
-            shell only.
-          </p>
-          <p className="text-base-content/70">
-            Hermes, OMB, and Rakazo will connect here once the backend exists.
-          </p>
-        </div>
+function RemotesSection({
+  section,
+  configured,
+  kinds,
+  loading,
+  loadError,
+  onSelect,
+}: {
+  section: SettingsSection
+  configured: RemoteConnection[]
+  kinds: RemoteKind[]
+  loading: boolean
+  loadError: boolean
+  onSelect: (section: SettingsSection) => void
+}) {
+  if (section === 'remotes-add') {
+    return (
+      <AddRemoteForm
+        kinds={kinds}
+        onAdded={(remote) => onSelect(configuredRemoteSection(remote.id))}
+      />
+    )
+  }
+  const selectedId = section.startsWith('remotes-') ? section.slice('remotes-'.length) : ''
+  const selected = configured.find((remote) => remote.id === selectedId)
+  if (selected) {
+    return <RemoteOperatePane remote={selected} />
+  }
+  if (loading) {
+    return <p className="text-sm text-base-content/60">Loading remotes…</p>
+  }
+  if (loadError) {
+    return (
+      <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+        <span className="text-sm">Could not load remotes. Try Add remote again after the API is up.</span>
       </Alert>
-    </div>
-  )
+    )
+  }
+  return <EmptyRemotesPane onAdd={() => onSelect('remotes-add')} />
 }
 
 function RetentionPane({

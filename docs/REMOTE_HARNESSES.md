@@ -1,12 +1,12 @@
-# Remote harnesses — Hermes, OpenMausBot, Rakazo
+# Remote harnesses — Hermes, OpenMousBot, Rakazo
 
 Open Swarm can sit **in front of** other agent harnesses: configure them, check
 they are up, and send work through **their** APIs. This is not a concurrent
-Grok / OMB / Rakazo seat clone, and **Grok-Bot chrome is not claimed live**.
+Grok / OpenMousBot / Rakazo seat clone, and **Grok-Bot chrome is not claimed live**.
 
 **Team vocabulary (REQ-11):** a Team is how you wire API agents, CLI agents, and
-**remote** agents (Hermes / OMB / Rakazo) so they can see and talk to each
-other via openai-agents **handoff / as_tool**. Hermes, OMB, and Rakazo are
+**remote** agents (Hermes / OpenMousBot / Rakazo) so they can see and talk to each
+other via openai-agents **handoff / as_tool**. Hermes, OpenMousBot, and Rakazo are
 Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`).
 
 That is **not** the Django `/teams/` JSON registry. `/teams/` today is
@@ -76,7 +76,7 @@ report, not an exception. Auth-gated 401/403 on a live port counts as **UP**
 | Remote | Probe |
 |---|---|
 | Hermes | `GET /health` → `{"status":"ok"}`; version via `GET /v1/models` |
-| OMB | `GET /api/health` → `{"app":"openmausbot",...}` |
+| OpenMousBot (`omb`) | `GET /api/health` → `{"app":"openmausbot",...}` |
 | Rakazo | `GET /health` → `{"ok":true,"runtime":"pi",...}` |
 
 ## Operate today vs not
@@ -84,7 +84,7 @@ report, not an exception. Auth-gated 401/403 on a live port counts as **UP**
 | Remote | List | Send / start a job | Gap |
 |---|---|---|---|
 | **Hermes** | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs` | `POST /v1/runs` `{"input":"..."}` | Needs Bearer `API_SERVER_KEY`. Do not bounce Hermes to read config; do not delete `SKILL.md`. Dashboard `:9119` is not the operate API. |
-| **OMB** | `GET /api/bots` | `POST /api/bots/{id}/messages` `{"text":"..."}` (202). Creates a bot if none exist. | HTTP only — no OMB source clone. Upstream default bind is `127.0.0.1:8799`; this LAN install is `:8802`. |
+| **OpenMousBot** | `GET /api/bots` | `POST /api/bots/{id}/messages` `{"text":"..."}` (202). Creates a bot if none exist. | HTTP only — no OpenMousBot source clone. Upstream default bind is `127.0.0.1:8799`; this LAN install is `:8802`. |
 | **Rakazo** | `POST /rpc/bots/list` | `POST /rpc/threads/send` `{botId,text}` | **Better Auth session required** for RPC. Public `GET /health` works without auth. Set `RAKAZO_SESSION_COOKIE` from a signed-in UI session. No unauthenticated job API in upstream. |
 
 ```bash

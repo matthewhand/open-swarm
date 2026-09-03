@@ -679,7 +679,7 @@ def remotes_cmd(
         "list",
         help="list | get | set | health | operate | team | place | unplace",
     ),
-    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo"),
+    name: str = typer.Argument("", help="Remote id: hermes | omb (OpenMousBot) | rakazo"),
     op: str = typer.Option("list", "--op", help="For operate: list or send"),
     base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
     api_key: str = typer.Option("", "--api-key", help="For set: persist auth token (or ${ENV})"),
@@ -687,7 +687,7 @@ def remotes_cmd(
     ui_url: str = typer.Option("", "--ui-url", help="For set: persist UI URL (Rakazo/Hermes dashboard)"),
     cookie: str = typer.Option("", "--cookie", help="For set: persist session cookie (Rakazo)"),
     prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
-    target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id"),
+    target: str = typer.Option("", "--target", help="For operate send: OpenMousBot/Rakazo bot id"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
 ):
     """Configure remotes and place them in a handoff Team (not /teams/ profile aliases)."""
@@ -699,11 +699,20 @@ def remotes_cmd(
     rid = (name or "").strip()
 
     if act == "list":
-        specs = _remotes.load_all_remotes()
-        typer.echo("Remote harnesses:")
+        typer.echo("Remote kinds:")
+        for kind in _remotes.kind_catalog():
+            typer.echo(f"  {kind['id']:<8} {kind['label']}")
+        specs = _remotes.load_configured_remotes()
+        if not specs:
+            typer.echo("Configured remotes: (none — add with remotes set <kind> --base-url …)")
+            return
+        typer.echo("Configured remotes:")
         for spec in specs.values():
-            key = "set" if spec.public_dict()["api_key_set"] else "unset"
-            typer.echo(f"  {spec.id:<8} {spec.base_url}  auth={key}  ({spec.host_label})")
+            pub = spec.public_dict()
+            key = "set" if pub["api_key_set"] else "unset"
+            typer.echo(
+                f"  {spec.id:<8} {pub['label']:<12} {spec.base_url}  auth={key}"
+            )
         return
 
     if act == "get":
@@ -717,7 +726,7 @@ def remotes_cmd(
 
     if act == "set":
         if not rid:
-            typer.echo("remotes set requires a name (hermes|omb|rakazo)", err=True)
+            typer.echo("remotes set requires a name (hermes|omb/OpenMousBot|rakazo)", err=True)
             raise typer.Exit(code=1)
         kwargs: dict[str, str] = {}
         if base_url:

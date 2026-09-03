@@ -97,7 +97,7 @@ class SettingsManager:
             'remotes': {
                 'title': 'Remote Harnesses',
                 'description': (
-                    'Hermes, OpenMausBot, and Rakazo as Team members (handoff/as_tool). '
+                    'Hermes, OpenMousBot, and Rakazo as Team members (handoff/as_tool). '
                     'Persist base URL + auth. Not the /teams/ profile-alias registry.'
                 ),
                 'icon': '🛰️',
@@ -156,7 +156,7 @@ class SettingsManager:
         # MCP server settings
         self._collect_mcp_settings()
 
-        # Remote harnesses (Hermes / OMB / Rakazo)
+        # Remote harnesses (Hermes / OpenMousBot / Rakazo)
         self._collect_remotes_settings()
 
         # Database settings
@@ -497,7 +497,7 @@ class SettingsManager:
         self.settings_groups['mcp_servers']['settings'] = mcp_settings
 
     def _collect_remotes_settings(self):
-        """Collect Hermes / OMB / Rakazo remote harness settings (secrets redacted)."""
+        """Collect Hermes / OpenMousBot / Rakazo remote harness settings (secrets redacted)."""
         try:
             from swarm.core import remotes as remotes_core
 
@@ -515,7 +515,7 @@ class SettingsManager:
                 "category": "remote",
                 "sensitive": False,
             }
-            for spec in remotes_core.load_all_remotes().values():
+            for spec in remotes_core.load_configured_remotes().values():
                 pub = spec.public_dict()
                 remote_settings[spec.id.upper()] = {
                     "value": {

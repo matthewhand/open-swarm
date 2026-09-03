@@ -25,6 +25,63 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/remotes**', async (route) => {
+    const url = route.request().url()
+    const method = route.request().method()
+    if (method === 'POST' && url.includes('/operate')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          remote: 'omb',
+          op: 'list',
+          ok: true,
+          detail: 'OpenMousBot listed 1 bot(s) via GET /api/bots',
+          data: { bots: [{ id: 'bot-1' }] },
+        }),
+      })
+      return
+    }
+    if (method === 'POST' && url.includes('/health')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          remote: 'omb',
+          ok: false,
+          state: 'DOWN',
+          detail: 'tcp 127.0.0.1:9 refused/timed out',
+        }),
+      })
+      return
+    }
+    if (method === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'omb',
+          label: 'OpenMousBot',
+          title: 'OpenMousBot',
+          base_url: 'http://127.0.0.1:9',
+        }),
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+        ],
+        data: [],
+      }),
+    })
+  })
   await page.route('**/health**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -57,9 +114,11 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
 
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
   await expect(sections.getByRole('button', { name: 'Remotes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Hermes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'OMB' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Rakazo' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Add remote' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'OpenMousBot' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'Rakazo' })).toHaveCount(0)
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()

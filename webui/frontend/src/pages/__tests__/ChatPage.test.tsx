@@ -413,7 +413,7 @@ describe('ChatPage computer-control stub (REQ-27b)', () => {
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
     expect(dialog).toHaveClass('modal-open')
-    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OMB or Rakazo remote/)
+    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OpenMousBot or Rakazo remote/)
     expect(dialog).toHaveTextContent(/not implemented here/i)
   })
 })

@@ -168,7 +168,7 @@ urlpatterns = [
     path("v1/teams", TeamsAPIView.as_view(), name="teams-api-no-slash"),
     path("v1/teams/", TeamsAPIView.as_view(), name="teams-api"),
     path("v1/teams/<str:team_id>/", TeamDetailAPIView.as_view(), name="teams-api-detail"),
-    # Remote harnesses (Hermes / OpenMausBot / Rakazo) — config + health + operate
+    # Remote harnesses (Hermes / OpenMousBot / Rakazo) — config + health + operate
     path("v1/remotes", RemotesListView.as_view(), name="remotes-list-no-slash"),
     path("v1/remotes/", RemotesListView.as_view(), name="remotes-list"),
     path("v1/remotes/<str:remote_id>", RemoteDetailView.as_view(), name="remotes-detail-no-slash"),

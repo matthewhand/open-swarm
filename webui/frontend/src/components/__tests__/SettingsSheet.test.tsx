@@ -1,12 +1,65 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsSheet from '../SettingsSheet'
 import { ToastProvider } from '../DaisyUI'
 import {
   HOSTNAME_OVERRIDE_KEY,
   RETENTION_MODE_KEY,
 } from '../../lib/settingsPrefs'
+
+function emptyRemotesPayload() {
+  return {
+    object: 'list',
+    kinds: [
+      { id: 'hermes', label: 'Hermes' },
+      { id: 'omb', label: 'OpenMousBot' },
+      { id: 'rakazo', label: 'Rakazo' },
+    ],
+    data: [],
+  }
+}
+
+function stubFetch(handler?: (url: string, init?: RequestInit) => unknown) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (handler) {
+        const custom = handler(url, init)
+        if (custom !== undefined) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => custom,
+          } as Response
+        }
+      }
+      if (url.includes('/v1/remotes')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => emptyRemotesPayload(),
+        } as Response
+      }
+      if (url.includes('/v1/models')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [{ id: 'default', object: 'model', created: 0, owned_by: 'swarm' }],
+          }),
+        } as Response
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'not found' }),
+      } as Response
+    }),
+  )
+}
 
 function renderSheet({
   isOpen = true,
@@ -30,6 +83,10 @@ function renderSheet({
 }
 
 describe('SettingsSheet', () => {
+  beforeEach(() => {
+    stubFetch()
+  })
+
   afterEach(() => {
     localStorage.removeItem(HOSTNAME_OVERRIDE_KEY)
     localStorage.removeItem(RETENTION_MODE_KEY)
@@ -49,19 +106,22 @@ describe('SettingsSheet', () => {
     expect(remotesToggle).toHaveClass('menu-dropdown-show')
     expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
     expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rakazo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add remote' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
   })
 
-  it('shows remotes placeholders and join radios for retention', () => {
+  it('shows empty remotes plus Add remote, and join radios for retention', async () => {
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'Hermes' }))
-    expect(screen.getByText(/placeholder remote/i)).toBeInTheDocument()
-    expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    expect(await screen.findByText(/No remotes configured/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Add remote' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/placeholder remote/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
     const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
@@ -70,6 +130,84 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Disk' })).toHaveClass('join-item')
     expect(screen.getByRole('radio', { name: 'Archive' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
+  })
+
+  it('adds OpenMousBot and then health / list bots / send', async () => {
+    let configured: Array<Record<string, unknown>> = []
+    stubFetch((url, init) => {
+      const method = (init?.method || 'GET').toUpperCase()
+      if (url.includes('/v1/remotes/') && url.includes('/health') && method === 'POST') {
+        return {
+          remote: 'omb',
+          ok: false,
+          state: 'DOWN',
+          detail: 'tcp 127.0.0.1:9 refused/timed out',
+        }
+      }
+      if (url.includes('/v1/remotes/') && url.includes('/operate') && method === 'POST') {
+        const body = JSON.parse(String(init?.body || '{}')) as { op?: string }
+        if (body.op === 'send') {
+          return {
+            remote: 'omb',
+            op: 'send',
+            ok: true,
+            detail: 'started OpenMousBot turn via POST /api/bots/bot-1/messages',
+          }
+        }
+        return {
+          remote: 'omb',
+          op: 'list',
+          ok: true,
+          detail: 'OpenMousBot listed 1 bot(s) via GET /api/bots',
+          data: { bots: [{ id: 'bot-1' }] },
+        }
+      }
+      if (url.endsWith('/v1/remotes/') && method === 'POST') {
+        configured = [
+          {
+            id: 'omb',
+            label: 'OpenMousBot',
+            title: 'OpenMousBot',
+            base_url: 'http://127.0.0.1:9',
+          },
+        ]
+        return configured[0]
+      }
+      if (url.includes('/v1/remotes') && method === 'GET') {
+        return { ...emptyRemotesPayload(), data: configured }
+      }
+      return undefined
+    })
+    renderSheet()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add remote' })[0])
+    expect(await screen.findByRole('combobox', { name: 'Kind' })).toBeInTheDocument()
+    const kind = screen.getByRole('combobox', { name: 'Kind' })
+    expect(kind).toHaveTextContent('OpenMousBot')
+    expect(kind).not.toHaveTextContent('OMB')
+    fireEvent.change(kind, { target: { value: 'omb' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Base URL' }), {
+      target: { value: 'http://127.0.0.1:9' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'API key env (optional)' }), {
+      target: { value: 'OMB_API_KEY' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Add remote$/ }))
+    expect(await screen.findByRole('button', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Health' }))
+    expect(await screen.findByText('DOWN')).toBeInTheDocument()
+    expect(screen.getByText(/not a crash/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'List bots' }))
+    expect(await screen.findByText('bot-1')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Bot id' }), {
+      target: { value: 'bot-1' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'hello' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/ }))
+    expect(await screen.findByText(/started OpenMousBot turn/i)).toBeInTheDocument()
+    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {
@@ -92,17 +230,6 @@ describe('SettingsSheet', () => {
   })
 
   it('lists LLM models from the existing API when present', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          object: 'list',
-          data: [{ id: 'default', object: 'model', created: 0, owned_by: 'swarm' }],
-        }),
-      } as Response),
-    )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
     expect(await screen.findByText('default')).toBeInTheDocument()

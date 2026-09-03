@@ -15,6 +15,8 @@ def test_remotes_list(tmp_path: Path):
     assert "hermes" in proc.stdout
     assert "omb" in proc.stdout
     assert "rakazo" in proc.stdout
+    assert "OpenMousBot" in proc.stdout
+    assert "Configured remotes: (none" in proc.stdout
 
 
 def test_remotes_set_persists(tmp_path: Path):

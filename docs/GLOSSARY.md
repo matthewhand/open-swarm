@@ -10,7 +10,7 @@ A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defin
 
 ## Team (handoff members — REQ-11)
 
-A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`.
+A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMousBot, Rakazo) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`). Kind id `omb` stays; the UI label is OpenMousBot. Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`.
 
 This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 
