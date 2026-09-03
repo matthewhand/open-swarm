@@ -10,6 +10,7 @@ from swarm.blueprints.software_dev.blueprint_software_dev import SoftwareDevBlue
 from swarm.blueprints.software_dev.roles import (
     COS_INSTRUCTIONS,
     ENGINEER_INSTRUCTIONS,
+    HYGIENE_FAIL,
     SEAT_COS,
     SEAT_ENGINEER,
     SEAT_SKEPTIC,
@@ -18,7 +19,10 @@ from swarm.blueprints.software_dev.roles import (
     SKEPTIC_NO_WRITE,
     engineer_may_start,
     extract_quoted_issue,
+    find_hygiene_leaks,
+    hygiene_ok,
     seat_tool_policy,
+    skeptic_verdict,
 )
 from swarm.core.blueprint_discovery import discover_blueprints
 
@@ -34,8 +38,10 @@ Fixes #348
   1. Custom team/blueprint config, not extra Grok Bot seats.
   2. Engineer blocked without a quoted Issue.
   3. Skeptic look-only text PASS/FAIL.
+  4. GitHub hygiene: placeholders only; skeptic FAILs on a leak.
 - **Constraints:** No Neon/oracle. No LiteLLM catalog. No OMB :8802.
-  No extra Grok trio. GitHub PR only.
+  No extra Grok trio. GitHub PR only. No secrets, tokens, cookies,
+  .env contents, house-identifying stills, or precise personal coordinates.
 - **Owner:** Cursor cloud / open-swarm engineer; skeptic text-only;
   Open Swarm CoS; Matthew signs off on :8001.
 """
@@ -170,6 +176,9 @@ def test_seats_are_isolated_objects_and_prompts(bp):
     assert "do not implement" in cos_txt.lower()
     assert "do not implement" in sk_txt.lower()
     assert "blocked" in eng_txt.lower()
+    for txt in (cos_txt, eng_txt, sk_txt):
+        assert "placeholders only" in txt.lower()
+        assert "hygiene" in txt.lower()
 
 
 @pytest.mark.asyncio
@@ -262,3 +271,104 @@ async def test_cos_quote_issue(bp):
     assert "Fixes #348" in out
     assert bp.context.quoted_issue is not None
     assert bp.context.quoted_issue.number == 348
+
+
+# --- GitHub hygiene (addendum on #348) ------------------------------------- #
+
+# Synthetic leak shapes only — never real tokens/cookies/coords from the house.
+_FAKE_TOKEN = "sk-" + ("notareal" * 4)
+_FAKE_COOKIE = "Cookie: sessionid=" + ("abcd" * 8)
+_FAKE_ENV = "OPENAI_API_KEY=notarealsecretvalue0123456789"
+_FAKE_COORDS = "lat=-33.8688123, lon=151.2093456"
+_FAKE_HOUSE = "still of the house at 14 Example Street"
+
+
+def test_hygiene_placeholders_are_ok():
+    clean = "\n".join(
+        (
+            "API_KEY=${OPENAI_API_KEY}",
+            "token=<token>",
+            "Cookie: session=[REDACTED]",
+            "use placeholders only; no precise personal coordinates",
+        )
+    )
+    assert find_hygiene_leaks(clean) == []
+    assert hygiene_ok(clean)[0] is True
+
+
+def test_hygiene_detects_leak_kinds_without_echoing_values():
+    blob = "\n".join((_FAKE_TOKEN, _FAKE_COOKIE, _FAKE_ENV, _FAKE_COORDS, _FAKE_HOUSE))
+    kinds = find_hygiene_leaks(blob)
+    for kind in ("token", "cookie", ".env", "precise-coords", "house-identifying"):
+        assert kind in kinds
+    joined = " ".join(kinds)
+    assert "notareal" not in joined
+    assert "Example Street" not in joined
+
+
+def test_engineer_blocked_on_hygiene_leak():
+    ok, reason = engineer_may_start(
+        QUOTED_ISSUE, feasibility=FEASIBILITY, payload=_FAKE_ENV
+    )
+    assert ok is False
+    assert "hygiene" in reason.lower()
+    assert "notarealsecret" not in reason
+
+
+def test_skeptic_fails_on_hygiene_leak():
+    quoted = extract_quoted_issue(QUOTED_ISSUE)
+    out = skeptic_verdict(
+        quoted=quoted,
+        work="software_dev blueprint + isolation tests",
+        tests_note="engineer gate, seat isolation, skeptic no-write",
+        visual_note="n/a",
+        deviations="none",
+        payload=_FAKE_TOKEN,
+    )
+    assert out.startswith("FAIL")
+    assert "hygiene" in out.lower()
+    assert HYGIENE_FAIL.split(":")[0] in out
+    assert "notareal" not in out
+
+
+@pytest.mark.asyncio
+async def test_run_engineer_blocked_on_leaky_write(bp, tmp_path: Path):
+    out = await _ask(
+        bp,
+        "implement Success",
+        params={
+            "seat": "engineer",
+            "action": "implement",
+            "issue": QUOTED_ISSUE,
+            "feasibility": FEASIBILITY,
+            "path": "notes.env",
+            "content": _FAKE_ENV,
+        },
+    )
+    assert "BLOCKED" in out
+    assert "hygiene" in out.lower()
+    assert not (tmp_path / "notes.env").exists()
+    assert bp.context.writes == []
+
+
+@pytest.mark.asyncio
+async def test_run_skeptic_fails_on_leak_payload(bp):
+    out = await _ask(
+        bp,
+        "review",
+        params={
+            "seat": "skeptic",
+            "action": "review",
+            "issue": QUOTED_ISSUE,
+            "unblock_skeptic": True,
+            "work": "software_dev blueprint + isolation tests",
+            "tests": "engineer gate, seat isolation, skeptic no-write, as_tool wiring",
+            "visual": "n/a — no UI chrome in this PR",
+            "deviations": "none",
+            "payload": _FAKE_COOKIE,
+        },
+    )
+    assert out.startswith("FAIL")
+    assert "hygiene" in out.lower()
+    assert "abcd" not in out
+    assert bp.context.writes == []

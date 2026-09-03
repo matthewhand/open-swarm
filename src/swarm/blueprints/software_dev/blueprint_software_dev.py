@@ -42,6 +42,7 @@ from swarm.blueprints.software_dev.roles import (
     SoftwareDevContext,
     engineer_may_start,
     extract_quoted_issue,
+    hygiene_ok,
     pr_fixes_clause,
     seat_tool_policy,
     skeptic_verdict,
@@ -139,7 +140,7 @@ class SoftwareDevBlueprint(BlueprintBase):
             return "\n".join(sorted(p.name for p in target.iterdir()))
 
         def write_file(path: str, content: str) -> str:
-            ok, reason = ctx.engineer_gate()
+            ok, reason = ctx.engineer_gate(payload=f"{path}\n{content}")
             if not ok:
                 return reason
             rel = path.strip()
@@ -152,7 +153,7 @@ class SoftwareDevBlueprint(BlueprintBase):
             return f"OK: wrote {rel} ({len(content)} bytes)"
 
         def implement(task: str) -> str:
-            ok, reason = ctx.engineer_gate()
+            ok, reason = ctx.engineer_gate(payload=task)
             if not ok:
                 return reason
             quoted = ctx.quoted_issue
@@ -173,6 +174,9 @@ class SoftwareDevBlueprint(BlueprintBase):
                     "CoS: Issue is not quoted. Need Intent, Success, "
                     "Constraints, Owner before the engineer may start."
                 )
+            ok, reason = hygiene_ok(text)
+            if not ok:
+                return reason
             return (
                 f"CoS quoted Issue #{quoted.number or '?'}:\n"
                 f"Intent: {quoted.intent}\n"
@@ -191,6 +195,7 @@ class SoftwareDevBlueprint(BlueprintBase):
             tests: str = "",
             visual: str = "",
             deviations: str = "",
+            payload: str = "",
         ) -> str:
             if not ctx.skeptic_unblocked:
                 return SKEPTIC_LOOK_ONLY
@@ -200,6 +205,7 @@ class SoftwareDevBlueprint(BlueprintBase):
                 tests_note=tests,
                 visual_note=visual,
                 deviations=deviations,
+                payload=payload,
             )
 
         def skeptic_write(_path: str = "", _content: str = "") -> str:
@@ -255,9 +261,15 @@ class SoftwareDevBlueprint(BlueprintBase):
             return raw["unblock_skeptic"]()
 
         @function_tool
-        def review(work: str, tests: str = "", visual: str = "", deviations: str = "") -> str:
-            """Skeptic: four checks + test interrogation. Text-only PASS/FAIL."""
-            return raw["review"](work, tests, visual, deviations)
+        def review(
+            work: str,
+            tests: str = "",
+            visual: str = "",
+            deviations: str = "",
+            payload: str = "",
+        ) -> str:
+            """Skeptic: four checks + tests + hygiene. FAIL on a leak. Text-only."""
+            return raw["review"](work, tests, visual, deviations, payload)
 
         wrapped.update(
             {
@@ -409,7 +421,8 @@ class SoftwareDevBlueprint(BlueprintBase):
             f"wiring: openai-agents as_tool ({', '.join(str(n) for n in tool_names) or 'none'})\n"
             f"handoffs: {len(handoffs)}\n"
             "engineer blocked without quoted Issue + feasibility\n"
-            "skeptic look-only; text-only PASS/FAIL; does not write code"
+            "skeptic look-only; text-only PASS/FAIL; does not write code\n"
+            "hygiene: placeholders only; skeptic FAILs on a leak"
         )
 
     def _run_seat(self, seat: str, action: str, text: str) -> str:
@@ -438,6 +451,7 @@ class SoftwareDevBlueprint(BlueprintBase):
                 str(params.get("tests") or ""),
                 str(params.get("visual") or ""),
                 str(params.get("deviations") or ""),
+                str(params.get("payload") or params.get("diff") or ""),
             )
 
         if action == "quote":
