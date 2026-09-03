@@ -85,6 +85,7 @@ from swarm.views.session_explorer import (
     session_list_api,
 )
 from swarm.views.chat_persist_views import chat_compact, chat_retention_action, chat_thread
+from swarm.views.system_views import LocalStoreView
 from swarm.views.settings_views import (
     environment_variables,
     settings_api,
@@ -259,6 +260,9 @@ urlpatterns = [
     path("v1/herdr-agents/discover/", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover"),
     path("v1/herdr-agents/<str:agent_id>", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail-no-slash"),
     path("v1/herdr-agents/<str:agent_id>/", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail"),
+    # Settings System section — local store facts (REQ-56). Read-only.
+    path("v1/system", LocalStoreView.as_view(), name="system-local-store-no-slash"),
+    path("v1/system/", LocalStoreView.as_view(), name="system-local-store"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),

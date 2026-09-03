@@ -645,6 +645,29 @@ export function fetchEnvironmentVariables(): Promise<EnvironmentVariablesRespons
   return apiGet<EnvironmentVariablesResponse>('/settings/environment/')
 }
 
+/** GET /v1/system/ — Settings System section (REQ-56). Read-only local store facts. */
+export interface LocalStoreFacts {
+  path: string
+  size_bytes: number
+  size_label: string
+  created: boolean
+  conversation_count: number
+  message_count: number
+}
+
+export const EMPTY_LOCAL_STORE: LocalStoreFacts = {
+  path: 'not created yet',
+  size_bytes: 0,
+  size_label: 'not created yet',
+  created: false,
+  conversation_count: 0,
+  message_count: 0,
+}
+
+export function fetchLocalStore(): Promise<LocalStoreFacts> {
+  return apiGet<LocalStoreFacts>('/v1/system/')
+}
+
 /** GET /v1/blueprints/<id>/source — read-only blueprint source (file list + content). */
 export interface BlueprintSource {
   id: string
