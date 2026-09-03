@@ -56,8 +56,32 @@ def _cfg(host: str, port: int) -> dict:
     }
 
 
+def test_missing_remote_is_empty_not_default_card(monkeypatch):
+    for name in ("HERMES_BASE_URL", "OMB_BASE_URL", "RAKAZO_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    cfg = {"llm": {}, "remotes": {}}
+    assert remotes_core.load_added_remotes(cfg) == {}
+    assert remotes_core.added_remote_ids(cfg) == []
+    assert remotes_core.list_team_members(cfg) == []
+    assert remotes_core.load_placed_members(cfg) == []
+    kinds = remotes_core.list_remote_kinds()
+    assert {k["id"] for k in kinds} == {"hermes", "omb", "rakazo"}
+    hermes = next(k for k in kinds if k["id"] == "hermes")
+    assert hermes["complete"] is True
+    assert hermes["send_path"] == "/v1/runs"
+    assert "/api/sessions" in hermes["list_paths"]
+
+
 def test_team_members_are_handoff_not_profile_aliases():
-    members = remotes_core.list_team_members({"llm": {}, "remotes": {}})
+    cfg = {
+        "llm": {},
+        "remotes": {
+            "hermes": {"base_url": "http://127.0.0.1:9"},
+            "omb": {"base_url": "http://127.0.0.1:9"},
+            "rakazo": {"base_url": "http://127.0.0.1:9"},
+        },
+    }
+    members = remotes_core.list_team_members(cfg)
     ids = {m["id"] for m in members}
     assert ids == {"hermes", "omb", "rakazo"}
     assert all(m["via"] == "as_tool" for m in members)
@@ -66,8 +90,12 @@ def test_team_members_are_handoff_not_profile_aliases():
     assert "/teams/" in remotes_core.TEAM_VOCABULARY["not_teams_page"]
 
 
-def test_placed_members_missing_key_means_all():
-    assert remotes_core.load_placed_members({"llm": {}}) == ["hermes", "omb", "rakazo"]
+def test_placed_members_missing_key_means_added(monkeypatch):
+    for name in ("HERMES_BASE_URL", "OMB_BASE_URL", "RAKAZO_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    cfg = {"llm": {}, "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}}}
+    assert remotes_core.load_placed_members(cfg) == ["hermes"]
+    assert remotes_core.load_placed_members({"llm": {}}) == []
 
 
 def test_placed_members_empty_list_is_empty_team():
@@ -83,7 +111,19 @@ def test_placed_members_empty_list_is_empty_team():
 
 def test_place_unplace_persist(tmp_path: Path, monkeypatch):
     cfg = tmp_path / "swarm_config.json"
-    cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
+    cfg.write_text(
+        json.dumps(
+            {
+                "llm": {"default": {"model": "x"}},
+                "remotes": {
+                    "hermes": {"base_url": "http://127.0.0.1:9"},
+                    "omb": {"base_url": "http://127.0.0.1:9"},
+                    "rakazo": {"base_url": "http://127.0.0.1:9"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.delenv("HERMES_BASE_URL", raising=False)
     members, path = remotes_core.unplace_team_member("rakazo", config_path=cfg)
     assert path == cfg
@@ -114,20 +154,26 @@ def test_persist_and_reload(tmp_path: Path, monkeypatch):
     cfg = tmp_path / "swarm_config.json"
     cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
     monkeypatch.delenv("HERMES_BASE_URL", raising=False)
-    spec, path = remotes_core.persist_remote(
+    spec, path = remotes_core.add_remote(
         "hermes",
-        base_url="http://10.0.0.36:8642",
-        api_key="${HERMES_API_KEY}",
+        base_url="http://127.0.0.1:9",
+        api_key_env="HERMES_API_KEY",
         config_path=cfg,
     )
     assert path == cfg
     data = json.loads(cfg.read_text(encoding="utf-8"))
     assert data["llm"]["default"]["model"] == "x"
-    assert data["remotes"]["hermes"]["base_url"] == "http://10.0.0.36:8642"
-    assert spec.base_url == "http://10.0.0.36:8642"
+    assert data["remotes"]["hermes"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["hermes"]["api_key"] == "${HERMES_API_KEY}"
+    assert data["remotes"]["hermes"]["api_key_env"] == "HERMES_API_KEY"
+    assert spec.base_url == "http://127.0.0.1:9"
     pub = spec.public_dict()
+    assert pub["kind"] == "hermes"
+    assert pub["added"] is True
+    assert pub["api_key_env"] == "HERMES_API_KEY"
     assert pub["api_key_set"] is False  # unresolved placeholder
     assert "hermes-secret" not in json.dumps(pub)
+    assert remotes_core.added_remote_ids(data) == ["hermes"]
 
 
 def test_refuse_fly_litellm_persist(tmp_path: Path):
@@ -146,6 +192,25 @@ def test_env_overrides_config(monkeypatch):
     spec = remotes_core.load_remote("omb", {"remotes": {"omb": {"base_url": "http://10.0.0.32:8802"}}})
     assert spec.base_url == "http://10.9.9.9:8802"
     assert spec.source == "env"
+
+
+def test_health_not_added_does_not_probe(monkeypatch):
+    monkeypatch.delenv("HERMES_BASE_URL", raising=False)
+    probed = []
+
+    def _boom(*_args, **_kwargs):
+        probed.append(True)
+        raise AssertionError("must not TCP-probe a missing remote")
+
+    monkeypatch.setattr(remotes_core, "_tcp_probe", _boom)
+    result = remotes_core.check_health("hermes", config={"llm": {}, "remotes": {}}, timeout=0.2)
+    assert result.ok is False
+    assert result.state == "UNKNOWN"
+    assert result.detail == "remote not added"
+    assert probed == []
+    listed = remotes_core.operate("hermes", "list", config={"llm": {}, "remotes": {}})
+    assert listed.ok is False
+    assert listed.detail == "remote not added"
 
 
 def test_health_down_closed_port():

@@ -3,16 +3,18 @@
 Open Swarm is a harness *for* other harnesses. This module is the single
 source of truth for:
 
-* persisted ``remotes`` config (base URL + auth)
+* persisted ``remotes`` config (base URL + api-key-env name — never tokens)
+* opt-in catalog: a remote appears only after the user adds it (REQ-59/61)
 * honest health/version probes (one request, no retry/crash-loop)
 * operate: list / send a job via each harness's real HTTP API
 
-LAN defaults are operator facts (ubuntu-gtx / Windows2). They are not
-invented cloud hosts. Do **not** point these remotes at Fly open-litellm;
-the LAN LLM for *this* swarm is ``http://10.0.0.30:8000/v1``.
+Kind defaults (LAN hosts) are operator facts for *add* forms, not pre-seeded
+cards. Do **not** point these remotes at Fly open-litellm; the LAN LLM for
+*this* swarm is ``http://10.0.0.30:8000/v1``.
 
-Auth is optional per remote. Missing auth is reported honestly; we never
-enable ``SWARM_ALLOW_ANONYMOUS`` and we never clone OMB source.
+Auth is the env-var *name* only. Missing auth is reported honestly; we never
+enable ``SWARM_ALLOW_ANONYMOUS`` and we never clone OMB source. Do not bounce
+Hermes to read config; do not delete ``SKILL.md``.
 """
 
 from __future__ import annotations
@@ -124,6 +126,44 @@ _FORBIDDEN_BASE_HINTS = ("fly.dev", "open-litellm", "openlitellm")
 _DEFAULT_TIMEOUT_S = 3.0
 _OPERATE_TIMEOUT_S = 8.0
 
+# Kind catalog for Settings + Add remote (ids are stable; labels are UI copy).
+# Hermes is the complete kind (REQ-61). Other kinds stay addable/compatible.
+_KIND_CATALOG: tuple[dict[str, Any], ...] = (
+    {
+        "id": "hermes",
+        "title": "Hermes",
+        "label": "Hermes",
+        "complete": True,
+        "fields": ("base_url", "api_key_env"),
+        "list_paths": ("/v1/models", "/api/sessions", "/api/jobs"),
+        "send_path": "/v1/runs",
+        "health_path": "/health",
+        "api_key_env_default": "HERMES_API_KEY",
+    },
+    {
+        "id": "omb",
+        "title": "OpenMousBot",
+        "label": "OpenMousBot",
+        "complete": False,
+        "fields": ("base_url", "api_key_env"),
+        "list_paths": ("/api/bots",),
+        "send_path": "/api/bots/{id}/messages",
+        "health_path": "/api/health",
+        "api_key_env_default": "OMB_API_KEY",
+    },
+    {
+        "id": "rakazo",
+        "title": "Rakazo",
+        "label": "Rakazo",
+        "complete": False,
+        "fields": ("base_url", "api_key_env", "ui_url", "cookie"),
+        "list_paths": ("/rpc/bots/list",),
+        "send_path": "/rpc/threads/send",
+        "health_path": "/health",
+        "api_key_env_default": "RAKAZO_API_KEY",
+    },
+)
+
 
 class RemoteError(Exception):
     """Non-crash failure talking to a remote harness."""
@@ -144,6 +184,7 @@ class RemoteSpec:
     version_path: str = "/health"
     notes: str = ""
     source: str = "default"
+    api_key_env: str = ""
 
     def origin(self) -> tuple[str, int]:
         parsed = urlparse(self.base_url)
@@ -159,6 +200,9 @@ class RemoteSpec:
             "host_label": self.host_label,
             "base_url": self.base_url,
             "ui_url": self.ui_url,
+            "kind": self.id,
+            "added": True,
+            "api_key_env": self.api_key_env,
             "api_key_set": bool(self.api_key and not _is_unresolved_placeholder(self.api_key)),
             "cookie_set": bool(self.cookie and not _is_unresolved_placeholder(self.cookie)),
             "health_path": self.health_path,
@@ -217,6 +261,65 @@ class HttpResult:
 def _is_unresolved_placeholder(value: str) -> bool:
     raw = (value or "").strip()
     return raw.startswith("${") and raw.endswith("}") and len(raw) > 3
+
+
+def _env_name_from_placeholder(value: str) -> str:
+    raw = (value or "").strip()
+    if raw.startswith("${") and raw.endswith("}") and len(raw) > 3:
+        return raw[2:-1]
+    return ""
+
+
+def list_remote_kinds() -> list[dict[str, Any]]:
+    """Known remote kinds for the Add-remote picker (not pre-seeded cards)."""
+    out: list[dict[str, Any]] = []
+    for kind in _KIND_CATALOG:
+        out.append(
+            {
+                "id": kind["id"],
+                "title": kind["title"],
+                "label": kind["label"],
+                "complete": bool(kind["complete"]),
+                "fields": list(kind["fields"]),
+                "list_paths": list(kind["list_paths"]),
+                "send_path": kind["send_path"],
+                "health_path": kind["health_path"],
+                "api_key_env_default": kind["api_key_env_default"],
+            }
+        )
+    return out
+
+
+def _remotes_block(config: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(config, dict):
+        return {}
+    block = config.get("remotes")
+    return block if isinstance(block, dict) else {}
+
+
+def is_remote_added(remote_id: str, config: dict[str, Any] | None = None) -> bool:
+    """True when the user (or env) has added this kind — not merely a default."""
+    rid = _require_id(remote_id)
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    block = _remotes_block(cfg).get(rid)
+    if isinstance(block, dict):
+        return True
+    return bool(os.environ.get(_ENV_BASE[rid], "").strip())
+
+
+def added_remote_ids(config: dict[str, Any] | None = None) -> list[str]:
+    cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    return [rid for rid in REMOTE_IDS if is_remote_added(rid, cfg)]
+
+
+def load_added_remotes(
+    config: dict[str, Any] | None = None,
+    *,
+    config_path: str | Path | None = None,
+) -> dict[str, RemoteSpec]:
+    """Configured remotes only. Empty catalog → no default Hermes/OMB/Rakazo cards."""
+    cfg = config if isinstance(config, dict) else load_raw_config(config_path)[0]
+    return {rid: load_remote(rid, cfg) for rid in added_remote_ids(cfg)}
 
 
 def _expand(value: Any) -> Any:
@@ -294,7 +397,18 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
     block = (cfg.get("remotes") or {}).get(rid) if isinstance(cfg.get("remotes"), dict) else None
     if isinstance(block, dict):
         spec.source = "config"
-        for key in ("title", "host_label", "base_url", "ui_url", "api_key", "cookie", "health_path", "version_path", "notes"):
+        for key in (
+            "title",
+            "host_label",
+            "base_url",
+            "ui_url",
+            "api_key",
+            "cookie",
+            "health_path",
+            "version_path",
+            "notes",
+            "api_key_env",
+        ):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
     env_base = os.environ.get(_ENV_BASE[rid], "").strip()
@@ -311,10 +425,12 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
     if env_cookie and os.environ.get(env_cookie, "").strip():
         spec.cookie = os.environ[env_cookie].strip()
 
+    inferred_env = str(spec.api_key_env or "").strip() or _env_name_from_placeholder(str(spec.api_key or ""))
     spec.base_url = _normalize_base_url(_expand(spec.base_url))
     spec.ui_url = _normalize_base_url(_expand(spec.ui_url)) if spec.ui_url else ""
     spec.api_key = str(_expand(spec.api_key) or "")
     spec.cookie = str(_expand(spec.cookie) or "")
+    spec.api_key_env = inferred_env
     spec.health_path = spec.health_path or "/health"
     spec.version_path = spec.version_path or spec.health_path
     if not spec.health_path.startswith("/"):
@@ -332,13 +448,14 @@ def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSp
 def load_placed_members(config: dict[str, Any] | None = None) -> list[str]:
     """Remote ids currently placed in the handoff Team (not /teams/ aliases).
 
-    Missing ``agent_team.members`` means all three remotes are placed (default
-    REQ-11 roster). An explicit empty list is an empty Team.
+    Missing ``agent_team.members`` means every *added* remote is placed
+    (opt-in catalog; unused kinds are not implicit members). An explicit
+    empty list is an empty Team.
     """
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     block = cfg.get("agent_team") if isinstance(cfg.get("agent_team"), dict) else {}
     if "members" not in block:
-        return list(REMOTE_IDS)
+        return added_remote_ids(cfg)
     raw = block.get("members") or []
     if not isinstance(raw, list):
         return list(REMOTE_IDS)
@@ -358,7 +475,7 @@ def list_team_members(config: dict[str, Any] | None = None) -> list[dict[str, An
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     placed = set(load_placed_members(cfg))
     members = []
-    for spec in load_all_remotes(cfg).values():
+    for spec in load_added_remotes(cfg).values():
         pub = spec.public_dict()
         members.append(
             {
@@ -435,11 +552,16 @@ def persist_remote(
     *,
     base_url: str | None = None,
     api_key: str | None = None,
+    api_key_env: str | None = None,
     ui_url: str | None = None,
     cookie: str | None = None,
     config_path: str | Path | None = None,
 ) -> tuple[RemoteSpec, Path]:
-    """Merge fields into ``remotes.<id>`` and write swarm_config.json."""
+    """Merge fields into ``remotes.<id>`` and write swarm_config.json.
+
+    ``api_key_env`` is the env-var *name* only (stored as ``${NAME}``). Never
+    persist a live token. Writing this entry *adds* the remote (opt-in).
+    """
     rid = _require_id(remote_id)
     cfg, path = load_raw_config(config_path)
     remotes = cfg.setdefault("remotes", {})
@@ -458,8 +580,15 @@ def persist_remote(
                 "Hermes/OMB/Rakazo are LAN harnesses; LAN LLM is http://10.0.0.30:8000/v1."
             )
         entry["base_url"] = normalized
-    if api_key is not None:
+    if api_key_env is not None:
+        env_name = str(api_key_env).strip()
+        entry["api_key_env"] = env_name
+        entry["api_key"] = f"${{{env_name}}}" if env_name else ""
+    elif api_key is not None:
         entry["api_key"] = api_key
+        inferred = _env_name_from_placeholder(str(api_key))
+        if inferred:
+            entry["api_key_env"] = inferred
     if ui_url is not None:
         entry["ui_url"] = _normalize_base_url(ui_url) if ui_url else ""
     if cookie is not None:
@@ -469,6 +598,32 @@ def persist_remote(
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
     logger.info("Persisted remotes.%s to %s", rid, path)
     return load_remote(rid, cfg), path
+
+
+def add_remote(
+    kind: str,
+    *,
+    base_url: str,
+    api_key_env: str = "",
+    ui_url: str | None = None,
+    cookie: str | None = None,
+    config_path: str | Path | None = None,
+) -> tuple[RemoteSpec, Path]:
+    """Add a remote kind (opt-in). Requires a base URL; auth is an env name."""
+    rid = _require_id(kind)
+    if not (base_url or "").strip():
+        raise RemoteError("base_url is required to add a remote")
+    env_name = (api_key_env or "").strip()
+    if not env_name:
+        env_name = _ENV_KEY.get(rid, "")
+    return persist_remote(
+        rid,
+        base_url=base_url,
+        api_key_env=env_name,
+        ui_url=ui_url,
+        cookie=cookie,
+        config_path=config_path,
+    )
 
 
 def _auth_headers(spec: RemoteSpec) -> dict[str, str]:
@@ -565,11 +720,18 @@ def _extract_version(payload: Any) -> Any:
 
 
 def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeout: float = _DEFAULT_TIMEOUT_S) -> HealthResult:
-    """Honest health/version. One attempt. Never raises."""
+    """Honest health/version. One attempt. Never raises. Never probes a default card."""
     try:
-        spec = load_remote(remote_id, config)
+        rid = _require_id(remote_id)
     except RemoteError as exc:
         return HealthResult(remote=remote_id, ok=False, state="UNKNOWN", detail=str(exc))
+    cfg = config if isinstance(config, dict) else None
+    if not is_remote_added(rid, cfg):
+        return HealthResult(remote=rid, ok=False, state="UNKNOWN", detail="remote not added")
+    try:
+        spec = load_remote(rid, cfg)
+    except RemoteError as exc:
+        return HealthResult(remote=rid, ok=False, state="UNKNOWN", detail=str(exc))
 
     if not spec.base_url:
         return HealthResult(remote=spec.id, ok=False, state="UNKNOWN", detail="base_url is empty")
@@ -656,7 +818,8 @@ def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeou
 
 
 def check_all_health(*, config: dict[str, Any] | None = None, timeout: float = _DEFAULT_TIMEOUT_S) -> list[HealthResult]:
-    return [check_health(rid, config=config, timeout=timeout) for rid in REMOTE_IDS]
+    cfg = config if isinstance(config, dict) else None
+    return [check_health(rid, config=cfg, timeout=timeout) for rid in added_remote_ids(cfg)]
 
 
 def _hermes_list(spec: RemoteSpec, timeout: float) -> OperateResult:
@@ -944,6 +1107,8 @@ def operate(
             action = "send"
         if action not in ("list", "send"):
             return OperateResult(remote=rid, op=action, ok=False, detail=f"Unknown op '{op}'. Use list or send.")
+        if not is_remote_added(rid, config):
+            return OperateResult(remote=rid, op=action, ok=False, detail="remote not added")
         if not spec.base_url:
             return OperateResult(remote=rid, op=action, ok=False, detail="base_url is empty")
         if _looks_like_forbidden_llm_proxy(spec.base_url):

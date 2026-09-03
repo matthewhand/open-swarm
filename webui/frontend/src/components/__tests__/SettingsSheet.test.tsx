@@ -44,24 +44,49 @@ describe('SettingsSheet', () => {
     expect(dialog).not.toHaveClass('drawer')
     expect(dialog.className).not.toMatch(/btn-group/)
 
-    const remotesToggle = screen.getByRole('button', { name: 'Remotes' })
-    expect(remotesToggle).toHaveClass('menu-dropdown-toggle')
-    expect(remotesToggle).toHaveClass('menu-dropdown-show')
+    expect(screen.getByRole('button', { name: 'Remotes' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
     expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
     expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hermes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'OMB' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Rakazo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
   })
 
-  it('shows remotes placeholders and join radios for retention', () => {
+  it('shows remotes empty state plus Add remote, not a default Hermes card', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          data: [],
+          kinds: [
+            {
+              id: 'hermes',
+              title: 'Hermes',
+              label: 'Hermes',
+              complete: true,
+              fields: ['base_url', 'api_key_env'],
+              list_paths: ['/v1/models', '/api/sessions', '/api/jobs'],
+              send_path: '/v1/runs',
+              health_path: '/health',
+              api_key_env_default: 'HERMES_API_KEY',
+            },
+          ],
+          team_members: [],
+        }),
+      } as Response),
+    )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'Hermes' }))
-    expect(screen.getByText(/placeholder remote/i)).toBeInTheDocument()
-    expect(screen.getByText(/remotes API has not landed/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    expect(await screen.findByText(/No remotes added/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Add remote/i })).toBeInTheDocument()
+    expect(screen.queryByText(/placeholder remote/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/OMB/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
     const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
@@ -89,6 +114,137 @@ describe('SettingsSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save hostname' }))
     expect(localStorage.getItem(HOSTNAME_OVERRIDE_KEY)).toBe('swarm.example.com')
     expect(await screen.findByText('Hostname saved')).toBeInTheDocument()
+  })
+
+  it('after adding Hermes shows health, list, and send', async () => {
+    const emptyList = {
+      object: 'list',
+      data: [],
+      kinds: [
+        {
+          id: 'hermes',
+          title: 'Hermes',
+          label: 'Hermes',
+          complete: true,
+          fields: ['base_url', 'api_key_env'],
+          list_paths: ['/v1/models', '/api/sessions', '/api/jobs'],
+          send_path: '/v1/runs',
+          health_path: '/health',
+          api_key_env_default: 'HERMES_API_KEY',
+        },
+      ],
+      team_members: [],
+    }
+    const added = {
+      id: 'hermes',
+      kind: 'hermes',
+      title: 'Hermes Agent (ubuntu-gtx)',
+      host_label: 'ubuntu-gtx',
+      base_url: 'http://127.0.0.1:9',
+      ui_url: '',
+      api_key_env: 'HERMES_API_KEY',
+      api_key_set: false,
+      cookie_set: false,
+      health_path: '/health',
+      version_path: '/v1/models',
+      notes: '',
+      source: 'config',
+      added: true,
+    }
+    const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method || 'GET').toUpperCase()
+      if (url.includes('/v1/remotes/') && method === 'GET' && !url.includes('/health') && !url.includes('/operate')) {
+        const listed = fetchMock.mock.calls.some((call) => String(call[0]).endsWith('/v1/remotes/') && (call[1]?.method || 'GET').toUpperCase() === 'POST')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (listed ? { ...emptyList, data: [added] } : emptyList),
+        } as Response
+      }
+      if (url.endsWith('/v1/remotes/') && method === 'POST') {
+        return { ok: true, status: 200, json: async () => added } as Response
+      }
+      if (url.includes('/health/') && method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            remote: 'hermes',
+            ok: false,
+            state: 'DOWN',
+            detail: 'tcp 127.0.0.1:9 refused/timed out',
+            http_status: null,
+            version: null,
+            latency_ms: 3,
+            url: 'http://127.0.0.1:9/health',
+          }),
+        } as Response
+      }
+      if (url.includes('/operate/') && method === 'POST') {
+        const body = JSON.parse(String(init?.body || '{}')) as { op?: string }
+        if (body.op === 'send') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              remote: 'hermes',
+              op: 'send',
+              ok: true,
+              detail: 'started Hermes run via POST /v1/runs',
+              http_status: 200,
+              data: { run_id: 'run_1' },
+              gap: '',
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            remote: 'hermes',
+            op: 'list',
+            ok: true,
+            detail: 'listed Hermes models/sessions/jobs (missing slices stay null)',
+            http_status: 200,
+            data: { models: { data: [{ id: 'hermes-agent' }] }, sessions: { sessions: [] }, jobs: [] },
+            gap: '',
+          }),
+        } as Response
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    expect(await screen.findByText(/No remotes added/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Add remote/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Base URL' }), {
+      target: { value: 'http://127.0.0.1:9' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'API key env name' }), {
+      target: { value: 'HERMES_API_KEY' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Add$/ }))
+    expect(await screen.findByText('http://127.0.0.1:9')).toBeInTheDocument()
+    expect(screen.getByText(/API key env:/i)).toHaveTextContent('HERMES_API_KEY')
+    expect(screen.getByRole('button', { name: 'Health' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Health' }))
+    expect(await screen.findByText(/DOWN:/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
+    expect(await screen.findByText(/listed Hermes models\/sessions\/jobs/i)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Send prompt' }), {
+      target: { value: 'status' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(await screen.findByText(/started Hermes run via POST \/v1\/runs/i)).toBeInTheDocument()
+    expect(screen.getByText(/run_1/)).toBeInTheDocument()
   })
 
   it('lists LLM models from the existing API when present', async () => {

@@ -10,11 +10,19 @@ from tests.xdg_isolation import run_swarm_cli
 
 
 def test_remotes_list(tmp_path: Path):
-    proc = run_swarm_cli("remotes", "list", xdg_root=tmp_path / "xdg", timeout=30)
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}, "remotes": {}}), encoding="utf-8")
+    proc = run_swarm_cli(
+        "remotes",
+        "list",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
     assert proc.returncode == 0, proc.stderr + proc.stdout
-    assert "hermes" in proc.stdout
-    assert "omb" in proc.stdout
-    assert "rakazo" in proc.stdout
+    assert "No remotes added" in proc.stdout
+    assert "10.0.0.36" not in proc.stdout
 
 
 def test_remotes_set_persists(tmp_path: Path):
@@ -25,7 +33,7 @@ def test_remotes_set_persists(tmp_path: Path):
         "set",
         "hermes",
         "--base-url",
-        "http://10.0.0.36:8642",
+        "http://127.0.0.1:9",
         "--api-key-env",
         "HERMES_API_KEY",
         "--config",
@@ -35,8 +43,9 @@ def test_remotes_set_persists(tmp_path: Path):
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     data = json.loads(cfg.read_text(encoding="utf-8"))
-    assert data["remotes"]["hermes"]["base_url"] == "http://10.0.0.36:8642"
+    assert data["remotes"]["hermes"]["base_url"] == "http://127.0.0.1:9"
     assert data["remotes"]["hermes"]["api_key"] == "${HERMES_API_KEY}"
+    assert data["remotes"]["hermes"]["api_key_env"] == "HERMES_API_KEY"
     assert "Persisted" in proc.stdout
 
 
@@ -74,7 +83,19 @@ def test_remotes_health_uses_core(tmp_path: Path):
 
 def test_remotes_place_unplace_team(tmp_path: Path):
     cfg = tmp_path / "swarm_config.json"
-    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    cfg.write_text(
+        json.dumps(
+            {
+                "llm": {},
+                "remotes": {
+                    "hermes": {"base_url": "http://127.0.0.1:9"},
+                    "omb": {"base_url": "http://127.0.0.1:9"},
+                    "rakazo": {"base_url": "http://127.0.0.1:9"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     proc = run_swarm_cli(
         "remotes",
         "unplace",
@@ -102,7 +123,14 @@ def test_remotes_place_unplace_team(tmp_path: Path):
     data = json.loads(cfg.read_text(encoding="utf-8"))
     assert "omb" in data["agent_team"]["members"]
 
-    proc = run_swarm_cli("remotes", "team", xdg_root=tmp_path / "xdg", timeout=30)
+    proc = run_swarm_cli(
+        "remotes",
+        "team",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     payload = json.loads(proc.stdout)
     assert payload["object"] == "agent_team"
@@ -116,16 +144,20 @@ def test_remotes_get_json(tmp_path: Path):
 
     runner = CliRunner()
     spec = RemoteSpec(
-        id="rakazo",
-        title="Rakazo",
-        host_label="Windows2",
-        base_url="http://10.0.0.32:3100",
-        ui_url="http://10.0.0.32:5173",
-        source="default",
+        id="hermes",
+        title="Hermes",
+        host_label="box",
+        base_url="http://127.0.0.1:9",
+        source="config",
+        api_key_env="HERMES_API_KEY",
     )
-    with patch("swarm.core.remotes.load_remote", return_value=spec):
-        result = runner.invoke(app, ["remotes", "get", "rakazo"])
+    with (
+        patch("swarm.core.remotes.is_remote_added", return_value=True),
+        patch("swarm.core.remotes.load_remote", return_value=spec),
+    ):
+        result = runner.invoke(app, ["remotes", "get", "hermes"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["base_url"] == "http://10.0.0.32:3100"
+    assert payload["base_url"] == "http://127.0.0.1:9"
     assert payload["api_key_set"] is False
+    assert payload["kind"] == "hermes"

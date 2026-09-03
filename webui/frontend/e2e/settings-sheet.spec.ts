@@ -32,6 +32,30 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ status: 'ok' }),
     })
   })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        data: [],
+        kinds: [
+          {
+            id: 'hermes',
+            title: 'Hermes',
+            label: 'Hermes',
+            complete: true,
+            fields: ['base_url', 'api_key_env'],
+            list_paths: ['/v1/models', '/api/sessions', '/api/jobs'],
+            send_path: '/v1/runs',
+            health_path: '/health',
+            api_key_env_default: 'HERMES_API_KEY',
+          },
+        ],
+        team_members: [],
+      }),
+    })
+  })
 }
 
 test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page }) => {
@@ -57,12 +81,16 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
 
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
   await expect(sections.getByRole('button', { name: 'Remotes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Hermes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'OMB' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Rakazo' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'Rakazo' })).toHaveCount(0)
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()
+
+  await sections.getByRole('button', { name: 'Remotes' }).click()
+  await expect(dialog.getByText(/No remotes added/i)).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /Add remote/i })).toBeVisible()
 
   await expect(page.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass(/join/)
   await page.getByRole('radio', { name: 'Trash' }).click()

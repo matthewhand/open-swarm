@@ -52,10 +52,19 @@ async def test_health_grammar(bp):
 @pytest.mark.asyncio
 async def test_list_config_without_probing(bp):
     out = await _ask(bp, "list")
+    assert "No remotes added" in out
+    assert "10.0.0.36" not in out
+
+
+@pytest.mark.asyncio
+async def test_list_added_hermes_without_lan_default():
+    bp = RemoteHarnessBlueprint(
+        config={"llm": {}, "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}}}
+    )
+    out = await _ask(bp, "list")
     assert "hermes" in out
-    assert "omb" in out
-    assert "rakazo" in out
-    assert "10.0.0.36:8642" in out
+    assert "127.0.0.1:9" in out
+    assert "10.0.0.36" not in out
 
 
 @pytest.mark.asyncio
@@ -70,7 +79,17 @@ async def test_send_params(bp):
 
 
 @pytest.mark.asyncio
-async def test_as_tool_specialists_wired(bp):
+async def test_as_tool_specialists_wired():
+    bp = RemoteHarnessBlueprint(
+        config={
+            "llm": {},
+            "remotes": {
+                "hermes": {"base_url": "http://127.0.0.1:9"},
+                "omb": {"base_url": "http://127.0.0.1:9"},
+                "rakazo": {"base_url": "http://127.0.0.1:9"},
+            },
+        }
+    )
     agents = bp._build_agents()
     assert agents, "expected coordinator + specialist agents (bare Agent fallback if no LLM)"
     coord = agents["coordinator"]
@@ -86,7 +105,11 @@ async def test_as_tool_specialists_wired(bp):
 @pytest.mark.asyncio
 async def test_as_tool_only_placed_members():
     bp = RemoteHarnessBlueprint(
-        config={"llm": {}, "agent_team": {"members": ["hermes"]}}
+        config={
+            "llm": {},
+            "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}},
+            "agent_team": {"members": ["hermes"]},
+        }
     )
     agents = bp._build_agents()
     assert agents, "expected coordinator + placed specialist"

@@ -33,8 +33,13 @@ logger = logging.getLogger(__name__)
 
 
 def _health_tool(name: str = "") -> str:
-    """Probe Hermes, OMB, and/or Rakazo. Honest DOWN if unreachable."""
-    targets = [name] if name.strip() else list(remotes_core.REMOTE_IDS)
+    """Probe added remotes. Honest DOWN if unreachable. Missing = empty."""
+    if name.strip():
+        targets = [name]
+    else:
+        targets = remotes_core.added_remote_ids()
+        if not targets:
+            return "No remotes added."
     lines = []
     for rid in targets:
         try:
@@ -50,7 +55,9 @@ def _health_tool(name: str = "") -> str:
 def _list_tool(name: str = "") -> str:
     """List jobs/bots/sessions on a remote, or show config when name is empty."""
     if not name.strip():
-        specs = remotes_core.load_all_remotes()
+        specs = remotes_core.load_added_remotes()
+        if not specs:
+            return "No remotes added."
         lines = ["Remote harness config (secrets redacted):"]
         for spec in specs.values():
             pub = spec.public_dict()
@@ -156,11 +163,10 @@ class RemoteHarnessBlueprint(BlueprintBase):
 
                 return Agent(name=name, instructions=instructions, tools=tools)
 
-        placed = set(
-            remotes_core.load_placed_members(
-                self.config if isinstance(getattr(self, "config", None), dict) else None
-            )
-        )
+        cfg = self.config if isinstance(getattr(self, "config", None), dict) else None
+        placed = set(remotes_core.load_placed_members(cfg))
+        added = set(remotes_core.added_remote_ids(cfg))
+        active = placed & added
         specialist_specs = {
             "hermes": (
                 "HermesRemote",
@@ -186,7 +192,7 @@ class RemoteHarnessBlueprint(BlueprintBase):
             specialists: dict[str, Any] = {}
             talk_names = []
             for rid, (agent_name, instructions, tool_name, tool_desc) in specialist_specs.items():
-                if rid not in placed:
+                if rid not in active:
                     continue
                 agent = _agent(agent_name, instructions, shared)
                 specialists[rid] = agent

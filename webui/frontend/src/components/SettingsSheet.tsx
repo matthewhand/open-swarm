@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, useToast } from './DaisyUI'
 import { fetchBlueprintSource, fetchModels, type BlueprintSource } from '../lib/api'
+import RemotesSettings from './RemotesSettings'
 import {
   agentRole,
   fallbackBlueprintSource,
@@ -27,9 +28,7 @@ export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
   | 'blueprint'
-  | 'remotes-hermes'
-  | 'remotes-omb'
-  | 'remotes-rakazo'
+  | 'remotes'
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
@@ -43,14 +42,8 @@ export function openSettingsSheet(detail?: OpenSettingsDetail): void {
   window.dispatchEvent(new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail }))
 }
 
-const REMOTE_PANES = [
-  { id: 'remotes-hermes' as const, label: 'Hermes' },
-  { id: 'remotes-omb' as const, label: 'OMB' },
-  { id: 'remotes-rakazo' as const, label: 'Rakazo' },
-]
-
-function isRemoteSection(section: SettingsSection): boolean {
-  return section.startsWith('remotes-')
+function isRemoteSection(section: SettingsSection | string): boolean {
+  return section === 'remotes' || String(section).startsWith('remotes-')
 }
 
 export interface SettingsSheetProps {
@@ -70,7 +63,6 @@ export interface SettingsSheetProps {
 export default function SettingsSheet({ isOpen, onClose, blueprintId }: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
-  const [remotesOpen, setRemotesOpen] = useState(true)
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
 
@@ -123,26 +115,12 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
             <li>
               <button
                 type="button"
-                className={`menu-dropdown-toggle ${remotesOpen ? 'menu-dropdown-show' : ''}`}
-                aria-expanded={remotesOpen}
-                onClick={() => setRemotesOpen((open) => !open)}
+                className={isRemoteSection(section) ? 'menu-active' : undefined}
+                aria-current={isRemoteSection(section) ? 'page' : undefined}
+                onClick={() => setSection('remotes')}
               >
                 Remotes
               </button>
-              <ul className={`menu-dropdown ${remotesOpen ? 'menu-dropdown-show' : ''}`}>
-                {REMOTE_PANES.map((remote) => (
-                  <li key={remote.id}>
-                    <button
-                      type="button"
-                      className={section === remote.id ? 'menu-active' : undefined}
-                      aria-current={section === remote.id ? 'page' : undefined}
-                      onClick={() => setSection(remote.id)}
-                    >
-                      {remote.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
             </li>
             <li>
               <button
@@ -181,7 +159,7 @@ export default function SettingsSheet({ isOpen, onClose, blueprintId }: Settings
           {section === 'blueprint' && (
             <BlueprintEditorPane blueprintId={blueprintId || ''} />
           )}
-          {isRemoteSection(section) && <RemotePane section={section} />}
+          {isRemoteSection(section) && <RemotesSettings />}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -357,28 +335,6 @@ function ModuleLink({
     <code title={file.path} className="font-mono">
       {file.label}
     </code>
-  )
-}
-
-function RemotePane({ section }: { section: SettingsSection }) {
-  const remote = REMOTE_PANES.find((item) => item.id === section)
-  const label = remote?.label ?? 'Remote'
-  return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">{label}</h4>
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="font-medium">{label}</span> is a placeholder remote.
-            The remotes API has not landed — this pane is the settings-sheet
-            shell only.
-          </p>
-          <p className="text-base-content/70">
-            Hermes, OMB, and Rakazo will connect here once the backend exists.
-          </p>
-        </div>
-      </Alert>
-    </div>
   )
 }
 
