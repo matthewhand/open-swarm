@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildChatWsUrl,
   buildChatWsFrame,
+  buildChatStatusFrame,
   parseChatWsMessage,
 } from '../chatWs'
 
@@ -44,6 +45,14 @@ describe('buildChatWsFrame', () => {
     expect(
       JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'codey' })),
     ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'codey' } })
+  })
+
+  it('builds a status frame that does not look like a user turn', () => {
+    expect(JSON.parse(buildChatStatusFrame('CLI: antigravity → grok', 'cli_agent'))).toEqual({
+      type: 'status',
+      text: 'CLI: antigravity → grok',
+      agent: 'cli_agent',
+    })
   })
 
   it('round-trips back to the original message via JSON.parse', () => {

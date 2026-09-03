@@ -82,6 +82,45 @@ def test_chat_thread_backfills_from_django_db(client, user):
 
 
 @pytest.mark.django_db
+def test_chat_thread_status_event_persists_and_reloads(client, user):
+    resp = client.post(
+        "/chat/thread/",
+        data=json.dumps(
+            {
+                "agent": "cli_agent",
+                "message": {"role": "status", "content": "CLI: antigravity → grok"},
+            }
+        ),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.json()["messages"][0] == {
+        "role": "status",
+        "content": "CLI: antigravity → grok",
+    }
+    loaded = chat_store.load(chat_store.user_key_for(user), "cli_agent")
+    assert loaded is not None
+    assert loaded["messages"][0]["role"] == "status"
+
+    again = client.get("/chat/thread/?agent=cli_agent")
+    assert again.status_code == 200
+    assert again.json()["messages"][0]["role"] == "status"
+    assert again.json()["messages"][0]["content"] == "CLI: antigravity → grok"
+
+
+@pytest.mark.django_db
+def test_chat_thread_rejects_non_status_post(client):
+    resp = client.post(
+        "/chat/thread/",
+        data=json.dumps(
+            {"agent": "jeeves", "message": {"role": "user", "content": "nope"}}
+        ),
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
 def test_chat_thread_requires_login():
     resp = Client().get("/chat/thread/?agent=jeeves")
     assert resp.status_code == 302

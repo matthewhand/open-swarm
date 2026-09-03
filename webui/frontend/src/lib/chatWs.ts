@@ -62,6 +62,16 @@ export function buildChatWsFrame(
   return JSON.stringify(frame)
 }
 
+/** Persist a dropdown-change status line without invoking the LLM. */
+export function buildChatStatusFrame(
+  text: string,
+  agentId?: string,
+): string {
+  const frame: Record<string, unknown> = { type: 'status', text }
+  if (agentId) frame.agent = agentId
+  return JSON.stringify(frame)
+}
+
 export function newConversationId(): string {
   try {
     return crypto.randomUUID()

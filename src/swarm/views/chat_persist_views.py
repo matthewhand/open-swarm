@@ -1,11 +1,13 @@
 """SPA chat thread restore + Settings-only retention actions.
 
 ``GET /chat/thread/`` hydrates an agent thread after reload / agent switch.
+``POST /chat/thread/`` appends a transcript status event (REQ-46).
 Retention (archive, restore, empty trash) lives on ``/settings/`` only.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 
 from django.contrib.auth.decorators import login_required
@@ -13,7 +15,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from swarm.core import chat_store
-from swarm.models import ChatConversation
+from swarm.models import ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +42,76 @@ def _messages_from_db(user, conversation_id: str) -> list[dict[str, str]]:
     ]
 
 
+def _thread_payload(agent: str, conversation_id: str, messages) -> dict:
+    return {
+        "agent_id": agent,
+        "conversation_id": conversation_id,
+        "messages": [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (messages or [])
+        ],
+    }
+
+
+def _append_status_event(request):
+    """Append one ``role=status`` line to the JSON thread (and Django mirror)."""
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "invalid json"}, status=400)
+    if not isinstance(body, dict):
+        return JsonResponse({"error": "invalid json"}, status=400)
+
+    agent = chat_store.normalize_agent_id(body.get("agent") or body.get("agent_id"))
+    raw = body.get("message") if isinstance(body.get("message"), dict) else {}
+    role = str(raw.get("role") or "").strip().lower()
+    content = raw.get("content") if raw.get("content") is not None else raw.get("text")
+    if role != "status" or not isinstance(content, str) or not content.strip():
+        return JsonResponse({"error": "status message required"}, status=400)
+
+    user_key = _user_key(request.user)
+    record = chat_store.load(user_key, agent)
+    conversation_id = (
+        (record or {}).get("conversation_id")
+        or chat_store.conversation_id_for(request.user, agent)
+    )
+    messages = list((record or {}).get("messages") or [])
+    messages.append({"role": "status", "content": content.strip()})
+    try:
+        chat_store.save(
+            user_key,
+            agent,
+            messages,
+            conversation_id=conversation_id,
+        )
+    except OSError:
+        logger.exception("Failed to persist status event for %s/%s", user_key, agent)
+        return JsonResponse({"error": "could not persist"}, status=500)
+
+    chat, created = ChatConversation.objects.get_or_create(
+        conversation_id=conversation_id,
+        defaults={"student": request.user},
+    )
+    if not created and chat.student_id is not None and chat.student_id != request.user.pk:
+        return JsonResponse(_thread_payload(agent, conversation_id, messages))
+    if chat.student_id is None:
+        chat.student = request.user
+        chat.save(update_fields=["student"])
+    ChatMessage.objects.create(
+        conversation=chat,
+        sender="status",
+        content=content.strip(),
+    )
+    return JsonResponse(_thread_payload(agent, conversation_id, messages))
+
+
 @login_required
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def chat_thread(request):
-    """Return the persisted transcript for one agent (JSON store, DB fallback)."""
+    """Return or append the persisted transcript for one agent."""
+    if request.method == "POST":
+        return _append_status_event(request)
+
     agent = chat_store.normalize_agent_id(request.GET.get("agent"))
     user_key = _user_key(request.user)
     conversation_id = chat_store.conversation_id_for(request.user, agent)
@@ -65,16 +133,7 @@ def chat_thread(request):
                 logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
     if record and record.get("conversation_id"):
         conversation_id = record["conversation_id"]
-    return JsonResponse(
-        {
-            "agent_id": agent,
-            "conversation_id": conversation_id,
-            "messages": [
-                {"role": m.get("role", "user"), "content": m.get("content", "")}
-                for m in (messages or [])
-            ],
-        }
-    )
+    return JsonResponse(_thread_payload(agent, conversation_id, messages))
 
 
 @login_required

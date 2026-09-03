@@ -650,3 +650,134 @@ describe('ChatPage team member dropdown', () => {
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
 })
+
+describe('ChatPage dropdown status lines (REQ-46)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
+
+  function stubWithThreadStore(store: { messages: { role: string; content: string }[] }) {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          if (init?.method === 'POST') {
+            const body = JSON.parse(String(init.body || '{}')) as {
+              message?: { role?: string; content?: string }
+            }
+            if (body.message?.role && body.message.content) {
+              store.messages.push({
+                role: body.message.role,
+                content: body.message.content,
+              })
+            }
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'team-demo-team',
+              conversation_id: 'team-demo-team',
+              messages: store.messages,
+            }),
+          } as Response
+        }
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => DEMO_ROSTER,
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ clis: ['antigravity', 'grok'] }),
+          } as Response
+        }
+        if (url.includes('/v1/models')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: [
+                { id: 'gpt-4', object: 'model', created: 0, owned_by: 'openai' },
+                { id: 'grok-4', object: 'model', created: 0, owned_by: 'xai' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+  }
+
+  it('appends one team-target status event that is not a bubble and survives reload', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    const first = renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'codey' },
+    })
+
+    const status = await screen.findByTestId('chat-status')
+    expect(status).toHaveTextContent('Team target: All members → Codey (agent/coder)')
+    expect(status).toHaveClass('os-chat-status')
+    expect(status.className).not.toMatch(/chat-start|chat-end/)
+    expect(status.querySelector('.chat-bubble')).toBeNull()
+    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
+    expect(store.messages).toHaveLength(1)
+    expect(store.messages[0]).toEqual({
+      role: 'status',
+      content: 'Team target: All members → Codey (agent/coder)',
+    })
+
+    first.unmount()
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+
+    const restored = await screen.findByTestId('chat-status')
+    expect(restored).toHaveTextContent('Team target: All members → Codey (agent/coder)')
+    expect(restored.className).not.toMatch(/chat-start|chat-end/)
+    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
+  })
+
+  it('appends one CLI status event (antigravity → grok) that is not a bubble', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    renderChat('/chat?blueprint=cli_agent&mode=cli&cli=antigravity')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'CLI' }), {
+      target: { value: 'grok' },
+    })
+
+    const status = await screen.findByTestId('chat-status')
+    expect(status).toHaveTextContent('CLI: antigravity → grok')
+    expect(status.className).not.toMatch(/chat-start|chat-end/)
+    expect(status.querySelector('.chat-bubble')).toBeNull()
+    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
+  })
+})

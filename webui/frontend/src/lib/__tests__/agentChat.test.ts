@@ -4,6 +4,7 @@ import {
   agentIdFromBlueprint,
   conversationIdForAgent,
   fetchAgentThread,
+  persistStatusEvent,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -67,5 +68,52 @@ describe('fetchAgentThread', () => {
     expect(thread.messages).toEqual([])
     expect(thread.agent_id).toBe('jeeves')
     expect(thread.conversation_id).toBeTruthy()
+  })
+
+  it('keeps persisted status events on hydrate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'cli_agent',
+          conversation_id: 'agt-1-cli_agent',
+          messages: [
+            { role: 'status', content: 'CLI: antigravity → grok' },
+            { role: 'user', content: 'hi' },
+          ],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('cli_agent')
+    expect(thread.messages).toEqual([
+      { role: 'status', content: 'CLI: antigravity → grok' },
+      { role: 'user', content: 'hi' },
+    ])
+  })
+})
+
+describe('persistStatusEvent', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('POSTs a status row to /chat/thread/', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ messages: [] }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    await persistStatusEvent('jeeves', 'CLI: antigravity → grok')
+    expect(fetchMock).toHaveBeenCalled()
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/chat/thread/')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({
+      agent: 'jeeves',
+      message: { role: 'status', content: 'CLI: antigravity → grok' },
+    })
   })
 })

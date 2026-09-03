@@ -431,6 +431,30 @@ class TestBlueprintSelection:
                             mock_default.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_receive_status_frame_appends_without_llm(self, consumer):
+        """REQ-46: type=status persists a transcript line and skips the model."""
+        consumer.messages = []
+        consumer.conversation_id = "conv-status"
+        text_data = json.dumps({
+            "type": "status",
+            "text": "CLI: antigravity → grok",
+            "agent": "cli_agent",
+        })
+
+        with patch.object(consumer, "save_conversation", new_callable=AsyncMock) as mock_save:
+            with patch.object(consumer, "respond_with_blueprint", new_callable=AsyncMock) as mock_bp:
+                with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
+                    await consumer.receive(text_data)
+
+        assert consumer.messages == [
+            {"role": "status", "content": "CLI: antigravity → grok"}
+        ]
+        assert consumer.active_agent == "cli_agent"
+        mock_save.assert_awaited_once()
+        mock_bp.assert_not_awaited()
+        mock_default.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_team_stub_echoes_team_and_target(self, consumer):
         consumer.messages = [{"role": "user", "content": "ping"}]
         with patch("swarm.consumers.render_to_string", return_value="<div></div>"):

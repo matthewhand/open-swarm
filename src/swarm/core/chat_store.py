@@ -175,6 +175,9 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+_ALLOWED_ROLES = frozenset({"user", "assistant", "status"})
+
+
 def _normalize_messages(raw: Any) -> list[dict[str, str]]:
     if not isinstance(raw, list):
         return []
@@ -188,7 +191,9 @@ def _normalize_messages(raw: Any) -> list[dict[str, str]]:
             content = item.get("text") or ""
         if not isinstance(content, str):
             content = str(content)
-        role_s = "assistant" if str(role) == "assistant" else "user"
+        role_s = str(role).strip().lower()
+        if role_s not in _ALLOWED_ROLES:
+            role_s = "user"
         msg = {"role": role_s, "content": content}
         ts = item.get("ts") or item.get("timestamp")
         if isinstance(ts, str) and ts:

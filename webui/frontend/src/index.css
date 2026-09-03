@@ -468,6 +468,31 @@ html[data-theme="light"] #root {
   color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
 }
 
+/* REQ-46: Grok-Bot centred status chrome — not a chat-start / chat-end bubble. */
+.os-chat-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0.45rem 0;
+  padding: 0.15rem 0.75rem;
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--color-base-content) 48%, transparent);
+}
+.os-chat-status::before,
+.os-chat-status::after {
+  content: "";
+  flex: 1 1 2rem;
+  max-width: 4rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+}
+.os-chat-status span {
+  min-width: 0;
+  max-width: 28rem;
+}
+
 .os-search-overlay {
   position: fixed;
   inset: 0;

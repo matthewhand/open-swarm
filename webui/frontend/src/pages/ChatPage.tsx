@@ -14,24 +14,46 @@ import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
-import { fetchBlueprints } from '../lib/api'
+import { fetchBlueprints, fetchCliAgents, fetchModels } from '../lib/api'
 import {
   agentIdFromBlueprint,
   conversationIdForAgent,
   fetchAgentThread,
+  persistStatusEvent,
 } from '../lib/agentChat'
 import {
+  buildChatStatusFrame,
   buildChatWsFrame,
   buildChatWsUrl,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
 import {
+  FALLBACK_CLIS,
+  MANAGE_CLI_HREF,
+  MANAGE_CLI_VALUE,
+  MANAGE_MODEL_HREF,
+  MANAGE_MODEL_VALUE,
+  MODE_CLI,
+  MODE_REMOTE,
+  STATUS_ROLE,
+  formatDropdownStatus,
+  isCliAgentContext,
+  isStatusRole,
+  modeLabel,
+  shouldRecordDropdownChange,
+  uniqueCliNames,
+  type ChatRuntimeMode,
+  type ChatTranscriptRole,
+  type DropdownKind,
+} from '../lib/chatStatus'
+import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
   MANAGE_TEAMS_VALUE,
   fetchTeamRosters,
   memberOptionLabel,
+  memberTargetLabel,
   teamThreadId,
 } from '../lib/teamRosters'
 import {
@@ -63,7 +85,7 @@ type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant'
+  role: ChatTranscriptRole
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
@@ -104,6 +126,21 @@ const ChatPage = () => {
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
+  const [chatMode, setChatMode] = useState<ChatRuntimeMode>(() =>
+    isCliAgentContext({
+      blueprintId: selectedBlueprint,
+      mode: searchParams.get('mode'),
+      cli: searchParams.get('cli'),
+    })
+      ? MODE_CLI
+      : MODE_REMOTE,
+  )
+  const [selectedCli, setSelectedCli] = useState(
+    () => (searchParams.get('cli') || '').trim() || FALLBACK_CLIS[0],
+  )
+  const [selectedModel, setSelectedModel] = useState(
+    () => (searchParams.get('model') || searchParams.get('profile') || '').trim(),
+  )
   const [connectAttempt, setConnectAttempt] = useState(0)
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -144,8 +181,36 @@ const ChatPage = () => {
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
   })
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
+  const modelsQuery = useQuery({
+    queryKey: ['models'],
+    queryFn: fetchModels,
+  })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const teams = teamsQuery.data ?? []
+  const cliNames = uniqueCliNames(
+    cliQuery.data?.clis,
+    selectedCli ? [selectedCli] : undefined,
+    FALLBACK_CLIS,
+  )
+  const modelNames = uniqueCliNames(
+    (modelsQuery.data?.data ?? []).map((model) => model.id),
+    selectedModel ? [selectedModel] : undefined,
+  )
+  const persistAgentId = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : agentIdFromBlueprint(selectedBlueprint)
+  const showCliDropdown = !teamFromUrl && (
+    chatMode === MODE_CLI
+    || isCliAgentContext({
+      blueprintId: selectedBlueprint,
+      mode: searchParams.get('mode'),
+      cli: searchParams.get('cli'),
+    })
+  )
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const selectedAgentName = teamFromUrl
@@ -168,32 +233,49 @@ const ChatPage = () => {
     setMemberTarget(ALL_MEMBERS_TARGET)
   }, [teamFromUrl])
 
-  // Per-agent thread: stable conversation id + hydrate from disk/DB.
-  // Team threads use a stable team-* conversation id and do not use agent JSON.
-  // No history chrome — messages just come back after reload / agent switch.
   useEffect(() => {
-    if (teamFromUrl) {
-      const key = teamThreadId(teamFromUrl)
-      const switched =
-        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
-      lastHydratedAgentRef.current = key
-      setConversationId(key)
-      userKeyCounterRef.current = 0
-      if (switched) {
-        setThreads((prev) => ({ ...prev, [key]: [] }))
-      }
-      return
-    }
+    if (selectedModel || modelNames.length === 0) return
+    setSelectedModel(modelNames[0])
+  }, [modelNames, selectedModel])
 
-    const agent = agentIdFromBlueprint(selectedBlueprint)
+  const recordDropdownChange = useCallback(
+    (kind: DropdownKind, fromLabel: string, toLabel: string, fromValue: string, toValue: string) => {
+      if (!shouldRecordDropdownChange(fromValue, toValue)) return
+      const text = formatDropdownStatus(kind, fromLabel, toLabel)
+      const key = `status-${kind}-${Date.now()}`
+      setThreads((prev) => {
+        const current = prev[threadKey] ?? []
+        return {
+          ...prev,
+          [threadKey]: [
+            ...current,
+            { key, role: STATUS_ROLE, text, streaming: false },
+          ],
+        }
+      })
+      void persistStatusEvent(persistAgentId, text)
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(buildChatStatusFrame(text, persistAgentId))
+      }
+    },
+    [persistAgentId, threadKey],
+  )
+
+  // Per-agent / per-team thread: stable conversation id + hydrate from disk/DB.
+  // Status events (REQ-46) live on the same JSON path so reload keeps them.
+  useEffect(() => {
+    const agent = teamFromUrl
+      ? teamThreadId(teamFromUrl)
+      : agentIdFromBlueprint(selectedBlueprint)
+    const key = teamFromUrl ? agent : selectedBlueprint
     const switched =
-      lastHydratedAgentRef.current !== null &&
-      lastHydratedAgentRef.current !== agent
+      lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== agent
     lastHydratedAgentRef.current = agent
-    setConversationId(conversationIdForAgent(agent))
+    setConversationId(teamFromUrl ? agent : conversationIdForAgent(agent))
     userKeyCounterRef.current = 0
     if (switched) {
-      setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setThreads((prev) => ({ ...prev, [key]: [] }))
     }
     let cancelled = false
     ;(async () => {
@@ -202,7 +284,7 @@ const ChatPage = () => {
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.messages.map((message, index) => ({
+        [key]: thread.messages.map((message, index) => ({
           key: `hist-${index}-${message.role}`,
           role: message.role,
           text: message.content,
@@ -411,9 +493,12 @@ const ChatPage = () => {
         )
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      const params: Record<string, unknown> = { mode: chatMode }
+      if (chatMode === MODE_CLI && selectedCli) params.cli = selectedCli
+      if (selectedModel) params.model = selectedModel
+      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined, params))
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [selectedBlueprint, teamFromUrl, memberTarget, chatMode, selectedCli, selectedModel],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -481,7 +566,9 @@ const ChatPage = () => {
     return () => window.clearInterval(timer)
   }, [streamingMessage])
 
-  const tokenCount = estimateTokensInContext(messages.map((message) => message.text))
+  const tokenCount = estimateTokensInContext(
+    messages.filter((message) => !isStatusRole(message.role)).map((message) => message.text),
+  )
   const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
   const streamElapsed =
     streamingMessage && streamStartedAtRef.current != null
@@ -514,7 +601,15 @@ const ChatPage = () => {
                   window.location.assign(MANAGE_TEAMS_HREF)
                   return
                 }
+                const from = memberTarget
                 setMemberTarget(value)
+                recordDropdownChange(
+                  'team',
+                  memberTargetLabel(from, selectedTeam),
+                  memberTargetLabel(value, selectedTeam),
+                  from,
+                  value,
+                )
               }}
             >
               <option value={ALL_MEMBERS_TARGET}>All members</option>
@@ -525,7 +620,70 @@ const ChatPage = () => {
               ))}
               <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
             </select>
-          ) : null}
+          ) : (
+            <>
+              <select
+                className="select select-sm h-8 max-w-[8rem] border border-base-300 bg-base-100"
+                value={chatMode}
+                aria-label="Mode"
+                onChange={(e) => {
+                  const value = e.target.value === MODE_REMOTE ? MODE_REMOTE : MODE_CLI
+                  const from = chatMode
+                  setChatMode(value)
+                  recordDropdownChange('mode', modeLabel(from), modeLabel(value), from, value)
+                }}
+              >
+                <option value={MODE_CLI}>CLI</option>
+                <option value={MODE_REMOTE}>Remote</option>
+              </select>
+              {showCliDropdown ? (
+                <select
+                  className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+                  value={cliNames.includes(selectedCli) ? selectedCli : cliNames[0] || ''}
+                  aria-label="CLI"
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === MANAGE_CLI_VALUE) {
+                      window.location.assign(MANAGE_CLI_HREF)
+                      return
+                    }
+                    const from = selectedCli
+                    setSelectedCli(value)
+                    recordDropdownChange('cli', from, value, from, value)
+                  }}
+                >
+                  {cliNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                  <option value={MANAGE_CLI_VALUE}>Manage Cli</option>
+                </select>
+              ) : null}
+              <select
+                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+                value={selectedModel || modelNames[0] || ''}
+                aria-label="Model"
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === MANAGE_MODEL_VALUE) {
+                    window.location.assign(MANAGE_MODEL_HREF)
+                    return
+                  }
+                  const from = selectedModel || modelNames[0] || ''
+                  setSelectedModel(value)
+                  recordDropdownChange('model', from, value, from, value)
+                }}
+              >
+                {modelNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                <option value={MANAGE_MODEL_VALUE}>Manage profiles</option>
+              </select>
+            </>
+          )}
           <ThemeToggle />
           <button
             type="button"
@@ -568,6 +726,19 @@ const ChatPage = () => {
               message.role === 'assistant' &&
               !message.streaming &&
               lastUserTextRef.current.length > 0
+            if (isStatusRole(message.role)) {
+              return (
+                <div
+                  key={message.key}
+                  className="os-chat-status"
+                  data-testid="chat-status"
+                  role="status"
+                  aria-label="Transcript status"
+                >
+                  <span>{message.text}</span>
+                </div>
+              )
+            }
             return (
               <div
                 key={message.key}

@@ -69,6 +69,11 @@ def _conversation_cache_key(user, conversation_id):
     return (user_id, conversation_id)
 
 
+def _messages_for_llm(messages):
+    """Drop transcript-only status rows (REQ-46) before calling a model."""
+    return [m for m in messages if (m.get("role") or "user") != "status"]
+
+
 def _oob_append_html(contents_div_id: str, text: str) -> str:
     """HTMX OOB append chunk with HTML-escaped body text.
 
@@ -150,10 +155,27 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             text_data_json = json.loads(text_data)
             if not isinstance(text_data_json, dict):
                 raise ValueError("frame must be a JSON object")
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
+            return
+
+        # REQ-46: dropdown-change status line. Persist, do not invoke the LLM.
+        if text_data_json.get("type") == "status":
+            status_text = text_data_json.get("text") or text_data_json.get("message") or ""
+            if not isinstance(status_text, str) or not status_text.strip():
+                return
+            agent_id = text_data_json.get("agent")
+            if isinstance(agent_id, str) and agent_id.strip():
+                self.active_agent = agent_id.strip()
+            self.messages.append({"role": "status", "content": status_text.strip()})
+            await self.save_conversation(self.conversation_id, self.messages)
+            return
+
+        try:
             message_text = text_data_json["message"]
             if not isinstance(message_text, str):
                 raise ValueError("'message' must be a string")
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
             return
 
@@ -264,7 +286,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         final_message = None
         try:
-            async for chunk in blueprint_instance.run(self.messages):
+            async for chunk in blueprint_instance.run(_messages_for_llm(self.messages)):
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     continue
@@ -370,7 +392,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         try:
             stream = await client.chat.completions.create(
                 model=model,
-                messages=self.messages,
+                messages=_messages_for_llm(self.messages),
                 stream=True,
             )
             async for chunk in stream:
