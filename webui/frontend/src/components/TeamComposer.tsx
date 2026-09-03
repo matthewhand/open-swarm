@@ -400,11 +400,18 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
                 role="list"
               >
                 {(['api', 'cli', 'remote'] as const).map((kind) => (
-                  <div key={kind}>
+                  <div key={kind} className="min-h-0">
                     <h4 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-base-content/45">
                       {KIND_LABEL[kind]}
+                      <span className="ml-1 font-normal normal-case tracking-normal text-base-content/35">
+                        ({agentsByKind[kind].length})
+                      </span>
                     </h4>
-                    <ul className="flex flex-col gap-1">
+                    <ul
+                      className={`flex flex-col gap-1 ${
+                        kind === 'api' ? 'max-h-28 overflow-y-auto' : ''
+                      }`}
+                    >
                       {agentsByKind[kind].length === 0 ? (
                         <li className="px-2 py-1 text-xs text-base-content/40">None</li>
                       ) : (
