@@ -31,9 +31,10 @@ def test_django_sidebar_styles_roles_not_diamonds():
     js = SIDEBAR_JS.read_text(encoding="utf-8")
     css = SHELL_CSS.read_text(encoding="utf-8")
     assert "data-role" in js
-    assert "os-agent-item--support" in js
-    assert "os-agent-item--gate" in js
-    assert "os-agent-item--skeptic" in js
+    assert 'os-agent-item--"' in js or "os-agent-item--" in js
+    assert 'role === "support"' in js
+    assert 'role === "gate"' in js
+    assert 'role === "skeptic"' in js
     assert "os-agent-item--support" in css
     assert "os-agent-item--gate" in css
     assert "os-agent-item--skeptic" in css
@@ -46,4 +47,7 @@ def test_spa_role_looks_are_distinct():
     assert ".os-agent-row--gate" in css
     assert ".os-agent-row--skeptic" in css
     assert ".os-code-python" in css
-    assert ".os-support-welcome a" in css
+    assert ".os-handoff-chip" in css
+    assert ".os-handoff-chip--system" in css
+    assert ".os-briefing-popover" in css
+    assert ".os-support-chips" in css

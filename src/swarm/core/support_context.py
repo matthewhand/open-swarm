@@ -1,8 +1,8 @@
 """Live context for the Support agent (role=support).
 
 Assembles the current agent list, whether inference is actually usable, and
-in-product / quickstart paths so the welcome injection and Support tools stay
-honest. Does not call any LLM.
+in-product / quickstart paths so the System → Support briefing pill and
+Support tools stay honest. Does not call any LLM.
 """
 
 from __future__ import annotations
@@ -178,7 +178,7 @@ def sort_support_first(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def live_context(*, agents: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Snapshot used by welcome injection and Support tools."""
+    """Snapshot used by the System → Support briefing pill and Support tools."""
     agent_list = agents if agents is not None else _agent_entries_from_discovery()
     inference = inference_status()
     return {
@@ -264,15 +264,13 @@ def _chip(label: str, href: str) -> str:
     return f"[{label}]({href})"
 
 
-def welcome_markdown(context: dict[str, Any] | None = None) -> str:
-    """Laconic Support welcome: agents, inference, chips. No paragraphs."""
+def briefing_markdown(context: dict[str, Any] | None = None) -> str:
+    """Compressed intel for the System → Support pill popover. Not transcript copy."""
     ctx = context or live_context()
     inference = ctx.get("inference") or {}
     agents = ctx.get("agents") or []
-    create = ctx.get("create") or CREATE_PATHS
-    qdoc = f"{_QUICKSTART_RELATIVE}{INFERENCE_QUICKSTART_ANCHOR}"
 
-    lines = ["**Support**", "", "**Agents**"]
+    lines = ["**Agents**"]
     if agents:
         for agent in agents:
             name = agent.get("name") or agent.get("id") or "untitled"
@@ -287,29 +285,20 @@ def welcome_markdown(context: dict[str, Any] | None = None) -> str:
         lines.append(f"**Inference** on · {profiles}")
     else:
         lines.append("**Inference** off")
-        lines.append(
-            _chip("Set inference", create.get("settings", "/settings/"))
-            + " "
-            + _chip("Profiles", create.get("profiles", "/profiles/"))
-            + " "
-            + _chip("Quickstart", qdoc)
-        )
 
     lines.extend(
         [
-            "",
-            "**First team**",
-            _chip("New team", create.get("team", "/teams/launch/"))
-            + " "
-            + _chip("Write blueprint", create.get("agent", "/agent-creator/"))
-            + " "
-            + _chip("Blueprints", create.get("blueprint", "/blueprint-library/")),
             "",
             "**Gate** — dangerous tool call? yes/no. Until wired, all approved.",
             "**Skeptic** — prompt done? If not, findings go back to retry.",
         ]
     )
     return "\n".join(lines)
+
+
+def welcome_markdown(context: dict[str, Any] | None = None) -> str:
+    """Back-compat alias: briefing only. Action chips are separate UI."""
+    return briefing_markdown(context)
 
 
 def model_context_block(context: dict[str, Any] | None = None) -> str:
@@ -335,8 +324,7 @@ def create_paths_markdown() -> str:
     return " ".join(
         [
             _chip("New team", CREATE_PATHS["team"]),
-            _chip("Write blueprint", CREATE_PATHS["agent"]),
-            _chip("Blueprints", CREATE_PATHS["blueprint"]),
             _chip("Set inference", CREATE_PATHS["settings"]),
+            _chip("Write blueprint", CREATE_PATHS["agent"]),
         ]
     )

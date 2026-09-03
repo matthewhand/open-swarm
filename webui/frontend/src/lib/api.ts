@@ -166,7 +166,7 @@ export interface Blueprint {
   role?: string | null
 }
 
-/** GET /v1/support/context/ — live agents + inference for Support welcome. */
+/** GET /v1/support/context/ — live agents + inference for the System → Support pill. */
 export interface SupportChip {
   label: string
   href: string
@@ -190,7 +190,10 @@ export interface SupportContext {
   }
   create: Record<string, string>
   chips?: Record<string, SupportChip>
-  welcome: string
+  /** Compressed intel for the System → Support pill popover. */
+  briefing?: string
+  /** Back-compat alias of briefing. */
+  welcome?: string
 }
 
 export function fetchSupportContext(): Promise<SupportContext> {

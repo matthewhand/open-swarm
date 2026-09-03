@@ -405,9 +405,9 @@ describe('ChatPage markdown bubbles', () => {
     vi.unstubAllGlobals()
   })
 
-  it('defaults /chat to Support and injects a laconic welcome', async () => {
-    const welcome =
-      '**Support**\n\n**Agents**\n- Support · support\n\n**Inference** off\n[Set inference](/settings/)\n\n**First team**\n[New team](/teams/launch/)\n\n**Gate** — dangerous tool call? yes/no. Until wired, all approved.\n**Skeptic** — prompt done? If not, findings go back to retry.'
+  it('defaults /chat to Support with a quiet system pill, not a transcript dump', async () => {
+    const briefing =
+      '**Agents**\n- Support · support\n\n**Inference** off\n\n**Gate** — dangerous tool call? yes/no. Until wired, all approved.\n**Skeptic** — prompt done? If not, findings go back to retry.'
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
@@ -416,7 +416,12 @@ describe('ChatPage markdown bubbles', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({ object: 'support.context', welcome, inference: { configured: false } }),
+            json: async () => ({
+              object: 'support.context',
+              briefing,
+              welcome: briefing,
+              inference: { configured: false },
+            }),
           } as Response
         }
         return {
@@ -446,14 +451,38 @@ describe('ChatPage markdown bubbles', () => {
     await waitFor(() => {
       expect(select).toHaveValue('support')
     })
-    const md = await screen.findByTestId('chat-md')
-    expect(md).toHaveClass('os-support-welcome')
-    expect(md).toHaveTextContent(/Inference/)
-    expect(md).toHaveTextContent(/New team/)
-    expect(md).toHaveTextContent(/Set inference/)
-    expect(md).toHaveTextContent(/Gate/)
-    expect(md).toHaveTextContent(/Skeptic/)
-    expect(md).not.toHaveTextContent(/Welcome —/)
+
+    expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
+    expect(screen.queryByText('Connected and ready')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Welcome —/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Inference/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Gate/)).not.toBeInTheDocument()
+
+    const pill = await screen.findByRole('button', { name: /System → Support/ })
+    expect(pill).toHaveAttribute('aria-expanded', 'false')
+    expect(pill).toHaveClass('os-handoff-chip--system')
+
+    const newTeam = screen.getByRole('link', { name: 'New team' })
+    expect(newTeam).toHaveAttribute('href', '/teams/launch/')
+    expect(screen.getByRole('link', { name: 'Set inference' })).toHaveAttribute(
+      'href',
+      '/settings/',
+    )
+    expect(screen.getByRole('link', { name: 'Write blueprint' })).toHaveAttribute(
+      'href',
+      '/agent-creator/',
+    )
+
+    fireEvent.click(pill)
+    expect(pill).toHaveAttribute('aria-expanded', 'true')
+    const briefingEl = await screen.findByTestId('support-briefing')
+    expect(briefingEl).toHaveTextContent(/Agents/)
+    expect(briefingEl).toHaveTextContent(/Support/)
+    expect(briefingEl).toHaveTextContent(/Inference/)
+    expect(briefingEl).toHaveTextContent(/Gate/)
+    expect(briefingEl).toHaveTextContent(/Skeptic/)
+    expect(briefingEl.closest('.chat-bubble')).toBeNull()
+    expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
   })
 
   it('renders assistant markdown (bold/code) in the bubble', async () => {

@@ -1,4 +1,4 @@
-"""Support blueprint — role marker, as_tool wiring, deterministic welcome."""
+"""Support blueprint — role marker, as_tool wiring, deterministic chips."""
 
 from __future__ import annotations
 
@@ -44,13 +44,16 @@ def test_starting_agent_uses_as_tool_not_cli_seats():
     assert "rakazo" not in joined.lower()
 
 
-async def test_empty_run_is_laconic_welcome():
+async def test_empty_run_is_action_chips_not_config_dump():
     bp = SupportBlueprint(blueprint_id="support")
     chunks = await _collect(bp.run([]))
     text = _final_content(chunks)
-    assert "**Support**" in text
     assert "[New team](/teams/launch/)" in text
-    assert "**Gate** —" in text
+    assert "[Set inference](/settings/)" in text
+    assert "[Write blueprint](/agent-creator/)" in text
+    assert "**Support**" not in text
+    assert "**Agents**" not in text
+    assert "**Gate** —" not in text
     assert "Welcome —" not in text
 
 

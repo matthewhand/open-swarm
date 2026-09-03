@@ -638,24 +638,28 @@ class BlueprintToolsView(APIView):
 
 
 class SupportContextView(APIView):
-    """Live snapshot for the Support welcome (agents + inference status).
+    """Live snapshot for the System → Support briefing pill.
 
     GET /v1/support/context/ — no secrets. Same auth as /v1/blueprints/.
+    ``briefing`` is Support-only intel (not transcript copy). ``welcome`` is
+    a back-compat alias of the same string.
     """
 
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
 
     def get(self, _request, *_args, **_kwargs):
-        from swarm.core.support_context import live_context, welcome_markdown
+        from swarm.core.support_context import briefing_markdown, live_context
 
         try:
             context = live_context()
+            briefing = briefing_markdown(context)
             return Response(
                 {
                     "object": "support.context",
                     **context,
-                    "welcome": welcome_markdown(context),
+                    "briefing": briefing,
+                    "welcome": briefing,
                 },
                 status=status.HTTP_200_OK,
             )
