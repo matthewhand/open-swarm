@@ -238,7 +238,6 @@ export interface SupportContext {
 
 export function fetchSupportContext(): Promise<SupportContext> {
   return apiGet<SupportContext>('/v1/support/context/')
->>>>>>> origin/main
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
