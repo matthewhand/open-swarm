@@ -379,7 +379,10 @@ html[data-theme="light"] #root {
 .os-rail-hostname-icon {
   flex-shrink: 0;
   display: inline-flex;
-  color: inherit;
+}
+.os-rail-hostname-icon.text-error,
+.os-rail-hostname-icon[data-tone="error"] {
+  color: #d46a6a;
 }
 .os-rail-hostname {
   min-width: 0;
