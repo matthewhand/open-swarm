@@ -227,7 +227,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         onDragEnd={finishDrag}
         onDragOver={(event) => {
           // Rows are not drop targets; dropping onto the source is a no-op.
-          event.dataTransfer.dropEffect = 'none'
+          try {
+            event.dataTransfer.dropEffect = 'none'
+          } catch {
+            /* synthetic events may omit dataTransfer */
+          }
         }}
         onDrop={dropOnSelf}
         onClick={onClose}
@@ -304,7 +308,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           aria-label="Pinned agents"
           onDragOver={(event) => {
             event.preventDefault()
-            event.dataTransfer.dropEffect = 'copy'
+            try {
+              event.dataTransfer.dropEffect = 'copy'
+            } catch {
+              /* synthetic events may omit dataTransfer */
+            }
             setDropActive(true)
           }}
           onDragLeave={() => setDropActive(false)}
@@ -370,7 +378,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             }}
             onDragOver={(event) => {
               event.preventDefault()
-              event.dataTransfer.dropEffect = 'move'
+              try {
+                event.dataTransfer.dropEffect = 'move'
+              } catch {
+                /* synthetic events may omit dataTransfer */
+              }
               setHideDropActive(true)
             }}
             onDragLeave={() => {
