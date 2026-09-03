@@ -27,6 +27,14 @@ import {
   type ChatWsEvent,
 } from '../lib/chatWs'
 import {
+  ALL_MEMBERS_TARGET,
+  MANAGE_TEAMS_HREF,
+  MANAGE_TEAMS_VALUE,
+  fetchTeamRosters,
+  memberOptionLabel,
+  teamThreadId,
+} from '../lib/teamRosters'
+import {
   reconnectBackoffMs,
   shouldAutoReconnect,
   WS_AUTH_REQUIRED_CODE,
@@ -86,23 +94,27 @@ export {
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
-  const selectedBlueprint = defaultBlueprintId(searchParams.get('blueprint'))
+  const teamFromUrl = searchParams.get('team') ?? ''
+  const selectedBlueprint = teamFromUrl
+    ? ''
+    : defaultBlueprintId(searchParams.get('blueprint'))
+  const threadKey = teamFromUrl ? teamThreadId(teamFromUrl) : selectedBlueprint
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
+  const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
   const [conversationId, setConversationId] = useState(() =>
-    conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+    teamFromUrl
+      ? teamThreadId(teamFromUrl)
+      : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
   )
 
-  const messages = useMemo(
-    () => threads[selectedBlueprint] ?? [],
-    [threads, selectedBlueprint],
-  )
+  const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(conversationId)
@@ -121,31 +133,58 @@ const ChatPage = () => {
   const toastedOutageRef = useRef(false)
   const streamStartedAtRef = useRef<number | null>(null)
   const lastUserTextRef = useRef('')
-  /** Last hydrated agent; used to clear bubbles only when the user switches. */
+  /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
   const lastHydratedAgentRef = useRef<string | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: fetchTeamRosters,
+  })
   const blueprints = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const teams = teamsQuery.data ?? []
+  const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
-  const selectedAgentName = selectedAgent
-    ? agentLabel(selectedAgent)
-    : selectedBlueprint === SUPPORT_AGENT_ID
-      ? 'Support'
-      : selectedBlueprint
+  const selectedAgentName = teamFromUrl
+    ? selectedTeam?.name || teamFromUrl
+    : selectedAgent
+      ? agentLabel(selectedAgent)
+      : selectedBlueprint === SUPPORT_AGENT_ID
+        ? 'Support'
+        : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
+    if (searchParams.get('team')) return
     if (!searchParams.get('blueprint')) {
       setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })
     }
   }, [searchParams, setSearchParams])
 
+  useEffect(() => {
+    setMemberTarget(ALL_MEMBERS_TARGET)
+  }, [teamFromUrl])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
+  // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
   useEffect(() => {
+    if (teamFromUrl) {
+      const key = teamThreadId(teamFromUrl)
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+
     const agent = agentIdFromBlueprint(selectedBlueprint)
     const switched =
       lastHydratedAgentRef.current !== null &&
@@ -174,7 +213,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint])
+  }, [selectedBlueprint, teamFromUrl])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -183,7 +222,7 @@ const ChatPage = () => {
         return
       }
       setThreads((prev) => {
-        const current = prev[selectedBlueprint] ?? []
+        const current = prev[threadKey] ?? []
         let next = current
         switch (event.kind) {
           case 'user_echo':
@@ -213,10 +252,10 @@ const ChatPage = () => {
             )
             break
         }
-        return { ...prev, [selectedBlueprint]: next }
+        return { ...prev, [threadKey]: next }
       })
     },
-    [selectedBlueprint],
+    [threadKey],
   )
 
   useEffect(() => {
@@ -232,7 +271,9 @@ const ChatPage = () => {
 
     let ws: WebSocket
     try {
-      ws = new WebSocket(buildChatWsUrl(conversationId, selectedBlueprint || undefined))
+      ws = new WebSocket(
+        buildChatWsUrl(conversationId, teamFromUrl ? undefined : selectedBlueprint || undefined),
+      )
     } catch {
       setStatus('failed')
       const attempt = backoffAttemptRef.current
@@ -287,7 +328,7 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint])
+  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint, teamFromUrl])
 
   const pinnedToBottomRef = useRef(true)
   useEffect(() => {
@@ -360,9 +401,19 @@ const ChatPage = () => {
       const trimmed = text.trim()
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
       lastUserTextRef.current = trimmed
+      // Team compose adds params { team, target: "all" | memberId }.
+      if (teamFromUrl) {
+        ws.send(
+          buildChatWsFrame(trimmed, undefined, {
+            team: teamFromUrl,
+            target: memberTarget || ALL_MEMBERS_TARGET,
+          }),
+        )
+        return
+      }
       ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
     },
-    [selectedBlueprint],
+    [selectedBlueprint, teamFromUrl, memberTarget],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -451,7 +502,30 @@ const ChatPage = () => {
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
         <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {teamFromUrl ? (
+            <select
+              className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
+              value={memberTarget}
+              aria-label="Team members"
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === MANAGE_TEAMS_VALUE) {
+                  window.location.assign(MANAGE_TEAMS_HREF)
+                  return
+                }
+                setMemberTarget(value)
+              }}
+            >
+              <option value={ALL_MEMBERS_TARGET}>All members</option>
+              {(selectedTeam?.members ?? []).map((member) => (
+                <option key={member.id} value={member.id}>
+                  {memberOptionLabel(member)}
+                </option>
+              ))}
+              <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
+            </select>
+          ) : null}
           <ThemeToggle />
           <button
             type="button"

@@ -37,6 +37,15 @@ describe('buildChatWsFrame', () => {
     expect(buildChatWsFrame('hi', undefined)).toBe('{"message":"hi"}')
   })
 
+  it('includes team send-to-all / member params on the send path', () => {
+    expect(
+      JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'all' })),
+    ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'all' } })
+    expect(
+      JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'codey' })),
+    ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'codey' } })
+  })
+
   it('round-trips back to the original message via JSON.parse', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',

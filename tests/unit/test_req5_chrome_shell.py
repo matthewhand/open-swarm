@@ -52,7 +52,9 @@ def test_agent_sidebar_js_hides_and_persists():
     assert "Unhide" in js
     assert "localStorage.setItem" in js
     assert "/v1/blueprints/" in js
-    assert "Hide all" in js
+    assert "team_rosters.json" in js
+    assert "/v1/teams/" not in js
+    assert "no hide-all" in js
 
 
 def test_theme_js_shares_spa_storage_key():
@@ -123,11 +125,10 @@ def test_spa_chat_nav_and_routes_stay_on_chat_not_agents():
     """Chat stays /chat (composer). Agents is the primary tab; Chat lives under More."""
     app = SPA_APP.read_text(encoding="utf-8")
     base = BASE.read_text(encoding="utf-8")
-    assert "href: '/chat'" in app or 'to="/chat"' in app
+    # 322 chrome: Chat is a Route path, not a leftover Home/Chat NavLink.
     assert 'path="/chat"' in app
+    assert "return '/chat'" in app
     assert 'href="/chat"' in base
     assert 'id="moreNavDropdown"' in base
-    assert 'to="/agents"' in app
     assert 'path="/agents"' in app
     assert "AgentRouterPage" in app
-    assert "MoreMenu" in app

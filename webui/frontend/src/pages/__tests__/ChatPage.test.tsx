@@ -583,3 +583,121 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(stewieUrl).not.toBe(codeyUrl)
   })
 })
+
+const DEMO_ROSTER = {
+  object: 'list',
+  data: [
+    {
+      id: 'demo-team',
+      object: 'team_roster',
+      name: 'Demo Team',
+      description: 'Example multi-agent roster',
+      members: [
+        { id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' },
+        { id: 'stewie', name: 'Stewie', kind: 'agent', role: 'ops' },
+      ],
+    },
+  ],
+}
+
+function stubTeamAndBlueprints() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo) => {
+      const url = String(input)
+      if (url.includes('team_rosters') || url.includes('team-rosters')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => DEMO_ROSTER,
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response
+    }),
+  )
+}
+
+describe('ChatPage team member dropdown', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    stubTeamAndBlueprints()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists All members first, then name + kind/role, then Manage Teams (unlabeled)', async () => {
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox')
+    expect(select).not.toHaveAccessibleName('Blueprint')
+    const options = within(select).getAllByRole('option')
+    expect(options.map((opt) => opt.textContent)).toEqual([
+      'All members',
+      'Codey (agent/coder)',
+      'Stewie (agent/ops)',
+      'Manage Teams',
+    ])
+    expect(select).toHaveValue('all')
+    expect(screen.queryByText('Blueprint')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Demo Team' })).toBeInTheDocument()
+  })
+
+  it('sends params {team, target} for all-members and a chosen member', async () => {
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'hello team' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalled()
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
+      message: 'hello team',
+      params: { team: 'demo-team', target: 'all' },
+    })
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'codey' } })
+    fireEvent.change(composer, { target: { value: 'just codey' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalledTimes(2)
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[1][0]))).toEqual({
+      message: 'just codey',
+      params: { team: 'demo-team', target: 'codey' },
+    })
+  })
+
+  it('keeps Manage Teams last and does not send when that item is chosen', async () => {
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox')
+    const options = within(select).getAllByRole('option')
+    expect(options[options.length - 1]).toHaveValue('__manage__')
+    expect(options[options.length - 1]).toHaveTextContent('Manage Teams')
+    expect(select).toHaveValue('all')
+    expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
+  })
+})

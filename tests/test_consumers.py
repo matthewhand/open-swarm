@@ -503,6 +503,46 @@ class TestBlueprintSelection:
                     assert mock_bp.await_args.args[0] == "zeus"
 
     @pytest.mark.asyncio
+    async def test_receive_team_params_uses_stub_runtime(self, consumer):
+        """REQ-23: params {team, target} stub the roster send path."""
+        consumer.messages = []
+        text_data = json.dumps({
+            "message": "hello roster",
+            "params": {"team": "demo-team", "target": "all"},
+        })
+
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                with patch.object(consumer, "respond_with_team_stub", new_callable=AsyncMock) as mock_team:
+                    with patch.object(consumer, "respond_with_blueprint", new_callable=AsyncMock) as mock_bp:
+                        with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
+                            await consumer.receive(text_data)
+
+                            mock_team.assert_awaited_once()
+                            assert mock_team.await_args.args[0]["team"] == "demo-team"
+                            assert mock_team.await_args.args[0]["target"] == "all"
+                            mock_bp.assert_not_awaited()
+                            mock_default.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_team_stub_echoes_team_and_target(self, consumer):
+        consumer.messages = [{"role": "user", "content": "ping"}]
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_team_stub(
+                    {"team": "demo-team", "target": "codey"},
+                    "ping",
+                    "message-response-team",
+                )
+        sent = "".join(
+            call.kwargs.get("text_data") or call.args[0]
+            for call in mock_send.await_args_list
+        )
+        assert "team:demo-team" in sent
+        assert "target:codey" in sent
+        assert consumer.messages[-1]["role"] == "assistant"
+
+    @pytest.mark.asyncio
     async def test_unknown_blueprint_sends_error_partial(self, consumer):
         """Unknown blueprint -> error partial; no assistant message recorded."""
         consumer.messages = [{"role": "user", "content": "Hello"}]
