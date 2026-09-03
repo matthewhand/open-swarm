@@ -7,6 +7,7 @@ function renderApp() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
+  Element.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
