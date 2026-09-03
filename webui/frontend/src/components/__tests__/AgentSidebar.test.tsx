@@ -81,12 +81,14 @@ describe('AgentSidebar hide / unhide', () => {
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
     expect(storedHidden()).toEqual(['codey'])
 
-    fireEvent.click(screen.getByRole('button', { name: /Hidden/i }))
-    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /hidden/i }))
+    expect(screen.getByRole('heading', { name: 'Hidden agents' })).toBeInTheDocument()
+    expect(screen.getByText('Codey')).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Unhide Codey/i }))
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /Hidden/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /hidden/i })).not.toBeInTheDocument()
     })
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(storedHidden()).toEqual([])
@@ -102,7 +104,9 @@ describe('AgentSidebar hide / unhide', () => {
     })
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Hidden/i }))
-    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /hidden/i }))
+    expect(screen.getByRole('heading', { name: 'Hidden agents' })).toBeInTheDocument()
+    expect(screen.getByText('Codey')).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
   })
 })

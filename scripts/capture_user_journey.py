@@ -319,13 +319,22 @@ def login_if_needed(page) -> bool:
 
 
 def _spa_chat_status_is_terminal(text: str) -> bool:
-    """True when badge is Connected / Unavailable… / Disconnected (not Connecting…)."""
-    t = (text or "").strip()
+    """True when chat is ready (silent healthy) or a failure is on screen.
+
+    Healthy connection no longer shows a standing Connected badge. Terminal
+    means the composer is enabled, or the empty-state / toast names a failure.
+    """
+    t = (text or "").strip().lower()
     if not t:
         return False
-    # Word-bounded Connected must not match Connecting…
+    if t == "ready":
+        return True
     return bool(
-        re.search(r"\b(Connected|Unavailable|Disconnected)\b", t, flags=re.I)
+        re.search(
+            r"websocket not connected|sign in required|unreachable|disconnected",
+            t,
+            flags=re.I,
+        )
     )
 
 
@@ -369,26 +378,36 @@ def capture(
         page.wait_for_load_state("networkidle", timeout=10000)
     except Exception:
         pass  # busy pages (polling) never go idle; capture anyway
-    # spa-chat: wait for a *terminal* WS badge (word-bounded) so Connecting…
-    # is not mistaken for Connected. Session login → Connected; anonymous /
-    # ASGI fail → Unavailable / Disconnected. Default: FAIL (skip PNG) if the
-    # badge stays Connecting…; pass --allow-connecting to soft-accept.
+    # spa-chat: wait for a *terminal* WS state so Connecting… is not captured
+    # as ready. Healthy is silent (composer enabled). Failure surfaces as
+    # "Websocket not connected" / toast. Default: FAIL (skip PNG) if still
+    # connecting; pass --allow-connecting to soft-accept.
     if slug == "spa-chat":
         try:
             page.wait_for_function(
                 """() => {
-                  const el = document.querySelector('[aria-label="Connection status"]');
-                  const t = ((el && el.textContent) || '').trim();
-                  return /\\b(Connected|Unavailable|Disconnected)\\b/i.test(t);
+                  const composer = document.querySelector('[aria-label="Chat message"]');
+                  if (composer && !composer.disabled) return true;
+                  const body = (document.body && document.body.innerText) || '';
+                  return /Websocket not connected|sign in required|websocket unreachable|disconnected/i.test(body);
                 }""",
                 timeout=SPA_CHAT_STATUS_TIMEOUT_MS,
             )
         except Exception:
-            pass  # read badge below; may still hard-fail
+            pass  # read status below; may still hard-fail
         try:
-            entry["connection_status"] = (
-                page.locator('[aria-label="Connection status"]').inner_text(timeout=2000).strip()
+            enabled = page.evaluate(
+                """() => {
+                  const el = document.querySelector('[aria-label="Chat message"]');
+                  return Boolean(el && !el.disabled);
+                }"""
             )
+            if enabled:
+                entry["connection_status"] = "ready"
+            else:
+                entry["connection_status"] = (
+                    page.locator("body").inner_text(timeout=2000)[:240]
+                )
         except Exception:
             entry["connection_status"] = ""
         status_text = entry.get("connection_status") or ""
@@ -398,9 +417,9 @@ def capture(
             else:
                 shown = status_text or "(empty)"
                 entry["error"] = (
-                    f"spa-chat badge not terminal after "
+                    f"spa-chat not terminal after "
                     f"{SPA_CHAT_STATUS_TIMEOUT_MS}ms: {shown!r} "
-                    f"(want Connected/Unavailable/Disconnected; "
+                    f"(want ready composer or Websocket not connected; "
                     f"pass --allow-connecting to soft-accept Connecting…)"
                 )
                 return entry

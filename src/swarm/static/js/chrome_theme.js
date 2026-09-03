@@ -27,7 +27,6 @@
     }
     var btn = document.getElementById("os-theme-toggle");
     if (btn) {
-      btn.textContent = theme === "dark" ? "Light" : "Dark";
       btn.setAttribute(
         "aria-label",
         theme === "dark" ? "Switch to light theme" : "Switch to dark theme",

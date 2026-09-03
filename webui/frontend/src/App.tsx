@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } from 'lucide-react'
+import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft, Sun, Moon } from 'lucide-react'
 import ChatPage from './pages/ChatPage'
 import Dashboard from './pages/Dashboard'
 import AgentSidebar from './components/AgentSidebar'
 import CommandPalette from './experimental/CommandPalette'
+import { ToastProvider } from './components/DaisyUI'
 import { isExperimentalEnabled } from './experimental/flags'
 
 /** EXPERIMENTAL: ⌘K command palette (see experimental/README.md). */
@@ -52,6 +53,7 @@ function App() {
   }, [])
 
   return (
+    <ToastProvider>
     <Router>
       {SHOW_COMMAND_PALETTE && <CommandPalette />}
       <div
@@ -100,10 +102,14 @@ function App() {
               <button
                 type="button"
                 onClick={() => setDarkMode(darkMode === 'dark' ? 'light' : 'dark')}
-                className="btn btn-ghost btn-sm"
+                className="btn btn-ghost btn-sm btn-square"
                 aria-label={darkMode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
               >
-                {darkMode === 'dark' ? 'Light' : 'Dark'}
+                {darkMode === 'dark' ? (
+                  <Sun className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-5 w-5" aria-hidden="true" />
+                )}
               </button>
               <a href="/settings/" className="btn btn-ghost btn-sm" aria-label="Settings">
                 <Settings className="h-5 w-5" aria-hidden="true" />
@@ -138,6 +144,7 @@ function App() {
         </nav>
       </div>
     </Router>
+    </ToastProvider>
   )
 }
 

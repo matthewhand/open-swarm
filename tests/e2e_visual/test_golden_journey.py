@@ -82,11 +82,16 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """The Connected badge only renders after ws.onopen fires, so this also
-    guards the ASGI/daphne websocket wiring."""
+    """The composer enables only after ws.onopen fires, so this also
+    guards the ASGI/daphne websocket wiring. Healthy connection is silent."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    badge = page.get_by_text("Connected", exact=True)
-    badge.wait_for(state="visible", timeout=20_000)
+    page.wait_for_function(
+        """() => {
+          const el = document.querySelector('[aria-label="Chat message"]');
+          return Boolean(el && !el.disabled);
+        }""",
+        timeout=20_000,
+    )
 
 
 def test_blueprint_cards_have_borders(page, live_server_url):

@@ -442,7 +442,16 @@ html[data-os-theme="light"] .os-navbar .nav-link.active {
   color: inherit;
   cursor: pointer;
   white-space: nowrap;
+  width: 2.15rem;
+  height: 2.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
+.os-theme-icon { display: none; }
+html[data-os-theme="dark"] .os-theme-icon--sun { display: inline-block; }
+html[data-os-theme="light"] .os-theme-icon--moon { display: inline-block; }
 .os-sidebar-toggle,
 .os-sidebar-close {
   background: transparent;
@@ -548,30 +557,61 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
-.os-agent-hidden { margin-top: 0.65rem; padding-top: 0.5rem; border-top: 1px solid var(--os-border); }
 .os-agent-hidden__toggle {
   width: 100%;
   background: transparent;
   border: 0;
   color: var(--os-muted);
   text-align: left;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.5rem;
+  margin-top: 0.35rem;
+  cursor: pointer;
+  border-radius: 0.4rem;
+}
+.os-agent-hidden__toggle:hover { color: var(--os-text); background: rgba(255,255,255,0.04); }
+.os-agent-hidden-dialog {
+  border: 1px solid var(--os-border);
+  border-radius: 0.75rem;
+  background: var(--os-panel);
+  color: var(--os-text);
+  padding: 0.85rem 1rem 1rem;
+  min-width: 16rem;
+  max-width: 22rem;
+}
+.os-agent-hidden-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.os-agent-hidden-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+.os-agent-hidden-dialog__head h2 {
+  margin: 0;
+  font-size: 0.95rem;
   font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.35rem 0.4rem;
+}
+.os-agent-hidden-dialog__close {
+  background: transparent;
+  border: 0;
+  color: var(--os-muted);
+  cursor: pointer;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 .os-agent-hidden__row {
   display: flex;
-  align-items: flex-start;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
 }
 .os-agent-unhide {
   background: transparent;
   border: 0;
   color: var(--os-muted);
-  font-size: 0.7rem;
-  margin-top: 0.45rem;
+  font-size: 0.75rem;
+  margin-left: auto;
   cursor: pointer;
 }
 .os-agent-sidebar__foot {

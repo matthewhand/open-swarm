@@ -1,6 +1,7 @@
 /**
  * Django AGENTS sidepane — same hide contract as the SPA AgentSidebar.
  * Persist hidden ids in localStorage.swarm_hidden_agents (no hide-all).
+ * Hidden agents are listed in a popup, not an inline Hidden section.
  */
 (function agentSidebar() {
   var STORAGE_KEY = "swarm_hidden_agents";
@@ -54,9 +55,10 @@
   function init() {
     var listEl = document.getElementById("os-agent-list");
     var hiddenListEl = document.getElementById("os-agent-hidden-list");
-    var hiddenWrap = document.getElementById("os-agent-hidden-wrap");
     var hiddenToggle = document.getElementById("os-agent-hidden-toggle");
-    var hiddenCount = document.getElementById("os-agent-hidden-count");
+    var hiddenLabel = document.getElementById("os-agent-hidden-label");
+    var hiddenDialog = document.getElementById("os-agent-hidden-dialog");
+    var hiddenClose = document.getElementById("os-agent-hidden-close");
     var statusEl = document.getElementById("os-agent-status");
     var filterEl = document.getElementById("os-agent-filter");
     var menuEl = document.getElementById("os-agent-menu");
@@ -65,7 +67,6 @@
 
     var agents = [];
     var hiddenIds = loadHidden();
-    var hiddenOpen = false;
     var filter = "";
 
     function closeMenu() {
@@ -86,6 +87,21 @@
       sidebar.classList.remove("is-open");
       var backdrop = document.getElementById("os-sidebar-backdrop");
       if (backdrop) backdrop.hidden = true;
+    }
+
+    function closeHiddenDialog() {
+      if (hiddenDialog && hiddenDialog.open) hiddenDialog.close();
+      if (hiddenToggle) hiddenToggle.setAttribute("aria-expanded", "false");
+    }
+
+    function openHiddenDialog() {
+      if (!hiddenDialog) return;
+      if (typeof hiddenDialog.showModal === "function") {
+        hiddenDialog.showModal();
+      } else {
+        hiddenDialog.setAttribute("open", "");
+      }
+      if (hiddenToggle) hiddenToggle.setAttribute("aria-expanded", "true");
     }
 
     function makeLink(agent, hidden) {
@@ -151,7 +167,7 @@
         return hiddenIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
       });
       var hidden = agents.filter(function (agent) {
-        return hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);
+        return hiddenIds.indexOf(agent.id) !== -1;
       });
 
       listEl.replaceChildren();
@@ -159,6 +175,7 @@
 
       if (!agents.length) {
         statusEl.hidden = false;
+        if (hiddenToggle) hiddenToggle.hidden = true;
         return;
       }
       statusEl.hidden = true;
@@ -176,17 +193,21 @@
         });
       }
 
-      if (hiddenWrap) {
-        hiddenWrap.hidden = hidden.length === 0;
+      if (hiddenToggle) {
+        hiddenToggle.hidden = hidden.length === 0;
+        hiddenToggle.setAttribute("aria-expanded", hiddenDialog && hiddenDialog.open ? "true" : "false");
       }
-      if (hiddenCount) hiddenCount.textContent = "(" + hidden.length + ")";
-      hiddenListEl.hidden = !hiddenOpen;
-      if (hiddenToggle) hiddenToggle.setAttribute("aria-expanded", hiddenOpen ? "true" : "false");
+      if (hiddenLabel) {
+        hiddenLabel.textContent = hidden.length + " hidden";
+      }
+      if (hidden.length === 0) closeHiddenDialog();
 
       hidden.forEach(function (agent) {
         var li = document.createElement("li");
         li.className = "os-agent-hidden__row";
-        li.appendChild(makeLink(agent, true));
+        var name = document.createElement("span");
+        name.className = "os-agent-item__name";
+        name.textContent = agentLabel(agent);
         var unhide = document.createElement("button");
         unhide.type = "button";
         unhide.className = "os-agent-unhide";
@@ -196,6 +217,7 @@
           hiddenIds = saveHidden(hiddenIds.filter(function (id) { return id !== agent.id; }));
           render();
         });
+        li.appendChild(name);
         li.appendChild(unhide);
         hiddenListEl.appendChild(li);
       });
@@ -203,8 +225,18 @@
 
     if (hiddenToggle) {
       hiddenToggle.addEventListener("click", function () {
-        hiddenOpen = !hiddenOpen;
-        render();
+        openHiddenDialog();
+      });
+    }
+    if (hiddenClose) {
+      hiddenClose.addEventListener("click", closeHiddenDialog);
+    }
+    if (hiddenDialog) {
+      hiddenDialog.addEventListener("cancel", function () {
+        if (hiddenToggle) hiddenToggle.setAttribute("aria-expanded", "false");
+      });
+      hiddenDialog.addEventListener("click", function (event) {
+        if (event.target === hiddenDialog) closeHiddenDialog();
       });
     }
     if (filterEl) {

@@ -18,6 +18,7 @@ test('theme toggle flips data-theme and persists, no uncaught JS errors', async 
   // Default theme (no stored preference) is dark, matching Django pages.
   await expect(root).toHaveAttribute('data-theme', 'dark')
   await expect(toggle).toBeVisible()
+  await expect(toggle).not.toHaveText(/Light|Dark/)
 
   // Flip to light and assert the UI state + persistence both changed.
   await toggle.click()

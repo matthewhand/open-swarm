@@ -9,13 +9,13 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { AlertCircle, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
 import {
   Alert,
-  Badge,
   Button,
   LoadingDots,
   LoadingSpinner,
+  useToast,
 } from '../components/DaisyUI'
 import { fetchBlueprints, isAuthError } from '../lib/api'
 import {
@@ -36,6 +36,13 @@ import { ChatMessageActions } from '../experimental/ChatMessageActions'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
+
+/** Last native-select item — navigates to the existing library, not a blueprint id. */
+export const MANAGE_BLUEPRINTS_VALUE = '__manage_blueprints__'
+export const MANAGE_BLUEPRINTS_HREF = '/blueprint-library/'
+
+/** Soft cap for the tokens-in-context meter (display only; not a server limit). */
+const CONTEXT_METER_TOKENS = 128_000
 
 type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 
@@ -66,9 +73,30 @@ export function chatLoginHref(searchParams: URLSearchParams): string {
   return `/accounts/login/?next=${encodeURIComponent(chatLoginNext(searchParams))}`
 }
 
+/** Rough in-context token count from visible transcript text (~4 chars/token). */
+export function estimateTokensInContext(texts: string[]): number {
+  const chars = texts.reduce((sum, text) => sum + text.length, 0)
+  return Math.max(0, Math.round(chars / 4))
+}
+
+export function formatTokenCount(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}k`
+  return `${Math.round(n / 1000)}k`
+}
+
+export function formatElapsed(ms: number): string {
+  const sec = Math.max(0, Math.floor(ms / 1000))
+  if (sec < 60) return `${sec}s`
+  const minutes = Math.floor(sec / 60)
+  const rem = sec % 60
+  return `${minutes}m ${String(rem).padStart(2, '0')}s`
+}
+
 const ChatPage = () => {
   // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
   const [searchParams] = useSearchParams()
+  const { error: toastError } = useToast()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
@@ -78,6 +106,7 @@ const ChatPage = () => {
   const [connectAttempt, setConnectAttempt] = useState(0)
   /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(newConversationId())
@@ -91,6 +120,8 @@ const ChatPage = () => {
   const backoffAttemptRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
+  const toastedOutageRef = useRef(false)
+  const streamStartedAtRef = useRef<number | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -103,6 +134,10 @@ const ChatPage = () => {
     !blueprintsQuery.isError &&
     !blueprints.some((bp) => bp.id === selectedBlueprint)
   const signInHref = chatLoginHref(searchParams)
+  const selectedBlueprintName =
+    blueprints.find((bp) => bp.id === selectedBlueprint)?.name ||
+    selectedBlueprint ||
+    'Assistant'
 
   const handleWsEvent = useCallback((event: ChatWsEvent) => {
     if (event.kind === 'unknown') {
@@ -242,6 +277,52 @@ const ChatPage = () => {
     }
   }, [status, connectAttempt])
 
+  const reconnect = useCallback(() => {
+    backoffAttemptRef.current = 0
+    toastedOutageRef.current = false
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    setConnectAttempt((n) => n + 1)
+  }, [])
+
+  // Healthy connection is silent. One toast per outage (not per backoff retry).
+  useEffect(() => {
+    if (status === 'open') {
+      toastedOutageRef.current = false
+      return
+    }
+    if (status !== 'failed' && status !== 'closed') return
+    if (toastedOutageRef.current) return
+    toastedOutageRef.current = true
+    const title = authRejected
+      ? 'Chat unavailable — sign in required'
+      : status === 'failed'
+        ? 'Chat websocket unreachable'
+        : 'Chat disconnected'
+    const detail = authRejected
+      ? 'Live chat needs a Django session cookie. Sign in, then reconnect.'
+      : status === 'failed'
+        ? 'ASGI is not serving /ws/ or Origin does not match ALLOWED_HOSTS.'
+        : 'The chat websocket closed. Message history is kept.'
+    toastError(
+      title,
+      <span>
+        {detail}{' '}
+        {authRejected ? (
+          <a href={signInHref} className="link">
+            Sign in
+          </a>
+        ) : (
+          <button type="button" className="link" onClick={reconnect}>
+            Reconnect
+          </button>
+        )}
+      </span>,
+    )
+  }, [status, authRejected, signInHref, toastError, reconnect])
+
   const canSend =
     status === 'open' && input.trim().length > 0
 
@@ -268,21 +349,40 @@ const ChatPage = () => {
     setInput('')
   }
 
-  const reconnect = () => {
-    backoffAttemptRef.current = 0
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current)
-      reconnectTimerRef.current = null
-    }
-    setConnectAttempt((n) => n + 1)
-  }
-
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape' && input.length > 0) {
       event.preventDefault()
       setInput('')
     }
   }
+
+  const handleBlueprintChange = (value: string) => {
+    if (value === MANAGE_BLUEPRINTS_VALUE) {
+      window.location.assign(MANAGE_BLUEPRINTS_HREF)
+      return
+    }
+    setSelectedBlueprint(value)
+  }
+
+  const streamingMessage = messages.find((message) => message.streaming)
+  useEffect(() => {
+    if (!streamingMessage) {
+      streamStartedAtRef.current = null
+      return
+    }
+    if (streamStartedAtRef.current == null) {
+      streamStartedAtRef.current = Date.now()
+    }
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [streamingMessage])
+
+  const tokenCount = estimateTokensInContext(messages.map((message) => message.text))
+  const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
+  const streamElapsed =
+    streamingMessage && streamStartedAtRef.current != null
+      ? formatElapsed(nowMs - streamStartedAtRef.current)
+      : null
 
   const composerPlaceholder =
     status === 'open'
@@ -292,17 +392,15 @@ const ChatPage = () => {
         : 'Websocket not connected — sending is disabled'
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-13rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-6.5rem)]">
-      {/* Header: title + blueprint selector + connection status.
-          Stacks vertically below lg; single row on desktop. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
+    <div className="mx-auto flex h-[calc(100vh-8.5rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-3 px-4 py-4 lg:h-[calc(100vh-4.5rem)]">
+      {/* Header: title + unlabeled blueprint selector (control is enough). */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <MessageSquare className="h-8 w-8" />
           Chat
         </h1>
 
-        {/* Blueprint selector (from /v1/blueprints/) */}
-        <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
+        <div className="flex flex-wrap items-center gap-3 lg:flex-1 lg:justify-end">
           {blueprintsQuery.isPending ? (
             <div className="flex items-center gap-2 py-2">
               <LoadingSpinner size="sm" />
@@ -333,52 +431,28 @@ const ChatPage = () => {
               </span>
             </Alert>
           ) : (
-            <div className="w-full max-w-xs flex flex-col gap-1">
-              <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-sm font-medium">
-                  Blueprint
-                </span>
-                {/* Focusable so keyboard users can reveal the tooltip;
-                    aria-describedby keeps the note available to screen readers. */}
-                <span
-                  className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
-                  data-tip="Sent with every message — the selected blueprint generates the reply. Choose “Server default model” to use the server-configured model instead."
-                >
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs btn-circle p-0 min-h-0 h-auto"
-                    aria-label="About blueprint selection"
-                    tabIndex={0}
-                  >
-                    <Info className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-                  </button>
-                </span>
-              </div>
-              <select
-                className="select select-md h-12 w-full border border-base-300"
-                value={selectedBlueprint}
-                onChange={(e) => setSelectedBlueprint(e.target.value)}
-                aria-label="Blueprint"
-              >
-                <option value="">Server default model</option>
-                {/* Keep a ?blueprint= preselection visible even if it is not
-                    in the fetched list (e.g. a just-created team). */}
-                {blueprintMissingFromList && (
-                  <option value={selectedBlueprint}>
-                    {selectedBlueprint} (not in list)
-                  </option>
-                )}
-                {blueprints.map((bp) => (
-                  <option key={bp.id} value={bp.id}>
-                    {bp.name || bp.id}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              className="select select-md h-12 w-full max-w-xs border border-base-300"
+              value={selectedBlueprint}
+              onChange={(e) => handleBlueprintChange(e.target.value)}
+              aria-label="Blueprint"
+            >
+              <option value="">Server default model</option>
+              {/* Keep a ?blueprint= preselection visible even if it is not
+                  in the fetched list (e.g. a just-created team). */}
+              {blueprintMissingFromList && (
+                <option value={selectedBlueprint}>
+                  {selectedBlueprint} (not in list)
+                </option>
+              )}
+              {blueprints.map((bp) => (
+                <option key={bp.id} value={bp.id}>
+                  {bp.name || bp.id}
+                </option>
+              ))}
+              <option value={MANAGE_BLUEPRINTS_VALUE}>Manage Blueprints</option>
+            </select>
           )}
-          <div className="pb-1">
-            <ConnectionBadge status={status} authRejected={authRejected} />
-          </div>
         </div>
       </div>
 
@@ -398,55 +472,6 @@ const ChatPage = () => {
               just-launched team). If the server does not recognise the id, the
               reply errors — it does not fall back to the default model.
             </p>
-          </div>
-        </Alert>
-      )}
-
-      {/* Fallback when the websocket is unavailable.
-          shrink-0: fixed-height flex column otherwise collapses this CTA. */}
-      {(status === 'failed' || status === 'closed') && (
-        <Alert
-          type="error"
-          icon={<AlertCircle className="h-5 w-5" />}
-          className="shrink-0"
-        >
-          <div className="space-y-2">
-            <span className="font-medium">
-              {authRejected
-                ? 'Websocket unavailable — sign in required.'
-                : status === 'failed'
-                  ? 'Websocket unavailable.'
-                  : 'Websocket connection closed.'}
-            </span>
-            <p className="text-sm">
-              {authRejected ? (
-                <>
-                  Live chat authenticates with a Django{' '}
-                  <strong>session cookie</strong> (form login), not a REST
-                  API bearer token. Sign in, then reconnect. Message history
-                  above is kept when present.
-                </>
-              ) : (
-                <>
-                  Live chat runs over the backend websocket (served by{' '}
-                  <code>manage.py runserver</code>, daphne or any ASGI server
-                  via <code>swarm.asgi:application</code>). If you are already
-                  signed in, check that ASGI is serving <code>/ws/</code> and
-                  your Origin matches <code>ALLOWED_HOSTS</code>, then
-                  reconnect. Message history above is kept when present.
-                </>
-              )}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <a href={signInHref} className="btn btn-sm btn-primary">
-                <LogIn className="h-4 w-4 mr-1" aria-hidden="true" />
-                Sign in
-              </a>
-              <Button size="sm" variant="ghost" onClick={reconnect}>
-                <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
-                Reconnect
-              </Button>
-            </div>
           </div>
         </Alert>
       )}
@@ -473,7 +498,7 @@ const ChatPage = () => {
               <div>
                 <p className="font-medium text-base-content/70">
                   {status === 'open'
-                    ? 'Connected and ready'
+                    ? 'Ready'
                     : status === 'connecting'
                       ? 'Connecting to the chat websocket…'
                       : 'Websocket not connected'}
@@ -500,6 +525,18 @@ const ChatPage = () => {
                       {prompt}
                     </button>
                   ))}
+                </div>
+              )}
+              {(status === 'failed' || status === 'closed') && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  <a href={signInHref} className="btn btn-sm btn-primary">
+                    <LogIn className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Sign in
+                  </a>
+                  <Button size="sm" variant="ghost" onClick={reconnect}>
+                    <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Reconnect
+                  </Button>
                 </div>
               )}
             </div>
@@ -553,10 +590,10 @@ const ChatPage = () => {
           <div ref={listEndRef} />
         </div>
 
-        {/* Composer */}
+        {/* Composer + compact context/activity line (no empty strip). */}
         <form
           onSubmit={handleSend}
-          className="flex gap-2 border-t border-base-300 p-3"
+          className="flex gap-2 border-t border-base-300 p-3 pb-1"
         >
           <input
             ref={composerRef}
@@ -574,6 +611,34 @@ const ChatPage = () => {
             Send
           </Button>
         </form>
+        <div
+          className="flex items-center gap-3 px-3 pb-2 pt-0.5 text-xs text-base-content/50"
+          aria-live="polite"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <div
+              className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
+              role="meter"
+              aria-label="Tokens in context"
+              aria-valuemin={0}
+              aria-valuemax={CONTEXT_METER_TOKENS}
+              aria-valuenow={tokenCount}
+            >
+              <div
+                className="h-full rounded-full bg-base-content/45"
+                style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+              />
+            </div>
+            <span className="tabular-nums whitespace-nowrap">
+              {formatTokenCount(tokenCount)} tok
+            </span>
+          </div>
+          {streamingMessage ? (
+            <span className="min-w-0 truncate">
+              {selectedBlueprintName} · {streamElapsed ?? '0s'}
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -606,54 +671,5 @@ const ChatBubbleBody = memo(
   (prev, next) =>
     prev.text === next.text && prev.streaming === next.streaming,
 )
-
-function connectionStatusLabel(
-  status: ConnectionStatus,
-  authRejected: boolean,
-): string {
-  switch (status) {
-    case 'connecting':
-      return 'Connecting…'
-    case 'open':
-      return 'Connected'
-    case 'closed':
-      return authRejected
-        ? 'Unavailable — sign in required'
-        : 'Disconnected'
-    case 'failed':
-      return authRejected
-        ? 'Unavailable — sign in required'
-        : 'Unavailable — websocket unreachable'
-  }
-}
-
-function ConnectionBadge({
-  status,
-  authRejected,
-}: {
-  status: ConnectionStatus
-  authRejected: boolean
-}) {
-  const label = connectionStatusLabel(status, authRejected)
-  return (
-    <span
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      aria-label="Connection status"
-    >
-      {status === 'connecting' ? (
-        <Badge type="warning">
-          <LoadingSpinner size="xs" className="mr-1" />
-          {label}
-        </Badge>
-      ) : status === 'open' ? (
-        <Badge type="success">{label}</Badge>
-      ) : (
-        <Badge type="error">{label}</Badge>
-      )}
-    </span>
-  )
-}
 
 export default ChatPage

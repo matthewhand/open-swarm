@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Eye, EyeOff, Settings, Users, X } from 'lucide-react'
+import { Eye, EyeOff, Settings, Users, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
+import { Modal } from './DaisyUI'
 import {
   agentMarkIndex,
   hideAgentId,
@@ -64,8 +65,8 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
     [agents, hiddenIds, matchesFilter],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => hiddenIds.includes(agent.id) && matchesFilter(agent)),
-    [agents, hiddenIds, matchesFilter],
+    () => agents.filter((agent) => hiddenIds.includes(agent.id)),
+    [agents, hiddenIds],
   )
 
   const closeMenu = useCallback(() => setMenu(null), [])
@@ -110,7 +111,11 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
   }
 
   const unhideAgent = (id: string) => {
-    setHiddenIds((current) => unhideAgentId(id, current))
+    setHiddenIds((current) => {
+      const next = unhideAgentId(id, current)
+      if (next.length === 0) setHiddenOpen(false)
+      return next
+    })
     closeMenu()
   }
 
@@ -208,39 +213,15 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
           )}
 
           {hiddenAgents.length > 0 && (
-            <div className="mt-3 border-t border-base-300/70 pt-2">
-              <button
-                type="button"
-                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-[0.06em] text-base-content/45 hover:bg-base-300/30"
-                aria-expanded={hiddenOpen}
-                onClick={() => setHiddenOpen((value) => !value)}
-              >
-                {hiddenOpen ? (
-                  <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
-                Hidden
-                <span className="font-normal normal-case tracking-normal">({hiddenAgents.length})</span>
-              </button>
-              {hiddenOpen && (
-                <ul className="mt-1 space-y-0.5">
-                  {hiddenAgents.map((agent) => (
-                    <li key={agent.id} className="flex items-start gap-1">
-                      {renderAgentLink(agent, true)}
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs mt-1.5 text-base-content/60"
-                        aria-label={`Unhide ${agentLabel(agent)}`}
-                        onClick={() => unhideAgent(agent.id)}
-                      >
-                        <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <button
+              type="button"
+              className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/30 hover:text-base-content/80"
+              aria-haspopup="dialog"
+              aria-expanded={hiddenOpen}
+              onClick={() => setHiddenOpen(true)}
+            >
+              {hiddenAgents.length} hidden
+            </button>
           )}
         </nav>
 
@@ -255,6 +236,33 @@ export default function AgentSidebar({ open = false, onClose }: AgentSidebarProp
           </a>
         </div>
       </aside>
+
+      <Modal
+        isOpen={hiddenOpen}
+        onClose={() => setHiddenOpen(false)}
+        title="Hidden agents"
+        size="sm"
+      >
+        {hiddenAgents.length === 0 ? (
+          <p className="text-sm text-base-content/60">No hidden agents.</p>
+        ) : (
+          <ul className="space-y-1">
+            {hiddenAgents.map((agent) => (
+              <li key={agent.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs"
+                  aria-label={`Unhide ${agentLabel(agent)}`}
+                  onClick={() => unhideAgent(agent.id)}
+                >
+                  Unhide
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Modal>
 
       {menu && (
         <div

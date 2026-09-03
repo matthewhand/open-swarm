@@ -2,7 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
-import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
+import { ToastProvider } from '../../components/DaisyUI'
+import ChatPage, {
+  chatLoginHref,
+  chatLoginNext,
+  estimateTokensInContext,
+  formatElapsed,
+  formatTokenCount,
+  MANAGE_BLUEPRINTS_HREF,
+  MANAGE_BLUEPRINTS_VALUE,
+} from '../ChatPage'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -51,11 +60,13 @@ function renderChat(initialEntry = '/chat') {
     defaultOptions: { queries: { retry: false } },
   })
   return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <ChatPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <ToastProvider>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <ChatPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ToastProvider>,
   )
 }
 
@@ -130,6 +141,16 @@ describe('ChatPage reconnect focus', () => {
   })
 })
 
+describe('chat composer helpers', () => {
+  it('estimates tokens and formats counts / elapsed', () => {
+    expect(estimateTokensInContext(['abcd', 'efgh'])).toBe(2)
+    expect(formatTokenCount(12)).toBe('12')
+    expect(formatTokenCount(2400)).toBe('2.4k')
+    expect(formatElapsed(1500)).toBe('1s')
+    expect(formatElapsed(65_000)).toBe('1m 05s')
+  })
+})
+
 describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
@@ -149,12 +170,8 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     vi.unstubAllGlobals()
   })
 
-  it('disables send while connecting and announces status via aria-live', async () => {
+  it('disables send while connecting and stays silent when healthy', async () => {
     renderChat()
-
-    const statusRegion = screen.getByRole('status', { name: 'Connection status' })
-    expect(statusRegion).toHaveAttribute('aria-live', 'polite')
-    expect(statusRegion).toHaveTextContent(/Connecting/i)
 
     const composer = screen.getByRole('textbox', { name: 'Chat message' })
     expect(composer).toBeDisabled()
@@ -163,15 +180,18 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
       expect.stringMatching(/Connecting/i),
     )
     expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled()
+    expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
 
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
 
     await waitFor(() => {
-      expect(statusRegion).toHaveTextContent(/^Connected$/)
+      expect(composer).not.toBeDisabled()
     })
-    expect(composer).not.toBeDisabled()
+    expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Connection status')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
   })
 
   it('shows session-cookie Sign-in CTA when the server closes with 4401', async () => {
@@ -187,15 +207,9 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
       `/accounts/login/?next=${encodeURIComponent('/chat?blueprint=hybrid_team')}`,
     )
     expect(screen.getByRole('button', { name: /Reconnect/i })).toBeInTheDocument()
-    const statusRegion = screen.getByRole('status', { name: 'Connection status' })
-    expect(statusRegion).toHaveTextContent(/Unavailable — sign in required/i)
+    expect(screen.getByText(/sign in required/i)).toBeInTheDocument()
     expect(screen.getByText(/session cookie/i)).toBeInTheDocument()
-    expect(screen.getByText(/REST API bearer token/i)).toBeInTheDocument()
-    // Fixed-height chat column must not flex-shrink the Unavailable CTA away.
-    const unavailableAlert = screen
-      .getAllByRole('alert')
-      .find((el) => /sign in required/i.test(el.textContent || ''))
-    expect(unavailableAlert?.className).toMatch(/shrink-0/)
+    expect(screen.queryByLabelText('Connection status')).not.toBeInTheDocument()
   })
 
   it('does not blame login when the socket never opens (ASGI/network)', async () => {
@@ -205,11 +219,10 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
       MockWebSocket.instances[0]?.failBeforeOpen()
     })
 
-    expect(
-      await screen.findByText(/Unavailable — websocket unreachable/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/websocket unreachable/i)).toBeInTheDocument()
     expect(screen.getByText(/ALLOWED_HOSTS/i)).toBeInTheDocument()
     expect(screen.queryByText(/session cookie/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Connection status')).not.toBeInTheDocument()
   })
 
   it('clears the composer draft on Escape', async () => {
@@ -290,6 +303,36 @@ describe('ChatPage blueprint query-param honesty', () => {
     const select = await screen.findByRole('combobox', { name: 'Blueprint' })
     expect(select).toHaveValue('codey')
     expect(screen.queryByText(/not in the discoverable list/i)).not.toBeInTheDocument()
+  })
+
+  it('has no visible field label and ends with Manage Blueprints', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal(
+      'location',
+      Object.create(window.location, { assign: { value: assign } }),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
+    expect(screen.queryByText(/^Blueprint$/)).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Manage Blueprints' })).toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: MANAGE_BLUEPRINTS_VALUE } })
+    expect(assign).toHaveBeenCalledWith(MANAGE_BLUEPRINTS_HREF)
   })
 })
 
