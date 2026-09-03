@@ -107,7 +107,6 @@ export const Modal = ({
         aria-labelledby={title ? titleId : undefined}
         aria-label={!title ? (ariaLabel || 'Dialog') : undefined}
         aria-modal={isOpen ? true : undefined}
-        tabIndex={-1}
       >
         <div
           className={`modal-box ${sizeClasses[size]} ${className}`}
@@ -120,7 +119,7 @@ export const Modal = ({
             {children}
           </div>
         </div>
-        <form method="dialog" className="modal-backdrop">
+        <form method="dialog" className="modal-backdrop" aria-hidden="true">
           <button
             type="submit"
             onClick={onClose}
