@@ -93,7 +93,7 @@ def test_codegen_unwired_still_calls_wrap_but_gate_is_none():
     assert "run_with_skeptic" in code
     assert "find_role_agent(self._agents, \"gate\")" in code
     assert "find_role_agent(self._agents, \"skeptic\")" in code
-    assert '"role": \'default\'' in code or '"role": "default"' in code
+    assert "'role': 'default'" in code or '"role": "default"' in code
 
 
 def test_codegen_wires_gate_and_skeptic_roles():
@@ -105,8 +105,9 @@ def test_codegen_wires_gate_and_skeptic_roles():
     code = _render_swarm_blueprint_code(_team(gate=True, skeptic=True))
     assert "attach_gate_as_tool" in code
     assert "attach_skeptic_as_tool" in code
-    assert '"role": \'gate\'' in code or '"role": "gate"' in code
-    assert '"role": \'skeptic\'' in code or '"role": "skeptic"' in code
+    # AGENT_SPECS is emitted via repr(), so keys/values are single-quoted.
+    assert "'role': 'gate'" in code or '"role": "gate"' in code
+    assert "'role': 'skeptic'" in code or '"role": "skeptic"' in code
     assert "gate_agent" in code
     assert "skeptic_agent" in code
     assert "single token" in code.lower() or "Classify" in code
