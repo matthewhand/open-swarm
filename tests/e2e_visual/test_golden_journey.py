@@ -5,7 +5,7 @@ Each test pins down a real regression class that previously shipped green:
 - ``test_landing_page_is_styled``      -> Tailwind v4 emitted a 2kB CSS file
 - ``test_blueprint_cards_have_borders``-> DaisyUI 5 removed ``card-bordered``
 - ``test_teams_navbar_has_no_zero_text_links`` -> white-box navbar links
-- ``test_chat_websocket_connects``     -> ASGI/daphne wiring
+- ``test_chat_websocket_connects``     -> ASGI/daphne wiring (silent healthy status)
 - ``test_dark_mode_toggle``            -> theme CSS actually compiled in
 
 Run locally with::
