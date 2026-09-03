@@ -203,6 +203,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             from pathlib import Path as _Path
 
             from django.conf import settings as _settings
+
             from swarm.blueprints.common.support_blueprint import is_support_id
 
             bp_dir = _Path(getattr(_settings, "BLUEPRINT_DIRECTORY", "src/swarm/blueprints"))

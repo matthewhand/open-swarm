@@ -94,7 +94,7 @@ def support_turn_context(session_kind: str = "api", task: str = "") -> str:
 
 
 def support_turn_reply(
-    messages: list[dict[str, Any]] | None,
+    _messages: list[dict[str, Any]] | None,
     session_kind: str = "api",
 ) -> str:
     """Laconic Socratic reply used in tests and when no LLM is available.
@@ -144,7 +144,7 @@ class SupportBlueprint(BlueprintBase):
         task = fusion.render_prompt(messages or [])
         return support_turn_context(session_kind, task)
 
-    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any:
+    async def run(self, messages: list[dict[str, Any]], **_kwargs: Any) -> Any:
         params = dict(self._params)
         if not params.get(fusion.PARAM_SKILL):
             params[fusion.PARAM_SKILL] = SUPPORT_SKILL_NAME
