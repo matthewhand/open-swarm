@@ -387,6 +387,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     } ${cos ? 'os-agent-row--cos' : ''} ${dragging ? 'os-agent-row--dragging' : ''}`
     const mark = (
       scaleOut ? (
+        // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
         <StackedAvatars sessions={sessions} />
       ) : (
         <span

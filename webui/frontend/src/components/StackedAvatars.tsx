@@ -1,9 +1,10 @@
-import { agentMarkColor, agentMarkIndex } from '../lib/hiddenAgents'
+import AvatarStack from './AvatarStack'
 import {
-  STACKED_AVATAR_MAX,
+  sessionToStackFace,
   stackedAvatarPlan,
   type AgentSession,
 } from '../lib/scaleOutSessions'
+import { STACK_FACE_LIMIT } from '../lib/avatarStack'
 
 export interface StackedAvatarsProps {
   sessions: readonly AgentSession[]
@@ -13,45 +14,21 @@ export interface StackedAvatarsProps {
 }
 
 /**
- * Consolidated hop-style stack: overlapping circular faces, then +N.
- * Every face pulses with the shared motion language; delay is keyed off
- * `startedAt` so they do not lockstep.
+ * Scale-out session adapter for the shared {@link AvatarStack} widget.
+ * Teams/remotes (#398) should import `AvatarStack` directly — do not fork this.
  */
 export default function StackedAvatars({
   sessions,
-  maxFaces = STACKED_AVATAR_MAX,
+  maxFaces = STACK_FACE_LIMIT,
   className = '',
 }: StackedAvatarsProps) {
   const plan = stackedAvatarPlan(sessions, maxFaces)
-  if (plan.faces.length === 0) return null
-
   return (
-    <span
-      className={`os-stacked-avatars ${className}`.trim()}
-      data-face-count={String(plan.faces.length)}
-      data-remainder={String(plan.remainder)}
-      aria-hidden="true"
-    >
-      {plan.faces.map((session, index) => (
-        <span
-          key={session.id}
-          className="os-stacked-avatar os-stacked-avatar--stacked os-stacked-avatar--pulse"
-          data-testid="os-stacked-avatar"
-          data-session-id={session.id}
-          data-started-at={String(session.startedAt)}
-          data-mark={String(agentMarkIndex(session.id || session.agentId))}
-          title={session.title}
-          style={{
-            backgroundColor: agentMarkColor(session.id || session.agentId),
-            animationDelay: `${plan.delaysMs[index] ?? 0}ms`,
-          }}
-        />
-      ))}
-      {plan.remainder > 0 ? (
-        <span className="os-stacked-remainder" data-testid="os-stacked-remainder">
-          +{plan.remainder}
-        </span>
-      ) : null}
-    </span>
+    <AvatarStack
+      faces={plan.faces.map(sessionToStackFace)}
+      remainder={plan.remainder}
+      maxFaces={maxFaces}
+      className={className}
+    />
   )
 }

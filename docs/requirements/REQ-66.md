@@ -44,6 +44,9 @@ can pick one.
 - Do not fold into PR 344.
 - No Neon. No secrets.
 - One Cursor cloud. PR must say `Fixes` this issue.
+- Shared widget: `AvatarStack` + `lib/avatarStack.ts` (max 3 + remainder).
+  REQ-68 (#398) should import that stack for teams/remotes. This PR does
+  **not** implement team/remote stacking.
 
 ## Owner
 

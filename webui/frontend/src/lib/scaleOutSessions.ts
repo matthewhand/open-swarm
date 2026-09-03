@@ -6,12 +6,20 @@
  * localStorage so #393 can mint sessions without a new REST surface.
  */
 
+import {
+  STACK_FACE_LIMIT,
+  STACK_PULSE_MS,
+  stackAnimationDelayMs,
+  type StackFace,
+} from './avatarStack'
+
 export const SCALE_OUT_SESSIONS_STORAGE_KEY = 'swarm_scale_out_sessions'
 export const SCALE_OUT_SESSIONS_EVENT = 'swarm:scale-out-sessions'
-/** Matches `.os-scale-out-pulse` period so delays stay in-phase with motion. */
-export const SCALE_OUT_PULSE_MS = 1400
-/** Rail stack shows this many faces; extras become a +N remainder. */
-export const STACKED_AVATAR_MAX = 3
+/** @deprecated Import `STACK_PULSE_MS` from `avatarStack` — kept for scale-out tests. */
+export const SCALE_OUT_PULSE_MS = STACK_PULSE_MS
+/** @deprecated Import `STACK_FACE_LIMIT` from `avatarStack`. */
+export const STACKED_AVATAR_MAX = STACK_FACE_LIMIT
+export { stackAnimationDelayMs as stackAvatarDelayMs }
 
 export type AgentSessionStatus = 'running' | 'finished'
 
@@ -30,6 +38,15 @@ export interface StackedAvatarPlan {
   faces: AgentSession[]
   remainder: number
   delaysMs: number[]
+}
+
+export function sessionToStackFace(session: AgentSession): StackFace {
+  return {
+    id: session.id,
+    name: session.title,
+    startedAt: session.startedAt,
+    markId: session.id || session.agentId,
+  }
 }
 
 function isStatus(value: unknown): value is AgentSessionStatus {
@@ -158,20 +175,6 @@ export function sessionHref(agentId: string, sessionId: string): string {
   return `/chat?${params.toString()}`
 }
 
-/**
- * Phase offset for the shared pulse. Different `startedAt` values land on
- * different points in the 1.4s loop so stacked faces do not lockstep.
- */
-export function stackAvatarDelayMs(
-  startedAt: number,
-  origin = 0,
-  periodMs = SCALE_OUT_PULSE_MS,
-): number {
-  const period = periodMs > 0 ? periodMs : SCALE_OUT_PULSE_MS
-  const delta = startedAt - origin
-  return ((delta % period) + period) % period
-}
-
 export function stackedAvatarPlan(
   sessions: readonly AgentSession[],
   maxFaces = STACKED_AVATAR_MAX,
@@ -181,10 +184,7 @@ export function stackedAvatarPlan(
   const cap = Math.max(0, maxFaces)
   const faces = ordered.slice(0, cap)
   const remainder = Math.max(0, ordered.length - faces.length)
-  const origin = faces.reduce(
-    (min, row) => Math.min(min, row.startedAt),
-    faces[0]?.startedAt ?? 0,
-  )
-  const delaysMs = faces.map((row) => stackAvatarDelayMs(row.startedAt, origin))
+  const origin = faces[0] ? Math.min(...faces.map((row) => row.startedAt)) : 0
+  const delaysMs = faces.map((row) => stackAnimationDelayMs(row.startedAt, origin))
   return { faces, remainder, delaysMs }
 }
