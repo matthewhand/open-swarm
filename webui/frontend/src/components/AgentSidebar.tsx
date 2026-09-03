@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pin, PinOff, Plug, Search, X } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff, Pin, PinOff, Plug, Search, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import { agentRole, roleBadges, roleCssClass } from '../lib/agentRoles'
 import {
@@ -335,28 +335,33 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
           {blueprintsQuery.isPending ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
-          ) : blueprintsQuery.isError && visibleAgents.length === 0 ? (
+          ) : blueprintsQuery.isError && visibleAgents.length === 0 && hiddenAgents.length === 0 ? (
             <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
-          ) : visibleAgents.length === 0 ? (
+          ) : visibleAgents.length === 0 && hiddenAgents.length === 0 ? (
             <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
           ) : (
             <ul className="space-y-0.5">
               {visibleAgents.map((agent) => (
                 <li key={agent.id}>{renderAgentLink(agent, false)}</li>
               ))}
+              {hiddenAgents.length > 0 ? (
+                <li>
+                  <button
+                    type="button"
+                    className="os-hidden-bots-row"
+                    aria-haspopup="dialog"
+                    aria-expanded={hiddenOpen}
+                    onClick={() => setHiddenOpen(true)}
+                  >
+                    <span>Hidden Bots</span>
+                    <span className="os-hidden-bots-row__meta">
+                      <span>{hiddenAgents.length}</span>
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </span>
+                  </button>
+                </li>
+              ) : null}
             </ul>
-          )}
-
-          {hiddenAgents.length > 0 && (
-            <button
-              type="button"
-              className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs text-base-content/50 hover:bg-base-300/30 hover:text-base-content/80"
-              aria-haspopup="dialog"
-              aria-expanded={hiddenOpen}
-              onClick={() => setHiddenOpen(true)}
-            >
-              {hiddenAgents.length} hidden
-            </button>
           )}
         </nav>
 
@@ -398,38 +403,48 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           <button
             type="button"
             className="fixed inset-0 z-50 bg-black/45"
-            aria-label="Close hidden agents"
+            aria-label="Close hidden bots"
             onClick={() => setHiddenOpen(false)}
           />
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="os-hidden-agents-title"
-            className="os-hidden-dialog fixed left-1/2 top-1/2 z-50 flex w-[20rem] max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+            aria-labelledby="os-hidden-bots-title"
+            aria-describedby="os-hidden-bots-copy"
+            className="os-hidden-dialog fixed left-1/2 top-1/2 z-50 flex w-[22rem] max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-base-300 bg-base-100 p-5 shadow-2xl"
           >
-            <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
-              <h2 id="os-hidden-agents-title" className="text-sm font-semibold">
-                Hidden agents
+            <div className="mb-2 flex shrink-0 items-start justify-between gap-2">
+              <h2 id="os-hidden-bots-title" className="text-base font-semibold">
+                Hidden Bots
               </h2>
               <button
                 type="button"
                 className="btn btn-ghost btn-xs btn-circle"
-                aria-label="Close hidden agents"
+                aria-label="Close hidden bots"
                 onClick={() => setHiddenOpen(false)}
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
+            <p id="os-hidden-bots-copy" className="os-hidden-bots-copy mb-3 shrink-0">
+              Hidden Bots stay active and keep their history, they just don&apos;t show in the
+              sidebar.
+            </p>
             {hiddenAgents.length === 0 ? (
-              <p className="text-sm text-base-content/60">No hidden agents.</p>
+              <p className="text-sm text-base-content/60">No hidden bots.</p>
             ) : (
-              <ul className="os-hidden-dialog__list min-h-0 flex-1 space-y-1 overflow-y-auto">
+              <ul className="os-hidden-dialog__list min-h-0 flex-1 space-y-0.5 overflow-y-auto">
                 {hiddenAgents.map((agent) => (
-                  <li key={agent.id} className="flex items-center gap-2">
+                  <li key={agent.id} className="os-hidden-bot-row">
+                    <span
+                      className="os-hidden-avatar"
+                      data-mark={String(agentMarkIndex(agent.id))}
+                      aria-hidden="true"
+                    />
                     <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
                     <button
                       type="button"
-                      className="btn btn-ghost btn-xs"
+                      className="os-hidden-unhide"
                       aria-label={`Unhide ${agentLabel(agent)}`}
                       onClick={() => unhideAgent(agent.id)}
                     >

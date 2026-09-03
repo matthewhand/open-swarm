@@ -154,10 +154,10 @@ test('right-click hide from sidebar persists across reload; unhide restores', as
   await expect(list.getByRole('link', { name: /Codey/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Stewie/ })).toBeVisible()
 
-  await page.getByRole('button', { name: /1 hidden/i }).click()
-  await expect(page.getByRole('dialog', { name: /Hidden agents/i })).toBeVisible()
+  await page.getByRole('button', { name: /^Hidden Bots/ }).click()
+  await expect(page.getByRole('dialog', { name: /Hidden Bots/i })).toBeVisible()
   await page.getByRole('button', { name: /Unhide Codey/i }).click()
-  await expect(page.getByRole('button', { name: /^\d+ hidden$/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Hidden Bots/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

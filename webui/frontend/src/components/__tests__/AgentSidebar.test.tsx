@@ -104,11 +104,18 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedHidden()).toEqual(['codey'])
     expect(screen.queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /1 hidden/i }))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    const hiddenRow = within(list).getByRole('button', { name: /^Hidden Bots/ })
+    expect(hiddenRow).toHaveTextContent('1')
+    const listButtons = within(list).getAllByRole('button')
+    expect(listButtons[listButtons.length - 1]).toBe(hiddenRow)
+    fireEvent.click(hiddenRow)
+    const dialog = await screen.findByRole('dialog', { name: /Hidden Bots/i })
+    expect(dialog).toHaveTextContent(
+      "Hidden Bots stay active and keep their history, they just don't show in the sidebar.",
+    )
     fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /^\d+ hidden$/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Hidden Bots/ })).not.toBeInTheDocument()
     })
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(storedHidden()).toEqual([])
@@ -207,13 +214,22 @@ describe('AgentSidebar Grok rail', () => {
       } as Response),
     )
     renderSidebar()
-    fireEvent.click(await screen.findByRole('button', { name: /45 hidden/i }))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    const hiddenRow = await screen.findByRole('button', { name: /^Hidden Bots/ })
+    expect(hiddenRow).toHaveTextContent('45')
+    fireEvent.click(hiddenRow)
+    const dialog = await screen.findByRole('dialog', { name: /Hidden Bots/i })
+    expect(dialog).toHaveTextContent(
+      "Hidden Bots stay active and keep their history, they just don't show in the sidebar.",
+    )
     expect(dialog.className).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/)
     const list = dialog.querySelector('ul')
     expect(list?.className).toMatch(/overflow-y-auto/)
     expect(list?.className).toMatch(/min-h-0/)
     expect(within(dialog).getAllByRole('button', { name: /Unhide/i })).toHaveLength(45)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close hidden bots' })[0])
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /Hidden Bots/i })).not.toBeInTheDocument()
+    })
   })
 
   it('shows a selected hidden agent in the main list with hidden border chrome', async () => {
@@ -223,15 +239,15 @@ describe('AgentSidebar Grok rail', () => {
     const codey = await within(list).findByRole('link', { name: /Codey/ })
     expect(codey).toHaveAttribute('data-hidden', 'selected')
     expect(codey.className).toContain('os-agent-row--hidden')
-    expect(screen.getByRole('button', { name: /1 hidden/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Hidden Bots/ })).toHaveTextContent('1')
     first.unmount()
 
     renderSidebar('/chat?blueprint=stewie')
     const nextList = await screen.findByRole('navigation', { name: 'Agent list' })
     expect(await within(nextList).findByRole('link', { name: /Stewie/ })).toBeInTheDocument()
     expect(within(nextList).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /1 hidden/i }))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    fireEvent.click(screen.getByRole('button', { name: /^Hidden Bots/ }))
+    const dialog = await screen.findByRole('dialog', { name: /Hidden Bots/i })
     expect(within(dialog).getByText('Codey')).toBeInTheDocument()
   })
 
