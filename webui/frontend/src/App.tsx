@@ -5,7 +5,7 @@ import ChatPage from './pages/ChatPage'
 import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette from './components/SearchPalette'
-import SettingsSheet, { OPEN_SETTINGS_EVENT } from './components/SettingsSheet'
+import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from './components/SettingsSheet'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
@@ -50,6 +50,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsBlueprintId, setSettingsBlueprintId] = useState<string | null>(null)
 
   useLayoutEffect(() => {
     applyDocumentTheme(darkMode)
@@ -66,7 +67,11 @@ function App() {
       if (detail === 'light' || detail === 'dark') setDarkMode(detail)
     }
     const onOpenSearch = () => setSearchOpen(true)
-    const onOpenSettings = () => setSettingsOpen(true)
+    const onOpenSettings = (event: Event) => {
+      const detail = (event as CustomEvent<OpenSettingsDetail>).detail
+      setSettingsBlueprintId(detail?.blueprintId ?? null)
+      setSettingsOpen(true)
+    }
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
     window.addEventListener(THEME_SET_EVENT, onSet)
     window.addEventListener('swarm:open-search', onOpenSearch)
@@ -84,7 +89,11 @@ function App() {
       <ToastProvider>
         {SHOW_COMMAND_PALETTE && <CommandPalette />}
         <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
-        <SettingsSheet isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <SettingsSheet
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          blueprintId={settingsBlueprintId}
+        />
         <div
           className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"
           data-theme={darkMode === 'dark' ? 'dark' : 'light'}

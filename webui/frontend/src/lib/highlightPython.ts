@@ -1,7 +1,7 @@
-/**
- * Small Python highlighter for chat fenced code blocks.
- * Avoids a highlight.js dependency; tokens become allowlisted <span class="...">.
- */
+import { escapeHtml } from './htmlSafe'
+
+/** CSS class on the <pre> that hosts highlighted Python (REQ-25). */
+export const PYTHON_CODE_CLASS = 'os-code-python'
 
 const KEYWORDS = new Set([
   'False',
@@ -41,124 +41,101 @@ const KEYWORDS = new Set([
   'yield',
 ])
 
-const BUILTINS = new Set([
-  'Exception',
-  'abs',
-  'bool',
-  'dict',
-  'enumerate',
-  'float',
-  'int',
-  'len',
-  'list',
-  'print',
-  'range',
-  'set',
-  'str',
-  'super',
-  'type',
-])
+const IDENT = /[A-Za-z_][A-Za-z0-9_]*/
+const NUMBER = /(?:0[xX][0-9A-Fa-f]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+function span(kind: string, text: string): string {
+  return `<span class="os-py-${kind}">${escapeHtml(text)}</span>`
 }
 
-function span(kind: string, raw: string): string {
-  return `<span class="os-py-${kind}">${escapeHtml(raw)}</span>`
-}
-
-/** Highlight a Python source string as HTML (already escaped inside tokens). */
+/**
+ * Highlight Python source as allowlisted HTML spans.
+ * Output is safe to assign via dangerouslySetInnerHTML.
+ */
 export function highlightPython(source: string): string {
   const text = String(source ?? '')
   if (!text) return ''
-  let i = 0
   let out = ''
-  const n = text.length
+  let i = 0
+  let prevWord = ''
 
-  const takeWhile = (pred: (ch: string) => boolean): string => {
-    const start = i
-    while (i < n && pred(text[i])) i += 1
-    return text.slice(start, i)
+  const pushPlain = (chunk: string) => {
+    out += escapeHtml(chunk)
   }
 
-  while (i < n) {
+  while (i < text.length) {
     const ch = text[i]
-    const next = i + 1 < n ? text[i + 1] : ''
 
     if (ch === '#') {
-      out += span('com', takeWhile((c) => c !== '\n'))
+      const end = text.indexOf('\n', i)
+      const comment = end === -1 ? text.slice(i) : text.slice(i, end)
+      out += span('cmt', comment)
+      i += comment.length
+      prevWord = ''
       continue
     }
 
-    if ((ch === '"' || ch === "'") && text.slice(i, i + 3) === ch + ch + ch) {
-      const quote = ch + ch + ch
-      i += 3
-      let body = quote
-      while (i < n && text.slice(i, i + 3) !== quote) {
-        if (text[i] === '\\' && i + 1 < n) {
-          body += text[i] + text[i + 1]
-          i += 2
-        } else {
-          body += text[i]
-          i += 1
+    if (ch === "'" || ch === '"') {
+      const triple = text.startsWith(ch + ch + ch, i)
+      const quote = triple ? ch + ch + ch : ch
+      let j = i + quote.length
+      if (triple) {
+        const close = text.indexOf(quote, j)
+        const body = close === -1 ? text.slice(i) : text.slice(i, close + 3)
+        out += span('str', body)
+        i += body.length
+      } else {
+        while (j < text.length) {
+          if (text[j] === '\\' && j + 1 < text.length) {
+            j += 2
+            continue
+          }
+          if (text[j] === ch) {
+            j += 1
+            break
+          }
+          if (text[j] === '\n') break
+          j += 1
         }
+        out += span('str', text.slice(i, j))
+        i = j
       }
-      if (i < n) {
-        body += quote
-        i += 3
+      prevWord = ''
+      continue
+    }
+
+    const ident = text.slice(i).match(IDENT)
+    if (ident && ident.index === 0) {
+      const word = ident[0]
+      if (KEYWORDS.has(word)) {
+        out += span('kw', word)
+      } else if (prevWord === 'def' || prevWord === 'class') {
+        out += span('fn', word)
+      } else {
+        pushPlain(word)
       }
-      out += span('str', body)
+      prevWord = word
+      i += word.length
       continue
     }
 
-    if (ch === '"' || ch === "'") {
-      const quote = ch
-      i += 1
-      let body = quote
-      while (i < n && text[i] !== quote) {
-        if (text[i] === '\\' && i + 1 < n) {
-          body += text[i] + text[i + 1]
-          i += 2
-        } else {
-          if (text[i] === '\n') break
-          body += text[i]
-          i += 1
-        }
-      }
-      if (i < n && text[i] === quote) {
-        body += quote
-        i += 1
-      }
-      out += span('str', body)
+    const num = text.slice(i).match(NUMBER)
+    if (num && num.index === 0) {
+      out += span('num', num[0])
+      i += num[0].length
+      prevWord = ''
       continue
     }
 
-    if (ch === '@') {
-      i += 1
-      const name = takeWhile((c) => /[A-Za-z0-9_]/.test(c))
-      out += span('dec', `@${name}`)
-      continue
+    pushPlain(ch)
+    if (/\s/.test(ch)) {
+      /* keep prevWord across whitespace so `def name` still highlights */
+    } else {
+      prevWord = ''
     }
-
-    if (/[0-9]/.test(ch) || (ch === '.' && /[0-9]/.test(next))) {
-      out += span('num', takeWhile((c) => /[0-9.eE_+-]/.test(c)))
-      continue
-    }
-
-    if (/[A-Za-z_]/.test(ch)) {
-      const ident = takeWhile((c) => /[A-Za-z0-9_]/.test(c))
-      if (KEYWORDS.has(ident)) out += span('kw', ident)
-      else if (BUILTINS.has(ident)) out += span('bi', ident)
-      else out += escapeHtml(ident)
-      continue
-    }
-
-    out += escapeHtml(ch)
     i += 1
   }
+
   return out
 }
 
