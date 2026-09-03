@@ -103,8 +103,9 @@ class TestSpaChatStaysChat:
         monkeypatch.setattr("swarm.views.web_views._get_frontend_path", lambda: dist)
         response = client.get("/chat", follow=False)
         assert response.status_code == 200
-        assert b"spa-chat-composer" in response.content
-        assert b"Connected" in response.content
+        body = b"".join(response.streaming_content)
+        assert b"spa-chat-composer" in body
+        assert b"Connected" in body
         assert response.get("Location") is None
 
     def test_django_chat_nav_href_is_chat_not_agents(self):

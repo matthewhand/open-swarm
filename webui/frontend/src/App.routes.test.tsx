@@ -71,7 +71,11 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     expect(window.location.pathname).toBe('/chat')
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
     expect(screen.getByLabelText('Connection status')).toHaveTextContent('Connected')
-    expect(screen.getByRole('link', { name: 'Chat' })).toHaveAttribute('href', '/chat')
+    const chatLinks = screen.getAllByRole('link', { name: 'Chat' })
+    expect(chatLinks.length).toBeGreaterThan(0)
+    for (const link of chatLinks) {
+      expect(link).toHaveAttribute('href', '/chat')
+    }
   })
 
   it('aliases /agents onto /chat and keeps the composer', async () => {
