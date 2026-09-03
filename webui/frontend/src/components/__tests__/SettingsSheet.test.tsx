@@ -68,6 +68,7 @@ describe('SettingsSheet', () => {
             { id: 'hermes', label: 'Hermes' },
             { id: 'omb', label: 'OpenMousBot' },
             { id: 'rakazo', label: 'Rakazo' },
+            { id: 'swarm', label: 'Swarm' },
           ],
           configured: [],
           data: [],
@@ -81,7 +82,14 @@ describe('SettingsSheet', () => {
     expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Swarm' })).not.toBeInTheDocument()
     expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Add remote/i }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Kind' }), {
+      target: { value: 'swarm' },
+    })
+    expect(screen.getByText(/do not add this instance as its own remote/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
     const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
