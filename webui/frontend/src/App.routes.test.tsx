@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App, { chatPathWithSearch } from './App'
+import { HIDDEN_AGENTS_STORAGE_KEY } from './lib/hiddenAgents'
 
 class MockWebSocket {
   static OPEN = 1
@@ -87,5 +88,57 @@ describe('SPA /chat stays Chat (not /agents)', () => {
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
     expect(screen.getByLabelText('Connection status')).toHaveTextContent('')
     expect(screen.getByLabelText('Agent name')).toHaveValue('codey')
+  })
+
+  it('does not add a /settings SPA page that unmounts Chat', async () => {
+    renderAppAt('/settings')
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/')
+    })
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /settings/i })).not.toBeInTheDocument()
+  })
+
+  it('does not add a /hidden SPA page; Hidden Bots stays an overlay', async () => {
+    renderAppAt('/hidden')
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/')
+    })
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Hidden Bots' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the Chat composer mounted while Hidden Bots is an overlay', async () => {
+    window.localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify(['codey']))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          data: [
+            {
+              id: 'codey',
+              object: 'blueprint',
+              name: 'Codey',
+              description: 'Code assistant',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+          ],
+        }),
+      } as Response),
+    )
+    renderAppAt('/chat')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /^Hidden Bots/ }))
+    expect(screen.getByRole('dialog', { name: /Hidden Bots/i })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
   })
 })

@@ -112,6 +112,8 @@ function App() {
                 </button>
               </div>
               <main id="os-main" className="min-h-0 min-w-0 flex-1 overflow-hidden" tabIndex={-1}>
+                {/* Chat stays the only SPA page. Hidden/Plugins are overlays. Do not add
+                    /settings /teams /hidden routes here — REQ-48 / #364 is a separate PR. */}
                 <Routes>
                   <Route path="/" element={<ChatPage />} />
                   <Route path="/chat" element={<ChatPage />} />
