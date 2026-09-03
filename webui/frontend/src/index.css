@@ -172,6 +172,30 @@ html[data-theme="light"] #root {
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
 .os-agent-dot[data-role="support"] { background: #3d8f8a; }
 
+.os-blob-avatar {
+  display: block;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+.os-blob-avatar--sm {
+  width: 2.15rem;
+  height: 2.15rem;
+}
+.os-blob-avatar--md {
+  width: 2.35rem;
+  height: 2.35rem;
+}
+.os-blob-eyes {
+  transform-box: fill-box;
+}
+.os-fav-tile .os-blob-avatar--sm {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+.os-agent-row .os-blob-avatar {
+  margin-top: 0;
+}
+
 .os-rail-search {
   display: flex;
   align-items: center;

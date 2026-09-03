@@ -6,6 +6,7 @@ import AgentSidebar from '../AgentSidebar'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
+import { AVATAR_THEME_STORAGE_KEY } from '../../lib/avatarTheme'
 
 function blueprint(id: string, name: string, description: string) {
   return {
@@ -227,6 +228,26 @@ describe('AgentSidebar Grok rail', () => {
       expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic'])
+  })
+
+  it('keeps Default dots and switches rail rows to Blobs from Settings', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    expect(codey.querySelector('.os-agent-dot')).toBeInTheDocument()
+    expect(codey.querySelector('[data-avatar-theme="blobs"]')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }))
+    const dialog = await screen.findByRole('dialog', { name: /^Settings$/i })
+    const picker = within(dialog).getByLabelText('Avatar theme')
+    fireEvent.change(picker, { target: { value: 'blobs' } })
+    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBe('blobs')
+
+    expect(codey.querySelector('[data-avatar-theme="blobs"]')).toBeInTheDocument()
+    expect(codey.querySelector('[data-eye-state="active"]')).toBeInTheDocument()
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    expect(stewie.querySelector('[data-eye-state="idle"]')).toBeInTheDocument()
+    expect(list.querySelector('.os-agent-dot')).not.toBeInTheDocument()
   })
 
   it('no-ops when a row is dropped onto itself', async () => {

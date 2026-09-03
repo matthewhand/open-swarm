@@ -9,10 +9,9 @@ import {
 } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pin, PinOff, Plug, Search, X } from 'lucide-react'
+import { Eye, EyeOff, Pin, PinOff, Plug, Search, Settings, X } from 'lucide-react'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import {
-  agentMarkIndex,
   hideAgentId,
   loadHiddenAgentIds,
   unhideAgentId,
@@ -33,6 +32,8 @@ import {
   isSupportAgent,
   supportFirstAgents,
 } from '../lib/supportAgent'
+import AgentAvatar from './AgentAvatar'
+import AvatarThemePicker from './AvatarThemePicker'
 import { openSearchPalette } from './SearchPalette'
 
 export interface AgentSidebarProps {
@@ -62,6 +63,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [pins, setPins] = useState<PinnedAgent[]>(() => loadPinnedAgents())
   const [hiddenOpen, setHiddenOpen] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [dropActive, setDropActive] = useState(false)
@@ -237,11 +239,11 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         onClick={onClose}
         onContextMenu={(event) => openMenu(event, agent, hidden)}
       >
-        <span
-          className="os-agent-dot mt-1.5"
-          data-mark={String(agentMarkIndex(agent.id))}
-          data-role={support ? 'support' : undefined}
-          aria-hidden="true"
+        <AgentAvatar
+          agentId={agent.id}
+          active={active}
+          support={support}
+          className="mt-1.5"
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold leading-5">{name}</span>
@@ -342,10 +344,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                 })
               }}
             >
-              <span
-                className="os-agent-dot"
-                data-mark={String(agentMarkIndex(pin.id))}
-                aria-hidden="true"
+              <AgentAvatar
+                agentId={pin.id}
+                active={selectedId === pin.id}
               />
             </Link>
           ))}
@@ -418,6 +419,14 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           >
             <Plug className="h-4 w-4" aria-hidden="true" />
             Plugins
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-sm text-base-content/60 hover:bg-base-300/30 hover:text-base-content"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="h-4 w-4" aria-hidden="true" />
+            Settings
           </button>
           <label className="sr-only" htmlFor="os-rail-hostname">
             Hostname
@@ -521,6 +530,38 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
               </button>
             </div>
             <p className="text-sm text-base-content/60">No plugins installed.</p>
+          </div>
+        </>
+      )}
+
+      {settingsOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-50 bg-black/45"
+            aria-label="Close settings"
+            onClick={() => setSettingsOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="os-rail-settings-title"
+            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="os-rail-settings-title" className="text-sm font-semibold">
+                Settings
+              </h2>
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs btn-circle"
+                aria-label="Close settings"
+                onClick={() => setSettingsOpen(false)}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <AvatarThemePicker id="os-rail-avatar-theme" />
           </div>
         </>
       )}

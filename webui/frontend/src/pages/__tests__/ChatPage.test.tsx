@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 import { ToastProvider } from '../../components/DaisyUI'
 import { resetConversationThreads } from '../../lib/chatMeter'
+import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -517,6 +518,20 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings/')
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
+    expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).not.toBeInTheDocument()
+  })
+
+  it('shows a Blobs header avatar when that theme is persisted', async () => {
+    saveAvatarTheme('blobs')
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const headerBlob = document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')
+    expect(headerBlob).toBeInTheDocument()
+    expect(headerBlob).toHaveAttribute('data-eye-state', 'active')
+    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
+    saveAvatarTheme('default')
   })
 
   it('opens a unique websocket thread per agent', async () => {

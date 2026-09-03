@@ -11,6 +11,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
+import AgentAvatar from '../components/AgentAvatar'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { fetchBlueprints } from '../lib/api'
@@ -42,9 +43,11 @@ import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import {
   agentLabel,
   defaultBlueprintId,
+  isSupportAgent,
   SUPPORT_AGENT_ID,
   supportFirstAgents,
 } from '../lib/supportAgent'
+import { useAvatarTheme } from '../lib/useAvatarTheme'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
@@ -134,6 +137,7 @@ const ChatPage = () => {
     : selectedBlueprint === SUPPORT_AGENT_ID
       ? 'Support'
       : selectedBlueprint
+  const avatarTheme = useAvatarTheme()
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
@@ -449,7 +453,17 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
+        <div className="flex min-w-0 items-center gap-2">
+          {avatarTheme === 'blobs' ? (
+            <AgentAvatar
+              agentId={selectedBlueprint}
+              active
+              support={selectedAgent ? isSupportAgent(selectedAgent) : selectedBlueprint === SUPPORT_AGENT_ID}
+              size="md"
+            />
+          ) : null}
+          <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
+        </div>
         <div className="flex items-center gap-1">
           <ThemeToggle />
         </div>
