@@ -7,7 +7,12 @@ import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
 
-function blueprint(id: string, name: string, description: string) {
+function blueprint(
+  id: string,
+  name: string,
+  description: string,
+  avatar_path?: string,
+) {
   return {
     id,
     object: 'blueprint' as const,
@@ -18,11 +23,12 @@ function blueprint(id: string, name: string, description: string) {
     tags: [] as string[],
     installed: true,
     compiled: true,
+    ...(avatar_path ? { avatar_path } : {}),
   }
 }
 
 const blueprints = [
-  blueprint('codey', 'Codey', 'Code assistant'),
+  blueprint('codey', 'Codey', 'Code assistant', '/avatars/codey_avatar.png'),
   blueprint('stewie', 'Stewie', 'Helpful agent'),
   blueprint('gate', 'Gate', 'Role: gate'),
   blueprint('skeptic', 'Skeptic', 'Role: skeptic'),
@@ -119,6 +125,20 @@ describe('AgentSidebar Grok rail', () => {
     expect(onOpenSearch).toHaveBeenCalled()
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+  })
+
+  it('paints the same custom face on the Codey rail tile as the header would', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const face = codey.querySelector('[data-agent-avatar]')
+    expect(face).toHaveAttribute('data-agent-avatar', 'custom')
+    expect(codey.querySelector('img')).toHaveAttribute('src', '/avatars/codey_avatar.png')
+    const support = within(list).getByRole('link', { name: /Support/ })
+    expect(support.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-agent-avatar',
+      'default',
+    )
   })
 
   it('seeds Hidden with gate and skeptic on first load; Support stays visible', async () => {

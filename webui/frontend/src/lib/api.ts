@@ -175,6 +175,8 @@ export interface Blueprint {
   agents?: BlueprintAgent[]
   gate_agent?: string | null
   skeptic_agent?: string | null
+  /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
+  avatar_path?: string | null
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
