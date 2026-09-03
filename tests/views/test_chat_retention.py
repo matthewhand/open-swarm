@@ -24,11 +24,14 @@ def client(user):
     return c
 
 
-def _seed_thread(user, agent="jeeves", content="hello"):
+def _seed_thread(user, agent="jeeves", content="hello", ts=None):
+    user_row = {"role": "user", "content": content}
+    if ts:
+        user_row["ts"] = ts
     chat_store.save(
         chat_store.user_key_for(user),
         agent,
-        [{"role": "user", "content": content}, {"role": "assistant", "content": "ok"}],
+        [user_row, {"role": "assistant", "content": "ok"}],
         conversation_id=chat_store.conversation_id_for(user, agent),
     )
 
@@ -66,6 +69,14 @@ def test_chat_thread_restores_json(client, user):
     assert body["conversation_id"] == chat_store.conversation_id_for(user, "codey")
     assert body["messages"][0]["content"] == "remember this"
     assert body["messages"][1]["role"] == "assistant"
+
+
+@pytest.mark.django_db
+def test_chat_thread_passes_through_stored_ts(client, user):
+    _seed_thread(user, "codey", "stamped", ts="2026-09-02T21:21:00+00:00")
+    resp = client.get("/chat/thread/?agent=codey")
+    assert resp.status_code == 200
+    assert resp.json()["messages"][0]["ts"] == "2026-09-02T21:21:00+00:00"
 
 
 @pytest.mark.django_db

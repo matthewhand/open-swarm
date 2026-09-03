@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 _ALLOWED_ACTIONS = frozenset({"archive", "archive_all", "restore", "empty_trash"})
 
 
+def _public_thread_message(message: dict) -> dict[str, str]:
+    row = {
+        "role": message.get("role", "user"),
+        "content": message.get("content", ""),
+    }
+    ts = message.get("ts") or message.get("timestamp")
+    if isinstance(ts, str) and ts.strip():
+        row["ts"] = ts.strip()
+    return row
+
+
 def _user_key(user) -> str:
     return chat_store.user_key_for(user)
 
@@ -35,7 +46,13 @@ def _messages_from_db(user, conversation_id: str) -> list[dict[str, str]]:
     except ChatConversation.DoesNotExist:
         return []
     return [
-        {"role": row.sender, "content": row.content}
+        _public_thread_message(
+            {
+                "role": row.sender,
+                "content": row.content,
+                "ts": row.timestamp.isoformat() if row.timestamp else "",
+            }
+        )
         for row in chat.chat_messages.all()
     ]
 
@@ -69,10 +86,7 @@ def chat_thread(request):
         {
             "agent_id": agent,
             "conversation_id": conversation_id,
-            "messages": [
-                {"role": m.get("role", "user"), "content": m.get("content", "")}
-                for m in (messages or [])
-            ],
+            "messages": [_public_thread_message(m) for m in (messages or [])],
         }
     )
 

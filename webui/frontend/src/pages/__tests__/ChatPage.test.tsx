@@ -673,3 +673,70 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(stewieUrl).not.toBe(codeyUrl)
   })
 })
+
+describe('ChatPage gap timestamps and NEW', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
+
+  it('renders a Sydney gap stamp and NEW at the unread boundary', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    window.localStorage.setItem('swarm_agent_chat:jeeves', 'conv-jeeves')
+    window.localStorage.setItem(
+      'swarm_chat_last_read',
+      JSON.stringify({ jeeves: { conversationId: 'conv-jeeves', messageCount: 1 } }),
+    )
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'jeeves',
+              conversation_id: 'conv-jeeves',
+              messages: [
+                {
+                  role: 'user',
+                  content: 'yesterday line',
+                  ts: '2026-09-02T21:21:00.000Z',
+                },
+                {
+                  role: 'assistant',
+                  content: 'after the gap',
+                  ts: '2026-09-02T21:36:00.000Z',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'jeeves', name: 'Jeeves', description: 'Butler' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('yesterday line')).toBeInTheDocument()
+    expect(screen.getByText('after the gap')).toBeInTheDocument()
+    expect(screen.getByText(/7:36 AM/)).toBeInTheDocument()
+    expect(screen.getByRole('separator', { name: 'New messages' })).toHaveTextContent('NEW')
+    const log = screen.getByRole('log', { name: 'Conversation' }).textContent ?? ''
+    expect(log.indexOf('yesterday line')).toBeLessThan(log.indexOf('7:36 AM'))
+    expect(log.indexOf('7:36 AM')).toBeLessThan(log.indexOf('NEW'))
+    expect(log.indexOf('NEW')).toBeLessThan(log.indexOf('after the gap'))
+  })
+})

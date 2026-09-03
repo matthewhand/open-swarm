@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import uuid
+from datetime import datetime, timezone
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -23,6 +24,10 @@ IN_MEMORY_CONVERSATIONS = {}
 # Custom close code for anonymous connects (HTTP 401 analogue). Accept-then-close
 # so browsers receive a CloseEvent with this code instead of opaque 1006.
 WS_AUTH_REQUIRED_CODE = 4401
+
+
+def _message_ts() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
@@ -167,6 +172,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             {
                 "role": "user",
                 "content": message_text,
+                "ts": _message_ts(),
             }
         )
 
@@ -207,7 +213,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             instruction = self.messages[-1]["content"] if self.messages else ""
             canned = f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'" if blueprint_id == "jeeves" else f"[TEST-MODE] {blueprint_id} at your service. You said: '{instruction}'"
             await self.send(text_data=_oob_append_html(contents_div_id, canned))
-            self.messages.append({"role": "assistant", "content": canned})
+            self.messages.append({"role": "assistant", "content": canned, "ts": _message_ts()})
             final_html = render_to_string(
                 "websocket_partials/final_system_message.html",
                 {"contents_div_id": contents_div_id, "message": canned},
@@ -269,6 +275,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             {
                 "role": "assistant",
                 "content": full_message,
+                "ts": _message_ts(),
             }
         )
 
@@ -370,6 +377,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             {
                 "role": "assistant",
                 "content": full_message,
+                "ts": _message_ts(),
             }
         )
 

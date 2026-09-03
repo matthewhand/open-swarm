@@ -420,6 +420,34 @@ html[data-theme="light"] #root {
 .os-interbot-avatars .os-interbot-avatar--stacked:nth-child(5) { z-index: 5; }
 .os-interbot-avatars .os-interbot-avatar--stacked:nth-child(n+6) { z-index: 6; }
 
+.os-chat-gap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.85rem 0.5rem 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+}
+.os-chat-new {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.85rem;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+.os-chat-new__rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-base-content) 28%, transparent);
+}
+.os-chat-new__label {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
 .os-rail-hostname {
   margin-top: 0.35rem;
   width: 100%;

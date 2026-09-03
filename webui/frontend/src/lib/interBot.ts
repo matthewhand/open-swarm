@@ -18,6 +18,7 @@ export interface ChatMessageItem {
   role: 'user' | 'assistant'
   text: string
   streaming: boolean
+  createdAtMs?: number
 }
 
 export interface ChatHopItem {

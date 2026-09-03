@@ -27,12 +27,15 @@ import {
   catalogAgentName,
   saveAgentNameOverride,
 } from '../lib/agentNames'
+import { decorateConversationRows } from '../lib/chatLog'
+import { loadLastRead, saveLastRead } from '../lib/chatLastRead'
+import { parseCreatedAtMs } from '../lib/chatTime'
 import {
-  groupChatItems,
   hopFromAssistantName,
   parseHandoffAssistant,
   type ChatItem,
 } from '../lib/interBot'
+import { ChatGapLabel, ChatNewRule } from '../components/ChatLogMarkers'
 import InterBotLine from '../components/InterBotLine'
 import {
   buildChatWsFrame,
@@ -121,7 +124,18 @@ const ChatPage = () => {
     () => threadItems.filter((item): item is ChatMessage => item.type === 'message'),
     [threadItems],
   )
-  const conversationRows = useMemo(() => groupChatItems(threadItems), [threadItems])
+  const sessionReadCount = useMemo(
+    () => loadLastRead(agentIdFromBlueprint(selectedBlueprint), conversationId)?.messageCount ?? null,
+    [conversationId, selectedBlueprint],
+  )
+  const conversationRows = useMemo(
+    () =>
+      decorateConversationRows(threadItems, {
+        lastReadMessageCount: sessionReadCount,
+        nowMs,
+      }),
+    [nowMs, sessionReadCount, threadItems],
+  )
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(conversationId)
@@ -216,6 +230,7 @@ const ChatPage = () => {
             role: message.role,
             text: message.content,
             streaming: false,
+            createdAtMs: parseCreatedAtMs(message.ts),
           }
         }),
       }))
@@ -224,6 +239,11 @@ const ChatPage = () => {
       cancelled = true
     }
   }, [selectedBlueprint])
+
+  useEffect(() => {
+    if (messages.length === 0) return
+    saveLastRead(agentIdFromBlueprint(selectedBlueprint), conversationId, messages.length)
+  }, [conversationId, messages.length, selectedBlueprint])
 
   const rememberThreadLine = useCallback(
     (role: 'user' | 'assistant', content: string) => {
@@ -258,6 +278,7 @@ const ChatPage = () => {
                 role: 'user',
                 text: event.text,
                 streaming: false,
+                createdAtMs: Date.now(),
               },
             ]
             break
@@ -265,7 +286,14 @@ const ChatPage = () => {
             if (current.some((item) => item.key === event.id)) return prev
             next = [
               ...current,
-              { type: 'message', key: event.id, role: 'assistant', text: '', streaming: true },
+              {
+                type: 'message',
+                key: event.id,
+                role: 'assistant',
+                text: '',
+                streaming: true,
+                createdAtMs: Date.now(),
+              },
             ]
             break
           case 'assistant_chunk':
@@ -622,6 +650,12 @@ const ChatPage = () => {
           conversationRows.map((row, idx) => {
             if (row.type === 'hop-line') {
               return <InterBotLine key={`hop-${idx}-${row.line.kind}`} line={row.line} />
+            }
+            if (row.type === 'gap') {
+              return <ChatGapLabel key={row.key} label={row.label} />
+            }
+            if (row.type === 'new') {
+              return <ChatNewRule key={row.key} />
             }
             const message = row.message
             const isLast = idx === conversationRows.length - 1

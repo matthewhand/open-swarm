@@ -34,6 +34,7 @@ export function agentThreadQueryKey(agentId: string) {
 export interface AgentThreadMessage {
   role: 'user' | 'assistant'
   content: string
+  ts?: string
 }
 
 export interface AgentThread {
@@ -44,11 +45,15 @@ export interface AgentThread {
 
 function isThreadMessage(value: unknown): value is AgentThreadMessage {
   if (!value || typeof value !== 'object') return false
-  const row = value as { role?: unknown; content?: unknown }
-  return (
-    (row.role === 'user' || row.role === 'assistant') &&
-    typeof row.content === 'string'
-  )
+  const row = value as { role?: unknown; content?: unknown; ts?: unknown }
+  if (
+    (row.role !== 'user' && row.role !== 'assistant') ||
+    typeof row.content !== 'string'
+  ) {
+    return false
+  }
+  if (row.ts !== undefined && typeof row.ts !== 'string') return false
+  return true
 }
 
 /** One-line rail subtitle. Never the blueprint purpose/description. */
