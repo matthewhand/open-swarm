@@ -75,7 +75,13 @@ directory search for a project-local `swarm_config.json`.)
     }
   },
   "settings": {
-    "default_llm_profile": "gpt-4o"
+    "default_llm_profile": "gpt-4o",
+    "override_per_task": false,
+    "task_llm_profiles": {
+      "orchestration": "gpt-4o",
+      "auxiliary": "gpt-4o-mini",
+      "delegation": "o3"
+    }
   },
   "blueprints": {
     "rue_code": { "default_model": "o3-mini" },
@@ -108,6 +114,7 @@ directory search for a project-local `swarm_config.json`.)
 - **MCP Servers:** The `mcpServers` section defines available MCP servers, their endpoints, and credentials.
 - **Remote harnesses:** The `remotes` section stores `base_url` + auth for Hermes, OpenMausBot, Rakazo, and nested open-swarm (`swarm`). CLI `swarm-cli remotes set|health|operate|team|place|unplace`; REST `/v1/remotes/` and `/v1/agent-team/`. `agent_team.members` is the handoff Team roster (not `/v1/teams/` Profiles). Nested swarm default is the stub `http://127.0.0.1:9`; v1 refuses this process listen URL. Do **not** point remotes at Fly open-litellm. LAN LLM for this swarm is `http://10.0.0.30:8000/v1`. Full map: [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md).
 - **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+- **Per-task override (REQ-43):** `settings.override_per_task` plus `settings.task_llm_profiles` map task classes (`orchestration` / `auxiliary` / `delegation`) to any connected model id. Those names are roles, not required slugs. SPA Settings auto-picks three models when the user never opens the picker. Live CLI catalogs come from sibling REQ-44 (`{cli, models}`) when that helper is merged; until then auto-pick stubs on `/v1/models` + fixtures and does not scrape CLI `--help`. Off = everything uses Default.
 - **Fallbacks:**
   - If a **named** model/profile is requested and missing, the system logs a **warning** and falls back to `settings.default_llm_profile` (else `default`). This is never silent.
   - Unspecified profile (no name requested) quietly uses the documented default chain — that quiet path is intentional.

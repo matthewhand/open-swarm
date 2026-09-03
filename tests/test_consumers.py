@@ -1309,6 +1309,41 @@ class TestRespondWithDefaultModelLiteLLM:
         assert create_kwargs["model"] == "orchestration"
 
     @pytest.mark.asyncio
+    async def test_uses_settings_default_when_env_unset(self, consumer, monkeypatch):
+        for key in ("LITELLM_MODEL", "OPENAI_MODEL", "DEFAULT_LLM"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
+        monkeypatch.setenv("LITELLM_API_KEY", "sk-litellm-test")
+
+        consumer.messages = [{"role": "user", "content": "hi"}]
+
+        async def stream():
+            chunk = MagicMock()
+            chunk.choices = [MagicMock()]
+            chunk.choices[0].delta.content = "ok"
+            yield chunk
+
+        mock_client = MagicMock()
+        mock_client.base_url = "http://127.0.0.1:4000/v1"
+        mock_client.chat.completions.create = AsyncMock(return_value=stream())
+        mock_client.close = AsyncMock()
+
+        route = MagicMock()
+        route.profile = "gpt-5.6-terra"
+        route.warning = None
+        with patch("swarm.consumers.AsyncOpenAI", return_value=mock_client):
+            with patch("swarm.core.llm_task_routing.resolve_chat_model", return_value=route):
+                with patch(
+                    "swarm.core.llm_task_routing.model_id_for_profile",
+                    return_value="gpt-5.6-terra",
+                ):
+                    with patch.object(consumer, "send", new_callable=AsyncMock):
+                        await consumer.respond_with_default_model("message-response-settings")
+
+        create_kwargs = mock_client.chat.completions.create.await_args.kwargs
+        assert create_kwargs["model"] == "gpt-5.6-terra"
+
+    @pytest.mark.asyncio
     async def test_rejects_openai_com_when_litellm_configured(self, consumer, monkeypatch):
         monkeypatch.setenv("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
         monkeypatch.setenv("LITELLM_API_KEY", "sk-litellm-test")

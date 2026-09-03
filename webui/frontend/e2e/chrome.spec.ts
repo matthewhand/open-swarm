@@ -43,6 +43,24 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/llm-profiles**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'llm_profiles',
+        profiles: [],
+        default_llm_profile: 'default',
+        default_is_auto: true,
+        override_per_task: false,
+        task_llm_profiles: {},
+        auto_picks: { default: 'default' },
+        warnings: [],
+        routes: {},
+        task_classes: ['orchestration', 'auxiliary', 'delegation'],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,

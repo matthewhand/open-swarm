@@ -341,6 +341,38 @@ class SettingsManager:
                     'sensitive': True,
                 }
 
+            settings_block = config.get("settings") if isinstance(config.get("settings"), dict) else {}
+            llm_settings["DEFAULT_LLM_PROFILE"] = {
+                "value": settings_block.get("default_llm_profile") or settings_block.get("default_llm") or "default",
+                "env_var": "DEFAULT_LLM",
+                "type": "string",
+                "description": (
+                    "SPA Settings default inference profile "
+                    "(settings.default_llm_profile). Chat / server default uses this."
+                ),
+                "category": "profile",
+                "sensitive": False,
+            }
+            llm_settings["OVERRIDE_PER_TASK"] = {
+                "value": bool(settings_block.get("override_per_task", False)),
+                "env_var": None,
+                "type": "boolean",
+                "description": "When true, map task classes to profiles instead of using Default for everything.",
+                "category": "profile",
+                "sensitive": False,
+            }
+            llm_settings["TASK_LLM_PROFILES"] = {
+                "value": settings_block.get("task_llm_profiles") or {},
+                "env_var": None,
+                "type": "object",
+                "description": (
+                    "Task class → model id map (orchestration / auxiliary / delegation). "
+                    "Roles are task classes, not required model ids."
+                ),
+                "category": "profile",
+                "sensitive": False,
+            }
+
             # Environment variables for common LLM providers
             env_llm_settings = {
                 'OPENAI_API_KEY': {

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
@@ -6,9 +6,12 @@ import {
   createRemote,
   deleteRemote,
   fetchBlueprintSource,
+  fetchLlmProfiles,
   fetchModels,
   fetchRemotes,
+  patchLlmProfiles,
   type BlueprintSource,
+  type LlmTaskClass,
 } from '../lib/api'
 import { RemoteSelect } from './RemoteSelect'
 import {
@@ -17,6 +20,7 @@ import {
   remoteKinds,
   unusedRemoteKinds,
 } from '../lib/remotes'
+import { TASK_CLASS_LABELS, missingProfileWarning } from '../lib/llmProfiles'
 import {
   agentRole,
   fallbackBlueprintSource,
@@ -639,58 +643,206 @@ function HostnamePane({
 }
 
 function LlmProfilesPane() {
+  const { success, error: toastError } = useToast()
   const profilesQuery = useQuery({
     queryKey: ['settings-llm-profiles'],
-    queryFn: fetchModels,
+    queryFn: fetchLlmProfiles,
     retry: 1,
   })
-  const models = profilesQuery.data?.data ?? []
+  const remote = profilesQuery.data
+  const [defaultId, setDefaultId] = useState('')
+  const [overrideOn, setOverrideOn] = useState(false)
+  const [taskMap, setTaskMap] = useState<Partial<Record<LlmTaskClass, string>>>({})
+  const [saving, setSaving] = useState(false)
+  const hydrated = useRef(false)
+
+  useEffect(() => {
+    if (!remote || hydrated.current) return
+    hydrated.current = true
+    setDefaultId(remote.default_llm_profile || '')
+    setOverrideOn(Boolean(remote.override_per_task))
+    setTaskMap({ ...remote.task_llm_profiles })
+  }, [remote])
+
+  const profiles = remote?.profiles ?? []
+  const ids = profiles.map((profile) => profile.id)
+  const fallback = defaultId || remote?.default_llm_profile || 'default'
+  const warnings = [
+    ...(remote?.warnings ?? []),
+    missingProfileWarning(defaultId, remote, fallback),
+    ...((['orchestration', 'auxiliary', 'delegation'] as const).map((cls) =>
+      overrideOn ? missingProfileWarning(taskMap[cls], remote, fallback) : null,
+    )),
+  ].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index)
+
+  const optionIds = Array.from(
+    new Set(
+      [
+        ...ids,
+        defaultId,
+        ...Object.values(taskMap),
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  )
+
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault()
+    setSaving(true)
+    try {
+      const saved = await patchLlmProfiles({
+        default_llm_profile: defaultId,
+        override_per_task: overrideOn,
+        task_llm_profiles: overrideOn
+          ? {
+              orchestration: taskMap.orchestration || defaultId,
+              auxiliary: taskMap.auxiliary || defaultId,
+              delegation: taskMap.delegation || defaultId,
+            }
+          : taskMap,
+      })
+      setDefaultId(saved.default_llm_profile || defaultId)
+      setOverrideOn(Boolean(saved.override_per_task))
+      setTaskMap({ ...saved.task_llm_profiles })
+      success('LLM profiles saved', 'Default stored in settings.default_llm_profile.')
+    } catch (err) {
+      toastError(
+        'Could not save LLM profiles',
+        err instanceof Error ? err.message : 'Request failed.',
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <div className="space-y-3">
-      <h4 className="text-lg font-semibold">LLM profiles</h4>
-      <p className="text-sm text-base-content/70">
-        Detected models from <code>/v1/models/</code>. Edit profiles on the
-        Django operator dump.
-      </p>
+    <form className="space-y-4" onSubmit={handleSave}>
+      <div>
+        <h4 className="text-lg font-semibold">LLM profiles</h4>
+        <p className="text-sm text-base-content/70">
+          Pick a Default from any connected CLI, API, or remote. Task-class
+          names (orchestration / auxiliary / delegation) are roles, not required
+          model ids. Auto-picks fill the map until you change them.
+        </p>
+      </div>
+
       {profilesQuery.isPending ? (
         <p className="text-sm text-base-content/60">Loading profiles…</p>
       ) : profilesQuery.isError ? (
         <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
           <span className="text-sm">
-            Could not load models. Open the{' '}
-            <a href="/profiles/" className="link">
-              LLM profiles
-            </a>{' '}
-            operator page.
+            Could not load configured profiles. Chat still uses the server
+            default when one is stored.
           </span>
         </Alert>
-      ) : models.length === 0 ? (
+      ) : profiles.length === 0 ? (
         <Alert type="info" icon={<Server className="h-5 w-5" />}>
           <span className="text-sm">
-            No models reported. Review{' '}
-            <a href="/profiles/" className="link">
-              /profiles/
-            </a>{' '}
-            or the full{' '}
-            <a href="/settings/" className="link">
-              settings dump
-            </a>
-            .
+            No connected models yet. Add a CLI, API, or remote — swarm will
+            auto-assign a default from whatever you connect.
           </span>
         </Alert>
       ) : (
-        <ul className="space-y-1 text-sm">
-          {models.map((model) => (
+        <ul className="space-y-1 text-sm" aria-label="Configured LLM profiles">
+          {profiles.map((profile) => (
             <li
-              key={model.id}
-              className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2 font-mono"
+              key={`${profile.source}:${profile.id}`}
+              className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
             >
-              {model.id}
+              <span className="font-mono">{profile.id}</span>
+              <span className="ml-2 text-xs text-base-content/60">
+                {profile.source}
+                {profile.owned_by ? ` · ${profile.owned_by}` : ''}
+              </span>
             </li>
           ))}
         </ul>
       )}
-    </div>
+
+      <Select
+        label="Default"
+        name="default-llm-profile"
+        value={defaultId}
+        onChange={(event) => setDefaultId(event.target.value)}
+        size="sm"
+        disabled={optionIds.length === 0}
+      >
+        {optionIds.length === 0 ? (
+          <option value="">No models connected</option>
+        ) : null}
+        {optionIds.map((id) => (
+          <option key={id} value={id}>
+            {id}
+            {remote?.auto_picks?.default === id && remote.default_is_auto ? ' (auto)' : ''}
+          </option>
+        ))}
+      </Select>
+      {remote?.default_is_auto && remote.auto_picks?.default ? (
+        <p className="text-xs text-base-content/60">
+          Auto-picked Default: <code>{remote.auto_picks.default}</code>. Chat
+          uses this until you save another id.
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={overrideOn}
+        className="flex items-center gap-3 text-left"
+        onClick={() => setOverrideOn((on) => !on)}
+      >
+        <input
+          type="checkbox"
+          className="toggle toggle-primary pointer-events-none"
+          checked={overrideOn}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+        <span className="label-text">Override per task</span>
+      </button>
+      <p className="text-xs text-base-content/60">
+        Off: every job uses Default. On: cheap summary stays on auxiliary,
+        design / coding can use delegation.
+      </p>
+
+      {overrideOn ? (
+        <fieldset className="space-y-3">
+          <legend className="text-sm font-medium">Task class map</legend>
+          {(['orchestration', 'auxiliary', 'delegation'] as const).map((cls) => (
+            <Select
+              key={cls}
+              label={TASK_CLASS_LABELS[cls]}
+              name={`task-llm-${cls}`}
+              value={taskMap[cls] || defaultId}
+              onChange={(event) =>
+                setTaskMap((current) => ({ ...current, [cls]: event.target.value }))
+              }
+              size="sm"
+              disabled={optionIds.length === 0}
+            >
+              {optionIds.map((id) => (
+                <option key={`${cls}-${id}`} value={id}>
+                  {id}
+                </option>
+              ))}
+            </Select>
+          ))}
+        </fieldset>
+      ) : null}
+
+      {warnings.length > 0 ? (
+        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+          <ul className="space-y-1 text-sm">
+            {warnings.map((text) => (
+              <li key={text}>{text}</li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+
+      <Button type="submit" variant="primary" size="sm" disabled={saving}>
+        {saving ? 'Saving…' : 'Save LLM profiles'}
+      </Button>
+    </form>
   )
 }
