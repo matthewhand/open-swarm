@@ -69,7 +69,7 @@ def asgi_file_response(path: Path, content_type: str) -> HttpResponse:
 
     Django 4.2 FileResponse.streaming_content is a map(); ASGI/Daphne then
     TypeErrors on async-for and can leave CurrentThreadExecutor dead so later
-    requests hang (LAN GET / looks like a hung launch).
+    requests hang (LAN GET / looks like a hung launch). See issue #425.
     """
     return HttpResponse(path.read_bytes(), content_type=content_type)
 
