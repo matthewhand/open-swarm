@@ -15,7 +15,7 @@ import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import { fetchBlueprints } from '../lib/api'
+import { fetchBlueprints, fetchCliAgents } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
@@ -42,6 +42,14 @@ import {
   memberOptionLabel,
   teamThreadId,
 } from '../lib/teamRosters'
+import {
+  discoverChatClis,
+  isCliAgentContext,
+  isCliBlueprintId,
+  MANAGE_CLI_HREF,
+  MANAGE_CLI_VALUE,
+  preferredChatCli,
+} from '../lib/cliAgentContext'
 import {
   reconnectBackoffMs,
   shouldAutoReconnect,
@@ -109,6 +117,9 @@ const ChatPage = () => {
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
+  const [selectedCli, setSelectedCli] = useState(
+    () => searchParams.get('cli') ?? '',
+  )
   const [connectAttempt, setConnectAttempt] = useState(0)
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -150,6 +161,18 @@ const ChatPage = () => {
   /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
   const lastHydratedAgentRef = useRef<string | null>(null)
 
+  const cliContext =
+    !teamFromUrl &&
+    isCliAgentContext({
+      blueprintId: selectedBlueprint,
+      searchParams,
+    })
+  const chatBlueprintId = cliContext
+    ? isCliBlueprintId(selectedBlueprint)
+      ? selectedBlueprint
+      : 'cli_agent'
+    : selectedBlueprint
+
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
@@ -158,8 +181,17 @@ const ChatPage = () => {
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
   })
+  const clisQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+    enabled: cliContext,
+  })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const teams = teamsQuery.data ?? []
+  const discoveredClis = useMemo(
+    () => discoverChatClis(clisQuery.data, selectedCli),
+    [clisQuery.data, selectedCli],
+  )
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const selectedAgentName = teamFromUrl
@@ -176,9 +208,25 @@ const ChatPage = () => {
     // with the Support default (REQ-23 owns send-to-all).
     if (searchParams.get('team')) return
     if (!searchParams.get('blueprint')) {
-      setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })
+      const next = new URLSearchParams(searchParams)
+      next.set('blueprint', cliContext ? 'cli_agent' : SUPPORT_AGENT_ID)
+      setSearchParams(next, { replace: true })
     }
-  }, [searchParams, setSearchParams])
+  }, [cliContext, searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (searchParams.has('cli')) {
+      const cliFromUrl = searchParams.get('cli') ?? ''
+      setSelectedCli((prev) => (prev === cliFromUrl ? prev : cliFromUrl))
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!cliContext || clisQuery.isPending || clisQuery.isError) return
+    if (selectedCli) return
+    const next = preferredChatCli(discoveredClis, selectedCli)
+    if (next && next !== selectedCli) setSelectedCli(next)
+  }, [cliContext, clisQuery.isPending, clisQuery.isError, discoveredClis, selectedCli])
 
   useEffect(() => {
     setMemberTarget(ALL_MEMBERS_TARGET)
@@ -433,10 +481,24 @@ const ChatPage = () => {
         )
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      const params =
+        cliContext && selectedCli ? { cli: selectedCli } : undefined
+      ws.send(buildChatWsFrame(trimmed, chatBlueprintId || undefined, params))
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [chatBlueprintId, cliContext, selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
   )
+
+  const handleCliChange = (value: string) => {
+    if (value === MANAGE_CLI_VALUE) {
+      window.location.assign(MANAGE_CLI_HREF)
+      return
+    }
+    setSelectedCli(value)
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set('cli', value)
+    else next.delete('cli')
+    setSearchParams(next, { replace: true })
+  }
 
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
@@ -576,6 +638,26 @@ const ChatPage = () => {
               ))}
               <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
             </select>
+          ) : cliContext ? (
+            clisQuery.isPending ? (
+              <span className="text-xs text-base-content/55">Loading CLIs…</span>
+            ) : clisQuery.isError ? (
+              <span className="text-xs text-base-content/55">Could not load CLIs</span>
+            ) : (
+              <select
+                className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
+                value={selectedCli}
+                onChange={(e) => handleCliChange(e.target.value)}
+                aria-label="CLI"
+              >
+                {discoveredClis.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                <option value={MANAGE_CLI_VALUE}>Manage Cli</option>
+              </select>
+            )
           ) : null}
           <div
             className="flex items-center gap-2"

@@ -519,18 +519,42 @@ class BlueprintSourceView(APIView):
 
 
 class CliAgentsView(APIView):
-    """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
+    """CLI-agent catalog + host-discovered / configured names.
 
-    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]}}.
+    GET /v1/cli-agents/ -> {
+        clis: [...],              # static catalog names
+        installed: [...],         # catalog + configured CLIs on PATH
+        configured: [...],        # names from swarm_config cli_agents
+        default_cli: "...",       # cli_fusion.default_cli when set
+        native_consensus: {cli: [flag,"{n}"]},
+        catalog: {name: entry},
+    }.
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
 
     def get(self, _request, *_args, **_kwargs):
+        from django.apps import apps
+
         from swarm.core import cli_catalog
+
+        configured: list[str] = []
+        default_cli = ""
+        cfg: dict = {}
+        try:
+            cfg = getattr(apps.get_app_config("swarm"), "config", {}) or {}
+            configured = sorted(str(name) for name in (cfg.get("cli_agents") or {}))
+            default_cli = str(((cfg.get("cli_fusion") or {}).get("default_cli")) or "").strip()
+        except Exception:
+            configured = []
+            default_cli = ""
+            cfg = {}
 
         return Response({
             "clis": cli_catalog.catalog_names(),
+            "installed": cli_catalog.installed_host_clis(cfg),
+            "configured": configured,
+            "default_cli": default_cli,
             "native_consensus": cli_catalog.NATIVE_CONSENSUS,
             "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
         })

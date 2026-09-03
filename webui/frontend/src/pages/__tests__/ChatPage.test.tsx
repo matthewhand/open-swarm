@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 import { ToastProvider } from '../../components/DaisyUI'
 import { resetConversationThreads } from '../../lib/chatMeter'
+import { MANAGE_CLI_HREF, MANAGE_CLI_VALUE } from '../../lib/cliAgentContext'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -771,5 +772,147 @@ describe('ChatPage team member dropdown', () => {
     expect(options[options.length - 1]).toHaveTextContent('Manage Teams')
     expect(select).toHaveValue('all')
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
+  })
+})
+
+function mockChatFetch(options?: {
+  blueprints?: { id: string; name: string; description: string }[]
+  clis?: {
+    clis?: string[]
+    installed?: string[]
+    configured?: string[]
+  }
+}) {
+  return vi.fn().mockImplementation(async (input: RequestInfo) => {
+    const url = String(input)
+    if (url.includes('/v1/cli-agents')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          clis: options?.clis?.clis ?? ['claude', 'codex', 'gemini', 'grok', 'opencode'],
+          installed: options?.clis?.installed ?? ['grok'],
+          configured: options?.clis?.configured ?? ['grok'],
+          native_consensus: {},
+          catalog: {},
+        }),
+      } as Response
+    }
+    if (url.includes('team_rosters') || url.includes('team-rosters')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: [] }),
+      } as Response
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data:
+          options?.blueprints ??
+          [
+            { id: 'codey', name: 'Codey', description: 'Code assistant' },
+            { id: 'cli_agent', name: 'CLI Agent', description: 'Single CLI' },
+          ],
+      }),
+    } as Response
+  })
+}
+
+describe('ChatPage CLI-agent dropdown (REQ-15)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists discovered CLIs (not blueprints) when ?blueprint=cli_agent', async () => {
+    vi.stubGlobal('fetch', mockChatFetch())
+    renderChat('/chat?blueprint=cli_agent')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'CLI' })
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Codey' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'grok' })).toBeInTheDocument()
+    expect(select).toHaveValue('grok')
+
+    const options = screen.getAllByRole('option')
+    expect(options[options.length - 1]).toHaveTextContent('Manage Cli')
+    expect(options[options.length - 1]).toHaveValue(MANAGE_CLI_VALUE)
+  })
+
+  it('keeps Grok-Bot chrome in blueprint-mode chats (no Blueprint dropdown)', async () => {
+    vi.stubGlobal('fetch', mockChatFetch())
+    renderChat('/chat?blueprint=codey')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Codey' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Manage Cli' })).not.toBeInTheDocument()
+  })
+
+  it('shows and selects a running PATH/config CLI outside the static catalog', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetch({
+        clis: { installed: ['antigravity'], configured: ['antigravity'] },
+      }),
+    )
+    renderChat('/chat?blueprint=cli_agent&cli=antigravity')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'CLI' })
+    expect(select).toHaveValue('antigravity')
+    expect(screen.getByRole('option', { name: 'antigravity' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Codey' })).not.toBeInTheDocument()
+  })
+
+  it('sends params.cli with the selected host CLI', async () => {
+    vi.stubGlobal('fetch', mockChatFetch())
+    renderChat('/chat?blueprint=cli_agent&cli=grok')
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'hello from grok' } })
+    fireEvent.click(screen.getByRole('button', { name: /Send/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).toHaveBeenCalled()
+    const frame = JSON.parse(ws.send.mock.calls[0][0] as string)
+    expect(frame).toEqual({
+      message: 'hello from grok',
+      blueprint: 'cli_agent',
+      params: { cli: 'grok' },
+    })
+  })
+
+  it('navigates Manage Cli to the existing settings path', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+    vi.stubGlobal('fetch', mockChatFetch())
+    renderChat('/chat?blueprint=cli_agent')
+
+    const select = await screen.findByRole('combobox', { name: 'CLI' })
+    fireEvent.change(select, { target: { value: MANAGE_CLI_VALUE } })
+    expect(assign).toHaveBeenCalledWith(MANAGE_CLI_HREF)
   })
 })

@@ -63,3 +63,52 @@ def test_cli_agents_endpoint_exposes_native_consensus(client):
     assert "grok" in data["clis"]
     assert data["native_consensus"]["grok"] == ["--best-of-n", "{n}"]
     assert data["catalog"]["grok"]["parse"] == "json:.text"
+
+
+@pytest.mark.django_db
+def test_cli_agents_endpoint_exposes_installed_and_configured(client, monkeypatch):
+    """Chat CLI dropdown reads installed (host PATH) + configured (swarm_config)."""
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok", "claude"])
+    monkeypatch.setattr(
+        "django.apps.apps.get_app_config",
+        lambda _name: type("Cfg", (), {"config": {"cli_agents": {"grok": {}, "custom_cli": {}}}})(),
+    )
+    resp = client.get("/v1/cli-agents/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data["installed"]) >= {"grok", "claude"}
+    assert data["configured"] == ["custom_cli", "grok"]
+    assert "grok" in data["clis"]
+
+
+@pytest.mark.django_db
+def test_cli_agents_endpoint_includes_non_catalog_path_cli(client, monkeypatch):
+    """A PATH/config CLI such as antigravity must appear even outside the catalog."""
+    from django.apps import apps
+
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok"])
+    monkeypatch.setattr(
+        cli_catalog.shutil,
+        "which",
+        lambda name: "/usr/bin/antigravity" if name == "antigravity" else None,
+    )
+    swarm_cfg = apps.get_app_config("swarm")
+    monkeypatch.setattr(
+        swarm_cfg,
+        "config",
+        {
+            "cli_agents": {"antigravity": {"cmd": ["antigravity"]}},
+            "cli_fusion": {"default_cli": "antigravity"},
+        },
+    )
+    resp = client.get("/v1/cli-agents/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "antigravity" in data["installed"]
+    assert "antigravity" in data["configured"]
+    assert data["default_cli"] == "antigravity"
+    assert "antigravity" not in data["clis"]

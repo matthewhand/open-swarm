@@ -187,3 +187,24 @@ def test_apply_model_noop_on_entry_without_cmd():
 def test_with_model_unknown_flag_cli_returns_entry_unchanged():
     base = cli_catalog.catalog_entry("grok")  # grok has no MODEL_FLAG
     assert cli_catalog.with_model("grok", "anything")["cmd"] == base["cmd"]
+
+
+def test_installed_host_clis_includes_non_catalog_path_and_config(monkeypatch):
+    """PATH/config discovery must surface CLIs the static catalog does not know."""
+    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok"])
+
+    def fake_which(name):
+        return f"/usr/bin/{name}" if name == "antigravity" else None
+
+    monkeypatch.setattr(cli_catalog.shutil, "which", fake_which)
+    found = cli_catalog.installed_host_clis(
+        {
+            "cli_agents": {
+                "antigravity": {"cmd": ["antigravity", "-p", "{prompt}"]},
+                "missing": {"cmd": ["definitely-not-installed-cli"]},
+            }
+        }
+    )
+    assert "grok" in found
+    assert "antigravity" in found
+    assert "missing" not in found

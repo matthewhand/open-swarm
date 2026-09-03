@@ -484,9 +484,15 @@ export function fetchBlueprintSource(id: string, file?: string): Promise<Bluepri
   return apiGet<BlueprintSource>(`/v1/blueprints/${encodeURIComponent(id)}/source${q}`)
 }
 
-/** GET /v1/cli-agents/ — CLI catalog + native (built-in) consensus capability. */
+/** GET /v1/cli-agents/ — CLI catalog + host-discovered / configured names. */
 export interface CliAgentsInfo {
   clis: string[]
+  /** Catalog + configured CLIs whose executable resolves on the host PATH. */
+  installed?: string[]
+  /** Names from the server swarm_config `cli_agents` block. */
+  configured?: string[]
+  /** `cli_fusion.default_cli` when the host config names a running default. */
+  default_cli?: string
   native_consensus: Record<string, string[]>
   catalog: Record<string, Record<string, unknown>>
 }

@@ -29,6 +29,7 @@ paid ``GEMINI_API_KEY``. Flash answers in a few seconds.
 
 from __future__ import annotations
 
+import os
 import shutil
 from typing import Any
 
@@ -213,6 +214,39 @@ def catalog_names() -> list[str]:
 def installed_catalog_clis() -> list[str]:
     """Catalog CLIs whose executable resolves on this host (sorted)."""
     return [n for n in catalog_names() if shutil.which(CATALOG[n]["cmd"][0])]
+
+
+def _executable_on_path(exe: str) -> bool:
+    """True when ``exe`` is an existing path or resolves on PATH."""
+    if not exe:
+        return False
+    if os.path.sep in exe:
+        return os.path.isfile(exe) and os.access(exe, os.X_OK)
+    return shutil.which(exe) is not None
+
+
+def installed_host_clis(config: dict[str, Any] | None = None) -> list[str]:
+    """CLIs available on this host: catalog-on-PATH plus configured-on-PATH.
+
+    The static catalog is only grok/claude/gemini/codex/opencode. A custom
+    ``cli_agents`` entry (for example ``antigravity``) is included when its
+    ``cmd[0]`` or configured name resolves on PATH.
+    """
+    found: set[str] = set(installed_catalog_clis())
+    raw_agents = (config or {}).get("cli_agents") or {}
+    if isinstance(raw_agents, dict):
+        for name, entry in raw_agents.items():
+            key = str(name).strip()
+            if not key:
+                continue
+            exe = key
+            if isinstance(entry, dict):
+                cmd = entry.get("cmd") or []
+                if isinstance(cmd, (list, tuple)) and cmd:
+                    exe = str(cmd[0])
+            if _executable_on_path(exe) or (exe != key and _executable_on_path(key)):
+                found.add(key)
+    return sorted(found)
 
 
 def build_starter_config(installed: list[str] | None = None) -> dict[str, Any]:

@@ -449,6 +449,40 @@ class TestBlueprintSelection:
         assert consumer.messages[-1]["role"] == "assistant"
 
     @pytest.mark.asyncio
+    async def test_receive_forwards_cli_params_to_blueprint(self, consumer):
+        """CLI-agent frames carry params.cli through to the blueprint instance."""
+        consumer.messages = []
+        text_data = json.dumps({
+            "message": "Hello",
+            "blueprint": "cli_agent",
+            "params": {"cli": "grok"},
+        })
+
+        with patch('swarm.consumers.render_to_string', return_value="<div></div>"):
+            with patch.object(consumer, 'send', new_callable=AsyncMock):
+                with patch.object(consumer, 'respond_with_blueprint', new_callable=AsyncMock) as mock_bp:
+                    await consumer.receive(text_data)
+
+                    assert mock_bp.await_args.args[0] == "cli_agent"
+                    assert mock_bp.await_args.kwargs.get("params") == {"cli": "grok"}
+
+    @pytest.mark.asyncio
+    async def test_receive_ignores_non_dict_params(self, consumer):
+        consumer.messages = []
+        text_data = json.dumps({
+            "message": "Hello",
+            "blueprint": "cli_agent",
+            "params": "grok",
+        })
+
+        with patch('swarm.consumers.render_to_string', return_value="<div></div>"):
+            with patch.object(consumer, 'send', new_callable=AsyncMock):
+                with patch.object(consumer, 'respond_with_blueprint', new_callable=AsyncMock) as mock_bp:
+                    await consumer.receive(text_data)
+
+                    assert mock_bp.await_args.kwargs.get("params") is None
+
+    @pytest.mark.asyncio
     async def test_unknown_blueprint_sends_error_partial(self, consumer):
         """Unknown blueprint -> error partial; no assistant message recorded."""
         consumer.messages = [{"role": "user", "content": "Hello"}]
@@ -466,6 +500,27 @@ class TestBlueprintSelection:
                 assert "not found" in sent
                 # The error is transport-level: not appended to history.
                 assert all(m["role"] != "assistant" for m in consumer.messages)
+
+    @pytest.mark.asyncio
+    async def test_respond_with_blueprint_passes_params(self, consumer, monkeypatch):
+        """params.cli reaches get_blueprint_instance so cli_agent can pick a host CLI."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        async def fake_run(messages, **kwargs):
+            yield {"messages": [{"role": "assistant", "content": "ok"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                await consumer.respond_with_blueprint(
+                    "cli_agent", "message-response-abc", params={"cli": "grok"}
+                )
+
+            mock_get.assert_awaited_once_with("cli_agent", {"cli": "grok"})
 
     @pytest.mark.asyncio
     async def test_blueprint_reply_streams_chunk_and_final(self, consumer, monkeypatch):

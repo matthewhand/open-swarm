@@ -108,7 +108,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     blueprint generates the reply. A connection-level default can also be
     set via the ws URL query string (``?blueprint=<id>``); a per-message
     ``blueprint`` field overrides it. When neither is given, the legacy
-    behaviour (server-configured OpenAI model) is preserved.
+    behaviour (server-configured OpenAI model) is preserved. An optional
+    ``"params"`` object is forwarded to the blueprint (``cli_agent`` uses
+    ``params.cli`` to pick the host CLI).
 
     Team compose (REQ-23) sends ``params: {team, target: "all"|memberId}``.
     Runtime for that path is stubbed until a real roster executor exists.
@@ -187,7 +189,6 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if not isinstance(params, dict):
             params = None
 
-
         self.messages.append(
             {
                 "role": "user",
@@ -212,7 +213,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if params and params.get("team"):
             await self.respond_with_team_stub(params, message_text, contents_div_id)
         elif blueprint_id:
-            await self.respond_with_blueprint(blueprint_id, contents_div_id)
+            await self.respond_with_blueprint(
+                blueprint_id, contents_div_id, params=params
+            )
         else:
             await self.respond_with_default_model(contents_div_id)
 
@@ -233,7 +236,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=final_html)
 
-    async def respond_with_blueprint(self, blueprint_id, contents_div_id):
+    async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
         # In test mode, skip slow blueprint instantiation and return canned output.
         if os.environ.get("SWARM_TEST_MODE"):
@@ -266,7 +269,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         try:
             from swarm.views.utils import get_blueprint_instance
-            blueprint_instance = await get_blueprint_instance(blueprint_id)
+            blueprint_instance = await get_blueprint_instance(blueprint_id, params)
         except Exception:
             logger.error(
                 f"Error loading blueprint '{blueprint_id}'", exc_info=True

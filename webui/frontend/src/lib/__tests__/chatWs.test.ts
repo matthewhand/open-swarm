@@ -46,6 +46,18 @@ describe('buildChatWsFrame', () => {
     ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'codey' } })
   })
 
+  it('includes params.cli for a CLI-agent selection', () => {
+    expect(buildChatWsFrame('hi', 'cli_agent', { cli: 'grok' })).toBe(
+      '{"message":"hi","blueprint":"cli_agent","params":{"cli":"grok"}}',
+    )
+  })
+
+  it('omits empty params', () => {
+    expect(buildChatWsFrame('hi', 'cli_agent', {})).toBe(
+      '{"message":"hi","blueprint":"cli_agent"}',
+    )
+  })
+
   it('round-trips back to the original message via JSON.parse', () => {
     expect(JSON.parse(buildChatWsFrame('quote " and \\ slash')).message).toBe(
       'quote " and \\ slash',
