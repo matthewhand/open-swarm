@@ -49,6 +49,8 @@ class TestLlmProfilesGet:
         blob = json.dumps(data)
         assert "api_key" not in blob
         assert "sk-" not in blob
+        assert "REQ-" not in blob
+        assert not any("REQ-" in (w or "") for w in data.get("warnings") or [])
 
     @patch("swarm.core.llm_task_routing.load_swarm_config", return_value={"llm": {}})
     def test_empty_catalog_is_200_with_warning(self, _mock_load, api_client):

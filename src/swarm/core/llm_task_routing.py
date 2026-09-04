@@ -911,7 +911,9 @@ def settings_public_payload(config: dict[str, Any] | None = None) -> dict[str, A
             "default": auto.default,
         },
         "aliases_used": auto.aliases_used,
-        "warnings": warnings + ([f"Missing profile {mid!r}." for mid in missing] if missing else []),
+        "warnings": llm_list_models.sanitize_ui_warnings(
+            warnings + ([f"Missing profile {mid!r}." for mid in missing] if missing else [])
+        ),
         "routes": routes,
         "task_classes": list(TASK_CLASSES),
         "list_models_source": list_source,
