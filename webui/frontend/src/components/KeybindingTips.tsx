@@ -9,7 +9,7 @@ import {
 
 /**
  * Quiet first-load keybinding row (REQ-160 / #571).
- * Same tip content + localStorage dismiss as #547, without the rail alert banner.
+ * Same tip content + localStorage dismiss as #547, without the rail banner.
  */
 export default function KeybindingTips() {
   const [dismissed, setDismissed] = useState(isKeybindingTipsDismissed)

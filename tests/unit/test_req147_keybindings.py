@@ -71,4 +71,5 @@ def test_first_load_tips_under_composer():
     assert "Pins" in tips
     assert "Clear" in tips
     assert "swarm_keybinding_tips_dismissed" in persist
-    assert "alert" not in tips
+    assert 'className="os-keybinding-tips"' in tips
+    assert "os-keybinding-tips alert" not in tips
