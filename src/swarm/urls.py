@@ -85,7 +85,12 @@ from swarm.views.session_explorer import (
     session_explorer,
     session_list_api,
 )
-from swarm.views.chat_persist_views import chat_compact, chat_retention_action, chat_thread
+from swarm.views.chat_persist_views import (
+    chat_attachment_upload,
+    chat_compact,
+    chat_retention_action,
+    chat_thread,
+)
 from swarm.views.system_views import LocalStoreView
 from swarm.views.settings_views import (
     environment_variables,
@@ -312,6 +317,9 @@ urlpatterns = [
     path("settings/chats/action/", chat_retention_action, name="chat_retention_action"),
     # Per-agent chat restore (session cookie). Not shown in Chat chrome.
     path("chat/thread/", chat_thread, name="chat_thread"),
+    # REQ-38: composer file upload (sqlite metadata + local bytes).
+    path("v1/chat/attachments", chat_attachment_upload, name="chat-attachments-no-slash"),
+    path("v1/chat/attachments/", chat_attachment_upload, name="chat-attachments"),
     # REQ-37: compact the backlog into a nested sqlite summary (raw JSON stays).
     path("chat/compact/", chat_compact, name="chat_compact"),
     # Blueprint Library endpoints
