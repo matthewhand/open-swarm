@@ -379,6 +379,7 @@ class TestLibraryCreateRunCloser:
         assert "Simulate run" not in js
         assert "Client-side demo only" not in js
         assert "/v1/chat/completions" in js
+        assert "X-CSRFToken" in js
         assert "credentials: 'same-origin'" in js or 'credentials: "same-origin"' in js
         assert "method: 'POST'" in js or 'method: "POST"' in js
         assert "model: blueprint.id" in js

@@ -117,6 +117,9 @@ def test_settings_dashboard_progress_meter_and_section_headings():
     assert '<h1 class="dashboard-title">Settings Dashboard</h1>' in html
     assert '<h2 class="visually-hidden">Quick actions</h2>' in html
     assert '<h2 class="visually-hidden">Settings groups</h2>' in html
+    assert 'id="os-avatar-theme"' in html
+    assert 'chrome_avatar_theme.js' in html
+    assert 'id="avatar-theme-title"' in html
     assert "Credentials" in html
     assert "docs/AUTH.md" in html
     # Focus ring lives in operator.css (CSP: no inline template <style>).

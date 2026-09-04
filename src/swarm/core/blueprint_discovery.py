@@ -35,11 +35,7 @@ class BlueprintMetadata(TypedDict, total=False):
     tool_requirements: dict[str, str] | None  # capability -> "mandatory"|"optional"
     deprecated: bool | None
     status: str | None
-    # First-class agent roles (REQ-7 / REQ-9): visual + wiring, not inference profiles.
     role: str | None
-    agents: list | None
-    gate_agent: str | None
-    skeptic_agent: str | None
     # Add other common metadata fields here if needed for typing
 
 class DiscoveredBlueprintInfo(TypedDict):
@@ -269,6 +265,7 @@ def discover_blueprints(blueprint_dir: str, namespace: str | None = None, *, san
                             'tool_requirements': full_meta.get('tool_requirements'),
                             'deprecated': full_meta.get('deprecated'),
                             'status': full_meta.get('status'),
+                            'role': full_meta.get('role'),
                         }
 
                         found_bp_class_details = DiscoveredBlueprintInfo(

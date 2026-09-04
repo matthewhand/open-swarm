@@ -50,9 +50,43 @@ def settings_dashboard(request):
         )
         safe_groups = redact_settings_groups(all_settings)
 
+        chat_stats = {}
+        try:
+            from swarm.core import chat_store
+
+            user_key = chat_store.user_key_for(request.user)
+            chat_store.prune_expired(user_key)
+            chat_stats = chat_store.stats(user_key)
+        except Exception:
+            logger.exception("Failed to collect chat persistence stats")
+            chat_stats = {
+                "store_dir": "",
+                "format": "json",
+                "active_count": 0,
+                "trash_count": 0,
+                "bytes_used": 0,
+                "bytes_label": "0 B",
+                "max_age_days": 90,
+                "auto_archive_enabled": True,
+                "chats": [],
+                "trash": [],
+                "env_dir": "SWARM_CHAT_DIR",
+                "env_max_age": "SWARM_CHAT_MAX_AGE_DAYS",
+            }
+
+        herdr_agents = []
+        try:
+            from swarm.models import HerdrAgent
+
+            herdr_agents = list(HerdrAgent.objects.all().order_by("name"))
+        except Exception:
+            logger.exception("Error loading Herdr agent rows")
+
         context = {
             'page_title': 'Settings Dashboard',
             'settings_groups': safe_groups,
+            'chat_stats': chat_stats,
+            'herdr_agents': herdr_agents,
             'stats': {
                 'total': total_settings,
                 'configured': configured_settings,
@@ -138,6 +172,7 @@ def environment_variables(_request):
             'DJANGO_', 'SWARM_', 'API_', 'ENABLE_', 'OPENAI_',
             'ANTHROPIC_', 'OLLAMA_', 'REDIS_', 'LOG', 'DATABASE_',
             'AWS_', 'MONGODB_', 'MONGO_',
+            'HERMES_', 'OMB_', 'RAKAZO_',
         ]
 
         env_vars = {}

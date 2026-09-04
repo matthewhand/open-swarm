@@ -64,14 +64,29 @@ export default function CommandPalette() {
 
   const items: PaletteItem[] = useMemo(
     () => [
-      { id: 'home', label: 'Home', hint: 'SPA dashboard', icon: <Bot className="h-4 w-4" />, to: '/' },
+      { id: 'home', label: 'Start', hint: 'Landing', icon: <Bot className="h-4 w-4" />, to: '/' },
       { id: 'chat', label: 'Chat', hint: 'Live websocket chat', icon: <MessageSquare className="h-4 w-4" />, to: '/chat' },
       { id: 'blueprints', label: 'Blueprints', hint: '/blueprint-library/', icon: <Book className="h-4 w-4" />, to: '/blueprint-library/' },
       { id: 'my-blueprints', label: 'My Blueprints', hint: '/blueprint-library/my-blueprints/', icon: <Book className="h-4 w-4" />, to: '/blueprint-library/my-blueprints/' },
       { id: 'launch', label: 'Launch a Team', hint: '/teams/launch/', icon: <PlusCircle className="h-4 w-4" />, to: '/teams/launch/' },
       { id: 'teams', label: 'Manage Teams', hint: '/teams/', icon: <Users className="h-4 w-4" />, to: '/teams/' },
+      {
+        id: 'compose',
+        label: 'Compose team roster',
+        hint: 'Drag-drop overlay (team_rosters.json)',
+        icon: <PlusCircle className="h-4 w-4" />,
+        action: () => window.dispatchEvent(new CustomEvent('swarm:open-team-composer')),
+      },
       { id: 'sessions', label: 'Sessions', hint: 'Session explorer', icon: <History className="h-4 w-4" />, to: '/sessions/' },
-      { id: 'settings', label: 'Settings', hint: 'Settings dashboard', icon: <Settings className="h-4 w-4" />, to: '/settings/' },
+      {
+        id: 'settings',
+        label: 'Settings',
+        hint: 'Chat settings sheet',
+        icon: <Settings className="h-4 w-4" />,
+        action: () => {
+          window.dispatchEvent(new CustomEvent('swarm:open-settings'))
+        },
+      },
       {
         id: 'theme',
         label: 'Toggle light/dark theme',

@@ -212,40 +212,45 @@ class TestBlueprintsListView:
         assert "description" in bp
         assert "required_mcp_servers" in bp
         assert "tags" in bp
-        # REQ-9: first-class role fields (unwired blueprints default-open)
+        assert "role" in bp
         assert bp["role"] == "default"
-        assert bp["gate_agent"] is None
-        assert bp["skeptic_agent"] is None
-        assert isinstance(bp["agents"], list)
 
     @patch("swarm.views.api_views.get_available_blueprints")
-    def test_list_blueprints_exposes_support_and_gate_roles(
+    def test_list_blueprints_exposes_support_role(
         self, mock_get_blueprints, api_client
     ):
         mock_get_blueprints.return_value = {
             "support": {
                 "metadata": {
                     "name": "Support",
-                    "description": "Onboard help",
+                    "description": "Onboarding. First team.",
                     "role": "support",
-                    "required_mcp_servers": [],
                     "tags": ["support"],
-                    "agents": [
-                        {"name": "Support", "role": "support"},
-                        {"name": "ToolGate", "role": "tool_gate"},
-                    ],
                 }
             }
         }
         response = api_client.get("/v1/blueprints/")
         assert response.status_code == status.HTTP_200_OK
-        row = response.json()["data"][0]
-        assert row["role"] == "support"
-        assert row["gate_agent"] == "ToolGate"
-        assert {a["name"]: a["role"] for a in row["agents"]} == {
-            "Support": "support",
-            "ToolGate": "gate",
+        assert response.json()["data"][0]["role"] == "support"
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_includes_chief_of_staff_role(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "cos": {
+                "metadata": {
+                    "name": "Chief of Staff",
+                    "description": "Talks to any team.",
+                    "role": "cos",
+                }
+            }
         }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        bp = response.json()["data"][0]
+        assert bp["id"] == "cos"
+        assert bp["role"] == "chief_of_staff"
 
     @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_search_filter(
@@ -316,6 +321,34 @@ class TestBlueprintsListView:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert len(data["data"]) == 0
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_forwards_metadata_avatar_path(
+        self, mock_get_blueprints, api_client
+    ):
+        """Custom face URL is passed through; missing stays null (SPA default)."""
+        mock_get_blueprints.return_value = {
+            "codey": {
+                "metadata": {
+                    "name": "Codey",
+                    "description": "Code assistant",
+                    "avatar_path": "/avatars/codey_avatar.png",
+                }
+            },
+            "stewie": {
+                "metadata": {
+                    "name": "Stewie",
+                    "description": "Helpful agent",
+                }
+            },
+        }
+
+        response = api_client.get("/v1/blueprints/")
+
+        assert response.status_code == status.HTTP_200_OK
+        by_id = {row["id"]: row for row in response.json()["data"]}
+        assert by_id["codey"]["avatar_path"] == "/avatars/codey_avatar.png"
+        assert by_id["stewie"]["avatar_path"] is None
 
     @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_error(self, mock_get_blueprints, api_client):

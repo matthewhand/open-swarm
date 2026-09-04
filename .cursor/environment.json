@@ -1,0 +1,18 @@
+{
+  "name": "Open Swarm",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "export PATH=\"$HOME/.local/bin:$PATH\" && DJANGO_DEBUG=true DJANGO_DB_NAME=/tmp/db.sqlite3 uv run python manage.py migrate --noinput",
+  "terminals": [
+    {
+      "name": "swarm-api",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\" && DJANGO_DEBUG=true ENABLE_WEBUI=true DJANGO_DB_NAME=/tmp/db.sqlite3 HOST=0.0.0.0 PORT=8000 uv run swarm-api --port 8000 --reload"
+    }
+  ],
+  "ports": [
+    {
+      "name": "swarm-api",
+      "port": 8000
+    }
+  ]
+}

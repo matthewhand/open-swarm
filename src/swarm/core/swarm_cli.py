@@ -673,6 +673,147 @@ def moa(
         raise typer.Exit(code=team_exit_code)
 
 
+@app.command(name="remotes")
+def remotes_cmd(
+    action: str = typer.Argument(
+        "list",
+        help="list | get | set | health | operate | team | place | unplace",
+    ),
+    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | swarm"),
+    op: str = typer.Option("list", "--op", help="For operate: list or send"),
+    base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
+    api_key: str = typer.Option("", "--api-key", help="For set: env-var name or ${ENV} (not a token)"),
+    api_key_env: str = typer.Option("", "--api-key-env", help="For set: store env-var name only"),
+    ui_url: str = typer.Option("", "--ui-url", help="For set: persist UI URL (Rakazo/Hermes dashboard)"),
+    cookie: str = typer.Option("", "--cookie", help="For set: session-cookie env-var name (not the cookie)"),
+    session_cookie_env: str = typer.Option(
+        "",
+        "--session-cookie-env",
+        help="For set: store Rakazo session-cookie env-var name only",
+    ),
+    prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
+    target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id or swarm blueprint id"),
+    config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
+):
+    """Configure remotes and place them in a handoff Team (not /teams/ profile aliases)."""
+    import json as _json
+
+    from swarm.core import remotes as _remotes
+
+    act = (action or "list").strip().lower()
+    rid = (name or "").strip()
+    cfg = _remotes.load_raw_config(config)[0] if config else None
+
+    if act == "list":
+        specs = _remotes.load_added_remotes(cfg, config_path=config)
+        if not specs:
+            typer.echo("No remotes added. Use: swarm-cli remotes set hermes --base-url … --api-key-env HERMES_API_KEY")
+            return
+        typer.echo("Remote harnesses:")
+        for spec in specs.values():
+            pub = spec.public_dict()
+            key = pub.get("api_key_env") or ("set" if pub["api_key_set"] else "unset")
+            typer.echo(f"  {spec.id:<8} {spec.base_url}  auth={key}  ({spec.host_label})")
+        return
+
+    if act == "get":
+        try:
+            if rid and not _remotes.is_remote_added(rid, cfg):
+                typer.echo(f"Remote '{rid}' is not added.", err=True)
+                raise typer.Exit(code=1)
+            spec = _remotes.load_remote(rid, cfg)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(_json.dumps(spec.public_dict(), indent=2))
+        return
+
+    if act == "set":
+        if not rid:
+            typer.echo("remotes set requires a name (hermes|omb|rakazo|swarm)", err=True)
+            raise typer.Exit(code=1)
+        kwargs: dict[str, str] = {}
+        if base_url:
+            kwargs["base_url"] = base_url
+        if api_key_env:
+            kwargs["api_key_env"] = api_key_env
+        elif api_key:
+            kwargs["api_key"] = api_key
+        if ui_url:
+            kwargs["ui_url"] = ui_url
+        if session_cookie_env:
+            kwargs["session_cookie_env"] = session_cookie_env
+        elif cookie:
+            kwargs["cookie"] = cookie
+        if not kwargs:
+            typer.echo(
+                "Nothing to persist. Pass --base-url and/or --api-key-env / --session-cookie-env.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        try:
+            spec, path = _remotes.persist_remote(rid, config_path=config, **kwargs)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"Persisted remotes.{spec.id} to {path}")
+        typer.echo(_json.dumps(spec.public_dict(), indent=2))
+        return
+
+    if act == "health":
+        targets = [rid] if rid else list(_remotes.added_remote_ids(cfg))
+        if not targets:
+            typer.echo("No remotes added.")
+            raise typer.Exit(code=0)
+        any_down = False
+        for target_id in targets:
+            try:
+                result = _remotes.check_health(target_id, config=cfg)
+            except _remotes.RemoteError as exc:
+                typer.echo(str(exc), err=True)
+                raise typer.Exit(code=1)
+            mark = "OK" if result.ok else result.state
+            typer.echo(f"  {result.remote:<8} {mark:<8} {result.detail}")
+            if not result.ok:
+                any_down = True
+        raise typer.Exit(code=1 if any_down and rid else 0)
+
+    if act == "operate":
+        if not rid:
+            typer.echo("remotes operate requires a name (hermes|omb|rakazo|swarm)", err=True)
+            raise typer.Exit(code=1)
+        result = _remotes.operate(rid, op, prompt=prompt, target=target, config=cfg)
+        typer.echo(_json.dumps(result.as_dict(), indent=2, default=str))
+        raise typer.Exit(code=0 if result.ok else 1)
+
+    if act == "team":
+        payload = _remotes.agent_team_public(config_path=config)
+        typer.echo(_json.dumps(payload, indent=2))
+        return
+
+    if act in ("place", "unplace"):
+        if not rid:
+            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo|swarm)", err=True)
+            raise typer.Exit(code=1)
+        try:
+            if act == "place":
+                members, path = _remotes.place_team_member(rid, config_path=config)
+            else:
+                members, path = _remotes.unplace_team_member(rid, config_path=config)
+        except _remotes.RemoteError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"Persisted agent_team.members={members} to {path}")
+        typer.echo(_json.dumps(_remotes.agent_team_public(config_path=path), indent=2))
+        return
+
+    typer.echo(
+        f"Unknown action '{action}'. Use: list, get, set, health, operate, team, place, unplace",
+        err=True,
+    )
+    raise typer.Exit(code=1)
+
+
 @app.command(name="list")
 def list_blueprints(
     installed: bool = typer.Option(False, "--installed", "-i", help="List only installed blueprint executables."),
@@ -749,6 +890,8 @@ def cli_agents(
     output_json: bool = typer.Option(False, "--json", "-j", help="Emit a single machine-readable JSON object instead of tables (honors --check-auth/--smoke/--suggest)."),
     init: bool = typer.Option(False, "--init", "-i", help="Print a complete, ready-to-run swarm_config wiring every mode (cli_fusion/cli_orchestrator/cli_map) over the CLIs installed on this host."),
     write: bool = typer.Option(False, "--write", "-w", help="With --init, write the config to your swarm config path (backs up any existing file)."),
+    list_models: bool = typer.Option(False, "--list-models", help="Probe each catalogued CLI's real list-models command and print {cli, models: [...]} (JSON). Missing/failed probes are empty lists + warning, never a crash."),
+    cli: str = typer.Option(None, "--cli", help="With --list-models, probe only this catalog CLI."),
 ):
     """Autodiscover configured CLI agents: which are installed (and optionally authenticated)."""
     import asyncio
@@ -757,6 +900,10 @@ def cli_agents(
     from swarm.core import cli_catalog
     from swarm.core.cli_adapter import CliAdapterRegistry
     from swarm.core.config_loader import find_config_file, load_config
+
+    if list_models:
+        _emit_list_models(cli)
+        raise typer.Exit(code=0)
 
     if init:
         installed = cli_catalog.installed_catalog_clis()
@@ -844,6 +991,31 @@ def cli_agents(
 
 # Laconic alias: `swarm-cli agents` == `swarm-cli cli-agents`.
 app.command(name="agents", help="Alias for cli-agents.")(cli_agents)
+
+
+@app.command(name="list-models")
+def list_models_command(
+    cli: str = typer.Argument(
+        None,
+        help="Catalog CLI to probe (grok/claude/gemini/codex/opencode). Omit to probe every catalogued CLI.",
+    ),
+):
+    """List models a catalogued CLI actually offers (non-interactive, timed-out probe)."""
+    _emit_list_models(cli)
+
+
+def _emit_list_models(cli: str | None) -> None:
+    """Print ``{cli, models: [...]}`` (one CLI) or a JSON list of those objects."""
+    import json
+
+    from swarm.core.cli_models import list_models, list_models_all
+
+    name = (cli or "").strip() or None
+    if name:
+        typer.echo(json.dumps(list_models(name).as_dict(), indent=2))
+        return
+    payload = [row.as_dict() for row in list_models_all()]
+    typer.echo(json.dumps(payload, indent=2))
 
 
 @app.command(name="skills")
@@ -1009,7 +1181,7 @@ def moa_init(
 @app.command(name="config")
 def config_cmd(
     action: str = typer.Argument(..., help="list | add | remove | init"),
-    section: str = typer.Option(None, "--section", help="llm or mcpServers"),
+    section: str = typer.Option(None, "--section", help="llm, mcpServers, or remotes"),
     name: str = typer.Option(None, "--name", help="profile or server name"),
     json_str: str = typer.Option(None, "--json", help="JSON string for add"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
@@ -1050,6 +1222,17 @@ def config_cmd(
             typer.echo("MCP Servers:")
             for k in cfg.get("mcpServers", {}):
                 typer.echo(f"  {k}")
+        if section in ("remotes", None):
+            typer.echo("Remote harnesses:")
+            remotes_block = cfg.get("remotes") or {}
+            if remotes_block:
+                for k, v in remotes_block.items():
+                    if isinstance(v, dict):
+                        typer.echo(f"  {k}: {v.get('base_url', '?')}")
+                    else:
+                        typer.echo(f"  {k}")
+            else:
+                typer.echo("  (none added)")
     elif action == "add":
         if not section or not name or not json_str:
             typer.echo("--section, --name, and --json are required for add", err=True)

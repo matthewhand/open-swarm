@@ -1,194 +1,195 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
-import { Home, Settings, Bot, Book, Users, History, MessageSquare, PanelLeft } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom'
 import ChatPage from './pages/ChatPage'
-import Dashboard from './pages/Dashboard'
+import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
+import SearchPalette from './components/SearchPalette'
+import AgentEditor, { OPEN_AGENT_EDITOR_EVENT, type OpenAgentEditorDetail } from './components/AgentEditor'
+import SettingsSheet, {
+  OPEN_SETTINGS_EVENT,
+  type OpenSettingsDetail,
+  type SettingsSection,
+} from './components/SettingsSheet'
+import { RailChromeProvider, SwipeHint } from './components/RailChrome'
+import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
 import { isExperimentalEnabled } from './experimental/flags'
+import { useLeftEdgeSwipe } from './lib/leftEdgeSwipe'
+import { isNarrowViewport, subscribeNarrowViewport } from './lib/narrowViewport'
+import { dismissSwipeHint, isSwipeHintDismissed } from './lib/swipeHint'
+import {
+  initialTheme,
+  persistTheme,
+  THEME_SET_EVENT,
+  THEME_TOGGLE_EVENT,
+  THEME_STORAGE_KEY,
+  type Theme,
+} from './lib/theme'
 
 /** EXPERIMENTAL: ⌘K command palette (see experimental/README.md). */
 const SHOW_COMMAND_PALETTE = isExperimentalEnabled('command_palette')
 
-/** Theme preference storage key (shared with the Django dark default). */
-export const THEME_STORAGE_KEY = 'swarm_theme'
+export { THEME_STORAGE_KEY }
 
-type Theme = 'dark' | 'light'
+function applyDocumentTheme(theme: Theme) {
+  if (typeof document === 'undefined') return
+  const value = theme === 'dark' ? 'dark' : 'light'
+  const bg = theme === 'dark' ? '#0c0c0c' : '#f4f4f5'
+  document.documentElement.setAttribute('data-theme', value)
+  document.documentElement.style.backgroundColor = bg
+  if (document.body) document.body.style.backgroundColor = bg
+}
 
-function initialTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark') return stored
-  } catch {
-    /* storage unavailable — fall through to the dark default */
-  }
-  // Default matches the Django operator pages (dark).
-  return 'dark'
+applyDocumentTheme(initialTheme())
+
+/** Keep query string when aliasing a legacy chat path onto `/chat`. */
+export function chatPathWithSearch(search: string): string {
+  if (!search) return '/chat'
+  return search.startsWith('?') ? `/chat${search}` : `/chat?${search}`
 }
 
 /**
- * SPA mounts Dashboard (`/`) + Chat (`/chat`) only.
- * Operator chrome is Django trailing-slash UI — see docs/ADR-001-primary-ui.md.
- * Do not remount deleted Teams/Blueprints/Settings/Builder/AgentCreator SPA pages.
+ * Product chrome is Grok-Bot: left rail + the selected agent's chat.
+ * `/agents` is Agent Router (own chrome). `/` and `/chat` are the rail + composer.
+ * Composer + menu is Compact (REQ-37). Operator Django pages stay on
+ * Search / the settings gear.
  */
 function App() {
   const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [narrow, setNarrow] = useState(isNarrowViewport)
+  const [railOpen, setRailOpen] = useState(() => !isNarrowViewport())
+  const [swipeHint, setSwipeHint] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsDetail, setSettingsDetail] = useState<OpenSettingsDetail | null>(null)
+  const [agentEditorOpen, setAgentEditorOpen] = useState(false)
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
+
+  const openRail = useCallback(() => setRailOpen(true), [])
+  const closeRail = useCallback(() => {
+    if (!narrow) return
+    setRailOpen(false)
+  }, [narrow])
+  const pickFromRail = useCallback(() => {
+    if (!narrow) return
+    setRailOpen(false)
+    if (!isSwipeHintDismissed()) setSwipeHint(true)
+  }, [narrow])
+  const dismissHint = useCallback(() => {
+    dismissSwipeHint()
+    setSwipeHint(false)
+  }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, darkMode)
-    } catch {
-      /* persistence is best-effort */
-    }
+    return subscribeNarrowViewport((next) => {
+      setNarrow(next)
+      if (next) {
+        setRailOpen(false)
+      } else {
+        setRailOpen(true)
+        setSwipeHint(false)
+      }
+    })
+  }, [])
+
+  useLeftEdgeSwipe(narrow && !railOpen && !searchOpen && !settingsOpen, openRail)
+
+  useLayoutEffect(() => {
+    applyDocumentTheme(darkMode)
   }, [darkMode])
 
-  // Experimental features (command palette) can request a theme flip without
-  // needing prop plumbing — single source of truth stays here.
+  useEffect(() => {
+    persistTheme(darkMode)
+  }, [darkMode])
+
   useEffect(() => {
     const onToggle = () => setDarkMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
-    window.addEventListener('swarm:toggle-theme', onToggle)
-    return () => window.removeEventListener('swarm:toggle-theme', onToggle)
+    const onSet = (event: Event) => {
+      const detail = (event as CustomEvent<Theme>).detail
+      if (detail === 'light' || detail === 'dark') setDarkMode(detail)
+    }
+    const onOpenSearch = () => setSearchOpen(true)
+    const onOpenSettings = (event: Event) => {
+      const detail = (event as CustomEvent<OpenSettingsDetail>).detail ?? {}
+      setSettingsDetail(detail)
+      setSettingsOpen(true)
+    }
+    const onOpenAgentEditor = (event: Event) => {
+      const detail = (event as CustomEvent<OpenAgentEditorDetail>).detail
+      setEditingAgentId(detail?.agentId ?? null)
+      setAgentEditorOpen(true)
+    }
+    window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
+    window.addEventListener(THEME_SET_EVENT, onSet)
+    window.addEventListener('swarm:open-search', onOpenSearch)
+    window.addEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
+    window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
+    return () => {
+      window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
+      window.removeEventListener(THEME_SET_EVENT, onSet)
+      window.removeEventListener('swarm:open-search', onOpenSearch)
+      window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
+      window.removeEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
+    }
   }, [])
 
   return (
     <Router>
-      {SHOW_COMMAND_PALETTE && <CommandPalette />}
-      <div
-        className="flex min-h-screen flex-col bg-base-100 text-base-content"
-        data-theme={darkMode === 'dark' ? 'dark' : 'light'}
-      >
-        <a
-          href="#os-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-content"
-        >
-          Skip to main content
-        </a>
-        <nav className="sticky top-0 z-40 border-b border-base-300 bg-base-200/95 shadow-sm backdrop-blur" aria-label="Primary">
-          <div className="flex h-14 items-center justify-between px-3 sm:px-4">
-            <div className="flex items-center gap-3 lg:gap-6">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm btn-square lg:hidden"
-                aria-label="Open agents sidebar"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <PanelLeft className="h-5 w-5" aria-hidden="true" />
-              </button>
-              <Link to="/" className="flex items-center space-x-2">
-                <Bot className="h-6 w-6 text-base-content/80" aria-hidden />
-                <span className="text-base font-semibold tracking-tight">Open Swarm</span>
-              </Link>
-              <div className="hidden lg:flex items-center gap-1">
-                <NavLink to="/">Home</NavLink>
-                <NavLink to="/chat">Chat</NavLink>
-                <a className="btn btn-ghost btn-sm" href="/blueprint-library/">
-                  Blueprints
-                </a>
-                <a className="btn btn-ghost btn-sm" href="/teams/launch/">
-                  Teams
-                </a>
-                <a className="btn btn-ghost btn-sm" href="/sessions/">
-                  Sessions
-                </a>
-                <a className="btn btn-ghost btn-sm" href="/settings/">
-                  Settings
-                </a>
+      <ToastProvider>
+        {SHOW_COMMAND_PALETTE && <CommandPalette />}
+        <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <SettingsSheet
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          blueprintId={settingsDetail?.blueprintId}
+          teamId={settingsDetail?.teamId}
+          initialSection={settingsDetail?.section}
+          definitionKind={settingsDetail?.definitionKind}
+          definitionId={settingsDetail?.definitionId}
+        />
+        <AgentEditor
+          isOpen={agentEditorOpen}
+          onClose={() => setAgentEditorOpen(false)}
+          agentId={editingAgentId}
+        />
+        <RailChromeProvider value={{ narrow, railOpen, openRail, closeRail }}>
+          <div
+            className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"
+            data-theme={darkMode === 'dark' ? 'dark' : 'light'}
+            data-narrow-viewport={narrow ? 'true' : undefined}
+          >
+            <a
+              href="#os-main"
+              className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-content"
+            >
+              Skip to main content
+            </a>
+            <div className="flex min-h-0 flex-1">
+              <AgentSidebar
+                open={narrow ? railOpen : true}
+                narrow={narrow}
+                onClose={closeRail}
+                onPick={pickFromRail}
+                onOpenSearch={() => setSearchOpen(true)}
+              />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <main id="os-main" className="min-h-0 min-w-0 flex-1 overflow-hidden" tabIndex={-1}>
+                  <Routes>
+                    <Route path="/" element={<ChatPage />} />
+                    <Route path="/chat" element={<ChatPage />} />
+                    <Route path="/chat/*" element={<ChatPage />} />
+                    <Route path="/agents" element={<AgentRouterPage />} />
+                    <Route path="/agents/*" element={<AgentRouterPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </main>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={() => setDarkMode(darkMode === 'dark' ? 'light' : 'dark')}
-                className="btn btn-ghost btn-sm"
-                aria-label={darkMode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-              >
-                {darkMode === 'dark' ? 'Light' : 'Dark'}
-              </button>
-              <a href="/settings/" className="btn btn-ghost btn-sm" aria-label="Settings">
-                <Settings className="h-5 w-5" aria-hidden="true" />
-              </a>
-            </div>
+            <SwipeHint open={narrow && swipeHint && !railOpen} onDismiss={dismissHint} />
           </div>
-        </nav>
-
-        <div className="flex min-h-0 flex-1">
-          <AgentSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <main id="os-main" className="min-w-0 flex-1 overflow-y-auto pb-20 lg:pb-0" tabIndex={-1}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/chat" element={<ChatPage />} />
-              {/* Bare /teams|/blueprints|/settings|/agent-creator|/builder: Django RedirectView in
-                  production; unknown SPA paths fall through to dashboard. */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
-        </div>
-
-        <nav
-          className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-base-300 bg-base-200 flex justify-around items-stretch h-16"
-          aria-label="Mobile primary"
-        >
-          {/* Five-tab SPA dock (ADR-001): Settings stays desktop top-nav / gear. */}
-          <MobileTab to="/" icon={<Home className="h-5 w-5" />} label="Home" />
-          <MobileTab to="/chat" icon={<MessageSquare className="h-5 w-5" />} label="Chat" />
-          <MobileTab href="/blueprint-library/" icon={<Book className="h-5 w-5" />} label="Blueprints" />
-          <MobileTab href="/teams/launch/" icon={<Users className="h-5 w-5" />} label="Teams" />
-          <MobileTab href="/sessions/" icon={<History className="h-5 w-5" />} label="Sessions" />
-        </nav>
-      </div>
+        </RailChromeProvider>
+      </ToastProvider>
     </Router>
-  )
-}
-
-function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
-  const { pathname } = useLocation()
-  const active = to === '/' ? pathname === '/' : pathname.startsWith(to)
-  return (
-    <Link
-      to={to}
-      className={`btn btn-ghost btn-sm ${active ? 'btn-active' : ''}`}
-      aria-current={active ? 'page' : undefined}
-    >
-      {children}
-    </Link>
-  )
-}
-
-function MobileTab({
-  to,
-  href,
-  icon,
-  label,
-}: {
-  to?: string
-  href?: string
-  icon: React.ReactNode
-  label: string
-}) {
-  const { pathname } = useLocation()
-  const target = href || to || '/'
-  const active = to
-    ? to === '/'
-      ? pathname === '/'
-      : pathname === to || pathname.startsWith(`${to}/`)
-    : false
-  const className = `flex flex-col items-center justify-center flex-1 gap-0.5 text-xs min-w-0 px-1 ${
-    active ? 'text-base-content font-semibold' : 'text-base-content/55'
-  }`
-  if (href) {
-    return (
-      <a href={href} className={className}>
-        <span aria-hidden="true">{icon}</span>
-        <span className="truncate">{label}</span>
-      </a>
-    )
-  }
-  return (
-    <Link to={target} className={className} aria-current={active ? 'page' : undefined}>
-      <span aria-hidden="true">{icon}</span>
-      <span className="truncate">{label}</span>
-    </Link>
   )
 }
 

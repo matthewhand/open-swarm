@@ -74,10 +74,10 @@ class BlueprintCodeValidator:
     """Validates generated blueprint code using Python AST parsing and linting"""
 
     def __init__(self):
+        # Match swarm.core.blueprint_spec.BLUEPRINT_INTERFACE: BlueprintBase
+        # plus async run(). Typing imports (AsyncGenerator, Any) are optional.
         self.required_imports = [
             'BlueprintBase',
-            'AsyncGenerator',
-            'Any'
         ]
         self.required_methods = ['run']
         self.required_attributes = ['metadata']
@@ -139,7 +139,7 @@ class BlueprintCodeValidator:
                 if required_method not in methods_found:
                     errors.append(f"Missing required async method: {required_method}")
 
-            # Check for metadata attribute
+            # Check for metadata attribute (plain assign or annotated ClassVar)
             has_metadata = False
             for node in blueprint_class.body:
                 if isinstance(node, ast.Assign):
@@ -147,6 +147,12 @@ class BlueprintCodeValidator:
                         if isinstance(target, ast.Name) and target.id == 'metadata':
                             has_metadata = True
                             break
+                elif (
+                    isinstance(node, ast.AnnAssign)
+                    and isinstance(node.target, ast.Name)
+                    and node.target.id == 'metadata'
+                ):
+                    has_metadata = True
 
             if not has_metadata:
                 warnings.append("Missing metadata attribute (recommended)")
@@ -415,8 +421,12 @@ agent_generator = AgentPersonaGenerator()
 def agent_creator_page(request):
     """Render the agent creator interface"""
     if request.method == 'GET':
+        from swarm.core.blueprint_spec import BLUEPRINT_INTERFACE, BLUEPRINT_ONE_LINER
+
         context = {
             'page_title': 'Agent Creator',
+            'blueprint_one_liner': BLUEPRINT_ONE_LINER,
+            'blueprint_interface': BLUEPRINT_INTERFACE,
             'form_data': {
                 'personality_options': [
                     'helpful and professional', 'creative and enthusiastic',
@@ -451,8 +461,23 @@ def generate_agent_code(request):
                     'error': f'Missing required field: {field}'
                 }, status=400)
 
-        # Generate the code
         generated_code = agent_generator.generate_agent_code(data)
+        if data.get("assist") and not os.environ.get("PYTEST_CURRENT_TEST"):
+            from swarm.core.llm_assist import generate_blueprint_class
+
+            tags = data.get("tags") or ["custom"]
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",") if t.strip()]
+            draft = generate_blueprint_class(
+                name=data.get("name") or "CustomAgent",
+                description=data.get("description") or "",
+                requirements=data.get("instructions") or "",
+                tags=list(tags),
+            )
+            if draft:
+                check = validator.validate_blueprint_code(draft)
+                if check.get("valid"):
+                    generated_code = draft
 
         # Validate the generated code
         validation_result = validator.validate_blueprint_code(generated_code)

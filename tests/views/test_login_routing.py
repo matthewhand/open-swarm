@@ -50,6 +50,9 @@ class TestLoginURLRouting:
         assert "<form" in content
         assert 'name="username"' in content
         assert 'name="password"' in content
+        assert 'class="os-login"' in content
+        assert "os-shell" not in content
+        assert "os-agent-sidebar" not in content
 
     @pytest.mark.django_db
     def test_post_bad_credentials_rerenders_with_error(self, client, no_autologin):

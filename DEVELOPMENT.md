@@ -51,7 +51,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Agent Core:** Leverages the `openai-agents` SDK for defining agent behaviors, tool usage, and interaction logic.
 *   **Blueprints (`BlueprintBase`):** Encapsulate the definition of an agent swarm, including agent setup, coordination logic, required configuration (LLMs, MCPs, environment variables), and potentially custom CLI arguments or Django extensions.
 *   **Configuration (`swarm_config.json`):** Centralizes definitions for LLM provider profiles and MCP server configurations, allowing flexible swapping and management. Environment variables (via `.env`) are used for sensitive keys.
-*   **`swarm-cli`:** Provides user-facing commands (built with `typer`) for managing blueprints and config. Commands available today include: `list`, `launch`, `install` / `install-executable`, `add`, `delete`, `uninstall`, `config` (`list`/`add`/`remove`), `moa`, `moa-init`, `skills`, `cli-agents` / `agents`, and `wizard`. Uses XDG directories for user-specific data. Installed via PyPI (`pip install open-swarm`). See `USERGUIDE.md` for examples.
+*   **`swarm-cli`:** Provides user-facing commands (built with `typer`) for managing blueprints and config. Commands available today include: `list`, `launch`, `install` / `install-executable`, `add`, `delete`, `uninstall`, `config` (`list`/`add`/`remove`), `moa`, `moa-init`, `skills`, `cli-agents` / `agents`, `list-models`, and `wizard`. Uses XDG directories for user-specific data. Installed via PyPI (`pip install open-swarm`). See `USERGUIDE.md` for examples.
 *   **`swarm-api`:** A Django application exposing installed blueprints via an OpenAI-compatible REST API (`/v1/models`, `/v1/chat/completions`). Uses DRF for views and serializers. Authentication is handled via static API tokens. Deployed preferably via Docker.
 
 ---
@@ -153,7 +153,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 *   **Framework:** `typer`.
 *   **Entry Point:** Defined in `pyproject.toml` (`swarm-cli = "swarm.core.swarm_cli:app"`).
 *   **Commands:** `list`, `launch`, `install`, `install-executable`, `config`,
-    `wizard`, `moa`, `cli-agents`, `skills`, … — implemented in
+    `wizard`, `moa`, `cli-agents`, `list-models`, `skills`, … — implemented in
     `src/swarm/core/swarm_cli.py` (Typer). The legacy argparse trees under
     `extensions/cli` and `core/cli` were deleted (ROADMAP §3.4b / §4.4).
 *   **Installation (`swarm-cli install`):** Uses `PyInstaller` to create standalone executables from managed blueprints.

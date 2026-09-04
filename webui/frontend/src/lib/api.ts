@@ -107,8 +107,34 @@ async function throwApiError(path: string, response: Response): Promise<never> {
   throw new ApiError(response.status, message)
 }
 
+/** Session/bearer fetch used by Agent Router (`agent-api.ts`). */
+export async function fetchWithAuth(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = {
+    ...buildHeaders(Boolean(init.body)),
+    ...(init.headers as Record<string, string> | undefined),
+  }
+  return fetch(path, { ...init, headers, credentials: 'include' })
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(path, { headers: buildHeaders(false) })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PATCH',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  })
 
   if (!response.ok) {
     await throwApiError(path, response)
@@ -122,6 +148,22 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     method: 'POST',
     headers: buildHeaders(true),
     body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
+/** Multipart POST. Do not set Content-Type — the browser supplies the boundary. */
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  const headers = buildHeaders(false)
+  const response = await fetch(path, {
+    method: 'POST',
+    headers,
+    body,
   })
 
   if (!response.ok) {
@@ -151,8 +193,8 @@ export interface ListResponse<T> {
   data: T[]
 }
 
-/** Visual / wiring role (REQ-7 / REQ-9). Unknown values render as default. */
-export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic'
+/** Visual / wiring role on a Team member (REQ-9 / REQ-25 / REQ-28 / REQ-42). */
+export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff'
 
 export interface BlueprintAgent {
   name: string
@@ -170,11 +212,48 @@ export interface Blueprint {
   tags: string[]
   installed: boolean | null
   compiled: boolean | null
-  /** First-class role for sidepane highlighting. */
-  role?: AgentRole
+  /** First-class role for sidepane highlighting when the API sends it. */
+  role?: AgentRole | string | null
   agents?: BlueprintAgent[]
   gate_agent?: string | null
   skeptic_agent?: string | null
+  chief_of_staff_agent?: string | null
+  /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
+  avatar_path?: string | null
+}
+
+/** GET /v1/support/context/ — live agents + inference for the System → Support pill. */
+export interface SupportChip {
+  label: string
+  href: string
+}
+
+export interface SupportContext {
+  object: 'support.context'
+  agents: Array<Pick<Blueprint, 'id' | 'name' | 'description' | 'role'>>
+  agent_count: number
+  inference: {
+    configured: boolean
+    profiles: string[]
+    env_signals: string[]
+    quickstart: {
+      doc: string
+      anchor: string
+      settings: string
+      profiles: string
+      cli: string
+    }
+  }
+  create: Record<string, string>
+  chips?: Record<string, SupportChip>
+  /** Compressed intel for the System → Support pill popover. */
+  briefing?: string
+  /** Back-compat alias of briefing. */
+  welcome?: string
+}
+
+export function fetchSupportContext(): Promise<SupportContext> {
+  return apiGet<SupportContext>('/v1/support/context/')
 }
 
 /** GET /v1/models/ (OpenAI-style model list) */
@@ -215,12 +294,100 @@ export function fetchBlueprints(): Promise<ListResponse<Blueprint>> {
   return apiGet<ListResponse<Blueprint>>('/v1/blueprints/')
 }
 
+/** GET /v1/runtime/ — REQ-45 app runtime banner (AllowAny, no secrets). */
+export function fetchRuntimeBanner(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/runtime/')
+}
+
+/** GET /v1/browser-control/ — REQ-45 provider catalog (this-machine default). */
+export function fetchBrowserControl(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/browser-control/')
+}
+
 export function fetchModels(): Promise<ListResponse<Model>> {
   return apiGet<ListResponse<Model>>('/v1/models/')
 }
 
+/** Task-class roles for REQ-43. These are not required model ids. */
+export const LLM_TASK_CLASSES = ['orchestration', 'auxiliary', 'delegation'] as const
+export type LlmTaskClass = (typeof LLM_TASK_CLASSES)[number]
+
+export interface LlmProfile {
+  id: string
+  object: 'llm_profile'
+  source: string
+  owned_by: string
+  model?: string
+  intelligence?: number
+  speed?: number
+  cost?: number
+}
+
+export interface LlmTaskRoute {
+  profile: string
+  task_class: string
+  used_fallback: boolean
+  warning: string | null
+  override_on: boolean
+  source: string
+}
+
+/** GET/PATCH /v1/llm-profiles/ — settings.default_llm_profile SoT. */
+export interface LlmProfilesSettings {
+  object: 'llm_profiles'
+  profiles: LlmProfile[]
+  default_llm_profile: string
+  default_is_auto: boolean
+  override_per_task: boolean
+  task_llm_profiles: Partial<Record<LlmTaskClass, string>>
+  auto_picks: Partial<Record<LlmTaskClass | 'default', string>>
+  aliases_used?: string[]
+  warnings: string[]
+  routes: Partial<Record<LlmTaskClass, LlmTaskRoute>>
+  task_classes: LlmTaskClass[]
+  persisted_to?: string
+  /** req44 when #360 helper is present; stub = /v1/models + fixtures. */
+  list_models_source?: 'req44' | 'stub'
+  cli_model_lists?: Array<{ cli: string; models: string[]; warning?: string }>
+}
+
+export interface PatchLlmProfilesRequest {
+  default_llm_profile?: string
+  override_per_task?: boolean
+  task_llm_profiles?: Partial<Record<LlmTaskClass, string>>
+}
+
+export function fetchLlmProfiles(): Promise<LlmProfilesSettings> {
+  return apiGet<LlmProfilesSettings>('/v1/llm-profiles/')
+}
+
+export function patchLlmProfiles(
+  body: PatchLlmProfilesRequest,
+): Promise<LlmProfilesSettings> {
+  return apiPatch<LlmProfilesSettings>('/v1/llm-profiles/', body)
+}
+
 export function fetchTeams(): Promise<ListResponse<Team>> {
   return apiGet<ListResponse<Team>>('/v1/teams/')
+}
+
+/** GET /v1/team-rosters/ — composition contract (not LLM-profile aliases). */
+export interface TeamRosterRecord {
+  id: string
+  object: 'team_roster'
+  name: string
+  members: Array<{
+    id: string
+    kind: string
+    role: string
+    source: string
+    team_id?: string
+  }>
+  wires: { handoff: boolean; as_tool: boolean }
+}
+
+export function fetchTeamRosters(): Promise<ListResponse<TeamRosterRecord>> {
+  return apiGet<ListResponse<TeamRosterRecord>>('/v1/team-rosters/')
 }
 
 export function createTeam(team: CreateTeamRequest): Promise<Team> {
@@ -241,6 +408,205 @@ export function addToLibrary(name: string): Promise<LibraryEntry> {
 
 export function removeFromLibrary(name: string): Promise<void> {
   return apiDelete(`/v1/library/${encodeURIComponent(name)}/`)
+}
+
+/**
+ * GET/POST /v1/remotes/ and POST /v1/remotes/<id>/health|operate/
+ * (swarm/views/remotes_api.py). Catalog is opt-in: empty until + Add remote.
+ * Hermes (kind=hermes) is the complete kind — health / list / send.
+ * Auth is an env-var *name* only; never send a live token.
+ */
+export interface RemoteKind {
+  id: string
+  title: string
+  label: string
+  complete: boolean
+  fields: string[]
+  list_paths: string[]
+  send_path: string
+  health_path: string
+  api_key_env_default: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind: string
+  title: string
+  host_label: string
+  base_url: string
+  ui_url: string
+  api_key_env: string
+  api_key_set: boolean
+  cookie_set: boolean
+  health_path: string
+  version_path: string
+  notes: string
+  source: string
+  added: boolean
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  data: RemoteConnection[]
+  kinds: RemoteKind[]
+  team_members?: unknown[]
+  vocabulary?: Record<string, string>
+}
+
+export interface AddRemoteRequest {
+  kind: string
+  base_url: string
+  api_key_env?: string
+}
+
+export interface RemoteHealthResult {
+  remote: string
+  ok: boolean
+  state: string
+  detail: string
+  http_status: number | null
+  version: unknown
+  latency_ms: number | null
+  url: string
+}
+
+export interface RemoteOperateResult {
+  remote: string
+  op: string
+  ok: boolean
+  detail: string
+  http_status: number | null
+  data: unknown
+  gap: string
+}
+
+export function fetchRemotes(): Promise<RemotesListResponse> {
+  return apiGet<RemotesListResponse>('/v1/remotes/')
+}
+
+export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
+  return apiPost<RemoteConnection>('/v1/remotes/', body)
+}
+
+export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
+  return apiPost<RemoteHealthResult>(
+    `/v1/remotes/${encodeURIComponent(remoteId)}/health/`,
+    {},
+  )
+}
+
+export function operateRemote(
+  remoteId: string,
+  body: { op: 'list' | 'send'; prompt?: string; target?: string },
+): Promise<RemoteOperateResult> {
+  return apiPost<RemoteOperateResult>(
+    `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
+    body,
+  )
+}
+
+/**
+ * GET/POST /v1/herdr-agents/ and DELETE /v1/herdr-agents/<id>/
+ * (swarm/views/herdr_api.py). DaisyUI settings sheet is not in this tree
+ * (ADR-001); Django /settings/ and admin list/add/remove these rows.
+ * Empty `remote` means localhost (no `herdr --remote`).
+ */
+export interface HerdrAgent {
+  id: number
+  object: 'herdr.agent'
+  kind: 'herdr'
+  name: string
+  remote: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HerdrDiscoverMember {
+  object: 'herdr.member'
+  kind: 'herdr'
+  name: string
+  remote: string
+  source: 'agent' | 'workspace'
+  state: string | null
+  added?: boolean
+}
+
+export interface CreateHerdrAgentRequest {
+  name: string
+  remote?: string
+}
+
+export function fetchHerdrAgents(): Promise<ListResponse<HerdrAgent>> {
+  return apiGet<ListResponse<HerdrAgent>>('/v1/herdr-agents/')
+}
+
+export function createHerdrAgent(
+  agent: CreateHerdrAgentRequest,
+): Promise<HerdrAgent> {
+  return apiPost<HerdrAgent>('/v1/herdr-agents/', agent)
+}
+
+export function deleteHerdrAgent(agentId: string | number): Promise<void> {
+  return apiDelete(`/v1/herdr-agents/${encodeURIComponent(String(agentId))}/`)
+}
+
+export function discoverHerdrAgents(
+  remote?: string,
+): Promise<ListResponse<HerdrDiscoverMember> & { herdr_available?: boolean }> {
+  const qs = remote ? `?remote=${encodeURIComponent(remote)}` : ''
+  return apiGet(`/v1/herdr-agents/discover/${qs}`)
+}
+
+/**
+ * GET/POST /v1/remotes/ and DELETE /v1/remotes/<id>/
+ * (swarm/views/remotes_api.py). Settings and remote dropdowns use
+ * ``configured`` — unused kinds do not occupy those surfaces (REQ-59).
+ * Internal id ``omb`` is labelled OpenMousBot in UI copy.
+ */
+export type RemoteKindId = 'hermes' | 'omb' | 'rakazo' | 'herdr' | 'open-swarm'
+
+export interface RemoteKind {
+  id: string
+  label: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind?: string
+  label?: string
+  title: string
+  host_label: string
+  base_url: string
+  ui_url?: string
+  api_key_set?: boolean
+  cookie_set?: boolean
+  source?: string
+  notes?: string
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  kinds?: RemoteKind[]
+  data?: RemoteConnection[]
+  configured?: RemoteConnection[]
+  vocabulary?: Record<string, string>
+  team_members?: unknown[]
+}
+
+export interface CreateRemoteRequest {
+  kind: string
+  base_url?: string
+  api_key?: string
+  ui_url?: string
+  cookie?: string
+}
+
+export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
+  return apiPost<RemoteConnection>('/v1/remotes/', remote)
+}
+
+export function deleteRemote(remoteId: string): Promise<void> {
+  return apiDelete(`/v1/remotes/${encodeURIComponent(remoteId)}/`)
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +764,29 @@ export function fetchEnvironmentVariables(): Promise<EnvironmentVariablesRespons
   return apiGet<EnvironmentVariablesResponse>('/settings/environment/')
 }
 
+/** GET /v1/system/ — Settings System section (REQ-56). Read-only local store facts. */
+export interface LocalStoreFacts {
+  path: string
+  size_bytes: number
+  size_label: string
+  created: boolean
+  conversation_count: number
+  message_count: number
+}
+
+export const EMPTY_LOCAL_STORE: LocalStoreFacts = {
+  path: 'not created yet',
+  size_bytes: 0,
+  size_label: 'not created yet',
+  created: false,
+  conversation_count: 0,
+  message_count: 0,
+}
+
+export function fetchLocalStore(): Promise<LocalStoreFacts> {
+  return apiGet<LocalStoreFacts>('/v1/system/')
+}
+
 /** GET /v1/blueprints/<id>/source — read-only blueprint source (file list + content). */
 export interface BlueprintSource {
   id: string
@@ -413,10 +802,21 @@ export function fetchBlueprintSource(id: string, file?: string): Promise<Bluepri
 }
 
 /** GET /v1/cli-agents/ — CLI catalog + native (built-in) consensus capability. */
+export interface CliRailAgent {
+  id: string
+  object: 'cli.agent'
+  name: string
+  cli: string
+  kind: 'cli'
+  description: string
+  installed: boolean
+}
+
 export interface CliAgentsInfo {
   clis: string[]
   native_consensus: Record<string, string[]>
   catalog: Record<string, Record<string, unknown>>
+  rail?: CliRailAgent[]
 }
 
 export function fetchCliAgents(): Promise<CliAgentsInfo> {
@@ -454,6 +854,67 @@ export function fetchConfigOptions(): Promise<ConfigOptions> {
   return apiGet<ConfigOptions>('/v1/config-options/')
 }
 
+/** GET /v1/remotes/ — kinds catalog + configured remotes (opt-in). */
+export interface RemoteKind {
+  id: string
+  label: string
+  fields?: string[]
+  health_path?: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind?: string
+  label: string
+  title: string
+  host_label?: string
+  base_url: string
+  ui_url?: string
+  api_key_set?: boolean
+  api_key_env?: string
+  cookie_set?: boolean
+  health_path?: string
+  notes?: string
+  source?: string
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  kinds: RemoteKind[]
+  data: RemoteConnection[]
+  vocabulary?: Record<string, string>
+  team_members?: Array<{ id: string; title?: string; placed?: boolean }>
+}
+
+export interface AddRemoteRequest {
+  kind: string
+  base_url: string
+  api_key_env?: string
+  ui_url?: string
+  cookie?: string
+}
+
+export interface RemoteHealthResult {
+  remote: string
+  ok: boolean
+  state: string
+  detail: string
+  http_status?: number | null
+  version?: unknown
+  latency_ms?: number | null
+  url?: string
+}
+
+export interface RemoteOperateResult {
+  remote: string
+  op: string
+  ok: boolean
+  detail: string
+  http_status?: number | null
+  data?: unknown
+  gap?: string
+}
+
 /** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements
  *  resolved to concrete MCP providers (non-auth preferred, auto-provisioned). */
 export interface BlueprintTools {
@@ -468,4 +929,14 @@ export interface BlueprintTools {
 
 export function fetchBlueprintTools(id: string): Promise<BlueprintTools> {
   return apiGet<BlueprintTools>(`/v1/blueprints/${encodeURIComponent(id)}/tools`)
+}
+
+export function updateCustomBlueprint(
+  blueprintId: string,
+  body: Partial<CustomBlueprint>,
+): Promise<CustomBlueprint> {
+  return apiPatch<CustomBlueprint>(
+    `/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`,
+    body,
+  )
 }

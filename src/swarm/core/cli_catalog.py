@@ -3,13 +3,16 @@
 Starting-point ``cli_agents`` configs for popular agentic CLIs. Lets
 ``swarm-cli cli-agents --suggest`` propose a ready-to-paste config block for any
 supported CLI that is installed on the host but not yet in the user's swarm
-config.
+config. ``LIST_MODELS`` documents each CLI's real non-interactive list-models
+argv (see :mod:`swarm.core.cli_models` and ``swarm-cli list-models``).
 
 Each entry runs the CLI **one-shot, non-interactive, auto-approve** (full
 capability) — the flag that matters is the auto-approve one, without which the
 CLI blocks on a permission prompt and is killed on timeout (see
-``docs/CLI_FUSION.md``). Exact flags and JSON shapes drift by CLI version, so
-these are suggestions to verify with each CLI's ``--help``, not guarantees.
+``docs/CLI_FUSION.md``). That is how Open Swarm **simulates always-approve**;
+Agent Router Shift+Tab therefore cycles only plan / auto-edit / default.
+Exact flags and JSON shapes drift by CLI version, so these are suggestions
+to verify with each CLI's ``--help``, not guarantees.
 
 Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
 2026-06-16):
@@ -19,6 +22,10 @@ Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
 * **opencode** has no usable default model in ``run`` mode (its built-in default
   errors as "not supported"), so an explicit ``--model`` is required. The value
   below is account/version-specific — run ``opencode models`` to pick one.
+* **agy** treats ``-p`` / ``--print`` as a flag that *consumes the next argv
+  token as the prompt*. ``agy -p --output-format json 'hi'`` errors with
+  ``-p took "--output-format" as its prompt``. Attach the prompt to the flag
+  (``-p={prompt}``) and keep ``--output-format`` as a sibling flag.
 
 The gemini default uses the fast flash tier (no ``-m``). To select the pro tier
 use ``with_model("gemini", "gemini-3-pro-preview", timeout=600)`` — but note
@@ -29,6 +36,7 @@ paid ``GEMINI_API_KEY``. Flash answers in a few seconds.
 
 from __future__ import annotations
 
+import os
 import shutil
 from typing import Any
 
@@ -37,9 +45,25 @@ CATALOG: dict[str, dict[str, Any]] = {
     "grok": {
         # xAI's grok CLI (also installed as `agent`). -p/--single is the
         # non-interactive print mode; --always-approve auto-approves tool use.
+        # Flags before -p so later argv cannot be swallowed as the prompt.
         # Inherits the full env (auth is file-based, not a single known var).
-        "cmd": ["grok", "-p", "{prompt}", "--output-format", "json", "--always-approve"],
+        "cmd": ["grok", "--output-format", "json", "--always-approve", "-p", "{prompt}"],
         "parse": "json:.text",
+        "mode": "write",
+        "timeout": 240,
+    },
+    "agy": {
+        # Agy print-mode: -p/--print consumes the next argv token as the
+        # prompt, so the prompt MUST be attached (-p={prompt}), not a
+        # following positional. JSON shape is {response, status, ...}.
+        "cmd": [
+            "agy",
+            "--output-format",
+            "json",
+            "--dangerously-skip-permissions",
+            "-p={prompt}",
+        ],
+        "parse": "json:.response",
         "mode": "write",
         "timeout": 240,
     },
@@ -75,6 +99,15 @@ CATALOG: dict[str, dict[str, Any]] = {
         "mode": "write",
         "timeout": 240,
     },
+    "pi": {
+        # pi -p/--print is non-interactive; prompt is a positional message
+        # (not attached to -p). --mode text; --no-session keeps verify runs
+        # ephemeral. --approve trusts project-local files for that run.
+        "cmd": ["pi", "-p", "--mode", "text", "--no-session", "--approve", "{prompt}"],
+        "parse": "text",
+        "mode": "write",
+        "timeout": 240,
+    },
 }
 
 
@@ -87,6 +120,84 @@ NATIVE_CONSENSUS: dict[str, list[str]] = {
 }
 
 
+# How each catalogued CLI names and resumes a session. First-turn ``cmd`` stays
+# one-shot; Swarm inserts ``resume_argv`` only when a stored id exists.
+# ``{session_id}`` is replaced with the stored id. Distinct from Django/API
+# conversation ids and from OS ``start_new_session`` (process-group kill).
+#
+# antigravity is **not** in CATALOG (not wired). If it is added later, headless
+# resume is ``agy -p --conversation <id>`` (JSON often includes conversation_id).
+SESSION: dict[str, dict[str, Any]] = {
+    "grok": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".sessionId", ".session_id"],
+        "notes": (
+            "grok -p --resume <uuid> (also -r). --session-id / -s names a NEW "
+            "session; do not use it to resume. JSON often includes sessionId."
+        ),
+    },
+    "claude": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session_id"],
+        "notes": (
+            "claude -p --resume <uuid> (also -r). JSON result includes session_id "
+            "even when parse is json:.result. A resume may mint a new session_id; "
+            "store the latest. --session-id names a new session, not a resume."
+        ),
+    },
+    "gemini": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session_id", ".sessionId"],
+        "notes": (
+            "gemini -p --resume <uuid> (also -r). --session-id starts a NEW "
+            "session and conflicts with --resume. Capture id from JSON when present."
+        ),
+    },
+    "codex": {
+        "resume_argv": ["resume", "{session_id}"],
+        "resume_insert": 2,  # after `codex exec` → `codex exec resume <id> …`
+        "session_id_paths": [".thread_id", ".session_id"],
+        "notes": (
+            "codex exec resume <SESSION_ID> <prompt> (subcommand, not a --flag). "
+            "Default catalog parse is text; thread_id appears when --json is used. "
+            "Interactive `codex resume` is a TUI — do not use it here."
+        ),
+    },
+    "opencode": {
+        "resume_argv": ["--session", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session", ".sessionID", ".id"],
+        "notes": (
+            "opencode run --session <id> (also -s). --continue/-c is last-session "
+            "in the cwd, not thread-scoped — do not use it. Capture id when the "
+            "CLI emits JSON; the default catalog parse is text."
+        ),
+    },
+    "agy": {
+        "resume_argv": ["--conversation", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".conversation_id", ".conversationId"],
+        "notes": (
+            "agy -p --conversation <id>. --continue is most-recent, not "
+            "thread-scoped — do not use it here."
+        ),
+    },
+    "pi": {
+        "resume_argv": ["--session", "{session_id}"],
+        "resume_insert": 1,
+        "session_id_paths": [".session", ".id"],
+        "notes": (
+            "pi -p --session <path|id>. --resume/-r is a TUI picker; "
+            "--continue/-c is last session — do not use those here. "
+            "Catalog verify runs use --no-session (ephemeral)."
+        ),
+    },
+}
+
+
 # Default capability traits (0..1) per known CLI for inference-profile matching
 # (see swarm.core.inference_profile). These are sensible starting points the
 # USER is expected to tune for their own plans/models via a per-agent ``traits``
@@ -94,10 +205,49 @@ NATIVE_CONSENSUS: dict[str, list[str]] = {
 # cost = cheapness (1.0 = cheapest). gemini defaults to its fast/cheap flash tier.
 CLI_TRAITS: dict[str, dict[str, float]] = {
     "grok":     {"intelligence": 0.90, "speed": 0.60, "cost": 0.55},
+    "agy":      {"intelligence": 0.85, "speed": 0.65, "cost": 0.50},
     "claude":   {"intelligence": 0.95, "speed": 0.55, "cost": 0.35},
     "gemini":   {"intelligence": 0.60, "speed": 0.92, "cost": 0.90},
     "codex":    {"intelligence": 0.75, "speed": 0.60, "cost": 0.50},
     "opencode": {"intelligence": 0.55, "speed": 0.65, "cost": 0.75},
+    "pi":       {"intelligence": 0.70, "speed": 0.70, "cost": 0.70},
+}
+
+# First-class sidebar CLIs — always listed like remote FRAMEWORKS (OpenMausBot),
+# even when the designer has not created a `kind=cli` record. Other catalog
+# CLIs stay available in the backend picker / designer.
+# Grok rail verify rows use ``{name}_agent`` ids (grok_agent, agy_agent, …).
+SIDEBAR_CLIS: tuple[str, ...] = ("grok", "agy", "opencode", "pi")
+
+CLI_SIDEBAR: dict[str, dict[str, str]] = {
+    "grok": {
+        "name": "Grok",
+        "specialty": "xAI Grok CLI",
+        "description": "Host grok CLI in one-shot print mode (--always-approve).",
+        "color": "#22c55e",
+        "icon": "⚡",
+    },
+    "agy": {
+        "name": "Agy",
+        "specialty": "Agy CLI",
+        "description": "Host agy CLI in one-shot print mode (auto-approve tools).",
+        "color": "#38bdf8",
+        "icon": "🛠️",
+    },
+    "opencode": {
+        "name": "OpenCode",
+        "specialty": "OpenCode CLI",
+        "description": "Host opencode CLI one-shot (run + explicit --model).",
+        "color": "#a78bfa",
+        "icon": "⌨️",
+    },
+    "pi": {
+        "name": "Pi",
+        "specialty": "Pi CLI",
+        "description": "Host pi CLI in non-interactive print mode (-p).",
+        "color": "#fb923c",
+        "icon": "π",
+    },
 }
 
 
@@ -134,6 +284,40 @@ def with_native_consensus(name: str, n: int = 2) -> dict[str, Any] | None:
     return entry
 
 
+# Non-interactive argv that lists models each catalog CLI can actually run.
+# Sourced from each CLI's ``--help`` / official docs (not a vendor marketing
+# list). Probe via :mod:`swarm.core.cli_models` — never prompts, always times
+# out. antigravity is omitted until it is wired into ``CATALOG``.
+#
+#   grok      ``grok models``           (xAI CLI reference)
+#   claude    ``claude models``         (same shape as grok/opencode; older
+#                                       builds fail the probe → empty+warning)
+#   gemini    ``gemini --list-models``  (JSON; early-exit, no REPL)
+#   codex     ``codex debug models``    (raw catalog JSON)
+#   opencode  ``opencode models``       (already documented in this catalog)
+LIST_MODELS: dict[str, list[str]] = {
+    "grok": ["grok", "models"],
+    "claude": ["claude", "models"],
+    "gemini": ["gemini", "--list-models"],
+    "codex": ["codex", "debug", "models"],
+    "opencode": ["opencode", "models"],
+}
+
+# List-models probes must stay cheap and never hang a Settings / #358 caller.
+LIST_MODELS_TIMEOUT = 15.0
+
+
+def list_models_argv(name: str) -> list[str] | None:
+    """Copy of the list-models argv for ``name``, or None if unknown."""
+    argv = LIST_MODELS.get(name)
+    return list(argv) if argv is not None else None
+
+
+def has_list_models(name: str) -> bool:
+    """True when the catalog documents a list-models probe for ``name``."""
+    return name in LIST_MODELS
+
+
 # Flag each CLI uses to pin a specific model, so callers can request a
 # particular tier (e.g. gemini's pro vs. flash). Only flags verified against the
 # installed CLI version belong here; omit a CLI rather than guess.
@@ -141,6 +325,26 @@ MODEL_FLAG: dict[str, str] = {
     "gemini": "-m",        # verified live (gemini 0.45): -m gemini-3-pro-preview
     "claude": "--model",   # claude -p --model <name>
     "opencode": "--model", # opencode run --model <name>
+    "agy": "--model",      # agy --model <name>
+    "grok": "-m",          # grok -m/--model <id> (verified: grok-4.6, grok-4.5)
+}
+
+# Suggested model ids for the Agent Router CLI-model dropdown. The UI always
+# offers a custom string on top of these; they are starting points, not a
+# live catalog from the host CLI.
+CLI_MODELS: dict[str, list[str]] = {
+    "grok": ["grok-4.6", "grok-4.5"],
+    "agy": [
+        "gemini-3.8-flash-high",
+        "gemini-3.8-flash-medium",
+        "gemini-3.1-pro-high",
+        "claude-sonnet-4-6",
+        "claude-opus-4-6-thinking",
+        "gpt-oss-120b-medium",
+    ],
+    "gemini": ["gemini-3-flash-preview", "gemini-3-pro-preview"],
+    "claude": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+    "opencode": ["opencode/big-pickle"],
 }
 
 
@@ -205,6 +409,76 @@ def with_model(name: str, model: str, *, timeout: int | None = None) -> dict[str
     return entry
 
 
+def listed_cli_specs() -> list[dict[str, Any]]:
+    """Host grok/agy as Agent Router sidebar specs (OpenMausBot-style).
+
+    Always returned so the sidebar does not require a designer POST. A later
+    ``kind=cli`` design with the same ``agent_id`` may overlay these.
+    """
+    specs: list[dict[str, Any]] = []
+    for name in SIDEBAR_CLIS:
+        if name not in CATALOG:
+            continue
+        meta = CLI_SIDEBAR.get(name) or {}
+        specs.append({
+            "agent_id": name,
+            "name": meta.get("name") or name.title(),
+            "kind": "cli",
+            "agent_type": "cli",
+            "cli": name,
+            "specialty": meta.get("specialty") or f"{name} CLI",
+            "description": meta.get("description") or f"Host {name} CLI, one-shot print mode.",
+            "color": meta.get("color") or "#6366f1",
+            "icon": meta.get("icon") or "⌨️",
+            "group": "tools",
+            "type": "specialist",
+        })
+    return specs
+
+
+def rail_cli_agent_id(cli_name: str) -> str:
+    """Grok-rail id: grok → grok_agent."""
+    return f"{cli_name}_agent"
+
+
+def cli_from_rail_id(agent_id: str | None) -> str | None:
+    """Map grok_agent / grok → catalog CLI name, or None."""
+    raw = str(agent_id or "").strip().lower()
+    if not raw:
+        return None
+    if raw.endswith("_agent"):
+        raw = raw[: -len("_agent")]
+    if raw in CATALOG:
+        return raw
+    return None
+
+
+def rail_cli_rows() -> list[dict[str, Any]]:
+    """Rows for the Grok conversation rail (id ``grok_agent``, …)."""
+    rows: list[dict[str, Any]] = []
+    for spec in listed_cli_specs():
+        name = str(spec.get("cli") or spec.get("agent_id") or "")
+        if not name:
+            continue
+        meta = CLI_SIDEBAR.get(name) or {}
+        rows.append({
+            "id": rail_cli_agent_id(name),
+            "object": "cli.agent",
+            "name": rail_cli_agent_id(name),
+            "cli": name,
+            "kind": "cli",
+            "description": meta.get("description") or spec.get("description") or f"{name} CLI",
+            "installed": bool(shutil.which(CATALOG[name]["cmd"][0])),
+        })
+    return rows
+
+
+def session_policy(name: str) -> dict[str, Any] | None:
+    """How ``name`` names and resumes a CLI session, or None if undocumented."""
+    entry = SESSION.get(name)
+    return _deepcopy(entry) if entry is not None else None
+
+
 def catalog_names() -> list[str]:
     """Names of every CLI the catalog knows about (sorted)."""
     return sorted(CATALOG)
@@ -213,6 +487,39 @@ def catalog_names() -> list[str]:
 def installed_catalog_clis() -> list[str]:
     """Catalog CLIs whose executable resolves on this host (sorted)."""
     return [n for n in catalog_names() if shutil.which(CATALOG[n]["cmd"][0])]
+
+
+def _executable_on_path(exe: str) -> bool:
+    """True when ``exe`` is an existing path or resolves on PATH."""
+    if not exe:
+        return False
+    if os.path.sep in exe:
+        return os.path.isfile(exe) and os.access(exe, os.X_OK)
+    return shutil.which(exe) is not None
+
+
+def installed_host_clis(config: dict[str, Any] | None = None) -> list[str]:
+    """CLIs available on this host: catalog-on-PATH plus configured-on-PATH.
+
+    The static catalog is only grok/claude/gemini/codex/opencode. A custom
+    ``cli_agents`` entry (for example ``antigravity``) is included when its
+    ``cmd[0]`` or configured name resolves on PATH.
+    """
+    found: set[str] = set(installed_catalog_clis())
+    raw_agents = (config or {}).get("cli_agents") or {}
+    if isinstance(raw_agents, dict):
+        for name, entry in raw_agents.items():
+            key = str(name).strip()
+            if not key:
+                continue
+            exe = key
+            if isinstance(entry, dict):
+                cmd = entry.get("cmd") or []
+                if isinstance(cmd, (list, tuple)) and cmd:
+                    exe = str(cmd[0])
+            if _executable_on_path(exe) or (exe != key and _executable_on_path(key)):
+                found.add(key)
+    return sorted(found)
 
 
 def build_starter_config(installed: list[str] | None = None) -> dict[str, Any]:
