@@ -11,7 +11,8 @@
  * - Client -> server: JSON text frames: {"message": "<user text>"} with an
  *   optional "blueprint": "<id>" field selecting which discovered blueprint
  *   answers (per-message field overrides the URL default; omitting both
- *   falls back to the server-configured model).
+ *   falls back to the server-configured model). An optional "params" object
+ *   is forwarded to the blueprint (e.g. {cli: "grok"} for cli_agent).
  * - Server -> client: HTML partials with HTMx out-of-band swap attributes:
  *   1. user echo:        <div id="message-list" hx-swap-oob="beforeend">
  *                          <div class="user-message ...">{text}</div></div>
