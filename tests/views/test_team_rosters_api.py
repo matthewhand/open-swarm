@@ -69,3 +69,27 @@ def test_does_not_write_teams_json_aliases(api_client, monkeypatch):
     )
     assert response.status_code == 201
     assert called["register"] is False
+
+
+def test_create_roster_with_remote_members(api_client):
+    """PR #318: POST /v1/team-rosters/ accepts Hermes/OMB/Rakazo as kind=remote."""
+    response = api_client.post(
+        "/v1/team-rosters/",
+        {
+            "name": "Harness",
+            "members": [
+                {"id": "hermes", "kind": "remote", "role": "default"},
+                {"id": "omb", "kind": "remote", "role": "default"},
+                {"id": "rakazo", "kind": "remote", "role": "default"},
+            ],
+        },
+        format="json",
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["object"] == "team_roster"
+    kinds = {m["id"]: m["kind"] for m in body["members"]}
+    assert kinds == {"hermes": "remote", "omb": "remote", "rakazo": "remote"}
+    listed = api_client.get("/v1/team-rosters/")
+    assert listed.status_code == 200
+    assert listed.json()["data"][0]["id"] == "harness"

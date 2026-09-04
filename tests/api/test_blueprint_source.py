@@ -8,6 +8,7 @@ def test_blueprint_source_and_cli_agents_urls_accept_trailing_slash():
     """Slash + no-slash twins (same pattern as /v1/responses and /v1/chat/completions)."""
     assert resolve("/v1/blueprints/cli_fusion/source").url_name == "blueprint-source"
     assert resolve("/v1/blueprints/cli_fusion/source/").url_name == "blueprint-source-slash"
+    assert resolve("/blueprint-library/cli_fusion/source/").url_name == "blueprint_source"
     assert resolve("/v1/cli-agents").url_name == "cli-agents-api-no-slash"
     assert resolve("/v1/cli-agents/").url_name == "cli-agents-api"
 
@@ -56,6 +57,45 @@ def test_source_selects_requested_file(client):
 
 
 @pytest.mark.django_db
+def test_source_html_accept_is_pretty_python_not_json(client):
+    """Browsers asking for HTML get highlighted Python, not the JSON envelope."""
+    resp = client.get(
+        "/v1/blueprints/cli_fusion/source/",
+        HTTP_ACCEPT="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    )
+    assert resp.status_code == 200
+    assert "application/json" not in resp["Content-Type"]
+    html = resp.content.decode()
+    assert "language-python" in html
+    assert "class CliFusionBlueprint" in html
+    assert '"content":' not in html
+    assert html.strip()[:1] != "{"
+
+
+@pytest.mark.django_db
+def test_source_json_accept_stays_json(client):
+    resp = client.get(
+        "/v1/blueprints/cli_fusion/source/",
+        HTTP_ACCEPT="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == "cli_fusion"
+    assert "class CliFusionBlueprint" in data["content"]
+
+
+@pytest.mark.django_db
+def test_library_source_page_is_pretty_python(client, test_user):
+    client.force_login(test_user)
+    resp = client.get("/blueprint-library/cli_fusion/source/")
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert "language-python" in html
+    assert "class CliFusionBlueprint" in html
+    assert '"primary":' not in html
+
+
+@pytest.mark.django_db
 def test_cli_agents_endpoint_exposes_native_consensus(client):
     resp = client.get("/v1/cli-agents/")
     assert resp.status_code == 200
@@ -63,56 +103,63 @@ def test_cli_agents_endpoint_exposes_native_consensus(client):
     assert "grok" in data["clis"]
     assert data["native_consensus"]["grok"] == ["--best-of-n", "{n}"]
     assert data["catalog"]["grok"]["parse"] == "json:.text"
+    assert data["list_models"]["opencode"] == ["opencode", "models"]
+    assert data["list_models"]["gemini"] == ["gemini", "--list-models"]
+    assert data["list_models"]["codex"] == ["codex", "debug", "models"]
 
 
 @pytest.mark.django_db
-def test_cli_agents_endpoint_exposes_installed_and_configured(client, monkeypatch):
-    """Chat CLI dropdown reads installed (host PATH) + configured (swarm_config)."""
-    from django.apps import apps
-
-    from swarm.core import cli_catalog
-
-    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok", "claude"])
-    swarm_cfg = apps.get_app_config("swarm")
-    monkeypatch.setattr(
-        swarm_cfg,
-        "config",
-        {"cli_agents": {"grok": {}, "custom_cli": {}}},
-    )
-    resp = client.get("/v1/cli-agents/")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert set(data["installed"]) >= {"grok", "claude"}
-    assert data["configured"] == ["custom_cli", "grok"]
-    assert "grok" in data["clis"]
+def test_cli_agent_models_urls_accept_trailing_slash():
+    assert resolve("/v1/cli-agents/models").url_name == "cli-agent-models-all-no-slash"
+    assert resolve("/v1/cli-agents/models/").url_name == "cli-agent-models-all"
+    assert resolve("/v1/cli-agents/grok/models").url_name == "cli-agent-models-no-slash"
+    assert resolve("/v1/cli-agents/grok/models/").url_name == "cli-agent-models"
 
 
 @pytest.mark.django_db
-def test_cli_agents_endpoint_includes_non_catalog_path_cli(client, monkeypatch):
-    """A PATH/config CLI such as antigravity must appear even outside the catalog."""
-    from django.apps import apps
+def test_cli_agent_models_single_cli(client, monkeypatch):
+    from swarm.core.cli_models import ListModelsResult
 
-    from swarm.core import cli_catalog
+    monkeypatch.setattr(
+        "swarm.core.cli_models.list_models",
+        lambda name, **_k: ListModelsResult(cli=name, models=["grok-4"]),
+    )
+    resp = client.get("/v1/cli-agents/grok/models")
+    assert resp.status_code == 200
+    assert resp.json() == {"cli": "grok", "models": ["grok-4"]}
 
-    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok"])
+
+@pytest.mark.django_db
+def test_cli_agent_models_unknown_cli_empty_warning(client, monkeypatch):
+    from swarm.core.cli_models import ListModelsResult
+
     monkeypatch.setattr(
-        cli_catalog.shutil,
-        "which",
-        lambda name: "/usr/bin/antigravity" if name == "antigravity" else None,
+        "swarm.core.cli_models.list_models",
+        lambda name, **_k: ListModelsResult(
+            cli=name, models=[], warning="unknown CLI 'nope'"
+        ),
     )
-    swarm_cfg = apps.get_app_config("swarm")
-    monkeypatch.setattr(
-        swarm_cfg,
-        "config",
-        {
-            "cli_agents": {"antigravity": {"cmd": ["antigravity"]}},
-            "cli_fusion": {"default_cli": "antigravity"},
-        },
-    )
-    resp = client.get("/v1/cli-agents/")
+    resp = client.get("/v1/cli-agents/nope/models/")
     assert resp.status_code == 200
     data = resp.json()
-    assert "antigravity" in data["installed"]
-    assert "antigravity" in data["configured"]
-    assert data["default_cli"] == "antigravity"
-    assert "antigravity" not in data["clis"]
+    assert data["cli"] == "nope"
+    assert data["models"] == []
+    assert "unknown" in data["warning"]
+
+
+@pytest.mark.django_db
+def test_cli_agent_models_all(client, monkeypatch):
+    from swarm.core.cli_models import ListModelsResult
+
+    monkeypatch.setattr(
+        "swarm.core.cli_models.list_models_all",
+        lambda **_k: [
+            ListModelsResult(cli="claude", models=[], warning="not installed"),
+            ListModelsResult(cli="opencode", models=["opencode/big-pickle"]),
+        ],
+    )
+    resp = client.get("/v1/cli-agents/models")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["models"] == []
+    assert data[1] == {"cli": "opencode", "models": ["opencode/big-pickle"]}

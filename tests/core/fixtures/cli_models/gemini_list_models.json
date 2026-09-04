@@ -1,0 +1,18 @@
+[
+  {
+    "modelId": "auto",
+    "name": "Auto",
+    "description": "Let the CLI pick",
+    "tier": "auto"
+  },
+  {
+    "modelId": "gemini-3-flash-preview",
+    "name": "Flash",
+    "tier": "fast"
+  },
+  {
+    "modelId": "gemini-3-pro-preview",
+    "name": "Pro",
+    "tier": "pro"
+  }
+]

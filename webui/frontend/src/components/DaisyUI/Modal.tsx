@@ -14,7 +14,7 @@ export interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   title?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | 'sheet';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'sheet';
   /** Horizontal/vertical dock. `end` is a right-docked sheet (`modal-end`). */
   placement?: ModalPlacement;
   className?: string;
@@ -90,6 +90,7 @@ export const Modal = ({
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
+    '2xl': 'max-w-5xl w-11/12',
     sheet: 'h-full max-h-full w-full max-w-4xl rounded-none rounded-s-box',
   };
 
@@ -113,7 +114,6 @@ export const Modal = ({
         aria-labelledby={title ? titleId : undefined}
         aria-label={!title ? (ariaLabel || 'Dialog') : undefined}
         aria-modal={isOpen ? true : undefined}
-        tabIndex={-1}
       >
         <div
           className={`modal-box ${sizeClasses[size]} ${className}`}
@@ -129,6 +129,7 @@ export const Modal = ({
         <form
           method="dialog"
           className="modal-backdrop"
+          aria-hidden="true"
           onClick={(e) => {
             e.stopPropagation();
             onClose();

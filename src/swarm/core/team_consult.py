@@ -53,6 +53,25 @@ class TeamConsultTool:
         if not decision.allowed:
             assert_talk_allowed(decision)
         recipients = send_to_all_targets(self.target_team_id, self.rosters)
+        from swarm.core.session_policy import allocate_task_session, messages_for_task
+
+        sessions = []
+        for recipient in recipients:
+            rid = recipient if isinstance(recipient, str) else str(
+                (recipient or {}).get("id") or recipient or ""
+            )
+            if not rid:
+                continue
+            session = allocate_task_session(None, rid)
+            sessions.append(
+                {
+                    "agent_id": session.agent_id,
+                    "conversation_id": session.conversation_id,
+                    "new_chat_per_task": session.new_chat_per_task,
+                    "empty": session.empty,
+                    "messages": messages_for_task(rid, None, new_task=True),
+                }
+            )
         return {
             "ok": True,
             "kind": self.kind,
@@ -60,6 +79,7 @@ class TeamConsultTool:
             "message": message,
             "send_to_all": True,
             "recipients": recipients,
+            "sessions": sessions,
             "note": (
                 "Parent talks to the child team as one member (send-to-all "
                 "on the child), not automatically every grandchild."

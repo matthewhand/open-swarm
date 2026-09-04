@@ -25,6 +25,7 @@
       id === "tool-gate" ||
       id === "skeptic" ||
       name === "gate" ||
+      name === "safety" ||
       name === "skeptic"
     );
   }
@@ -97,8 +98,28 @@
     var role = normalizeRole(agent && agent.role);
     if (role !== "default") return role;
     var id = String((agent && agent.id) || "").toLowerCase();
+    if (id === "support" || id === "gate" || id === "skeptic") return id;
     if (id === "cos" || id === "chief" || id === "chief_of_staff") return "chief_of_staff";
     return "default";
+  }
+
+  function isSupport(agent) {
+    return roleOf(agent) === "support";
+  }
+
+  function roleRank(agent) {
+    var role = roleOf(agent);
+    if (role === "support") return 0;
+    if (role === "chief_of_staff") return 1;
+    if (role === "gate") return 2;
+    if (role === "skeptic") return 3;
+    return 10;
+  }
+
+  function sortRoles(list) {
+    return list.slice().sort(function (a, b) {
+      return roleRank(a) - roleRank(b);
+    });
   }
 
   function badgeLabel(role) {
@@ -215,36 +236,37 @@
 
     function makeLink(agent, hidden) {
       var link = document.createElement("a");
-      link.href = agentHref(agent);
-      link.className = "os-agent-item";
-      var name = agentLabel(agent);
       var role = roleOf(agent);
+      link.href = agentHref(agent);
+      link.className = "os-agent-item" + (role !== "default" ? " os-agent-item--" + role : "");
+      var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
       if (role !== "default") {
         link.setAttribute("data-role", role);
-        link.className += " os-agent-role-" + role;
       }
 
       var dot = document.createElement("span");
       dot.className = "os-agent-dot";
       dot.setAttribute("data-mark", markIndex(agent.id));
-      if (role !== "default") dot.setAttribute("data-role", role);
       dot.setAttribute("aria-hidden", "true");
 
       var text = document.createElement("span");
       text.className = "os-agent-item__text";
+      var titleRow = document.createElement("span");
+      titleRow.className = "os-agent-item__name-row";
       var title = document.createElement("span");
       title.className = "os-agent-item__name";
       title.textContent = name;
-      text.appendChild(title);
+      titleRow.appendChild(title);
       var chip = badgeLabel(role);
       if (chip) {
         var badge = document.createElement("span");
         badge.className = "os-agent-role-badge";
         badge.setAttribute("data-role", role);
         badge.textContent = chip;
-        text.appendChild(badge);
+        titleRow.appendChild(badge);
       }
+      text.appendChild(titleRow);
       if (agent.kind === "herdr") {
         var herdrBadge = document.createElement("span");
         herdrBadge.className = "os-agent-item__desc";
@@ -259,9 +281,10 @@
         text.appendChild(desc);
       }
 
-      link.appendChild(dot);
+      link.appendChild(mark);
       link.appendChild(text);
       link.addEventListener("contextmenu", function (event) {
+        if (isSupport(agent)) return;
         event.preventDefault();
         openMenu(event, agent.id, hidden);
       });
@@ -344,12 +367,12 @@
       var hiddenTeams = teams.filter(function (team) {
         return hiddenIds.indexOf(teamHideId(team.id)) !== -1 && matchesFilter(team, q);
       });
-      var visible = agents.filter(function (agent) {
+      var visible = sortRoles(agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
-      });
-      var hidden = agents.filter(function (agent) {
+      }));
+      var hidden = sortRoles(agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);
-      });
+      }));
       var hiddenTotal = hidden.length + hiddenTeams.length;
 
       listEl.replaceChildren();

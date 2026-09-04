@@ -39,14 +39,16 @@ def test_get_django_secret_key_required_in_production():
 
 
 def test_get_django_allowed_hosts():
-    with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": "example.com,test.com"}):
+    with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": "example.com,test.com", "DJANGO_DEBUG": "false"}):
         assert get_django_allowed_hosts() == ["example.com", "test.com"]
+    with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": "example.com", "DJANGO_DEBUG": "true"}):
+        assert get_django_allowed_hosts() == ["*", "example.com"]
     # Whitespace and empty entries are stripped.
-    with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": " example.com , test.com ,"}):
+    with patch.dict(os.environ, {"DJANGO_ALLOWED_HOSTS": " example.com , test.com ,", "DJANGO_DEBUG": "false"}):
         assert get_django_allowed_hosts() == ["example.com", "test.com"]
     # Localhost-only default applies in development only.
     with patch.dict(os.environ, {"DJANGO_DEBUG": "true"}, clear=True):
-        assert get_django_allowed_hosts() == ["localhost", "127.0.0.1"]
+        assert get_django_allowed_hosts() == ["*", "localhost", "127.0.0.1"]
 
 
 def test_get_django_allowed_hosts_required_in_production():

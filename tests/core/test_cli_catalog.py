@@ -9,7 +9,26 @@ from swarm.core.cli_adapter import CliAdapter
 def test_catalog_names_are_sorted_and_known():
     names = cli_catalog.catalog_names()
     assert names == sorted(names)
-    assert {"claude", "gemini", "codex", "opencode"} <= set(names)
+    assert {"claude", "gemini", "codex", "opencode", "grok", "agy", "pi"} <= set(names)
+
+
+def test_every_catalog_cli_documents_session_resume():
+    for name in cli_catalog.catalog_names():
+        policy = cli_catalog.session_policy(name)
+        assert policy is not None, f"{name} missing SESSION policy"
+        assert policy.get("resume_argv"), f"{name} has no resume_argv"
+        assert "{session_id}" in " ".join(policy["resume_argv"])
+        assert policy.get("notes")
+    assert cli_catalog.session_policy("antigravity") is None
+    grok = cli_catalog.session_policy("grok")
+    assert grok["resume_argv"] == ["--resume", "{session_id}"]
+    claude = cli_catalog.session_policy("claude")
+    assert ".session_id" in claude["session_id_paths"]
+    codex = cli_catalog.session_policy("codex")
+    assert codex["resume_argv"] == ["resume", "{session_id}"]
+    assert codex["resume_insert"] == 2
+    opencode = cli_catalog.session_policy("opencode")
+    assert opencode["resume_argv"] == ["--session", "{session_id}"]
 
 
 def test_every_catalog_entry_is_a_valid_adapter_config():
@@ -70,6 +89,50 @@ def test_grok_is_in_catalog():
     e = cli_catalog.catalog_entry("grok")
     assert e["cmd"][0] == "grok" and e["parse"] == "json:.text"
     assert "--always-approve" in e["cmd"]
+    # -p consumes the next argv token; flags must not follow a bare -p.
+    p = e["cmd"].index("-p")
+    assert e["cmd"][p + 1] == "{prompt}"
+    assert "--output-format" in e["cmd"][:p]
+
+
+def test_agy_attaches_prompt_to_print_flag():
+    e = cli_catalog.catalog_entry("agy")
+    assert e["cmd"][0] == "agy" and e["parse"] == "json:.response"
+    assert "-p={prompt}" in e["cmd"]
+    assert "-p" not in e["cmd"]  # a bare -p would swallow --output-format
+    assert "--dangerously-skip-permissions" in e["cmd"]
+    CliAdapter.from_config("agy", e)
+
+
+def test_listed_cli_specs_are_first_class_sidebar_agents():
+    specs = {s["agent_id"]: s for s in cli_catalog.listed_cli_specs()}
+    assert specs["grok"]["kind"] == "cli" and specs["grok"]["cli"] == "grok"
+    assert specs["agy"]["kind"] == "cli" and specs["agy"]["group"] == "tools"
+    assert specs["agy"]["cli"] == "agy"
+    assert specs["grok"]["agent_type"] == "cli"
+    assert specs["agy"]["agent_type"] == "cli"
+    assert specs["opencode"]["cli"] == "opencode"
+    assert specs["pi"]["cli"] == "pi"
+
+
+def test_rail_cli_rows_use_star_agent_ids():
+    rows = {r["id"]: r for r in cli_catalog.rail_cli_rows()}
+    for name in ("grok", "agy", "opencode", "pi"):
+        row = rows[f"{name}_agent"]
+        assert row["cli"] == name
+        assert row["kind"] == "cli"
+        assert cli_catalog.cli_from_rail_id(row["id"]) == name
+    assert cli_catalog.cli_from_rail_id("grok") == "grok"
+    assert cli_catalog.cli_from_rail_id("nope") is None
+
+
+def test_pi_catalog_print_mode_is_positional_prompt():
+    e = cli_catalog.catalog_entry("pi")
+    assert e["cmd"][0] == "pi"
+    assert "-p" in e["cmd"]
+    assert "{prompt}" in e["cmd"]
+    assert e["cmd"].index("-p") < e["cmd"].index("{prompt}")
+    CliAdapter.from_config("pi", e)
 
 
 def test_build_starter_config_prefers_grok_for_single_agent_roles():
@@ -169,9 +232,14 @@ def test_with_model_unknown_cli_is_none():
 
 
 def test_with_model_no_flag_known_returns_entry_unchanged():
-    # grok has no MODEL_FLAG entry: return the base entry, don't guess a flag.
-    base = cli_catalog.catalog_entry("grok")
-    assert cli_catalog.with_model("grok", "whatever")["cmd"] == base["cmd"]
+    # codex has no MODEL_FLAG entry: return the base entry, don't guess a flag.
+    base = cli_catalog.catalog_entry("codex")
+    assert cli_catalog.with_model("codex", "whatever")["cmd"] == base["cmd"]
+
+
+def test_with_model_pins_grok_dash_m():
+    entry = cli_catalog.with_model("grok", "grok-4.5")
+    assert entry["cmd"][-2:] == ["-m", "grok-4.5"]
 
 
 def test_with_model_does_not_mutate_catalog():
@@ -185,26 +253,5 @@ def test_apply_model_noop_on_entry_without_cmd():
 
 
 def test_with_model_unknown_flag_cli_returns_entry_unchanged():
-    base = cli_catalog.catalog_entry("grok")  # grok has no MODEL_FLAG
-    assert cli_catalog.with_model("grok", "anything")["cmd"] == base["cmd"]
-
-
-def test_installed_host_clis_includes_non_catalog_path_and_config(monkeypatch):
-    """PATH/config discovery must surface CLIs the static catalog does not know."""
-    monkeypatch.setattr(cli_catalog, "installed_catalog_clis", lambda: ["grok"])
-
-    def fake_which(name):
-        return f"/usr/bin/{name}" if name == "antigravity" else None
-
-    monkeypatch.setattr(cli_catalog.shutil, "which", fake_which)
-    found = cli_catalog.installed_host_clis(
-        {
-            "cli_agents": {
-                "antigravity": {"cmd": ["antigravity", "-p", "{prompt}"]},
-                "missing": {"cmd": ["definitely-not-installed-cli"]},
-            }
-        }
-    )
-    assert "grok" in found
-    assert "antigravity" in found
-    assert "missing" not in found
+    base = cli_catalog.catalog_entry("codex")
+    assert cli_catalog.with_model("codex", "anything")["cmd"] == base["cmd"]
