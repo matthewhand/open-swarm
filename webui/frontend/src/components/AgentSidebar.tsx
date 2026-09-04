@@ -209,6 +209,7 @@ export default function AgentSidebar({
   )
   const [pins, setPins] = useState<PinnedAgent[]>(() => loadOrSeedPinnedAgents())
   const [hiddenOpen, setHiddenOpen] = useState(false)
+  const [hoveringHidden, setHoveringHidden] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
@@ -1308,7 +1309,7 @@ export default function AgentSidebar({
           </div>
 
           <div
-            className={`os-hide-drop os-drop-target ${hideDropActive ? 'os-hide-drop--active' : ''}`}
+            className={`os-hide-drop os-drop-target ${hideDropActive ? 'os-hide-drop--active' : ''} ${hiddenCount > 0 ? 'os-hide-drop--has-hidden' : ''}`}
             data-drag-over={hideDropActive ? 'true' : undefined}
             role="region"
             aria-label="Hidden"
@@ -1338,12 +1339,24 @@ export default function AgentSidebar({
             {hiddenCount > 0 ? (
               <button
                 type="button"
-                className="os-hide-drop__action"
+                className="os-hide-drop__action os-hidden-bots-row group"
                 aria-haspopup="dialog"
                 aria-expanded={hiddenOpen}
+                aria-label={`Hidden Bots ${hiddenCount} (${hiddenCount} hidden)`}
+                data-testid="os-hidden-bots-button"
                 onClick={() => setHiddenOpen(true)}
+                onMouseEnter={() => setHoveringHidden(true)}
+                onMouseLeave={() => setHoveringHidden(false)}
               >
-                {hiddenCount} hidden
+                <span className="os-hidden-bots-label font-medium">Hidden Bots</span>
+                <span className="os-hidden-bots-tail font-mono text-xs" data-testid="os-hidden-bots-tail">
+                  <span className={`os-hidden-bots-count ${hoveringHidden ? 'hidden' : 'inline group-hover:hidden'}`} data-testid="os-hidden-bots-count">
+                    {hiddenCount}
+                  </span>
+                  <span className={`os-hidden-bots-chevron ${hoveringHidden ? 'inline' : 'hidden group-hover:inline'}`} aria-hidden="true" data-testid="os-hidden-bots-chevron">
+                    &gt;
+                  </span>
+                </span>
               </button>
             ) : (
               <p className="os-hide-drop__hint">drop here to hide</p>

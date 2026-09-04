@@ -1432,3 +1432,45 @@ describe('AgentSidebar special roles', () => {
     )
   })
 })
+
+describe('AgentSidebar REQ-129 — Hidden Bots row chrome', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    rememberEmptyFavourites()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('renders "Hidden Bots" label with count and swaps count to > on hover', async () => {
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify(['gate', 'skeptic']))
+    renderSidebar()
+    const btn = await screen.findByTestId('os-hidden-bots-button')
+    expect(btn).toBeInTheDocument()
+    expect(btn).toHaveClass('os-hidden-bots-row')
+    expect(within(btn).getByText('Hidden Bots')).toBeInTheDocument()
+
+    // Resting state: count is visible
+    const countEl = within(btn).getByTestId('os-hidden-bots-count')
+    expect(countEl).toHaveTextContent('2')
+
+    // Hover state: swaps count to >
+    fireEvent.mouseEnter(btn)
+    expect(within(btn).getByTestId('os-hidden-bots-tail')).toHaveTextContent('>')
+
+    // Leave hover state: restores count
+    fireEvent.mouseLeave(btn)
+    expect(within(btn).getByTestId('os-hidden-bots-count')).toHaveTextContent('2')
+  })
+})
+
