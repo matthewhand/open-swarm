@@ -182,4 +182,166 @@ describe('AgentEditor (REQ-58)', () => {
       'false',
     )
   })
+
+  describe('AgentEditor role explanations & LLM override by kind (REQ-124)', () => {
+    it('shows role explanation blurb and updates on change', async () => {
+      stubCatalog()
+      renderEditor({ agentId: 'codey' })
+
+      const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
+      const explanation = within(dialog).getByTestId('role-explanation')
+      expect(explanation).toBeInTheDocument()
+      expect(explanation.textContent).toMatch(/worker blueprint/i)
+
+      const roleSelect = within(dialog).getByLabelText('Role')
+      fireEvent.change(roleSelect, { target: { value: 'support' } })
+      expect(explanation.textContent).toMatch(/Support is Socratic/i)
+
+      fireEvent.change(roleSelect, { target: { value: 'gate' } })
+      expect(explanation.textContent).toMatch(/Gate is a YES\/NO/i)
+
+      fireEvent.change(roleSelect, { target: { value: 'skeptic' } })
+      expect(explanation.textContent).toMatch(/Skeptic is a bounded retry/i)
+    })
+
+    it('remote agent: LLM override is disabled with explanation', async () => {
+      stubCatalog()
+      renderEditor({ agentId: 'remote-omb' })
+
+      const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
+      expect(within(dialog).getByText(/Remotes keep their own models/i)).toBeInTheDocument()
+      expect(within(dialog).queryByRole('combobox', { name: /CLI override/i })).not.toBeInTheDocument()
+      expect(within(dialog).queryByRole('combobox', { name: /API profile override/i })).not.toBeInTheDocument()
+    })
+
+    it('CLI agent: renders CLIs and models, not agents from catalog', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+          const url = String(input)
+          if (url.includes('/v1/cli-agents/copilot/models/')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                cli: 'copilot',
+                models: ['gpt-4o', 'o1-mini'],
+              }),
+            } as Response
+          }
+          if (url.includes('/v1/cli-agents/')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                clis: ['copilot', 'claude-cli'],
+                native_consensus: {},
+                catalog: {},
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: catalog }),
+          } as Response
+        }),
+      )
+
+      renderEditor({ agentId: 'cli_agent' })
+      const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
+
+      const cliSelect = await within(dialog).findByRole('combobox', { name: 'CLI override' })
+      expect(within(cliSelect).getByRole('option', { name: 'copilot' })).toBeInTheDocument()
+      expect(within(cliSelect).getByRole('option', { name: 'claude-cli' })).toBeInTheDocument()
+      // Agents must NOT be listed
+      expect(within(cliSelect).queryByRole('option', { name: 'Codey' })).not.toBeInTheDocument()
+      expect(within(cliSelect).queryByRole('option', { name: 'Stewie' })).not.toBeInTheDocument()
+
+      const modelSelect = await within(dialog).findByRole('combobox', { name: 'Model override' })
+      await waitFor(() => {
+        expect(within(modelSelect).getByRole('option', { name: 'gpt-4o' })).toBeInTheDocument()
+      })
+      expect(within(modelSelect).queryByRole('option', { name: 'Codey' })).not.toBeInTheDocument()
+      expect(within(modelSelect).queryByRole('option', { name: 'Stewie' })).not.toBeInTheDocument()
+
+      expect(within(dialog).getByTestId('default-llm-label')).toBeInTheDocument()
+
+      // Save override
+      fireEvent.change(cliSelect, { target: { value: 'copilot' } })
+      fireEvent.change(modelSelect, { target: { value: 'gpt-4o' } })
+      const stored = JSON.parse(localStorage.getItem(AGENT_EDITS_KEY) || '{}')['cli_agent']
+      expect(stored.cliOverride).toBe('copilot')
+      expect(stored.llmOverride).toBe('gpt-4o')
+    })
+
+    it('API agent: renders profiles and models, not agents from catalog', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+          const url = String(input)
+          if (url.includes('/v1/llm-profiles/')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                object: 'llm_profiles',
+                profiles: [{ id: 'custom-profile', name: 'Custom Profile' }],
+                default_llm_profile: 'orchestration',
+                task_llm_profiles: {},
+              }),
+            } as Response
+          }
+          if (url.includes('/v1/models')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                object: 'list',
+                data: [
+                  { id: 'gpt-4o', object: 'model' },
+                  { id: 'codey', object: 'model' }, // Agent name in models list!
+                  { id: 'stewie', object: 'model' }, // Agent name in models list!
+                ],
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: catalog }),
+          } as Response
+        }),
+      )
+
+      renderEditor({ agentId: 'codey' })
+      const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
+
+      const profileSelect = await within(dialog).findByRole('combobox', { name: 'API profile override' })
+      expect(within(profileSelect).getByRole('option', { name: /User chat \/ orchestration/i })).toBeInTheDocument()
+      expect(within(profileSelect).getByRole('option', { name: 'Custom Profile' })).toBeInTheDocument()
+
+      const modelSelect = await within(dialog).findByRole('combobox', { name: 'Model override' })
+      expect(within(modelSelect).getByRole('option', { name: 'gpt-4o' })).toBeInTheDocument()
+      // Bug fixed: Agent names filtered out
+      expect(within(modelSelect).queryByRole('option', { name: 'codey' })).not.toBeInTheDocument()
+      expect(within(modelSelect).queryByRole('option', { name: 'stewie' })).not.toBeInTheDocument()
+
+      expect(within(dialog).getByTestId('default-llm-label')).toHaveTextContent(/Default would be:\s*orchestration/i)
+
+      // Save override
+      fireEvent.change(profileSelect, { target: { value: 'custom-profile' } })
+      fireEvent.change(modelSelect, { target: { value: 'gpt-4o' } })
+      const stored = JSON.parse(localStorage.getItem(AGENT_EDITS_KEY) || '{}')['codey']
+      expect(stored.profileOverride).toBe('custom-profile')
+      expect(stored.llmOverride).toBe('gpt-4o')
+
+      // Clear restores default
+      fireEvent.change(profileSelect, { target: { value: '' } })
+      fireEvent.change(modelSelect, { target: { value: '' } })
+      const cleared = JSON.parse(localStorage.getItem(AGENT_EDITS_KEY) || '{}')['codey']
+      expect(cleared?.profileOverride).toBeUndefined()
+      expect(cleared?.llmOverride).toBeUndefined()
+    })
+  })
 })
