@@ -101,6 +101,15 @@ import SessionPicker from './SessionPicker'
 import { openSettingsSheet } from './SettingsSheet'
 import AvatarStack from './AvatarStack'
 import StackedAvatars from './StackedAvatars'
+import {
+  clampRailWidth,
+  loadRailWidth,
+  saveRailWidth,
+  isAvatarOnlyWidth,
+  MIN_RAIL_WIDTH,
+  MAX_RAIL_WIDTH,
+  AVATAR_ONLY_THRESHOLD,
+} from '../lib/railResize'
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
 
@@ -251,6 +260,78 @@ export default function AgentSidebar({
   const searchShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
   const [addWizardOpen, setAddWizardOpen] = useState(false)
   const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
+
+  const [railWidth, setRailWidth] = useState(() => loadRailWidth())
+  const [isResizing, setIsResizing] = useState(false)
+  const isAvatarOnly = !narrow && isAvatarOnlyWidth(railWidth)
+
+  const startDragXRef = useRef(0)
+  const startWidthRef = useRef(railWidth)
+
+  const handleResizeStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      setIsResizing(true)
+      startDragXRef.current = event.clientX
+      startWidthRef.current = railWidth
+      const target = event.currentTarget
+      try {
+        target.setPointerCapture(event.pointerId)
+      } catch {}
+
+      const handlePointerMove = (e: PointerEvent) => {
+        const delta = e.clientX - startDragXRef.current
+        const next = clampRailWidth(startWidthRef.current + delta, window.innerWidth)
+        setRailWidth(next)
+      }
+
+      const handlePointerUp = (e: PointerEvent) => {
+        setIsResizing(false)
+        try {
+          target.releasePointerCapture(e.pointerId)
+        } catch {}
+        window.removeEventListener('pointermove', handlePointerMove)
+        window.removeEventListener('pointerup', handlePointerUp)
+        window.removeEventListener('pointercancel', handlePointerUp)
+        const finalDelta = e.clientX - startDragXRef.current
+        const finalWidth = clampRailWidth(startWidthRef.current + finalDelta, window.innerWidth)
+        setRailWidth(finalWidth)
+        saveRailWidth(finalWidth)
+      }
+
+      window.addEventListener('pointermove', handlePointerMove)
+      window.addEventListener('pointerup', handlePointerUp)
+      window.addEventListener('pointercancel', handlePointerUp)
+    },
+    [railWidth],
+  )
+
+  const handleResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      setRailWidth((prev) => {
+        const next = clampRailWidth(prev - 12, window.innerWidth)
+        saveRailWidth(next)
+        return next
+      })
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      setRailWidth((prev) => {
+        const next = clampRailWidth(prev + 12, window.innerWidth)
+        saveRailWidth(next)
+        return next
+      })
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      setRailWidth(MIN_RAIL_WIDTH)
+      saveRailWidth(MIN_RAIL_WIDTH)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      const max = clampRailWidth(MAX_RAIL_WIDTH, window.innerWidth)
+      setRailWidth(max)
+      saveRailWidth(max)
+    }
+  }, [])
 
   useEffect(() => {
     const onChange = () => setSessionTick((n) => n + 1)
@@ -1246,15 +1327,32 @@ export default function AgentSidebar({
       />
 
       <aside
-        className={`os-agent-sidebar fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col transition-transform duration-200 lg:static lg:z-0 lg:translate-x-0 ${
+        className={`os-agent-sidebar fixed inset-y-0 left-0 z-40 flex shrink-0 flex-col transition-transform duration-200 lg:static lg:z-0 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        } ${isAvatarOnly ? 'os-agent-sidebar--avatar-only' : ''}`}
+        style={!narrow ? { width: `${railWidth}px` } : { width: '16rem' }}
         aria-label="Agents"
         data-testid="os-agent-rail"
         data-rail-open={open ? 'true' : 'false'}
+        data-avatar-only={isAvatarOnly ? 'true' : 'false'}
         aria-hidden={drawerHidden || undefined}
         {...(drawerHidden ? { inert: '' } : {})}
       >
+        {!narrow ? (
+          <div
+            className={`os-rail-resizer ${isResizing ? 'os-rail-resizer--active' : ''}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize agent sidebar"
+            aria-valuenow={railWidth}
+            aria-valuemin={MIN_RAIL_WIDTH}
+            aria-valuemax={MAX_RAIL_WIDTH}
+            tabIndex={0}
+            data-testid="rail-resize-handle"
+            onPointerDown={handleResizeStart}
+            onKeyDown={handleResizeKeyDown}
+          />
+        ) : null}
         <div className="flex items-center justify-end px-3 pt-3 lg:hidden">
           <button
             type="button"
@@ -1568,9 +1666,11 @@ export default function AgentSidebar({
             type="button"
             className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-sm text-base-content/60 hover:bg-base-300/30 hover:text-base-content"
             onClick={() => setPluginsOpen(true)}
+            title="Plugins"
+            aria-label="Plugins"
           >
-            <Plug className="h-4 w-4" aria-hidden="true" />
-            Plugins
+            <Plug className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="os-plugins-label">Plugins</span>
           </button>
           <div className="relative os-rail-hostname-row">
             <button
