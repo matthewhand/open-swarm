@@ -1,73 +1,63 @@
 import { describe, expect, it } from 'vitest'
-import {
-  addMember,
-  agentToMember,
-  DEFAULT_TEAM_WIRES,
-  encodeDragAgent,
-  emptyRosterDraft,
-  KIND_LABEL,
-  memberKey,
-  parseDragAgent,
-  removeMember,
-  rosterHasMember,
-  setMemberRole,
-} from '../teamRoster'
-import type { TeamAgent } from '../api'
+import { childTeamIds, nestRosters, parseTeamRoster, parseTeamRosterList } from '../teamRoster'
 
-const jeeves: TeamAgent = {
-  id: 'jeeves',
-  name: 'Jeeves',
-  kind: 'api',
-  source: 'blueprint:jeeves',
-}
-
-const grok: TeamAgent = {
-  id: 'grok',
-  name: 'grok',
-  kind: 'cli',
-  source: 'cli:grok',
-}
-
-describe('team roster contract helpers', () => {
-  it('defaults wires both on and starts with an empty roster', () => {
-    const draft = emptyRosterDraft()
-    expect(draft.members).toEqual([])
-    expect(draft.wires).toEqual({ handoff: true, as_tool: true })
-    expect(DEFAULT_TEAM_WIRES).toEqual({ handoff: true, as_tool: true })
-  })
-
-  it('maps agents to members with kind, role, and source', () => {
-    expect(agentToMember(jeeves, 'skeptic')).toEqual({
-      id: 'jeeves',
-      kind: 'api',
-      role: 'skeptic',
-      source: 'blueprint:jeeves',
+describe('teamRoster (REQ-28)', () => {
+  it('parses kind=remote Hermes/OMB/Rakazo members (PR #318 / REQ-28)', () => {
+    const roster = parseTeamRoster({
+      id: 'harness',
+      object: 'team_roster',
+      name: 'Harness',
+      members: [
+        { id: 'hermes', kind: 'remote', role: 'default', source: 'placeholder:remote:hermes' },
+        { id: 'omb', kind: 'remote', role: 'default', source: 'placeholder:remote:omb' },
+        { id: 'rakazo', kind: 'remote', role: 'default', source: 'placeholder:remote:rakazo' },
+      ],
     })
+    expect(roster?.members.map((m) => [m.id, m.kind])).toEqual([
+      ['hermes', 'remote'],
+      ['omb', 'remote'],
+      ['rakazo', 'remote'],
+    ])
+    expect(parseTeamRoster({ id: 'alias', object: 'team', llm_profile: 'gpt' })).toBeNull()
   })
 
-  it('adds a member once and can change role or remove', () => {
-    let members = addMember([], jeeves, 'support')
-    members = addMember(members, jeeves, 'gate')
-    expect(members).toHaveLength(1)
-    expect(members[0].role).toBe('support')
-    expect(rosterHasMember(members, grok)).toBe(false)
-    members = setMemberRole(members, jeeves, 'gate')
-    expect(members[0].role).toBe('gate')
-    members = removeMember(members, jeeves)
-    expect(members).toEqual([])
+  it('parses kind=team with team_id and ignores blueprint-shaped rows', () => {
+    const roster = parseTeamRoster({
+      id: 'office',
+      object: 'team_roster',
+      name: 'Office',
+      members: [
+        { id: 'research', kind: 'team', team_id: 'research', role: 'default', source: 'team:research' },
+        { id: 'w3p1', kind: 'herdr', role: 'default', source: 'herdr:w3:p1' },
+      ],
+    })
+    expect(roster?.members[0]).toMatchObject({ kind: 'team', team_id: 'research' })
+    expect(roster?.members[1].kind).toBe('herdr')
+    expect(parseTeamRoster({ id: 'codey', name: 'Codey', object: 'blueprint' })).toBeNull()
   })
 
-  it('round-trips drag payload and rejects unknown kinds', () => {
-    const raw = encodeDragAgent(grok)
-    expect(parseDragAgent(raw)).toMatchObject({ id: 'grok', kind: 'cli' })
-    expect(parseDragAgent('{"id":"x","kind":"blueprint","source":"x"}')).toBeNull()
-    expect(parseDragAgent('not-json')).toBeNull()
-  })
-
-  it('labels kinds as API | CLI | remote', () => {
-    expect(KIND_LABEL.api).toBe('API')
-    expect(KIND_LABEL.cli).toBe('CLI')
-    expect(KIND_LABEL.remote).toBe('remote')
-    expect(memberKey(jeeves)).toBe('api:blueprint:jeeves')
+  it('nests child teams under the parent', () => {
+    const list = parseTeamRosterList({
+      object: 'list',
+      data: [
+        {
+          id: 'office',
+          object: 'team_roster',
+          name: 'Office',
+          members: [{ id: 'research', kind: 'team', team_id: 'research', role: 'default', source: 'team:research' }],
+        },
+        {
+          id: 'research',
+          object: 'team_roster',
+          name: 'Research',
+          members: [{ id: 'ada', kind: 'api', role: 'default', source: 'blueprint:ada' }],
+        },
+      ],
+    })
+    expect(childTeamIds(list[0])).toEqual(['research'])
+    const tree = nestRosters(list)
+    expect(tree).toHaveLength(1)
+    expect(tree[0].id).toBe('office')
+    expect(tree[0].children.map((c) => c.id)).toEqual(['research'])
   })
 })

@@ -1,70 +1,111 @@
-"""Unit tests for swarm.core.team_rosters (composition store, not teams.json)."""
+"""REQ-28 roster persist: kind team|herdr and chief_of_staff role."""
 
-from unittest.mock import patch
+import pytest
 
 from swarm.core.team_rosters import (
-    PLACEHOLDER_REMOTE_AGENTS,
-    list_available_team_agents,
+    MEMBER_KINDS,
+    normalize_member,
+    normalize_roster,
     reset_team_rosters,
-    team_rosters_path,
+    upsert_roster,
 )
 
 
-def test_path_is_team_rosters_json_not_teams_json():
-    path = team_rosters_path()
-    assert path.name == "team_rosters.json"
-    assert "teams.json" not in str(path)
-
-
-def test_catalog_includes_remote_placeholders_and_not_blueprint_kinds():
-    with (
-        patch(
-            "swarm.core.team_rosters._blueprint_agents",
-            return_value=[
-                {
-                    "id": "jeeves",
-                    "name": "Jeeves",
-                    "kind": "api",
-                    "source": "blueprint:jeeves",
-                    "placeholder": False,
-                }
-            ],
-        ),
-        patch(
-            "swarm.core.team_rosters._cli_agents",
-            return_value=[
-                {
-                    "id": "grok",
-                    "name": "grok",
-                    "kind": "cli",
-                    "source": "cli:grok",
-                    "placeholder": False,
-                }
-            ],
-        ),
-    ):
-        agents = list_available_team_agents()
-    kinds = {a["kind"] for a in agents}
-    assert kinds == {"api", "cli", "remote"}
-    remotes = [a for a in agents if a["kind"] == "remote"]
-    assert {a["id"] for a in remotes} == {p["id"] for p in PLACEHOLDER_REMOTE_AGENTS}
-    assert all(a["placeholder"] for a in remotes)
-    assert all(a["kind"] != "blueprint" for a in agents)
-
-
-def test_catalog_cli_failure_uses_placeholders():
-    with (
-        patch("swarm.core.team_rosters._blueprint_agents", return_value=[]),
-        patch("swarm.core.team_rosters._cli_agents", side_effect=RuntimeError("no catalog")),
-    ):
-        agents = list_available_team_agents()
-    clis = [a for a in agents if a["kind"] == "cli"]
-    assert clis
-    assert all(a.get("placeholder") for a in clis)
-
-
-def test_reset_clears_cache():
-    reset_team_rosters()
+@pytest.fixture(autouse=True)
+def _clean_rosters(tmp_path, monkeypatch):
     from swarm.core import team_rosters as store
 
-    assert store._roster_registry is None
+    cfg = tmp_path / "cfg"
+    cfg.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(store, "get_user_config_dir_for_swarm", lambda: cfg)
+    monkeypatch.setattr(store, "ensure_swarm_directories_exist", lambda: None)
+    reset_team_rosters()
+    yield
+    reset_team_rosters()
+
+
+def test_member_kinds_include_team_and_herdr():
+    assert MEMBER_KINDS == ("api", "cli", "remote", "team", "herdr")
+
+
+def test_normalize_kind_team_requires_team_id():
+    member = normalize_member(
+        {"id": "research", "kind": "team", "role": "default", "source": "team:research"}
+    )
+    assert member["kind"] == "team"
+    assert member["team_id"] == "research"
+    assert member["source"] == "team:research"
+
+
+def test_role_cos_persists_on_member():
+    member = normalize_member({"id": "pat", "kind": "api", "role": "cos"})
+    assert member["role"] == "chief_of_staff"
+    assert member["kind"] == "api"
+    assert set(member) >= {"id", "kind", "role", "source"}
+
+
+def test_persist_nested_and_herdr_members(tmp_path, monkeypatch):
+    stored = upsert_roster(
+        {
+            "id": "office",
+            "name": "Office",
+            "members": [
+                {"id": "cos", "kind": "api", "role": "chief", "source": "blueprint:cos"},
+                {"id": "research", "kind": "team", "team_id": "research", "role": "default"},
+                {"id": "w3p1", "kind": "herdr", "role": "default", "source": "herdr:w3:p1"},
+            ],
+        }
+    )
+    kinds = {m["id"]: m for m in stored["members"]}
+    assert kinds["research"]["kind"] == "team"
+    assert kinds["research"]["team_id"] == "research"
+    assert kinds["w3p1"]["kind"] == "herdr"
+    assert kinds["cos"]["role"] == "chief_of_staff"
+    for member in stored["members"]:
+        assert set(member) >= {"id", "kind", "role", "source"}
+
+
+def test_agent_team_alias_accepted():
+    roster = normalize_roster(
+        {
+            "id": "alpha",
+            "agent_team": [{"id": "a", "kind": "cli", "role": "skeptic"}],
+        }
+    )
+    assert roster["members"][0]["kind"] == "cli"
+    assert roster["members"][0]["role"] == "skeptic"
+
+
+def test_persist_remote_hermes_omb_rakazo_members():
+    """PR #318 / REQ-28: remotes are roster members (kind=remote), not /v1/teams aliases."""
+    stored = upsert_roster(
+        {
+            "id": "harness",
+            "name": "Harness",
+            "members": [
+                {"id": "hermes", "kind": "remote", "role": "default"},
+                {"id": "omb", "kind": "remote", "role": "default"},
+                {"id": "rakazo", "kind": "remote", "role": "default"},
+            ],
+        }
+    )
+    kinds = {m["id"]: m for m in stored["members"]}
+    assert kinds["hermes"]["kind"] == "remote"
+    assert kinds["omb"]["kind"] == "remote"
+    assert kinds["rakazo"]["kind"] == "remote"
+    assert kinds["hermes"]["source"] == "placeholder:remote:hermes"
+    assert kinds["omb"]["source"] == "placeholder:remote:omb"
+    assert kinds["rakazo"]["source"] == "placeholder:remote:rakazo"
+    for member in stored["members"]:
+        assert member["kind"] != "team"
+        assert "llm_profile" not in member
+
+
+def test_self_nest_rejected():
+    with pytest.raises(ValueError, match="cannot nest itself"):
+        normalize_roster(
+            {
+                "id": "loop",
+                "members": [{"id": "loop", "kind": "team", "team_id": "loop"}],
+            }
+        )

@@ -42,15 +42,23 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    # Grok chrome landing is chat (no standing .btn-primary). A visible DaisyUI
-    # `.btn` still proves component styles compiled. Prefer a named visible
-    # control so hidden overlay / lg:hidden chrome buttons are not `.first`.
-    btn = page.get_by_role("button", name="Compose team")
+    # `/` is ChatPage (`/?blueprint=support`). SettingsSheet keeps a hidden
+    # `.btn-primary` ("Save retention"), so `.btn-primary`.first is never
+    # visible. Use a visible DaisyUI `.btn` plus the themed composer fill.
+    btn = page.locator("button.btn").locator("visible=true").first
     btn.wait_for(state="visible", timeout=10_000)
-    radius = _computed(page, btn, "borderRadius")
-    assert radius not in ("0px", "0"), (
-        f".btn border-radius is {radius!r}; DaisyUI button styles are missing "
-        "from the bundle"
+    pad = _computed(page, btn, "paddingLeft")
+    assert pad not in ("0px", "0"), (
+        f"visible .btn padding-left is {pad!r}; DaisyUI button styles "
+        "are missing from the bundle"
+    )
+
+    composer = page.locator(".os-composer").first
+    composer.wait_for(state="visible", timeout=10_000)
+    bg = _computed(page, composer, "backgroundColor")
+    assert bg not in TRANSPARENT, (
+        ".os-composer has a transparent background; theme / DaisyUI "
+        "tokens are missing from the bundle"
     )
 
     # The empty-CSS guard: fetch every stylesheet the page links and demand
@@ -85,17 +93,12 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """Grok chrome has no standing Connected badge. The composer enables only
-    after ws.onopen, which still guards ASGI/daphne websocket wiring."""
+    """Composer enables only after ws.onopen (REQ-8: healthy WS is silent;
+    do not wait on a standing Connected badge)."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
-    box = page.get_by_role("textbox", name="Chat message")
-    box.wait_for(state="visible", timeout=10_000)
-    page.wait_for_function(
-        """() => {
-          const el = document.querySelector('[aria-label="Chat message"]');
-          return el instanceof HTMLInputElement && !el.disabled;
-        }""",
-        timeout=20_000,
+    page.get_by_label("Connection status").wait_for(state="attached", timeout=20_000)
+    page.locator('[aria-label="Chat message"]:not([disabled])').wait_for(
+        state="visible", timeout=20_000
     )
 
 

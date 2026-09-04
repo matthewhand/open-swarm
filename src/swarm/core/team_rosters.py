@@ -1,21 +1,18 @@
-"""Team roster composition store (REQ-20).
+"""Team roster composition store (REQ-20 / REQ-28).
 
 A **team roster** is a composition contract: a named roster of members
-(API-from-blueprint, CLI, or remote harness) plus per-team openai-agents
-wire toggles (handoff / as_tool).
+plus per-team openai-agents wire toggles (handoff / as_tool).
 
-This is **not** the Django ``/teams/`` LLM-profile alias registry.
+Member shape (``team_rosters`` / ``agent_team`` members)::
 
-Live vs intended
-----------------
-- **Live (aliases):** ``teams.json`` + ``/v1/teams/`` + Django
-  ``/teams/`` admin/launcher. Schema: ``id`` / ``description`` / ``llm_profile``.
-  Do not write that file from this module.
-- **Intended (composition):** ``team_rosters.json`` + ``/v1/team-rosters/``.
-  Schema: ``members[{id, kind, role, source}]`` + ``wires{handoff, as_tool}``.
+    {id, kind: api|cli|remote|team|herdr, role, source}
 
-Gate runtime (REQ-314) is not implemented here. Unwired gate means all
-tools are approved — UI copy only.
+``kind=team`` also carries ``team_id`` (the nested roster). Parent talks to
+that child team as **one member** (send-to-all on the child), not every
+grandchild — see ``docs/TEAM_ISOLATION.md``.
+
+This is **not** the Django ``/teams/`` LLM-profile alias registry
+(``teams.json``). Never write that file from this module.
 """
 
 from __future__ import annotations
@@ -25,12 +22,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from swarm.core.agent_roles import CANONICAL_ROLES, normalize_agent_role
 from swarm.core.paths import ensure_swarm_directories_exist, get_user_config_dir_for_swarm
 
 logger = logging.getLogger(__name__)
 
-MEMBER_KINDS = ("api", "cli", "remote")
-MEMBER_ROLES = ("support", "gate", "skeptic", "default")
+MEMBER_KINDS = ("api", "cli", "remote", "team", "herdr")
 DEFAULT_WIRES = {"handoff": True, "as_tool": True}
 
 # In-memory cache. Isolated from swarm.views.utils._dynamic_registry (teams.json).
@@ -48,16 +45,20 @@ def slugify_roster_name(name: str) -> str:
     return "".join(c.lower() if c.isalnum() else "-" for c in name).strip("-")
 
 
-def _default_source(member_id: str, kind: str) -> str:
+def _default_source(member_id: str, kind: str, team_id: str | None = None) -> str:
     if kind == "api":
         return f"blueprint:{member_id}"
     if kind == "cli":
         return f"cli:{member_id}"
+    if kind == "team":
+        return f"team:{team_id or member_id}"
+    if kind == "herdr":
+        return f"herdr:{member_id}"
     return f"placeholder:remote:{member_id}"
 
 
 def normalize_member(raw: Any) -> dict[str, str]:
-    """Validate and normalize one roster member. Raises ValueError."""
+    """Validate and normalize one roster / agent_team member. Raises ValueError."""
     if not isinstance(raw, dict):
         raise ValueError("Each member must be an object.")
     member_id = str(raw.get("id") or "").strip()
@@ -70,12 +71,24 @@ def normalize_member(raw: Any) -> dict[str, str]:
     if kind not in MEMBER_KINDS:
         raise ValueError(f"Member kind must be one of {', '.join(MEMBER_KINDS)}.")
 
-    role = str(raw.get("role") or "default").strip().lower()
-    if role not in MEMBER_ROLES:
-        raise ValueError(f"Member role must be one of {', '.join(MEMBER_ROLES)}.")
+    role = normalize_agent_role(raw.get("role") or "default")
+    if role not in CANONICAL_ROLES:
+        raise ValueError(f"Member role must be one of {', '.join(CANONICAL_ROLES)}.")
 
-    source = str(raw.get("source") or "").strip() or _default_source(member_id, kind)
-    return {"id": member_id, "kind": kind, "role": role, "source": source}
+    team_id = str(raw.get("team_id") or "").strip()
+    if kind == "team":
+        team_id = team_id or member_id
+    elif team_id:
+        # Non-team members may still record a home team; keep it if present.
+        pass
+    else:
+        team_id = ""
+
+    source = str(raw.get("source") or "").strip() or _default_source(member_id, kind, team_id or None)
+    member = {"id": member_id, "kind": kind, "role": role, "source": source}
+    if team_id:
+        member["team_id"] = team_id
+    return member
 
 
 def normalize_wires(raw: Any) -> dict[str, bool]:
@@ -100,10 +113,13 @@ def normalize_roster(raw: dict[str, Any], *, roster_id: str | None = None) -> di
     if not rid:
         raise ValueError("Roster id is required.")
     name = str(raw.get("name") or rid).strip() or rid
-    members_in = raw.get("members") or []
+    members_in = raw.get("members") or raw.get("agent_team") or []
     if not isinstance(members_in, list):
         raise ValueError("members must be an array.")
     members = [normalize_member(m) for m in members_in]
+    for member in members:
+        if member.get("kind") == "team" and member.get("team_id") == rid:
+            raise ValueError("A team cannot nest itself as a member.")
     return {
         "id": rid,
         "name": name,
@@ -193,135 +209,25 @@ def delete_roster(roster_id: str) -> bool:
     return True
 
 
-def reset_team_rosters() -> None:
-    """Clear the in-memory cache (tests). Does not write disk unless save is called."""
+def reset_team_rosters(initial: dict[str, dict[str, Any]] | None = None) -> None:
+    """Replace the in-memory cache (tests). Does not write disk unless save is called."""
     global _roster_registry
-    _roster_registry = None
+    _roster_registry = None if initial is None else dict(initial)
 
 
-# ---------------------------------------------------------------------------
-# Available-agent catalog (API / CLI / remote). Remotes and missing CLIs are
-# placeholders — never registered as Blueprint classes.
-# ---------------------------------------------------------------------------
-
-PLACEHOLDER_REMOTE_AGENTS: tuple[dict[str, str], ...] = (
-    {
-        "id": "acp",
-        "name": "ACP harness",
-        "kind": "remote",
-        "source": "placeholder:remote:acp",
-        "note": "Placeholder — remote harness API is not in this tree.",
-    },
-    {
-        "id": "ssh-remote",
-        "name": "SSH remote",
-        "kind": "remote",
-        "source": "placeholder:remote:ssh-remote",
-        "note": "Placeholder — remote harness API is not in this tree.",
-    },
-)
-
-PLACEHOLDER_CLI_AGENTS: tuple[dict[str, str], ...] = (
-    {"id": "grok", "name": "grok", "kind": "cli", "source": "placeholder:cli:grok"},
-    {"id": "claude", "name": "claude", "kind": "cli", "source": "placeholder:cli:claude"},
-    {"id": "gemini", "name": "gemini", "kind": "cli", "source": "placeholder:cli:gemini"},
-)
-
-
-def _blueprint_agents() -> list[dict[str, Any]]:
-    """API members come from discovered blueprints (not remotes/CLIs)."""
-    from django.conf import settings as dj_settings
-
-    from swarm.core.blueprint_discovery import (
-        apply_blueprint_aliases,
-        discover_blueprints,
-        merge_community_blueprints,
-    )
-
-    discovered = discover_blueprints(dj_settings.BLUEPRINT_DIRECTORY)
-    discovered = merge_community_blueprints(
-        discovered, getattr(dj_settings, "BLUEPRINT_EXTRA_DIRS", None)
-    )
-    discovered = apply_blueprint_aliases(discovered)
-    agents: list[dict[str, Any]] = []
-    if not isinstance(discovered, dict):
-        return agents
-    for blueprint_id, info in discovered.items():
-        meta = info.get("metadata", {}) if isinstance(info, dict) else {}
-        name = meta.get("name") or blueprint_id
-        agents.append(
-            {
-                "id": blueprint_id,
-                "name": name,
-                "kind": "api",
-                "source": f"blueprint:{blueprint_id}",
-                "description": meta.get("description") or "",
-                "placeholder": False,
-            }
-        )
-    agents.sort(key=lambda a: str(a["name"]).lower())
-    return agents
-
-
-def _cli_agents() -> list[dict[str, Any]]:
-    try:
-        from swarm.core import cli_catalog
-
-        names = list(cli_catalog.catalog_names())
-    except Exception:
-        logger.exception("CLI catalog unavailable; using CLI placeholders.")
-        return [
-            {**entry, "description": "", "placeholder": True, "note": "Placeholder — CLI catalog unavailable."}
-            for entry in PLACEHOLDER_CLI_AGENTS
-        ]
-    if not names:
-        return [
-            {**entry, "description": "", "placeholder": True, "note": "Placeholder — no CLIs in catalog."}
-            for entry in PLACEHOLDER_CLI_AGENTS
-        ]
-    return [
-        {
-            "id": name,
-            "name": name,
-            "kind": "cli",
-            "source": f"cli:{name}",
-            "description": "",
-            "placeholder": False,
-        }
-        for name in names
-    ]
-
-
-def _remote_agents() -> list[dict[str, Any]]:
-    return [
-        {
-            **entry,
-            "description": entry.get("note", ""),
-            "placeholder": True,
-        }
-        for entry in PLACEHOLDER_REMOTE_AGENTS
-    ]
-
-
-def list_available_team_agents() -> list[dict[str, Any]]:
-    """Compose the available-agent palette. Failures degrade to placeholders."""
-    agents: list[dict[str, Any]] = []
-    try:
-        agents.extend(_blueprint_agents())
-    except Exception:
-        logger.exception("Blueprint discovery failed for team-agent catalog.")
-    try:
-        agents.extend(_cli_agents())
-    except Exception:
-        logger.exception("CLI catalog failed for team-agent catalog.")
-        agents.extend(
-            {
-                **entry,
-                "description": "",
-                "placeholder": True,
-                "note": "Placeholder — CLI catalog unavailable.",
-            }
-            for entry in PLACEHOLDER_CLI_AGENTS
-        )
-    agents.extend(_remote_agents())
-    return agents
+def iter_normalized_rosters(
+    rosters: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Return ``{id: normalized_roster}`` from an in-memory map or the store."""
+    raw = rosters if rosters is not None else load_team_rosters()
+    out: dict[str, dict[str, Any]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for rid, entry in raw.items():
+        if not isinstance(entry, dict):
+            continue
+        try:
+            out[str(rid)] = normalize_roster(entry, roster_id=str(entry.get("id") or rid))
+        except ValueError:
+            logger.warning("Skipping invalid roster %s", rid)
+    return out

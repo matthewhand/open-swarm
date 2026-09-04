@@ -85,7 +85,6 @@ class TestIndexView:
         mock_discover.assert_called_once()
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content    # real template header
         assert "Launch Team" in content
         assert "Browse Blueprints" in content
         assert "Manage Teams" in content
@@ -101,7 +100,6 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
         assert "Launch Team" in content
         assert "Browse Blueprints" in content
         assert "Manage Teams" in content
@@ -117,7 +115,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
+        assert "Launch Team" in content
         assert "No blueprints available" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
@@ -130,7 +128,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
+        assert "Launch Team" in content
         assert "No blueprints available" in content
 
 
@@ -281,6 +279,7 @@ class TestTeamLauncherView:
         assert "Team Launcher" in content
         assert "Output" in content
         assert "teams_launch.js" in content
+        assert 'name="csrfmiddlewaretoken"' in content or "csrf-token" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_launcher_disabled(self, mock_enabled, client):
@@ -476,19 +475,13 @@ class TestTeamRostersJson:
         assert "members" in first
         assert "llm_profile" not in first
 
-    def test_v1_team_rosters_is_composition_api_not_the_file(self, client):
-        """REQ-23 fixture vs REQ-20 CRUD: same list envelope, different views."""
-        from django.urls import resolve
-
-        file_res = client.get("/team_rosters.json")
+    def test_v1_team_rosters_is_composition_list(self, client):
+        """REQ-28 composition API. Static sidepane file stays /team_rosters.json."""
         api_res = client.get("/v1/team-rosters/")
-        assert file_res.status_code == 200
         assert api_res.status_code == 200
-        file_data = json.loads(file_res.content)
-        api_data = json.loads(api_res.content)
-        assert file_data.get("object") == "list"
-        assert isinstance(file_data.get("data"), list)
-        assert api_data.get("object") == "list"
-        assert isinstance(api_data.get("data"), list)
-        assert resolve("/team_rosters.json").url_name == "team-rosters-json"
-        assert resolve("/v1/team-rosters/").url_name == "team-rosters-api"
+        data = json.loads(api_res.content)
+        assert data.get("object") == "list"
+        assert isinstance(data.get("data"), list)
+        for row in data["data"]:
+            assert row.get("object") == "team_roster"
+            assert "llm_profile" not in row

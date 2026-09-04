@@ -1,21 +1,23 @@
 """
-Team roster composition API (REQ-20).
+Team roster composition API (REQ-20 / REQ-28).
 
 REST over ``team_rosters.json`` — a composition contract separate from the
 LLM-profile alias registry at ``teams.json`` / ``/v1/teams/`` / Django
 ``/teams/``.
 
-Honesty: Django Team Launcher / Admin / Swarm Creator stay as-is. This API
-does not overwrite the alias schema and does not register remotes or CLIs
-as Blueprint classes.
+Member shape::
+
+    {id, kind: api|cli|remote|team|herdr, role, source}
+
+``kind=team`` also stores ``team_id``. Isolation / CoS consult tools live in
+``swarm.core.team_isolation`` and ``swarm.core.team_consult``.
 
 Endpoints:
     GET    /v1/team-rosters/          -> {"object": "list", "data": [roster, ...]}
     POST   /v1/team-rosters/          -> 201 + roster
     GET    /v1/team-rosters/<id>/     -> roster
-    PUT    /v1/team-rosters/<id>/     -> roster (full replace of members/wires/name)
+    PUT    /v1/team-rosters/<id>/     -> roster
     DELETE /v1/team-rosters/<id>/     -> 204
-    GET    /v1/team-agents/           -> available API / CLI / remote members
 """
 
 from __future__ import annotations
@@ -32,7 +34,6 @@ from rest_framework.views import APIView
 from swarm.core.team_rosters import (
     delete_roster,
     get_roster,
-    list_available_team_agents,
     load_team_rosters,
     serialize_roster,
     slugify_roster_name,
@@ -94,16 +95,23 @@ class TeamRostersAPIView(APIView):
         ),
         examples=[
             OpenApiExample(
-                "Minimal roster",
+                "Nested roster",
                 value={
-                    "name": "research-squad",
+                    "name": "office",
                     "members": [
                         {
-                            "id": "jeeves",
+                            "id": "cos",
                             "kind": "api",
+                            "role": "chief_of_staff",
+                            "source": "blueprint:cos",
+                        },
+                        {
+                            "id": "research",
+                            "kind": "team",
+                            "team_id": "research",
                             "role": "default",
-                            "source": "blueprint:jeeves",
-                        }
+                            "source": "team:research",
+                        },
                     ],
                     "wires": {"handoff": True, "as_tool": True},
                 },
@@ -134,7 +142,7 @@ class TeamRostersAPIView(APIView):
                 {
                     "id": slug,
                     "name": name,
-                    "members": body.get("members") or [],
+                    "members": body.get("members") or body.get("agent_team") or [],
                     "wires": body.get("wires"),
                 }
             )
@@ -172,7 +180,7 @@ class TeamRosterDetailAPIView(APIView):
                 {
                     "id": roster_id,
                     "name": name,
-                    "members": body.get("members", existing.get("members") or []),
+                    "members": body.get("members", body.get("agent_team", existing.get("members") or [])),
                     "wires": body.get("wires", existing.get("wires")),
                 }
             )
@@ -191,28 +199,3 @@ class TeamRosterDetailAPIView(APIView):
         except Exception:
             logger.exception("Error deleting team roster '%s'.", roster_id)
             return _error("Failed to delete team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class TeamAgentsAPIView(APIView):
-    """GET /v1/team-agents/ — available composition members (API / CLI / remote)."""
-
-    permission_classes = ROSTER_API_PERMISSIONS
-
-    @extend_schema(
-        operation_id="v1_team_agents_list",
-        summary="List agents available to compose a team roster",
-        description=(
-            "Palette for the Teams composition UI: API members from discovered "
-            "blueprints, CLI members from the CLI catalog (placeholders if the "
-            "catalog is missing), and remote harness placeholders. Remotes and "
-            "CLIs are not Blueprint classes."
-        ),
-        responses={200: OpenApiTypes.OBJECT, 500: OpenApiTypes.OBJECT},
-    )
-    def get(self, request, *_args, **_kwargs):
-        try:
-            data = list_available_team_agents()
-            return Response({"object": "list", "data": data}, status=status.HTTP_200_OK)
-        except Exception:
-            logger.exception("Error listing team agents.")
-            return _error("Failed to list available team agents.", status.HTTP_500_INTERNAL_SERVER_ERROR)

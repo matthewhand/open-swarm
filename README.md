@@ -87,6 +87,16 @@ curl -sf http://localhost:8000/v1/responses \
 
 The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). **Web UI:** when `webui/frontend/dist/` is built, `/` prefers that React SPA dashboard (falls back to Django templates otherwise). Day-to-day operator UI is Django server-rendered + HTMx at trailing-slash routes (`/teams/`, `/blueprint-library/`, `/agent-creator/`, `/settings/`, `/sessions/`, …). The SPA is experimental and not at parity with those pages — see [USERGUIDE.md](./USERGUIDE.md) and [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md).
 
+## Pinokio (local sideload)
+
+Open Swarm is **not** in the Pinokio public catalog. In Pinokio, add the git URL only (Download from URL / sideload) — do not search Discover:
+
+```
+https://github.com/matthewhand/open-swarm.git
+```
+
+Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home` (REQ-45).
+
 ---
 
 ## Architecture
@@ -151,7 +161,7 @@ Vocabulary for the v1 cut: [docs/GLOSSARY.md](docs/GLOSSARY.md) · UI boundary: 
   * `model: "cli_map"` — decompose a task, distribute the subtasks across worker CLIs in parallel, and reduce the results into one answer.
 
   Consensus can be framework-driven (self-consensus: the same persona N times; or a multi-persona panel) **or** delegated to a CLI's own built-in mode where one exists (e.g. grok's `--best-of-n N`) — and the two compose. `grok` is the preferred default for judge/router/planner roles. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). Worked 3-CLI consensus transcripts — each showing every agent's individual contribution, the judge's analysis, and the synthesis (including where the panel *disagrees*) — live in [docs/examples/](docs/examples/).
-* **Skills** — reusable capabilities packaged as `SKILL.md` directories (YAML frontmatter + instructions, optionally bundled scripts), following Anthropic's [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) open standard so they're portable to Claude Code / the Skills API. List them with `swarm-cli skills`; apply one to any CLI with the `cli_agent` `skill=<name>` param — it prepends the skill's instructions and stages any bundled assets into the workdir for a write-mode CLI to run. Skills are CLI-agnostic: the same skill works on grok, claude, or gemini. Bundled examples: `conventional-commit`, `reviewing-code`, `writing-changelog`, `counting-lines` (ships an executable `count.py`).
+* **Skills** — reusable capabilities packaged as `SKILL.md` directories (YAML frontmatter + instructions, optionally bundled scripts), following Anthropic's [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) open standard so they're portable to Claude Code / the Skills API. List them with `swarm-cli skills`; apply one to any CLI with the `cli_agent` `skill=<name>` param — it prepends the skill's instructions and stages any bundled assets into the workdir for a write-mode CLI to run. Skills are CLI-agnostic: the same skill works on grok, claude, or gemini. Bundled examples: `conventional-commit`, `reviewing-code`, `writing-changelog`, `counting-lines` (ships an executable `count.py`), `support-session-ownership` (Support session ownership).
 * **Inference profiles** — a blueprint can declare *what kind of thinking it wants* — `intelligence`, `speed`, `cost` as 0–1 priorities — instead of hard-coding a model. Each backend is tagged with capability traits (defaults you override per-agent), and the best match is chosen automatically. So a reasoning-heavy blueprint routes to whatever *you* labelled smart (e.g. `claude opus 4.8 → intelligence 1.0`); a high-volume one routes to your fast/cheap CLI. Keeps blueprints portable across hosts. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md#inference-profiles--say-what-you-want-not-which-model).
 * **Configuration** — one JSON file (`~/.config/swarm/swarm_config.json`) holding named LLM profiles and MCP server definitions, with `${ENV_VAR}` placeholders so secrets stay in the environment / `.env`.
 
@@ -359,7 +369,7 @@ Documentation map:
 * [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) — visual page-by-page tour of the web UI (React SPA + Django templates).
 * [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/MOA.md](./docs/MOA.md) — Mixture of Agents consensus and consensus→team path.
-* [docs/HERDR.md](./docs/HERDR.md) — Herdr members (`kind=herdr`): same-host CLI default, optional `--remote`, mocked in CI.
+* [docs/HERDR.md](./docs/HERDR.md) — Herdr members (`kind=herdr`): same-host CLI default, optional `--remote` from configured remotes kind (REQ-64), mocked in CI.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
 * [Developer](#developer) — gateway vs workers, `/v1/responses` sequence, git-dated history.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.

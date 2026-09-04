@@ -5,6 +5,7 @@ import {
   MANAGE_TEAMS_HREF,
   fetchTeamRosters,
   memberOptionLabel,
+  memberTargetLabel,
   parseTeamRosters,
   teamHideId,
   teamThreadId,
@@ -72,12 +73,32 @@ describe('parseTeamRosters', () => {
 })
 
 describe('labels and ids', () => {
+  it('labels All members vs a chosen seat', () => {
+    const team = {
+      id: 'demo-team',
+      name: 'Demo Team',
+      description: '',
+      members: [{ id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' }],
+    }
+    expect(memberTargetLabel('all', team)).toBe('All members')
+    expect(memberTargetLabel('codey', team)).toBe('Codey (agent/coder)')
+  })
+
   it('formats name + kind/role for the unlabeled dropdown', () => {
     expect(memberOptionLabel({ id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' })).toBe(
       'Codey (agent/coder)',
     )
     expect(memberOptionLabel({ id: 'x', name: 'X', role: 'ops' })).toBe('X (ops)')
     expect(memberOptionLabel({ id: 'y', name: 'Y' })).toBe('Y')
+    expect(memberOptionLabel({ id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' })).toBe(
+      'Hermes (remote/default)',
+    )
+    expect(memberOptionLabel({ id: 'omb', name: 'OMB', kind: 'remote', role: 'default' })).toBe(
+      'OMB (remote/default)',
+    )
+    expect(memberOptionLabel({ id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' })).toBe(
+      'Rakazo (remote/default)',
+    )
   })
 
   it('namespaces hide ids so a team cannot collide with an agent slug', () => {
