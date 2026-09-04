@@ -2,6 +2,7 @@ import logging
 import time
 
 from asgiref.sync import async_to_sync
+from django.shortcuts import render
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -472,63 +473,128 @@ def get_last_used_map() -> dict[tuple[str, str], float]:
     return {}
 
 
+_ALLOWED_SOURCE_SUFFIXES = (".py", ".md", ".json", ".txt", ".toml", ".yaml", ".yml", ".cfg")
+
+_PRISM_BY_SUFFIX = {
+    ".py": "python",
+    ".md": "markdown",
+    ".json": "json",
+    ".toml": "toml",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".txt": "none",
+    ".cfg": "ini",
+}
+
+
+def prism_language(filename: str | None) -> str:
+    """Prism grammar token for a blueprint source filename (default python)."""
+    name = (filename or "").rsplit("/", 1)[-1]
+    suffix = ""
+    if "." in name:
+        suffix = "." + name.rsplit(".", 1)[-1].lower()
+    return _PRISM_BY_SUFFIX.get(suffix, "python")
+
+
+def load_blueprint_source(
+    blueprint_id: str, file_name: str | None = None
+) -> tuple[dict, int]:
+    """Load one blueprint file plus the directory listing.
+
+    Returns ``(payload, http_status)``. Confined to the blueprint's own
+    directory under ``BLUEPRINT_DIRECTORY`` (no traversal). An explicit
+    missing ``file_name`` is 404 — never a silent primary fallback.
+    """
+    from pathlib import Path
+
+    from swarm.settings import BLUEPRINT_DIRECTORY
+
+    base = Path(BLUEPRINT_DIRECTORY).resolve()
+    bp_dir = (base / blueprint_id).resolve()
+    if base not in bp_dir.parents or not bp_dir.is_dir():
+        return {"error": "blueprint not found"}, 404
+
+    files = sorted(
+        p for p in bp_dir.iterdir()
+        if p.is_file() and p.suffix in _ALLOWED_SOURCE_SUFFIXES
+    )
+    if not files:
+        return {
+            "id": blueprint_id,
+            "files": [],
+            "primary": None,
+            "selected": None,
+            "content": "",
+        }, 200
+
+    primary = next((p for p in files if p.name.startswith("blueprint_")), files[0])
+    target = primary
+    if file_name:
+        cand = (bp_dir / file_name).resolve()
+        if not (
+            cand.is_file()
+            and cand.parent == bp_dir
+            and cand.suffix in _ALLOWED_SOURCE_SUFFIXES
+        ):
+            return {"error": f"file not found: {file_name}"}, 404
+        target = cand
+    try:
+        content = target.read_text(encoding="utf-8", errors="replace")[:200_000]
+    except OSError:
+        content = ""
+
+    return {
+        "id": blueprint_id,
+        "files": [{"name": p.name, "path": p.name} for p in files],
+        "primary": primary.name,
+        "selected": target.name,
+        "content": content,
+    }, 200
+
+
+def _wants_html(request) -> bool:
+    """True when the client prefers a pretty HTML source page over JSON."""
+    media = (getattr(request, "accepted_media_type", None) or "").lower()
+    if media.startswith("text/html"):
+        return True
+    accept = (getattr(request, "META", {}) or {}).get("HTTP_ACCEPT", "") or ""
+    accept = accept.lower()
+    return "text/html" in accept and "application/json" not in accept
+
+
 class BlueprintSourceView(APIView):
     """Read-only source of a blueprint's directory: file list + one file's content.
 
     GET /v1/blueprints/<id>/source[?file=<name>] -> {files, primary, selected, content}.
+    HTML Accept returns highlighted source (``blueprint_source.html``), not JSON.
     Confined to the blueprint's own directory under BLUEPRINT_DIRECTORY (no traversal).
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
 
-    _ALLOWED_SUFFIXES = (".py", ".md", ".json", ".txt", ".toml", ".yaml", ".yml", ".cfg")
+    _ALLOWED_SUFFIXES = _ALLOWED_SOURCE_SUFFIXES
 
     def get(self, request, blueprint_id, *_args, **_kwargs):
-        from pathlib import Path
-
-        from swarm.settings import BLUEPRINT_DIRECTORY
-
-        base = Path(BLUEPRINT_DIRECTORY).resolve()
-        bp_dir = (base / blueprint_id).resolve()
-        if base not in bp_dir.parents or not bp_dir.is_dir():
-            return Response({"error": "blueprint not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        files = sorted(
-            p for p in bp_dir.iterdir()
-            if p.is_file() and p.suffix in self._ALLOWED_SUFFIXES
-        )
-        if not files:
-            return Response({"id": blueprint_id, "files": [], "primary": None, "selected": None, "content": ""})
-
-        primary = next((p for p in files if p.name.startswith("blueprint_")), files[0])
-        target = primary
-        req_name = request.query_params.get("file")
-        if req_name:
-            # Explicit file request must resolve inside this blueprint dir.
-            # Do not fall back to primary with 200 — that is a false success.
-            cand = (bp_dir / req_name).resolve()
-            if not (
-                cand.is_file()
-                and cand.parent == bp_dir
-                and cand.suffix in self._ALLOWED_SUFFIXES
-            ):
-                return Response(
-                    {"error": f"file not found: {req_name}"},
-                    status=status.HTTP_404_NOT_FOUND,
+        file_name = request.query_params.get("file")
+        payload, code = load_blueprint_source(blueprint_id, file_name)
+        if _wants_html(request):
+            if code == 404:
+                return render(
+                    request,
+                    "blueprint_source.html",
+                    {
+                        "error": (payload or {}).get("error") or "blueprint not found",
+                        "id": blueprint_id,
+                    },
+                    status=code,
                 )
-            target = cand
-        try:
-            content = target.read_text(encoding="utf-8", errors="replace")[:200_000]
-        except OSError:
-            content = ""
-
-        return Response({
-            "id": blueprint_id,
-            "files": [{"name": p.name, "path": p.name} for p in files],
-            "primary": primary.name,
-            "selected": target.name,
-            "content": content,
-        })
+            return render(
+                request,
+                "blueprint_source.html",
+                {**payload, "prism_lang": prism_language(payload.get("selected"))},
+                status=code,
+            )
+        return Response(payload, status=code)
 
 
 class CliAgentsView(APIView):
