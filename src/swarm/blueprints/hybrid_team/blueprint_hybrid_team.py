@@ -335,6 +335,7 @@ class HybridTeamBlueprint(BlueprintBase):
                 return {**base, "status": "failed", "error": str(exc)}
 
         max_workers = min(self._DELEGATION_MAX_WORKERS, max(1, len(delegations)))
+        loop = asyncio.get_running_loop()
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
             futures = [loop.run_in_executor(pool, _work, d) for d in delegations]
             for fut in asyncio.as_completed(futures):
