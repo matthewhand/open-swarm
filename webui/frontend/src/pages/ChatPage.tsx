@@ -62,6 +62,7 @@ import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
 import {
   agentLabel,
   defaultBlueprintId,
@@ -124,6 +125,7 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [, setEditsTick] = useState(0)
   const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
@@ -185,6 +187,7 @@ const ChatPage = () => {
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
+  const runtimeBlueprint = teamFromUrl ? '' : assignedBlueprintId(selectedBlueprint)
   const selectedAgentName = teamFromUrl
     ? selectedTeam?.name || teamFromUrl
     : selectedCli
@@ -208,6 +211,12 @@ const ChatPage = () => {
   useEffect(() => {
     setMemberTarget(ALL_MEMBERS_TARGET)
   }, [teamFromUrl])
+
+  useEffect(() => {
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+  }, [])
 
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
@@ -334,7 +343,7 @@ const ChatPage = () => {
     let ws: WebSocket
     try {
       ws = new WebSocket(
-        buildChatWsUrl(conversationId, teamFromUrl ? undefined : selectedBlueprint || undefined),
+        buildChatWsUrl(conversationId, teamFromUrl ? undefined : runtimeBlueprint || undefined),
       )
     } catch {
       setStatus('failed')
@@ -390,7 +399,7 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint, teamFromUrl])
+  }, [connectAttempt, handleWsEvent, conversationId, runtimeBlueprint, teamFromUrl])
 
   const pinnedToBottomRef = useRef(true)
   useEffect(() => {
@@ -476,12 +485,12 @@ const ChatPage = () => {
       ws.send(
         buildChatWsFrame(
           trimmed,
-          selectedBlueprint || undefined,
+          runtimeBlueprint || selectedBlueprint || undefined,
           selectedCli ? { cli: selectedCli.cli } : undefined,
         ),
       )
     },
-    [selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
+    [runtimeBlueprint, selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
   )
 
   const handleSend = (event: FormEvent) => {

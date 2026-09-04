@@ -479,27 +479,27 @@ describe('AgentSidebar Grok rail', () => {
     window.removeEventListener('swarm:open-settings', onOpen)
   })
 
-  it('reveals a focusable hover-edit on role rows and opens Settings via Enter', async () => {
+  it('reveals a focusable hover-edit on role rows and opens the agent editor via Enter', async () => {
     // REQ-26 first-load seed hides gate/skeptic; show all roles for this check.
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
-    const opened: Array<{ blueprintId?: string }> = []
+    const opened: Array<{ agentId?: string }> = []
     const onOpen = (event: Event) => {
       opened.push((event as CustomEvent).detail || {})
     }
-    window.addEventListener('swarm:open-settings', onOpen)
+    window.addEventListener('swarm:open-agent-editor', onOpen)
     renderSidebar()
 
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
-    const supportEdit = await screen.findByRole('button', { name: 'Edit Support blueprint' })
-    expect(screen.getByRole('button', { name: 'Edit Gate blueprint' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit Skeptic blueprint' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit Codey blueprint' })).not.toBeInTheDocument()
+    const supportEdit = await screen.findByRole('button', { name: 'Edit Support' })
+    expect(screen.getByRole('button', { name: 'Edit Gate' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Skeptic' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Codey' })).not.toBeInTheDocument()
     expect(within(list).queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()
 
     supportEdit.focus()
     fireEvent.keyDown(supportEdit, { key: 'Enter' })
-    expect(opened).toEqual([{ section: 'blueprint', blueprintId: 'support' }])
-    window.removeEventListener('swarm:open-settings', onOpen)
+    expect(opened).toEqual([{ agentId: 'support' }])
+    window.removeEventListener('swarm:open-agent-editor', onOpen)
   })
 
   it('persists a native drag reorder and leaves favourite tiles alone', async () => {

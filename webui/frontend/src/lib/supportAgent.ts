@@ -1,4 +1,5 @@
 import type { Blueprint } from './api'
+import { editedAgentLabel } from './agentEdits'
 
 /** Default Support seat — first in the conversation rail (badge-only role colour). */
 export const SUPPORT_AGENT_ID = 'support'
@@ -99,6 +100,11 @@ export function defaultBlueprintId(fromUrl: string | null | undefined): string {
   return trimmed.length > 0 ? trimmed : SUPPORT_AGENT_ID
 }
 
-export function agentLabel(agent: { id: string; name?: string | null }): string {
+/** Catalog / Settings → Blueprints list label (no per-agent rename). */
+export function catalogLabel(agent: { id: string; name?: string | null }): string {
   return agent.name || agent.id
+}
+
+export function agentLabel(agent: { id: string; name?: string | null }): string {
+  return editedAgentLabel(agent)
 }

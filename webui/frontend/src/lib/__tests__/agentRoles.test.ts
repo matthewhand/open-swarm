@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { AGENT_EDITS_KEY, saveAgentEdit } from '../agentEdits'
 import type { Blueprint } from '../api'
 import {
   ROLE_CHIEF_OF_STAFF,
@@ -26,6 +27,10 @@ const codey: Blueprint = {
 }
 
 describe('agentRoles', () => {
+  afterEach(() => {
+    localStorage.removeItem(AGENT_EDITS_KEY)
+  })
+
   it('normalizes aliases and unknown specializations', () => {
     expect(normalizeAgentRole('tool_gate')).toBe('gate')
     expect(normalizeAgentRole('tool-gate')).toBe('gate')
@@ -42,6 +47,11 @@ describe('agentRoles', () => {
     expect(agentRole({ id: 'skeptic', name: 'Skeptic' })).toBe('skeptic')
     expect(agentRole({ id: 'cos', name: 'Chief of Staff' })).toBe('chief_of_staff')
     expect(agentRole(codey)).toBe('default')
+  })
+
+  it('honours a persisted role override from the agent editor', () => {
+    saveAgentEdit('codey', { role: 'gate' })
+    expect(agentRole(codey)).toBe('gate')
   })
 
   it('injects support, gate, and skeptic ahead of catalog agents', () => {

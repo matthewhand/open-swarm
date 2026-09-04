@@ -61,9 +61,8 @@ describe('SettingsSheet', () => {
 
     const remotesToggle = screen.getByRole('button', { name: 'Remotes' })
     expect(remotesToggle).not.toHaveClass('menu-dropdown-toggle')
-    expect(screen.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass('join')
     expect(screen.getByRole('button', { name: 'Definition' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Blueprint' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Blueprints' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
@@ -476,8 +475,46 @@ describe('SettingsSheet blueprint editor', () => {
     expect(dialog).toHaveClass('modal')
     expect(dialog).toHaveClass('modal-end')
     expect(dialog).not.toHaveClass('drawer')
-    expect(screen.getByRole('button', { name: 'Blueprint' })).toHaveClass('menu-active')
+    expect(screen.getByRole('button', { name: 'Blueprints' })).toHaveClass('menu-active')
+    expect(screen.getByRole('heading', { name: 'Blueprints' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Blueprint' })).toBeInTheDocument()
+  })
+
+  it('selects the assigned blueprint in the Blueprints list', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/source')) {
+          return { ok: false, status: 404, json: async () => ({}) } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [
+              {
+                id: 'codey',
+                object: 'blueprint',
+                name: 'Codey',
+                description: 'Code assistant',
+                abbreviation: null,
+                required_mcp_servers: [],
+                tags: [],
+                installed: true,
+                compiled: true,
+              },
+            ],
+          }),
+        } as Response
+      }),
+    )
+    renderSheet({ blueprintId: 'codey' })
+    const list = await screen.findByRole('listbox', { name: 'Blueprints' })
+    const selected = await within(list).findByRole('option', { name: 'Codey' })
+    expect(selected).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: 'System' })).not.toBeInTheDocument()
   })
 
   it('shows highlighted gate YES/NO Python when source is missing', async () => {

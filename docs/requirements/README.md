@@ -65,6 +65,7 @@ until squash-merged.
 | [REQ-43](./REQ-43.md) | Settings default LLM + per-task override | this PR — #358 |
 | [REQ-28](./REQ-28.md) | Chief of Staff + team isolation + teams-of-teams | this PR |
 | [REQ-37](./REQ-37.md) | Nested conversation compact / summaries | in flight (#350) |
+| [REQ-58](./REQ-58.md) | Agent editor is agent-scoped; Blueprint is a picker | in flight (#382) |
 | [REQ-67](./REQ-67.md) | Role chrome is the badge only — no row fill/border | this PR (#396) |
 | [REQ-66](./REQ-66.md) | Scale-out rail — stacked avatars + session picker | merged (#394) |
 | [REQ-52](./REQ-52.md) | Persist CLI session ids and resume them | in flight (#369) |

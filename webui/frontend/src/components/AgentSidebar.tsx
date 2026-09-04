@@ -72,6 +72,8 @@ import {
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { openSearchPalette } from './SearchPalette'
+import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
+import { openAgentEditor } from './AgentEditor'
 import SessionPicker from './SessionPicker'
 import { openSettingsSheet } from './SettingsSheet'
 import StackedAvatars from './StackedAvatars'
@@ -189,6 +191,7 @@ export default function AgentSidebar({
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [, setEditsTick] = useState(0)
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const [railOrder, setRailOrder] = useState<string[]>(() => loadRailOrder())
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
@@ -206,6 +209,12 @@ export default function AgentSidebar({
       window.removeEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
       window.removeEventListener('storage', onChange)
     }
+  }, [])
+
+  useEffect(() => {
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
   }, [])
 
   const blueprintsQuery = useQuery({
@@ -536,8 +545,8 @@ export default function AgentSidebar({
     setDraggingId(agent.id)
   }
 
-  const openBlueprintEditor = (agent: Blueprint) => {
-    openSettingsSheet({ section: 'blueprint', blueprintId: agent.id })
+  const openEditor = (agent: Blueprint) => {
+    openAgentEditor({ agentId: agent.id })
     onClose?.()
   }
 
@@ -718,17 +727,17 @@ export default function AgentSidebar({
           <button
             type="button"
             className="os-agent-edit"
-            aria-label={`Edit ${name} blueprint`}
+            aria-label={`Edit ${name}`}
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              openBlueprintEditor(agent)
+              openEditor(agent)
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault()
                 event.stopPropagation()
-                openBlueprintEditor(agent)
+                openEditor(agent)
               }
             }}
           >

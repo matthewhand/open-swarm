@@ -323,7 +323,9 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
   await expect(page.getByRole('button', { name: /1 hidden/i })).toBeVisible()
 })
 
-test('hover-edit on a role agent opens the modal-end Blueprint editor', async ({ page }) => {
+test('hover-edit opens an agent-scoped editor; Blueprint picker persists; Edit blueprint lands on the list', async ({
+  page,
+}) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
@@ -337,15 +339,29 @@ test('hover-edit on a role agent opens the modal-end Blueprint editor', async ({
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
 
   await support.hover()
-  const edit = page.getByRole('button', { name: 'Edit Support blueprint' })
+  const edit = page.getByRole('button', { name: 'Edit Support' })
   await expect(edit).toBeVisible()
   await edit.click()
 
+  const editor = page.getByRole('dialog', { name: /Edit / })
+  await expect(editor).toBeVisible()
+  await expect(editor).toHaveClass(/modal-end/)
+  await expect(editor.getByRole('button', { name: 'Remotes' })).toHaveCount(0)
+  await expect(editor.getByRole('button', { name: 'System' })).toHaveCount(0)
+  await expect(editor.getByRole('navigation', { name: 'Settings sections' })).toHaveCount(0)
+  const picker = editor.getByLabel('Blueprint')
+  await expect(picker).toBeVisible()
+  await picker.selectOption('codey')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_agent_edits')))
+    .toContain('"blueprintId":"codey"')
+
+  await editor.getByRole('button', { name: /Edit blueprint/ }).click()
   const sheet = page.getByRole('dialog', { name: 'Settings' })
   await expect(sheet).toBeVisible()
-  await expect(sheet).toHaveClass(/modal-end/)
-  await expect(sheet.getByRole('heading', { name: 'Blueprint' })).toBeVisible()
-  await expect(sheet.locator('.os-code-python')).toContainText('Socratic')
+  await expect(sheet.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Blueprints' })).toHaveClass(/menu-active/)
+  const blueprints = sheet.getByRole('listbox', { name: 'Blueprints' })
+  await expect(blueprints.getByRole('option', { name: 'Codey' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('dialog', { name: /Teams/i })).toHaveCount(0)
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
