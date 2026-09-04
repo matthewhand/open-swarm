@@ -9,6 +9,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SETTINGS_SHEET = REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx"
+REMOTES_LIB = REPO / "webui" / "frontend" / "src" / "lib" / "remotes.ts"
 SEARCH_PALETTE = REPO / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 CHAT_PAGE = REPO / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
@@ -19,13 +20,18 @@ TEAM_ROSTERS = REPO / "webui" / "frontend" / "src" / "lib" / "teamRosters.ts"
 
 
 def test_settings_remotes_panes_are_placeholders_not_live_api():
-    """#318/#320: Settings Hermes/OMB/Rakazo chrome is a stub; /v1/remotes/ is backend-only."""
+    """REQ-59/62: Settings remotes are opt-in; label is OpenMousBot, never OMB."""
     src = SETTINGS_SHEET.read_text(encoding="utf-8")
-    assert "placeholder remote" in src
-    assert "remotes API has not landed" in src
-    assert "/v1/remotes" not in src
-    for label in ("Hermes", "OMB", "Rakazo"):
-        assert label in src
+    labels = REMOTES_LIB.read_text(encoding="utf-8")
+    assert "Add remote" in src
+    assert "fetchRemotes" in src
+    assert "RemoteOperatePane" in src
+    assert "placeholder remote" not in src
+    assert "remotes API has not landed" not in src
+    assert ":8001" not in src
+    assert "OpenMousBot" in labels
+    assert "label: 'OMB'" not in src
+    assert '{ id: \'remotes-omb\' as const, label: \'OMB\' }' not in src
 
 
 def test_search_palette_bot_rows_spa_navigate_chat():

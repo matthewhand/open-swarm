@@ -216,6 +216,89 @@ describe('SettingsSheet', () => {
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
   })
+
+  it('health, list bots, and send on an added OpenMousBot remote', async () => {
+    const configured: Array<Record<string, unknown>> = [
+      {
+        id: 'omb',
+        kind: 'omb',
+        label: 'OpenMousBot',
+        title: 'OpenMousBot',
+        host_label: '',
+        base_url: 'http://127.0.0.1:8802',
+        source: 'config',
+        api_key_env: 'OMB_API_KEY',
+      },
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method || 'GET').toUpperCase()
+        if (url.includes('/health/') && method === 'POST') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              remote: 'omb',
+              ok: true,
+              state: 'UP',
+              detail: 'OpenMousBot /api/health',
+            }),
+          } as Response
+        }
+        if (url.includes('/operate/') && method === 'POST') {
+          const body = JSON.parse(String(init?.body || '{}')) as { op?: string }
+          if (body.op === 'send') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                remote: 'omb',
+                op: 'send',
+                ok: true,
+                detail: 'started OpenMousBot turn',
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              remote: 'omb',
+              op: 'list',
+              ok: true,
+              detail: 'OpenMousBot listed 1 bot(s)',
+              data: { bots: [{ id: 'bot-9', name: 'alpha' }] },
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+            configured,
+            data: configured,
+          }),
+        } as Response
+      }),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    expect(await screen.findByRole('heading', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Health' }))
+    expect(await screen.findByText('UP')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'List bots' }))
+    expect(await screen.findByText(/bot-9/)).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'hello' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(await screen.findByText(/started OpenMousBot turn/)).toBeInTheDocument()
+    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {

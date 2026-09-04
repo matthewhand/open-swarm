@@ -308,7 +308,7 @@ test('REQ-5c #322: / canonicalizes onto Support; Plugins dialog is empty', async
   await expect(plugins).toHaveCount(0)
 })
 
-test('REQ-25 #318/#320: settings remotes panes stay stubbed (no /v1/remotes/ fetch)', async ({
+test('REQ-59/62: settings remotes are opt-in OpenMousBot, not placeholder OMB', async ({
   page,
 }) => {
   const remotesHits = await stubChromeApis(page)
@@ -316,11 +316,8 @@ test('REQ-25 #318/#320: settings remotes panes stay stubbed (no /v1/remotes/ fet
   await page.getByRole('button', { name: 'Open settings' }).click()
   const sheet = page.getByRole('dialog', { name: 'Settings' })
   await expect(sheet).toBeVisible()
-  await sheet.getByRole('button', { name: 'Hermes' }).click()
-  await expect(sheet.getByText(/placeholder remote/i)).toBeVisible()
-  await sheet.getByRole('button', { name: 'OMB' }).click()
-  await expect(sheet.getByText(/OMB is a placeholder remote/i)).toBeVisible()
-  await sheet.getByRole('button', { name: 'Rakazo' }).click()
-  await expect(sheet.getByText(/Rakazo is a placeholder remote/i)).toBeVisible()
-  expect(remotesHits, 'SPA remotes panes must not call /v1/remotes/').toHaveLength(0)
+  await sheet.getByRole('button', { name: 'Remotes' }).click()
+  await expect(sheet.getByRole('button', { name: /Add remote/i })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  expect(remotesHits.length, 'Settings loads /v1/remotes for the opt-in catalog').toBeGreaterThan(0)
 })

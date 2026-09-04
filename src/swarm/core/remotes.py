@@ -106,7 +106,7 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         ),
     },
     "omb": {
-        "title": "OpenMausBot (Windows2)",
+        "title": "OpenMousBot",
         "host_label": "Windows2",
         "base_url": "http://10.0.0.32:8802",
         "ui_url": "",
@@ -114,10 +114,10 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "health_path": "/api/health",
         "version_path": "/api/health",
         "notes": (
-            "OpenMausBot harness on :8802 (upstream default is :8799). "
+            "OpenMousBot harness on :8802 (upstream default is :8799). "
             "GET /api/health, GET /api/bots, POST /api/bots, "
             "POST /api/bots/{id}/messages starts a turn (202). "
-            "We talk HTTP only — no OMB source clone."
+            "We talk HTTP only — no OpenMousBot source clone."
         ),
     },
     "rakazo": {
@@ -212,6 +212,7 @@ class RemoteSpec:
     version_path: str = "/health"
     notes: str = ""
     source: str = "default"
+    api_key_env: str = ""
 
     def origin(self) -> tuple[str, int]:
         parsed = urlparse(self.base_url)
@@ -235,6 +236,8 @@ class RemoteSpec:
             "kind": self.id,
             "label": kind_label(self.id),
             "source": self.source,
+            "api_key_env": self.api_key_env,
+            "added": self.source in ("config", "env"),
             "member": {
                 "kind": "remote",
                 "talk": _TOOL_NAMES.get(self.id, ""),
@@ -378,9 +381,28 @@ def kind_label(remote_id: str) -> str:
     return REMOTE_KIND_LABELS.get(rid, rid)
 
 
+def display_label(remote_id: str) -> str:
+    """Alias of ``kind_label`` (REQ-62)."""
+    return kind_label(remote_id)
+
+
 def list_remote_kinds() -> list[dict[str, str]]:
     """Kinds the user can add. Unused kinds do not appear as catalog rows."""
     return [{"id": kid, "label": REMOTE_KIND_LABELS[kid]} for kid in REMOTE_KIND_IDS]
+
+
+def kind_catalog() -> list[dict[str, str]]:
+    """Alias of ``list_remote_kinds`` (REQ-62)."""
+    return list_remote_kinds()
+
+
+def _placeholder_env_name(value: str) -> str:
+    raw = (value or "").strip()
+    if raw.startswith("${") and raw.endswith("}") and len(raw) > 3:
+        inner = raw[2:-1].strip()
+        if inner and all(ch.isalnum() or ch == "_" for ch in inner):
+            return inner
+    return ""
 
 
 def default_spec(remote_id: str) -> RemoteSpec:
@@ -441,7 +463,18 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
         block = remotes_block.get("open-swarm")
     if isinstance(block, dict):
         spec.source = "config"
-        for key in ("title", "host_label", "base_url", "ui_url", "api_key", "cookie", "health_path", "version_path", "notes"):
+        for key in (
+            "title",
+            "host_label",
+            "base_url",
+            "ui_url",
+            "api_key",
+            "cookie",
+            "health_path",
+            "version_path",
+            "notes",
+            "api_key_env",
+        ):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
     env_base_key = _ENV_BASE.get(rid)
@@ -464,6 +497,8 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
     spec.ui_url = _normalize_base_url(_expand(spec.ui_url)) if spec.ui_url else ""
     spec.api_key = str(_expand(spec.api_key) or "")
     spec.cookie = str(_expand(spec.cookie) or "")
+    if not spec.api_key_env:
+        spec.api_key_env = _placeholder_env_name(spec.api_key)
     spec.health_path = spec.health_path or "/health"
     spec.version_path = spec.version_path or spec.health_path
     if not spec.health_path.startswith("/"):
@@ -504,6 +539,42 @@ def list_configured_remotes(config: dict[str, Any] | None = None) -> list[Remote
     """Opt-in catalog: empty until the user adds a remote (REQ-59)."""
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     return [load_remote(rid, cfg) for rid in configured_remote_ids(cfg)]
+
+
+def load_configured_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
+    """Configured remotes as an id→spec map. Empty until + add (REQ-62)."""
+    return {spec.id: spec for spec in list_configured_remotes(config)}
+
+
+def load_added_remotes(
+    config: dict[str, Any] | None = None,
+    *,
+    config_path: str | Path | None = None,
+) -> dict[str, RemoteSpec]:
+    """CLI/Settings alias of ``load_configured_remotes``."""
+    cfg = config if isinstance(config, dict) else load_raw_config(config_path)[0]
+    return load_configured_remotes(cfg)
+
+
+def added_remote_ids(
+    config: dict[str, Any] | None = None,
+    *,
+    config_path: str | Path | None = None,
+) -> list[str]:
+    cfg = config if isinstance(config, dict) else load_raw_config(config_path)[0]
+    return configured_remote_ids(cfg)
+
+
+def is_configured(remote_id: str, config: dict[str, Any] | None = None) -> bool:
+    try:
+        rid = _require_kind_id(remote_id)
+    except RemoteError:
+        return False
+    return rid in configured_remote_ids(config)
+
+
+def is_remote_added(remote_id: str, config: dict[str, Any] | None = None) -> bool:
+    return is_configured(remote_id, config)
 
 
 def load_placed_members(config: dict[str, Any] | None = None) -> list[str]:
@@ -614,8 +685,10 @@ def persist_remote(
     *,
     base_url: str | None = None,
     api_key: str | None = None,
+    api_key_env: str | None = None,
     ui_url: str | None = None,
     cookie: str | None = None,
+    session_cookie_env: str | None = None,
     config_path: str | Path | None = None,
 ) -> tuple[RemoteSpec, Path]:
     """Merge fields into ``remotes.<id>`` and write swarm_config.json."""
@@ -634,7 +707,7 @@ def persist_remote(
         if _looks_like_forbidden_llm_proxy(normalized):
             raise RemoteError(
                 "Refusing to persist a Fly open-litellm URL as a harness remote. "
-                "Hermes/OMB/Rakazo are LAN harnesses; LAN LLM is http://10.0.0.30:8000/v1."
+                "Hermes/OpenMousBot/Rakazo are LAN harnesses; LAN LLM is http://10.0.0.30:8000/v1."
             )
         if rid == "swarm" and is_this_server_base_url(normalized):
             raise RemoteError(
@@ -644,11 +717,22 @@ def persist_remote(
                 "A child is not required to nest the parent."
             )
         entry["base_url"] = normalized
-    if api_key is not None:
+    if api_key_env is not None:
+        env_name = _placeholder_env_name(api_key_env) or api_key_env.strip()
+        entry["api_key_env"] = env_name
+        if env_name:
+            entry["api_key"] = f"${{{env_name}}}"
+    elif api_key is not None:
         entry["api_key"] = api_key
+        derived = _placeholder_env_name(api_key)
+        if derived:
+            entry["api_key_env"] = derived
     if ui_url is not None:
         entry["ui_url"] = _normalize_base_url(ui_url) if ui_url else ""
-    if cookie is not None:
+    if session_cookie_env is not None:
+        env_name = _placeholder_env_name(session_cookie_env) or session_cookie_env.strip()
+        entry["cookie"] = f"${{{env_name}}}" if env_name else ""
+    elif cookie is not None:
         entry["cookie"] = cookie
     remotes[rid] = entry
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -680,6 +764,39 @@ def delete_remote(
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
     logger.info("Deleted remotes.%s from %s", rid, path)
     return rid, path
+
+
+def add_remote(
+    remote_id: str,
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    api_key_env: str | None = None,
+    ui_url: str | None = None,
+    cookie: str | None = None,
+    session_cookie_env: str | None = None,
+    config_path: str | Path | None = None,
+) -> tuple[RemoteSpec, Path]:
+    """Add or update a remote (REQ-62). Stores api-key-env as ``${ENV}`` only."""
+    return persist_remote(
+        remote_id,
+        base_url=base_url,
+        api_key=api_key,
+        api_key_env=api_key_env,
+        ui_url=ui_url,
+        cookie=cookie,
+        session_cookie_env=session_cookie_env,
+        config_path=config_path,
+    )
+
+
+def remove_remote(
+    remote_id: str,
+    *,
+    config_path: str | Path | None = None,
+) -> tuple[str, Path]:
+    """Alias of ``delete_remote`` (REQ-62)."""
+    return delete_remote(remote_id, config_path=config_path)
 
 
 def _auth_headers(spec: RemoteSpec) -> dict[str, str]:
@@ -962,7 +1079,7 @@ def _omb_list(spec: RemoteSpec, timeout: float) -> OperateResult:
             remote="omb",
             op="list",
             ok=True,
-            detail=f"OpenMausBot listed {count} bot(s) via GET /api/bots",
+            detail=f"OpenMousBot listed {count} bot(s) via GET /api/bots",
             http_status=result.status,
             data=result.body,
         )
@@ -971,7 +1088,7 @@ def _omb_list(spec: RemoteSpec, timeout: float) -> OperateResult:
             remote="omb",
             op="list",
             ok=False,
-            detail="OMB /api/bots requires auth. Set remotes.omb.api_key or OMB_API_KEY.",
+            detail="OpenMousBot /api/bots requires auth. Set remotes.omb.api_key or OMB_API_KEY.",
             http_status=result.status,
             data=result.body,
         )
@@ -979,7 +1096,7 @@ def _omb_list(spec: RemoteSpec, timeout: float) -> OperateResult:
         remote="omb",
         op="list",
         ok=False,
-        detail=result.error or f"OMB list failed (http {result.status})",
+        detail=result.error or f"OpenMousBot list failed (http {result.status})",
         http_status=result.status,
         data=result.body or result.text,
     )
@@ -1008,7 +1125,7 @@ def _omb_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> Ope
                     remote="omb",
                     op="send",
                     ok=False,
-                    detail="No OMB bot id given and none could be listed/created",
+                    detail="No OpenMousBot bot id given and none could be listed/created",
                     http_status=created.status if "created" in locals() else listed.http_status,
                     data={"list": listed.data},
                 )
@@ -1024,7 +1141,7 @@ def _omb_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> Ope
             remote="omb",
             op="send",
             ok=True,
-            detail=f"started OMB turn via POST /api/bots/{bot_id}/messages",
+            detail=f"started OpenMousBot turn via POST /api/bots/{bot_id}/messages",
             http_status=result.status,
             data={"bot_id": bot_id, "response": result.body or result.text},
         )
@@ -1032,7 +1149,7 @@ def _omb_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> Ope
         remote="omb",
         op="send",
         ok=False,
-        detail=result.error or f"OMB send failed (http {result.status})",
+        detail=result.error or f"OpenMousBot send failed (http {result.status})",
         http_status=result.status,
         data=result.body or result.text,
     )

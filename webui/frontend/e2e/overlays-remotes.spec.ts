@@ -93,9 +93,18 @@ async function stubChromeApis(page: import('@playwright/test').Page) {
   await page.route('**/v1/remotes**', async (route) => {
     remotesHits.push(route.request().url())
     await route.fulfill({
-      status: 599,
+      status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ error: 'REQ-72 tests must not hit remotes' }),
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+        ],
+        configured: [],
+        data: [],
+      }),
     })
   })
   return remotesHits
@@ -142,7 +151,7 @@ test('settings / search / plugins overlays keep chat mounted (REQ-72 / #364 / #3
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
-test('settings remotes panes stay placeholders and never fetch /v1/remotes (PR #320 / #318)', async ({
+test('settings remotes stay empty until add and never show an OMB label', async ({
   page,
 }) => {
   const remotesHits = await stubChromeApis(page)
@@ -150,15 +159,13 @@ test('settings remotes panes stay placeholders and never fetch /v1/remotes (PR #
   await page.getByRole('button', { name: 'Open settings' }).click()
   const sheet = page.getByRole('dialog', { name: 'Settings' })
   await expect(sheet).toBeVisible()
-
-  for (const label of ['Hermes', 'OMB', 'Rakazo'] as const) {
-    await sheet.getByRole('button', { name: label }).click()
-    await expect(sheet.getByRole('heading', { name: label })).toBeVisible()
-    await expect(sheet).toContainText(`${label} is a placeholder remote`)
-    await expect(sheet).toContainText(/remotes API has not landed/i)
-  }
-
-  expect(remotesHits, 'settings remotes panes must not call /v1/remotes').toEqual([])
+  await sheet.getByRole('button', { name: 'Remotes' }).click()
+  await expect(sheet.getByRole('button', { name: /Add remote/i })).toBeVisible()
+  await expect(sheet.getByText(/No remotes configured/i)).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: 'Rakazo' })).toHaveCount(0)
+  expect(remotesHits.length, 'Settings loads /v1/remotes for the opt-in catalog').toBeGreaterThan(0)
   await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
 })
 

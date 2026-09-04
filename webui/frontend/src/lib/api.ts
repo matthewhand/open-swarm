@@ -413,61 +413,70 @@ export function removeFromLibrary(name: string): Promise<void> {
 /**
  * GET/POST /v1/remotes/ and POST /v1/remotes/<id>/health|operate/
  * (swarm/views/remotes_api.py). Catalog is opt-in: empty until + Add remote.
- * Hermes (kind=hermes) is the complete kind — health / list / send.
+ * Kind id ``omb`` is labelled OpenMousBot in UI copy — never OMB.
  * Auth is an env-var *name* only; never send a live token.
  */
+export type RemoteKindId = 'hermes' | 'omb' | 'rakazo' | 'herdr' | 'open-swarm' | 'swarm'
+
 export interface RemoteKind {
   id: string
-  title: string
   label: string
-  complete: boolean
-  fields: string[]
-  list_paths: string[]
-  send_path: string
-  health_path: string
-  api_key_env_default: string
+  title?: string
+  complete?: boolean
+  fields?: string[]
+  list_paths?: string[]
+  send_path?: string
+  health_path?: string
+  api_key_env_default?: string
 }
 
 export interface RemoteConnection {
   id: string
-  kind: string
+  kind?: string
+  label?: string
   title: string
-  host_label: string
+  host_label?: string
   base_url: string
-  ui_url: string
-  api_key_env: string
-  api_key_set: boolean
-  cookie_set: boolean
-  health_path: string
-  version_path: string
-  notes: string
-  source: string
-  added: boolean
+  ui_url?: string
+  api_key_env?: string
+  api_key_set?: boolean
+  cookie_set?: boolean
+  health_path?: string
+  version_path?: string
+  notes?: string
+  source?: string
+  added?: boolean
 }
 
 export interface RemotesListResponse {
   object: 'list'
-  data: RemoteConnection[]
-  kinds: RemoteKind[]
+  data?: RemoteConnection[]
+  kinds?: RemoteKind[]
+  configured?: RemoteConnection[]
   team_members?: unknown[]
   vocabulary?: Record<string, string>
 }
 
 export interface AddRemoteRequest {
   kind: string
-  base_url: string
+  base_url?: string
   api_key_env?: string
+  api_key?: string
+  ui_url?: string
+  cookie?: string
 }
+
+export type CreateRemoteRequest = AddRemoteRequest
 
 export interface RemoteHealthResult {
   remote: string
   ok: boolean
   state: string
   detail: string
-  http_status: number | null
-  version: unknown
-  latency_ms: number | null
-  url: string
+  http_status?: number | null
+  version?: unknown
+  latency_ms?: number | null
+  url?: string
 }
 
 export interface RemoteOperateResult {
@@ -475,9 +484,9 @@ export interface RemoteOperateResult {
   op: string
   ok: boolean
   detail: string
-  http_status: number | null
-  data: unknown
-  gap: string
+  http_status?: number | null
+  data?: unknown
+  gap?: string
 }
 
 export function fetchRemotes(): Promise<RemotesListResponse> {
@@ -486,6 +495,14 @@ export function fetchRemotes(): Promise<RemotesListResponse> {
 
 export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
   return apiPost<RemoteConnection>('/v1/remotes/', body)
+}
+
+export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
+  return addRemote(remote)
+}
+
+export function deleteRemote(remoteId: string): Promise<void> {
+  return apiDelete(`/v1/remotes/${encodeURIComponent(remoteId)}/`)
 }
 
 export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
@@ -555,58 +572,6 @@ export function discoverHerdrAgents(
 ): Promise<ListResponse<HerdrDiscoverMember> & { herdr_available?: boolean }> {
   const qs = remote ? `?remote=${encodeURIComponent(remote)}` : ''
   return apiGet(`/v1/herdr-agents/discover/${qs}`)
-}
-
-/**
- * GET/POST /v1/remotes/ and DELETE /v1/remotes/<id>/
- * (swarm/views/remotes_api.py). Settings and remote dropdowns use
- * ``configured`` — unused kinds do not occupy those surfaces (REQ-59).
- * Internal id ``omb`` is labelled OpenMousBot in UI copy.
- */
-export type RemoteKindId = 'hermes' | 'omb' | 'rakazo' | 'herdr' | 'open-swarm'
-
-export interface RemoteKind {
-  id: string
-  label: string
-}
-
-export interface RemoteConnection {
-  id: string
-  kind?: string
-  label?: string
-  title: string
-  host_label: string
-  base_url: string
-  ui_url?: string
-  api_key_set?: boolean
-  cookie_set?: boolean
-  source?: string
-  notes?: string
-}
-
-export interface RemotesListResponse {
-  object: 'list'
-  kinds?: RemoteKind[]
-  data?: RemoteConnection[]
-  configured?: RemoteConnection[]
-  vocabulary?: Record<string, string>
-  team_members?: unknown[]
-}
-
-export interface CreateRemoteRequest {
-  kind: string
-  base_url?: string
-  api_key?: string
-  ui_url?: string
-  cookie?: string
-}
-
-export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
-  return apiPost<RemoteConnection>('/v1/remotes/', remote)
-}
-
-export function deleteRemote(remoteId: string): Promise<void> {
-  return apiDelete(`/v1/remotes/${encodeURIComponent(remoteId)}/`)
 }
 
 // ---------------------------------------------------------------------------
@@ -852,67 +817,6 @@ export interface ConfigOptions {
 
 export function fetchConfigOptions(): Promise<ConfigOptions> {
   return apiGet<ConfigOptions>('/v1/config-options/')
-}
-
-/** GET /v1/remotes/ — kinds catalog + configured remotes (opt-in). */
-export interface RemoteKind {
-  id: string
-  label: string
-  fields?: string[]
-  health_path?: string
-}
-
-export interface RemoteConnection {
-  id: string
-  kind?: string
-  label: string
-  title: string
-  host_label?: string
-  base_url: string
-  ui_url?: string
-  api_key_set?: boolean
-  api_key_env?: string
-  cookie_set?: boolean
-  health_path?: string
-  notes?: string
-  source?: string
-}
-
-export interface RemotesListResponse {
-  object: 'list'
-  kinds: RemoteKind[]
-  data: RemoteConnection[]
-  vocabulary?: Record<string, string>
-  team_members?: Array<{ id: string; title?: string; placed?: boolean }>
-}
-
-export interface AddRemoteRequest {
-  kind: string
-  base_url: string
-  api_key_env?: string
-  ui_url?: string
-  cookie?: string
-}
-
-export interface RemoteHealthResult {
-  remote: string
-  ok: boolean
-  state: string
-  detail: string
-  http_status?: number | null
-  version?: unknown
-  latency_ms?: number | null
-  url?: string
-}
-
-export interface RemoteOperateResult {
-  remote: string
-  op: string
-  ok: boolean
-  detail: string
-  http_status?: number | null
-  data?: unknown
-  gap?: string
 }
 
 /** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements

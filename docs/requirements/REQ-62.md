@@ -1,6 +1,6 @@
 # REQ-62 — OpenMousBot remote — add, list, send (kind complete)
 
-**Status:** in flight (#388)
+**Status:** shipped (#388 / #414); follow-up restores merge-lost helpers + Settings operate
 
 ## Intent
 
