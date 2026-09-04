@@ -16,11 +16,14 @@ def api_client():
 
 @pytest.mark.django_db
 def test_system_local_store_empty(api_client):
+    # Full-suite leftovers (ASGI persist, etc.) may already exist; report live totals.
+    baseline_conv = ChatConversation.objects.count()
+    baseline_msg = ChatMessage.objects.count()
     response = api_client.get("/v1/system/")
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
-    assert body["conversation_count"] == 0
-    assert body["message_count"] == 0
+    assert body["conversation_count"] == baseline_conv
+    assert body["message_count"] == baseline_msg
     assert isinstance(body["size_bytes"], int)
     assert isinstance(body["size_label"], str)
     assert isinstance(body["path"], str)
@@ -35,6 +38,8 @@ def test_system_local_store_empty(api_client):
 
 @pytest.mark.django_db
 def test_system_local_store_counts(api_client, test_user):
+    before_conv = ChatConversation.objects.count()
+    before_msg = ChatMessage.objects.count()
     conv = ChatConversation.objects.create(conversation_id="sys-1", student=test_user)
     ChatMessage.objects.create(conversation=conv, sender="user", content="hello")
     ChatMessage.objects.create(conversation=conv, sender="assistant", content="hi")
@@ -44,8 +49,8 @@ def test_system_local_store_counts(api_client, test_user):
     response = api_client.get("/v1/system")
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
-    assert body["conversation_count"] == 2
-    assert body["message_count"] == 3
+    assert body["conversation_count"] == before_conv + 2
+    assert body["message_count"] == before_msg + 3
     assert isinstance(body["size_bytes"], int)
     assert isinstance(body["size_label"], str)
     assert "://" not in body["path"]

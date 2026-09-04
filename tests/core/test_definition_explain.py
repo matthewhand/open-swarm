@@ -1,5 +1,6 @@
 """REQ-42 definition briefs + default-LLM summarise (no secrets in prompts)."""
 
+import re
 from unittest.mock import MagicMock
 
 from swarm.core.definition_explain import (
@@ -36,8 +37,12 @@ def test_prompt_includes_injected_fixture_and_no_secrets():
     )
     assert REQ42_INJECTED_FIXTURE in prompt
     assert "YES/NO" in prompt
-    assert "sk-" not in prompt.lower()
     assert "api_key" not in prompt.lower()
+    # Gate source mentions "ask-user-on-dangerous" (contains the letters sk-).
+    # Reject key-shaped tokens, not that English phrase.
+    assert re.search(r"sk-[a-zA-Z0-9]{8,}", prompt) is None
+    assert "sk-proj-" not in prompt.lower()
+    assert "sk-test" not in prompt.lower()
 
 
 def test_default_llm_status_from_env(monkeypatch):

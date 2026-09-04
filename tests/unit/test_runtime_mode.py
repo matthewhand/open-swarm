@@ -3,6 +3,7 @@ from pathlib import Path
 
 from swarm.core.runtime_mode import (
     ENV_RUNTIME_MODE,
+    ENV_RUNTIME_MODE_ALIAS,
     MODE_BARE_METAL,
     MODE_SANDBOX_HOME,
     MODE_SANDBOX_ISOLATED,
@@ -73,11 +74,17 @@ def test_read_runtime_mode_from_environ():
     assert read_runtime_mode({}) == MODE_UNKNOWN
     assert read_runtime_mode({ENV_RUNTIME_MODE: "sandbox-isolated"}) == MODE_SANDBOX_ISOLATED
     assert read_runtime_mode({ENV_RUNTIME_MODE: "/tmp/not-a-mode"}) == MODE_UNKNOWN
+    # Pinokio / base compose use SWARM_RUNTIME; accept it when the canonical name is unset.
+    assert read_runtime_mode({ENV_RUNTIME_MODE_ALIAS: "sandbox-home"}) == MODE_SANDBOX_HOME
+    assert read_runtime_mode({
+        ENV_RUNTIME_MODE: "sandbox-isolated",
+        ENV_RUNTIME_MODE_ALIAS: "sandbox-home",
+    }) == MODE_SANDBOX_ISOLATED
 
 
 def test_compose_wires_runtime_mode():
     base = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
     dev = (REPO / "docker-compose.dev.yml").read_text(encoding="utf-8")
-    assert "SWARM_RUNTIME_MODE: \"${SWARM_RUNTIME_MODE:-sandbox-isolated}\"" in base
-    assert "SWARM_RUNTIME_MODE: \"${SWARM_RUNTIME_MODE:-sandbox-home}\"" in dev
-    assert "SWARM_ALLOW_NO_AUTH: \"true\"" not in base
+    assert 'SWARM_RUNTIME: "${SWARM_RUNTIME:-sandbox-home}"' in base
+    assert 'SWARM_RUNTIME_MODE: "${SWARM_RUNTIME_MODE:-sandbox-home}"' in dev
+    assert 'SWARM_ALLOW_NO_AUTH: "true"' not in base

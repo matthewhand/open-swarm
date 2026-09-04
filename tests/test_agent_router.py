@@ -22,7 +22,9 @@ def test_llm_profiles_lists_named_providers(client):
     body = resp.json()
     assert body["status"] == "success"
     names = [p["name"] for p in body["profiles"]]
-    assert "auxiliary" in names
+    # auxiliary is a task class, not a profile name in swarm_config.json
+    assert "default" in names
+    assert "litellm" in names or "litellm-fast" in names
     assert all("api_key" not in p for p in body["profiles"])
 
 
@@ -419,17 +421,19 @@ async def test_blueprint_async_methods(blueprint):
     assert "synthesis" in cons
 
 
-def test_llm_profile_uses_litellm_env_when_named_profile_missing(blueprint, monkeypatch):
+def test_llm_profile_applies_litellm_env_overrides(blueprint, monkeypatch):
     monkeypatch.setenv("LITELLM_BASE_URL", "http://localhost:8000/v1")
     monkeypatch.setenv("LITELLM_API_KEY", "sk-test")
     monkeypatch.setenv("LITELLM_MODEL", "gemma4-31b")
     blueprint._config = {"llm": {"testprof": {"provider": "openai", "model": "gpt-4o"}}}
     if hasattr(blueprint, "_resolved_llm_profile"):
         delattr(blueprint, "_resolved_llm_profile")
-    profile = blueprint.get_llm_profile("default")
+    profile = blueprint.get_llm_profile("testprof")
     assert profile.get("base_url") == "http://localhost:8000/v1"
     assert profile.get("model") == "gemma4-31b"
     assert profile.get("api_key") == "sk-test"
+    # Missing names stay optional lookups (no invented default-from-env profile).
+    assert blueprint.get_llm_profile("default") == {}
 
 
 @pytest.mark.django_db
