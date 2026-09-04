@@ -12,7 +12,8 @@
                 <i class="fas fa-magic me-2"></i>Create Custom Blueprint
             </h1>
             <p class="lead text-muted">
-                Use AI to generate custom blueprints tailored to your needs. Describe what you want, and we'll create it for you.
+                {{ blueprint_one_liner|default:"A blueprint is a coded agent team: a Python BlueprintBase subclass." }}
+                Filled requirements are drafted by the default LLM as a class that matches the interface spec; invalid drafts fall back to the streaming template.
             </p>
         </div>
         <div class="col-auto">
@@ -95,8 +96,17 @@ Examples:
 - Must support async operations
 - Should include logging
 - Needs to validate input data"></textarea>
-                            <div class="form-text">Detailed requirements help generate more accurate blueprints</div>
+                            <div class="form-text">Filled requirements are drafted as a <code>BlueprintBase</code> Python class by the default LLM (template fallback if the draft fails validation).</div>
                         </div>
+
+                        {% if blueprint_interface %}
+                        <div class="mb-4">
+                            <details>
+                                <summary class="form-label mb-2" style="cursor:pointer">Blueprint interface spec</summary>
+                                <pre class="bg-dark text-light p-3 rounded small mb-0" tabindex="0"><code class="language-python">{{ blueprint_interface }}</code></pre>
+                            </details>
+                        </div>
+                        {% endif %}
 
                         <!-- Avatar Generation -->
                         <div class="mb-4">

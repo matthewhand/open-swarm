@@ -36,8 +36,11 @@ Notes:
   authenticate the websocket. Anonymous connects are accept-then-closed
   with close code **4401** (`WS_AUTH_REQUIRED_CODE`) and reason
   `authentication required` so the SPA can show a Sign-in CTA instead of
-  an opaque failure. `receive()` re-checks auth so a frame that races the
-  close cannot append to a transcript or invoke a blueprint/LLM.
+  an opaque failure — except **DEBUG + LAN/loopback**, which mints the
+  preview user so a phone on the LAN can chat without signing in
+  (`SWARM_ALLOW_ANONYMOUS=0` disables that). `receive()` re-checks auth so a
+  frame that races the close cannot append to a transcript or invoke a
+  blueprint/LLM.
 - `Origin` must match `ALLOWED_HOSTS` (AllowedHostsOriginValidator).
 - The consumer streams completions from `OPENAI_API_KEY` / `OPENAI_MODEL`
   (optionally `LITELLM_BASE_URL`/`OPENAI_BASE_URL`).
@@ -67,6 +70,12 @@ Each agent thread is a JSON file under `$SWARM_CHAT_DIR` (default
 mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
 SPA after reload or agent switch. Retention (counts, disk, trash,
 `SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
+
+Dropdown changes (REQ-46) append a `role=status` row. The SPA POSTs
+`/chat/thread/` and, when the socket is open, also sends
+`{"type":"status","text":"CLI: antigravity → grok"}`. The consumer persists
+that line and does **not** invoke a blueprint or LLM. Status rows are omitted
+from the model context.
 
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).

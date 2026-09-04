@@ -1,0 +1,41 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  AGENT_EDITS_KEY,
+  assignedBlueprintId,
+  editedAgentLabel,
+  loadAgentEdit,
+  saveAgentEdit,
+} from '../agentEdits'
+
+describe('agentEdits', () => {
+  afterEach(() => {
+    localStorage.removeItem(AGENT_EDITS_KEY)
+  })
+
+  it('defaults the assigned blueprint to the agent id', () => {
+    expect(assignedBlueprintId('support')).toBe('support')
+    expect(loadAgentEdit('support')).toEqual({})
+  })
+
+  it('persists a blueprint assignment on that agent', () => {
+    saveAgentEdit('support', { blueprintId: 'codey' })
+    expect(assignedBlueprintId('support')).toBe('codey')
+    expect(JSON.parse(localStorage.getItem(AGENT_EDITS_KEY) || '{}')).toEqual({
+      support: { blueprintId: 'codey' },
+    })
+    expect(assignedBlueprintId('codey')).toBe('codey')
+  })
+
+  it('clears a self-assignment so the seat uses its own id', () => {
+    saveAgentEdit('support', { blueprintId: 'codey' })
+    saveAgentEdit('support', { blueprintId: 'support' })
+    expect(assignedBlueprintId('support')).toBe('support')
+    expect(localStorage.getItem(AGENT_EDITS_KEY)).toBe('{}')
+  })
+
+  it('persists name and role overrides', () => {
+    saveAgentEdit('support', { name: '  Desk  ', role: 'gate' })
+    expect(editedAgentLabel({ id: 'support', name: 'Support' })).toBe('Desk')
+    expect(loadAgentEdit('support')).toEqual({ name: 'Desk', role: 'gate' })
+  })
+})

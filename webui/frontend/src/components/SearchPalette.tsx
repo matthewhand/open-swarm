@@ -13,8 +13,10 @@ import {
   Workflow,
 } from 'lucide-react'
 import { fetchBlueprints } from '../lib/api'
+import { openChromeOverlay, type ChromeOverlay } from '../lib/chromeOverlay'
 import { agentMarkIndex } from '../lib/hiddenAgents'
-import { agentLabel, supportFirstAgents } from '../lib/supportAgent'
+import { exampleRoleAgents } from '../lib/agentRoles'
+import { agentLabel } from '../lib/supportAgent'
 import { dispatchToggleTheme } from '../lib/theme'
 
 export const SEARCH_PALETTE_TABS = [
@@ -42,6 +44,7 @@ interface PaletteRow {
   name: string
   description: string
   href?: string
+  overlay?: ChromeOverlay
   action?: () => void
 }
 
@@ -68,7 +71,7 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
     enabled: open,
     retry: 1,
   })
-  const agents = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const agents = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
 
   const rows = useMemo<PaletteRow[]>(() => {
     const botRows: PaletteRow[] = agents.map((agent) => ({
@@ -90,22 +93,43 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
         id: 'action-blueprints',
         tab: 'Actions',
         name: 'Blueprints',
-        description: 'Open the Django blueprint library',
-        href: '/blueprint-library/',
+        description: 'Open the blueprints sheet over chat',
+        overlay: 'blueprints',
       },
       {
         id: 'action-teams',
         tab: 'Actions',
         name: 'Teams',
-        description: 'Launch or manage teams',
-        href: '/teams/launch/',
+        description: 'Open the teams sheet over chat',
+        overlay: 'teams',
       },
       {
         id: 'action-settings',
         tab: 'Actions',
         name: 'Settings',
-        description: 'Operator settings',
-        href: '/settings/',
+        description: 'Open settings over chat',
+        overlay: 'settings',
+      },
+      {
+        id: 'action-hidden',
+        tab: 'Actions',
+        name: 'Hidden Bots',
+        description: 'Unhide agents without leaving chat',
+        overlay: 'hidden',
+      },
+      {
+        id: 'action-computer',
+        tab: 'Actions',
+        name: 'Computer control',
+        description: 'Browser control pane over chat',
+        overlay: 'computer-control',
+      },
+      {
+        id: 'action-llm',
+        tab: 'Actions',
+        name: 'LLM profiles',
+        description: 'Open LLM profiles in Settings',
+        overlay: 'llm-profiles',
       },
     ]
     return [...botRows, ...actionRows]
@@ -140,6 +164,10 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
       onClose()
       if (row.action) {
         row.action()
+        return
+      }
+      if (row.overlay) {
+        openChromeOverlay(row.overlay)
         return
       }
       if (!row.href) return

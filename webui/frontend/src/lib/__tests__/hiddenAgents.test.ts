@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  DEFAULT_HIDDEN_AGENT_IDS,
   HIDDEN_AGENTS_STORAGE_KEY,
   agentMarkColor,
   canHideAgent,
+  defaultHiddenAgentIds,
   hideAgentId,
+  hideAllAgentIds,
   loadHiddenAgentIds,
+  loadOrSeedHiddenAgentIds,
   saveHiddenAgentIds,
   unhideAgentId,
+  unhideAllAgentIds,
 } from '../hiddenAgents'
 
 describe('hiddenAgents persistence', () => {
@@ -14,8 +19,41 @@ describe('hiddenAgents persistence', () => {
     localStorage.removeItem(HIDDEN_AGENTS_STORAGE_KEY)
   })
 
-  it('starts empty when nothing is stored', () => {
+  it('reads empty when nothing is stored (seed is opt-in via loadOrSeed)', () => {
     expect(loadHiddenAgentIds()).toEqual([])
+  })
+
+  it('seeds gate and skeptic catalog ids on first load', () => {
+    const catalog = [
+      { id: 'support', name: 'Support' },
+      { id: 'tool_gate', name: 'Gate' },
+      { id: 'skeptic', name: 'Skeptic' },
+      { id: 'codey', name: 'Codey' },
+    ]
+    expect(defaultHiddenAgentIds(catalog)).toEqual(['tool_gate', 'skeptic'])
+    expect(loadOrSeedHiddenAgentIds(catalog)).toEqual(['tool_gate', 'skeptic'])
+    expect(JSON.parse(localStorage.getItem(HIDDEN_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      'tool_gate',
+      'skeptic',
+    ])
+    expect(loadOrSeedHiddenAgentIds(catalog)).toEqual(['tool_gate', 'skeptic'])
+  })
+
+  it('falls back to shipped aliases when the catalog has no gate/skeptic yet', () => {
+    expect(loadOrSeedHiddenAgentIds([{ id: 'codey', name: 'Codey' }])).toEqual([
+      ...DEFAULT_HIDDEN_AGENT_IDS,
+    ])
+  })
+
+  it('does not re-seed after the user unhides (empty stored list)', () => {
+    saveHiddenAgentIds([])
+    expect(loadOrSeedHiddenAgentIds([{ id: 'gate', name: 'Gate' }])).toEqual([])
+    expect(localStorage.getItem(HIDDEN_AGENTS_STORAGE_KEY)).toBe('[]')
+  })
+
+  it('does not overwrite an existing customized hidden list', () => {
+    saveHiddenAgentIds(['codey'])
+    expect(loadOrSeedHiddenAgentIds([{ id: 'gate', name: 'Gate' }])).toEqual(['codey'])
   })
 
   it('hides an agent and persists across a reload-style read', () => {
@@ -25,13 +63,14 @@ describe('hiddenAgents persistence', () => {
     expect(loadHiddenAgentIds()).toEqual(['codey'])
   })
 
-  it('does not require hide-all and unhides a single agent', () => {
-    saveHiddenAgentIds(['codey', 'stewie'])
-    const afterHide = hideAgentId('stewie', ['codey'])
-    expect(afterHide).toEqual(['codey', 'stewie'])
-    const afterUnhide = unhideAgentId('codey', afterHide)
+  it('hides all ids and unhides a single agent', () => {
+    const afterAll = hideAllAgentIds(['codey', 'stewie'])
+    expect(afterAll).toEqual(['codey', 'stewie'])
+    expect(loadHiddenAgentIds()).toEqual(['codey', 'stewie'])
+    const afterUnhide = unhideAgentId('codey', afterAll)
     expect(afterUnhide).toEqual(['stewie'])
-    expect(loadHiddenAgentIds()).toEqual(['stewie'])
+    expect(unhideAllAgentIds()).toEqual([])
+    expect(loadHiddenAgentIds()).toEqual([])
   })
 
   it('ignores corrupt storage and empty ids', () => {

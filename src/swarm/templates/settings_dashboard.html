@@ -198,6 +198,113 @@
     <p class="os-meta mt-2 mb-0">Validate Config (not available)</p>
   </div>
 
+  <!-- Herdr members (REQ-21). DaisyUI SPA settings sheet is not in this tree. -->
+  <section class="settings-group mb-4" id="group-herdr" aria-labelledby="herdr-agents-heading">
+    <h2 class="h4" id="herdr-agents-heading">Herdr agents</h2>
+    <p class="os-meta mb-3">
+      Drive Herdr as a member <code>kind=herdr</code> without owning the TUI.
+      This is <strong>not</strong> Hermes, OMB, or Rakazo.
+      Default is the Herdr already on this host (no <code>--remote</code>; local
+      server + unix sockets, typically <code>~/.config/herdr/</code>).
+      Optional remote is a <code>herdr --remote</code> target such as
+      <code>matthewh@10.0.0.36</code>, <code>workbox</code>, or
+      <code>ssh://you@server:2222</code>.
+      If an agent is blocked, submit is rejected. If it is already working,
+      <code>--wait</code> may finish the in-flight turn, not a new one.
+    </p>
+    <div class="mb-4" id="herdr-remote-kind">
+      <h3 class="h6" id="herdr-remote-kind-heading">Herdr remote (Settings Remotes kind)</h3>
+      <p class="os-meta mb-2">
+        Add kind <code>herdr</code> like Hermes / OpenMousBot / Rakazo.
+        Persist a base URL + api-key-env name. <code>herdr --remote</code> and
+        <code>swarm-cli remotes</code> use that configured base.
+        Localhost omits <code>--remote</code> only when you set a loopback URL.
+        Missing config is a clear error — we will not guess another host.
+      </p>
+      <form id="herdr-remote-form" class="row g-2 align-items-end mb-2">
+        <div class="col-md-5">
+          <label class="form-label" for="herdr-remote-base">Base URL</label>
+          <input class="form-control" id="herdr-remote-base" name="base_url" required
+                 maxlength="500" placeholder="http://127.0.0.1:9" autocomplete="off">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="herdr-remote-key-env">API key env name</label>
+          <input class="form-control" id="herdr-remote-key-env" name="api_key_env"
+                 maxlength="200" placeholder="HERDR_API_KEY" autocomplete="off"
+                 value="HERDR_API_KEY">
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-primary" data-action="add-herdr-remote">
+            Add Herdr remote
+          </button>
+        </div>
+      </form>
+      <div id="herdr-remote-status" class="os-meta" role="status">
+        Not configured — add a base URL to list it under Settings Remotes.
+      </div>
+    </div>
+    <form id="herdr-add-form" class="row g-2 align-items-end mb-3">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <label class="form-label" for="herdr-name">Name</label>
+        <input class="form-control" id="herdr-name" name="name" required maxlength="200"
+               placeholder="e.g. local-herdr" autocomplete="off">
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="herdr-remote">Remote (optional)</label>
+        <input class="form-control" id="herdr-remote" name="remote" maxlength="255"
+               placeholder="empty = localhost" autocomplete="off">
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary" data-action="add-herdr-agent">Add Herdr agent</button>
+      </div>
+    </form>
+    <div class="mb-3">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-action="discover-herdr-agents">
+        Discover live Herdr (agent list + workspace list)
+      </button>
+    </div>
+    <div id="herdr-discover-wrap" class="mb-3" hidden>
+      <h3 class="h6">Addable live members</h3>
+      <p class="os-meta">From <code>herdr agent list</code> / <code>herdr workspace list</code> (localhost unless remote is set). Add one to persist it for Teams and the sidepane.</p>
+      <ul id="herdr-discover-list" class="list-unstyled mb-0"></ul>
+    </div>
+    <div id="herdr-agent-status" class="os-meta mb-2" role="status"></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="herdr-agents-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Remote</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="herdr-agent-rows">
+          {% for agent in herdr_agents %}
+          <tr>
+            <td>{{ agent.name }}</td>
+            <td>{% if agent.remote %}{{ agent.remote }}{% else %}localhost{% endif %}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      data-action="remove-herdr-agent" data-herdr-id="{{ agent.id }}"
+                      data-herdr-name="{{ agent.name }}">Remove</button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="herdr-empty-row">
+            <td colspan="3">No Herdr agents yet. Add one to target localhost or a remote host.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="os-meta mb-0">
+      REST: <code>GET/POST /v1/herdr-agents/</code>,
+      <code>DELETE /v1/herdr-agents/&lt;id&gt;/</code>.
+      Staff can also use Django admin. Docs: <code>docs/HERDR.md</code>.
+    </p>
+  </section>
+
   <!-- Settings Groups -->
   <div>
     <h2 class="visually-hidden">Settings groups</h2>
