@@ -254,6 +254,30 @@ const ChatPage = () => {
             : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
+  const isRemoteBackedTeam = Boolean(
+    selectedTeam && (
+      (selectedTeam as { kind?: string }).kind === 'remote' ||
+      Boolean((selectedTeam as { remote?: string }).remote) ||
+      selectedTeam.members?.some(
+        (m) =>
+          m.kind === 'remote' ||
+          (m as { role?: string }).role === 'remote' ||
+          Boolean((m as { remote?: string }).remote),
+      )
+    ),
+  )
+
+  const isRemoteAgent = Boolean(
+    remoteFromUrl ||
+      selectedRemote ||
+      agentKind === 'remote' ||
+      selectedAgent?.kind === 'remote' ||
+      (selectedAgent as { agent_type?: string })?.agent_type === 'remote' ||
+      Boolean((selectedAgent as { remote?: string })?.remote),
+  )
+
+  const showRemotesControl = isRemoteAgent || isRemoteBackedTeam
+
   useEffect(() => {
     // REQ-28: a selected composition team uses ?team=; do not clobber it
     // with the Support default (REQ-23 owns send-to-all).
@@ -921,13 +945,15 @@ const ChatPage = () => {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <RemoteSelect
-            remotes={remotesQuery.data}
-            value={selectedRemoteId}
-            onChange={setSelectedRemoteId}
-            size="sm"
-            className="h-8 max-w-[10rem]"
-          />
+          {showRemotesControl ? (
+            <RemoteSelect
+              remotes={remotesQuery.data}
+              value={selectedRemoteId}
+              onChange={setSelectedRemoteId}
+              size="sm"
+              className="h-8 max-w-[10rem]"
+            />
+          ) : null}
           {teamFromUrl ? (
             <select
               className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
