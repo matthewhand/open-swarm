@@ -1,7 +1,8 @@
 # `swarm_config.json`
 
 > **This page has moved.** The configuration reference now lives in one place to
-> avoid drift:
+> avoid drift. Config **ownership** (env vs XDG vs Django) is
+> [ADR-002](./adr/002-config-ownership.md).
 >
 > ### → [CONFIGURATION.md](../CONFIGURATION.md)
 
