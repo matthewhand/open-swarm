@@ -138,11 +138,38 @@ def _safe_id(value: str | None) -> str | None:
     return text if _ID_RE.match(text) else None
 
 
-def _active_path(user_key: str, agent_id: str, base: Path) -> Path | None:
-    uk, aid = _safe_id(user_key), _safe_id(agent_id)
-    if uk is None or aid is None:
+def _session_stem(agent_id: str, session_id: str = "") -> str | None:
+    """Filesystem stem for one thread.
+
+    Reuse mode (no session_id) stays ``<agent>.json``. Concurrent on-mode
+    tasks (REQ-65) write ``<agent>__<session>.json`` so two running chats
+    do not clobber each other.
+    """
+    agent = _safe_id(normalize_agent_id(agent_id))
+    if agent is None:
         return None
-    return base / "active" / uk / f"{aid}.json"
+    sid = _safe_id((session_id or "").strip())
+    if not sid:
+        return agent
+    combined = f"{agent}__{sid}"
+    if _ID_RE.match(combined):
+        return combined
+    trimmed = combined[:128]
+    return trimmed if _ID_RE.match(trimmed) else None
+
+
+def _active_path(
+    user_key: str,
+    agent_id: str,
+    base: Path,
+    *,
+    session_id: str = "",
+) -> Path | None:
+    uk = _safe_id(user_key)
+    stem = _session_stem(agent_id, session_id)
+    if uk is None or stem is None:
+        return None
+    return base / "active" / uk / f"{stem}.json"
 
 
 def _trash_dir(user_key: str, base: Path) -> Path | None:
@@ -175,10 +202,10 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
+def _normalize_messages(raw: Any) -> list[dict[str, str]]:
     if not isinstance(raw, list):
         return []
-    out: list[dict[str, Any]] = []
+    out: list[dict[str, str]] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -188,13 +215,17 @@ def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
             content = item.get("text") or ""
         if not isinstance(content, str):
             content = str(content)
-        role_s = "assistant" if str(role) == "assistant" else "user"
-        msg: dict[str, Any] = {"role": role_s, "content": content}
+        role_raw = str(role)
+        if role_raw == "assistant":
+            role_s = "assistant"
+        elif role_raw == "status":
+            role_s = "status"
+        else:
+            role_s = "user"
+        msg = {"role": role_s, "content": content}
         ts = item.get("ts") or item.get("timestamp")
         if isinstance(ts, str) and ts:
             msg["ts"] = ts
-        if item.get("edited") is True or item.get("edited") == "true":
-            msg["edited"] = True
         out.append(msg)
     return out
 
@@ -214,15 +245,17 @@ def empty_record(
         "created_at": now,
         "updated_at": now,
         "messages": [],
+        "cli_sessions": {},
     }
 
 
 def save(
     user_key: str,
     agent_id: str,
-    messages: list[dict[str, Any]],
     *,
     conversation_id: str = "",
+    session_id: str = "",
+    cli_sessions: dict[str, Any] | None = None,
     base_dir: Path | None = None,
 ) -> Path | None:
     """Write (or replace) the active thread. Returns the path, or None if ids are unsafe."""
@@ -231,19 +264,26 @@ def save(
     if uk is None:
         return None
     base = store_dir(base_dir=base_dir)
-    path = _active_path(uk, agent, base)
+    path = _active_path(uk, agent, base, session_id=session_id)
     if path is None:
         return None
     existing = _read_json(path) if path.is_file() else None
     created = (existing or {}).get("created_at") or _iso()
+    sessions = (
+        normalize_cli_sessions(cli_sessions)
+        if cli_sessions is not None
+        else normalize_cli_sessions((existing or {}).get("cli_sessions"))
+    )
     record = {
         "schema": SCHEMA,
         "agent_id": agent,
         "user_key": uk,
         "conversation_id": conversation_id or (existing or {}).get("conversation_id") or "",
+        "session_id": session_id or (existing or {}).get("session_id") or "",
         "created_at": created,
         "updated_at": _iso(),
         "messages": _normalize_messages(messages),
+        "cli_sessions": sessions,
     }
     _atomic_write(path, record)
     return path
@@ -253,17 +293,101 @@ def load(
     user_key: str,
     agent_id: str,
     *,
+    conversation_id: str = "",
+    session_id: str = "",
     base_dir: Path | None = None,
 ) -> dict[str, Any] | None:
-    """Return the active thread record, or None if missing / unsafe ids."""
-    path = _active_path(user_key, normalize_agent_id(agent_id), store_dir(base_dir=base_dir))
+    """Return the active thread record, or None if missing / unsafe ids.
+
+    ``session_id`` selects a concurrent on-mode file (REQ-65). ``conversation_id``
+    without a session id scans that agent's files for a matching id.
+    """
+    agent = normalize_agent_id(agent_id)
+    base = store_dir(base_dir=base_dir)
+    if session_id:
+        path = _active_path(user_key, agent, base, session_id=session_id)
+        if path is None or not path.is_file():
+            return None
+        record = _read_json(path)
+        if record is None:
+            return None
+        record["messages"] = _normalize_messages(record.get("messages"))
+        return record
+    wanted = (conversation_id or "").strip()
+    if wanted:
+        for row in list_sessions(user_key, agent, base_dir=base_dir):
+            if row.get("conversation_id") != wanted:
+                continue
+            sid = row.get("session_id") or ""
+            if sid:
+                return load(user_key, agent, session_id=sid, base_dir=base_dir)
+            break
+    path = _active_path(user_key, agent, base)
     if path is None or not path.is_file():
         return None
     record = _read_json(path)
     if record is None:
         return None
     record["messages"] = _normalize_messages(record.get("messages"))
+    record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
     return record
+
+
+def list_sessions(
+    user_key: str,
+    agent_id: str,
+    *,
+    base_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    """All active files for one agent (reuse file + concurrent task files)."""
+    uk = _safe_id(user_key)
+    agent = normalize_agent_id(agent_id)
+    if uk is None:
+        return []
+    root = store_dir(base_dir=base_dir) / "active" / uk
+    if not root.is_dir():
+        return []
+    prefix = f"{agent}__"
+    items: list[dict[str, Any]] = []
+    for path in root.glob("*.json"):
+        stem = path.stem
+        session = ""
+        if stem == agent:
+            session = ""
+        elif stem.startswith(prefix):
+            session = stem[len(prefix) :]
+        else:
+            continue
+        record = _read_json(path) or {}
+        messages = _normalize_messages(record.get("messages"))
+        items.append(
+            {
+                "agent_id": agent,
+                "session_id": session or record.get("session_id") or "",
+                "conversation_id": record.get("conversation_id") or "",
+                "updated_at": record.get("updated_at") or "",
+                "created_at": record.get("created_at") or "",
+                "message_count": len(messages),
+                "bytes": _file_size(path),
+            }
+        )
+    items.sort(key=lambda row: row.get("updated_at") or "", reverse=True)
+    return items
+
+
+def normalize_cli_sessions(raw: Any) -> dict[str, str]:
+    """``{cli_name: session_id}`` with unsafe keys/values dropped (no secrets)."""
+    from swarm.core.cli_sessions import sanitize_cli_session_id
+
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        cli = normalize_agent_id(str(key))
+        sid = sanitize_cli_session_id(value)
+        if cli and sid:
+            out[cli] = sid
+    return out
 
 
 def archive(

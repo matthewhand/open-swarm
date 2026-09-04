@@ -74,6 +74,18 @@ async def test_multi_seat_grok_records_separate_consults():
     assert set(result.determination.participant_names) == {"analyst", "critic"}
 
 
+def test_operator_default_backend_is_grok_outside_pytest(monkeypatch):
+    monkeypatch.setattr(
+        "swarm.blueprints.moa.blueprint_moa.shutil.which",
+        lambda name: "/usr/bin/grok" if name == "grok" else None,
+    )
+    bp = MoABlueprint(blueprint_id="moa")
+    bp._config = {}
+    bp.set_params({})
+    assert bp._resolved_kind(testing=False) == "grok"
+    assert bp._resolved_kind(testing=True) == "fake"
+
+
 @pytest.mark.asyncio
 async def test_blueprint_backend_grok_wiring():
     bp = MoABlueprint(blueprint_id="moa")

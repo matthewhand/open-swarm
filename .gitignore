@@ -219,3 +219,6 @@ webui/frontend/build/
 
 # Local agent tooling state
 .letta/
+
+# Pinokio local install marker (created by install.js; not a catalog listing)
+.pinokio/

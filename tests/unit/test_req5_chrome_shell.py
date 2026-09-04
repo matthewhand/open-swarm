@@ -21,10 +21,16 @@ SPA_APP = REPO / "webui" / "frontend" / "src" / "App.tsx"
 
 def test_base_shell_has_home_matching_nav_and_agents_pane():
     html = BASE.read_text(encoding="utf-8")
-    for label in ("Home", "Chat", "Blueprints", "Teams", "Sessions", "Settings"):
+    assert 'href="/agents"' in html
+    assert ">Agents</a>" in html
+    assert 'id="moreNavDropdown"' in html
+    for label in ("Chat", "Blueprints", "Teams", "Sessions", "Settings"):
         assert f">{label}</a>" in html or f">{label}</button>" in html
+    assert 'aria-label="Home"' in html
+    assert ">Home</a>" not in html
     assert 'id="os-agent-sidebar"' in html
     assert 'aria-label="Agent list"' in html
+    assert "os-agent-sidebar__kicker" not in html
     assert 'id="os-theme-toggle"' in html
     assert "agent_sidebar.js" in html
     assert "chrome_theme.js" in html
@@ -46,6 +52,9 @@ def test_agent_sidebar_js_hides_and_persists():
     assert "Unhide" in js
     assert "localStorage.setItem" in js
     assert "/v1/blueprints/" in js
+    assert "team_rosters.json" in js
+    assert "/v1/teams/" not in js
+    assert "/v1/herdr-agents/" in js
     assert "no hide-all" in js
 
 
@@ -114,14 +123,13 @@ def test_spa_document_chrome_is_near_black():
 
 
 def test_spa_chat_nav_and_routes_stay_on_chat_not_agents():
-    """REQ-5d follow-up: Chat is /chat (composer). /agents is only an alias."""
+    """Chat stays /chat (composer). Agents is the primary tab; Chat lives under More."""
     app = SPA_APP.read_text(encoding="utf-8")
     base = BASE.read_text(encoding="utf-8")
-    assert 'to="/chat"' in app
+    # 322 chrome: Chat is a Route path, not a leftover Home/Chat NavLink.
     assert 'path="/chat"' in app
+    assert "return '/chat'" in app
     assert 'href="/chat"' in base
-    assert 'to="/agents"' not in app
-    assert 'href="/agents"' not in base
-    assert "RedirectAgentsToChat" in app
-    assert "chatPathWithSearch" in app
+    assert 'id="moreNavDropdown"' in base
     assert 'path="/agents"' in app
+    assert "AgentRouterPage" in app

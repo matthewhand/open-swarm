@@ -5,22 +5,29 @@ from datetime import datetime, timedelta, timezone
 from swarm.core import chat_store
 
 
-def test_edited_flag_survives_roundtrip(tmp_path):
-    path = chat_store.save(
+def test_concurrent_task_sessions_do_not_share_transcript(tmp_path):
+    chat_store.save(
         "u1",
-        "jeeves",
-        [
-            {"role": "user", "content": "engineered", "edited": True},
-            {"role": "assistant", "content": "ok"},
-        ],
-        conversation_id="agt-1-jeeves",
+        "worker",
+        [{"role": "user", "content": "alpha"}],
+        conversation_id="task-a",
+        session_id="task-a",
         base_dir=tmp_path,
     )
-    assert path is not None
-    loaded = chat_store.load("u1", "jeeves", base_dir=tmp_path)
-    assert loaded["messages"][0]["content"] == "engineered"
-    assert loaded["messages"][0]["edited"] is True
-    assert "edited" not in loaded["messages"][1]
+    chat_store.save(
+        "u1",
+        "worker",
+        [{"role": "user", "content": "beta"}],
+        conversation_id="task-b",
+        session_id="task-b",
+        base_dir=tmp_path,
+    )
+    a = chat_store.load("u1", "worker", session_id="task-a", base_dir=tmp_path)
+    b = chat_store.load("u1", "worker", session_id="task-b", base_dir=tmp_path)
+    assert a["messages"][0]["content"] == "alpha"
+    assert b["messages"][0]["content"] == "beta"
+    stems = {row["session_id"] for row in chat_store.list_sessions("u1", "worker", base_dir=tmp_path)}
+    assert stems == {"task-a", "task-b"}
 
 
 def test_save_load_roundtrip(tmp_path):
@@ -38,6 +45,34 @@ def test_save_load_roundtrip(tmp_path):
     assert loaded["agent_id"] == "jeeves"
     assert loaded["conversation_id"] == "agt-1-jeeves"
     assert [m["content"] for m in loaded["messages"]] == ["hi", "hello"]
+
+
+def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
+    path = chat_store.save(
+        "u1",
+        "cli_agent",
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "status", "content": "Started a new echo session."},
+            {"role": "assistant", "content": "hello"},
+        ],
+        conversation_id="agt-1-cli",
+        cli_sessions={"echo": "sid-1"},
+        base_dir=tmp_path,
+    )
+    assert path is not None
+    loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert [m["role"] for m in loaded["messages"]] == ["user", "status", "assistant"]
+    assert loaded["cli_sessions"] == {"echo": "sid-1"}
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        loaded["messages"] + [{"role": "user", "content": "again"}],
+        base_dir=tmp_path,
+    )
+    again = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert again["cli_sessions"] == {"echo": "sid-1"}
+    assert again["cli_sessions"].get("echo") != "sk-secret"
 
 
 def test_normalize_and_default_agent():

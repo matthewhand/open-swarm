@@ -1,0 +1,371 @@
+"""Nested conversation compact / summaries (REQ-37).
+
+Raw transcripts stay on disk (JSON) and in ``ChatMessage``. Django/sqlite
+stores summary rows. Serving model context walks the summary tree — later
+compacts may summarise a mix of raw turns and earlier summaries.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Iterable
+
+from swarm.models import ChatConversation, ChatMessage, ConversationSummary
+
+
+class CompactError(ValueError):
+    """User-facing compact failure (empty span, tenancy, …)."""
+
+    def __init__(self, message: str, *, status: int = 400):
+        super().__init__(message)
+        self.status = status
+
+
+def normalize_span(raw: Any) -> dict[str, int]:
+    """Coerce ``span`` to ``{"start": int, "end": int}`` inclusive offsets."""
+    if not isinstance(raw, dict):
+        return {"start": 0, "end": 0}
+    start = raw.get("start", raw.get("from", 0))
+    end = raw.get("end", raw.get("to", start))
+    try:
+        start_i = int(start)
+        end_i = int(end)
+    except (TypeError, ValueError):
+        return {"start": 0, "end": 0}
+    if end_i < start_i:
+        start_i, end_i = end_i, start_i
+    return {"start": start_i, "end": end_i}
+
+
+def _span_bounds(summary) -> tuple[int, int]:
+    span = normalize_span(getattr(summary, "span", None) or {})
+    return span["start"], span["end"]
+
+
+def _as_summary_rows(summaries: Iterable[Any]) -> list[Any]:
+    return [row for row in summaries if row is not None]
+
+
+def outermost_summaries(summaries: Iterable[Any]) -> list[Any]:
+    """Summaries that are not nested inside a later compact (no child points at them)."""
+    rows = _as_summary_rows(summaries)
+    nested_ids = {
+        getattr(row, "parent_summary_id", None)
+        for row in rows
+        if getattr(row, "parent_summary_id", None) is not None
+    }
+    outers = [row for row in rows if getattr(row, "id", None) not in nested_ids]
+    outers.sort(key=lambda row: (_span_bounds(row)[0], -_span_bounds(row)[1], getattr(row, "id", 0)))
+    return outers
+
+
+def choose_parent(summaries: Iterable[Any], span_start: int, span_end: int):
+    """Latest outermost summary fully inside the new span becomes the nested parent."""
+    candidates = []
+    for row in outermost_summaries(summaries):
+        start, end = _span_bounds(row)
+        if start >= span_start and end <= span_end:
+            candidates.append(row)
+    if not candidates:
+        return None
+    candidates.sort(key=lambda row: getattr(row, "id", 0))
+    return candidates[-1]
+
+
+def _clip(text: str, limit: int = 240) -> str:
+    compact = " ".join((text or "").split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1].rstrip() + "…"
+
+
+def summarize_items(items: list[dict[str, Any]]) -> str:
+    """Deterministic extractive compact. No LLM, no secrets, no network."""
+    lines: list[str] = []
+    for item in items:
+        if item.get("kind") == "summary":
+            lines.append(f"- [summary] {_clip(str(item.get('body') or ''))}")
+            continue
+        role = item.get("role") or "user"
+        content = item.get("content") or item.get("text") or ""
+        lines.append(f"- {role}: {_clip(str(content))}")
+    count = len(items)
+    noun = "item" if count == 1 else "items"
+    return f"Summary of {count} {noun}:\n" + "\n".join(lines)
+
+
+def build_context_items(
+    messages: list[dict[str, Any]],
+    summaries: Iterable[Any],
+) -> list[dict[str, Any]]:
+    """Walk the raw transcript, substituting outermost summaries for covered spans."""
+    raw = list(messages or [])
+    rows = _as_summary_rows(summaries)
+    if not rows:
+        return [
+            {
+                "kind": "message",
+                "role": (m.get("role") or m.get("sender") or "user"),
+                "content": m.get("content") or m.get("text") or "",
+                "offset": idx,
+            }
+            for idx, m in enumerate(raw)
+        ]
+
+    cover: list[Any | None] = [None] * len(raw)
+    for row in outermost_summaries(rows):
+        start, end = _span_bounds(row)
+        start = max(0, start)
+        end = min(len(raw) - 1, end) if raw else -1
+        for idx in range(start, end + 1):
+            if cover[idx] is None:
+                cover[idx] = row
+
+    items: list[dict[str, Any]] = []
+    emitted: set[int] = set()
+    idx = 0
+    while idx < len(raw):
+        row = cover[idx]
+        if row is not None:
+            row_id = getattr(row, "id", None)
+            if row_id not in emitted:
+                items.append(
+                    {
+                        "kind": "summary",
+                        "id": row_id,
+                        "body": getattr(row, "body", "") or "",
+                        "parent_summary_id": getattr(row, "parent_summary_id", None),
+                        "span": normalize_span(getattr(row, "span", None)),
+                    }
+                )
+                emitted.add(row_id)
+            idx = min(len(raw) - 1, _span_bounds(row)[1]) + 1
+            continue
+        message = raw[idx]
+        items.append(
+            {
+                "kind": "message",
+                "role": (message.get("role") or message.get("sender") or "user"),
+                "content": message.get("content") or message.get("text") or "",
+                "offset": idx,
+            }
+        )
+        idx += 1
+    return items
+
+
+def _format_summary_tree(summary, by_id: dict[int, Any], *, depth: int = 0) -> str:
+    body = (getattr(summary, "body", "") or "").strip()
+    indent = "  " * depth
+    lines = [f"{indent}{body}"] if depth == 0 else [f"{indent}[nested summary]", f"{indent}{body}"]
+    parent_id = getattr(summary, "parent_summary_id", None)
+    parent = by_id.get(parent_id) if parent_id is not None else None
+    if parent is not None:
+        lines.append(_format_summary_tree(parent, by_id, depth=depth + 1))
+    return "\n".join(lines)
+
+
+def build_model_context(
+    messages: list[dict[str, Any]],
+    summaries: Iterable[Any],
+) -> list[dict[str, str]]:
+    """Context the model sees: summary tree + uncovered raw turns. Raw file is untouched."""
+    rows = _as_summary_rows(summaries)
+    by_id = {getattr(row, "id"): row for row in rows if getattr(row, "id", None) is not None}
+    out: list[dict[str, str]] = []
+    for item in build_context_items(messages, rows):
+        if item.get("kind") == "summary":
+            row = by_id.get(item.get("id"))
+            tree = _format_summary_tree(row, by_id) if row is not None else (item.get("body") or "")
+            out.append({"role": "system", "content": f"[Conversation summary]\n{tree}"})
+            continue
+        role = item.get("role") or "user"
+        if str(role) == "status":
+            continue  # bubble-less session/status lines are not model context
+        role_s = "assistant" if str(role) == "assistant" else "user"
+        if str(role) == "system":
+            role_s = "system"
+        out.append({"role": role_s, "content": str(item.get("content") or "")})
+    return out
+
+
+def context_for_conversation(
+    conversation_id: str,
+    messages: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Load sqlite summaries for ``conversation_id`` and build model context."""
+    if not conversation_id:
+        return [
+            {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
+            for m in (messages or [])
+            if (m.get("role") or "user") != "status"
+        ]
+    try:
+        rows = list(
+            ConversationSummary.objects.filter(conversation_id=conversation_id).order_by("id")
+        )
+    except Exception:
+        return [
+            {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
+            for m in (messages or [])
+            if (m.get("role") or "user") != "status"
+        ]
+    return build_model_context(messages, rows)
+
+
+def list_summaries(conversation_id: str) -> list[ConversationSummary]:
+    if not conversation_id:
+        return []
+    return list(
+        ConversationSummary.objects.filter(conversation_id=conversation_id).order_by("id")
+    )
+
+
+def summary_to_dict(row: ConversationSummary) -> dict[str, Any]:
+    span = normalize_span(row.span)
+    replaced = span["end"] - span["start"] + 1
+    created = row.created_at.isoformat() if getattr(row, "created_at", None) else ""
+    return {
+        "id": row.id,
+        "conversation_id": row.conversation_id,
+        "span": span,
+        "parent_summary_id": row.parent_summary_id,
+        "body": row.body,
+        "created_at": created,
+        "replaced_count": max(0, replaced),
+    }
+
+
+def _normalize_client_messages(raw: Any) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role") or item.get("sender") or "user"
+        content = item.get("content")
+        if content is None:
+            content = item.get("text") or ""
+        if not isinstance(content, str):
+            content = str(content)
+        role_s = "assistant" if str(role) == "assistant" else "user"
+        out.append({"role": role_s, "content": content})
+    return out
+
+
+def ensure_transcript(
+    user,
+    conversation_id: str,
+    agent_id: str,
+    client_messages: list[dict[str, Any]] | None = None,
+) -> tuple[ChatConversation, list[dict[str, str]]]:
+    """Resolve the raw transcript without deleting originals.
+
+    JSON on disk is the restore source of truth. Django ``ChatMessage`` rows
+    are a mirror: we only create missing rows, never delete.
+    """
+    from swarm.core import chat_store
+
+    if not conversation_id:
+        raise CompactError("conversation_id is required.")
+    if not getattr(user, "is_authenticated", False):
+        raise CompactError("Sign in required.", status=403)
+
+    user_key = chat_store.user_key_for(user)
+    record = chat_store.load(user_key, agent_id)
+    stored: list[dict[str, str]] = []
+    if record:
+        stored = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in (record.get("messages") or [])
+        ]
+
+    chat, _created = ChatConversation.objects.get_or_create(
+        conversation_id=conversation_id,
+        defaults={"student": user},
+    )
+    if chat.student_id is None:
+        chat.student = user
+        chat.save(update_fields=["student"])
+    if chat.student_id is not None and chat.student_id != getattr(user, "pk", None):
+        raise CompactError("Conversation owned by another user.", status=403)
+
+    db_rows = list(chat.chat_messages.all())
+    if not stored and db_rows:
+        stored = [{"role": row.sender, "content": row.content} for row in db_rows]
+
+    client = _normalize_client_messages(client_messages)
+    raw = stored if stored else client
+    if client and len(client) > len(raw):
+        raw = client
+    if not raw:
+        raise CompactError("Nothing to compact.")
+
+    # Rewrite JSON with the full raw list — same messages, never dropped.
+    chat_store.save(user_key, agent_id, raw, conversation_id=conversation_id)
+
+    if db_rows:
+        if len(raw) > len(db_rows):
+            extras = raw[len(db_rows) :]
+            ChatMessage.objects.bulk_create(
+                [
+                    ChatMessage(conversation=chat, sender=item["role"], content=item["content"])
+                    for item in extras
+                ]
+            )
+    else:
+        ChatMessage.objects.bulk_create(
+            [
+                ChatMessage(conversation=chat, sender=item["role"], content=item["content"])
+                for item in raw
+            ]
+        )
+    return chat, raw
+
+
+def compact_backlog(
+    *,
+    user,
+    conversation_id: str,
+    agent_id: str,
+    messages: list[dict[str, Any]] | None = None,
+    span_start: int | None = None,
+    span_end: int | None = None,
+) -> tuple[ConversationSummary, list[dict[str, str]]]:
+    """Create a summary row covering ``span`` of the raw transcript.
+
+    Does not delete JSON or ``ChatMessage`` rows. Nested compact sets
+    ``parent_summary_id`` to the previous outermost summary inside the span.
+    """
+    chat, raw = ensure_transcript(user, conversation_id, agent_id, messages)
+    start = 0 if span_start is None else int(span_start)
+    end = len(raw) - 1 if span_end is None else int(span_end)
+    start = max(0, start)
+    end = min(len(raw) - 1, end)
+    if start > end:
+        raise CompactError("Invalid span.")
+
+    existing = list(chat.summaries.order_by("id"))
+    mix: list[dict[str, Any]] = []
+    for item in build_context_items(raw, existing):
+        if item.get("kind") == "summary":
+            span = normalize_span(item.get("span"))
+            if span["end"] < start or span["start"] > end:
+                continue
+            mix.append(item)
+            continue
+        offset = item.get("offset")
+        if isinstance(offset, int) and start <= offset <= end:
+            mix.append(item)
+    if not mix:
+        raise CompactError("Nothing to compact in that span.")
+
+    body = summarize_items(mix)
+    parent = choose_parent(existing, start, end)
+    row = ConversationSummary.objects.create(
+        conversation=chat,
+        span={"start": start, "end": end},
+        parent_summary=parent,
+        body=body,
+    )
+    return row, raw

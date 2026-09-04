@@ -1,8 +1,8 @@
 """SPA chat thread restore + Settings-only retention actions.
 
 ``GET /chat/thread/`` hydrates an agent thread after reload / agent switch.
-``PATCH /chat/thread/`` edits one message on an API-agent thread (REQ-49).
-Retention (archive, restore, empty trash) lives on ``/settings/`` only.
+``POST /chat/compact/`` summarises a span (REQ-37). Retention (archive,
+restore, empty trash) lives on ``/settings/`` only.
 """
 
 from __future__ import annotations
@@ -12,11 +12,17 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from swarm.core import chat_store
-from swarm.core.agent_kind import can_edit_agent_messages, classify_agent_kind
-from swarm.models import ChatConversation, ChatMessage
+from swarm.core.chat_compact import (
+    CompactError,
+    compact_backlog,
+    list_summaries,
+    summary_to_dict,
+)
+from swarm.models import ChatConversation
 
 logger = logging.getLogger(__name__)
 
@@ -27,31 +33,7 @@ def _user_key(user) -> str:
     return chat_store.user_key_for(user)
 
 
-def _public_messages(messages) -> list[dict]:
-    out: list[dict] = []
-    for item in messages or []:
-        row = {
-            "role": item.get("role", "user"),
-            "content": item.get("content", ""),
-        }
-        if item.get("edited"):
-            row["edited"] = True
-        out.append(row)
-    return out
-
-
-def _thread_payload(agent: str, conversation_id: str, messages, *, agent_raw: str | None = None) -> dict:
-    kind = classify_agent_kind(agent_raw or agent)
-    return {
-        "agent_id": agent,
-        "conversation_id": conversation_id,
-        "kind": kind,
-        "editable": kind == "api",
-        "messages": _public_messages(messages),
-    }
-
-
-def _messages_from_db(user, conversation_id: str) -> list[dict]:
+def _messages_from_db(user, conversation_id: str) -> list[dict[str, str]]:
     if not conversation_id:
         return []
     try:
@@ -67,18 +49,62 @@ def _messages_from_db(user, conversation_id: str) -> list[dict]:
     ]
 
 
-def _load_thread_messages(user, agent: str, conversation_id: str) -> tuple[list[dict], str]:
-    """JSON store first, then Django rows, then the live WS cache."""
-    user_key = _user_key(user)
-    record = chat_store.load(user_key, agent)
+def _json_body(request) -> dict:
+    content_type = request.content_type or ""
+    if "application/json" in content_type:
+        try:
+            payload = json.loads(request.body.decode() or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+    return {}
+
+
+def _summaries_for(*conversation_ids: str) -> tuple[str, list[dict]]:
+    """Return ``(conversation_id, summaries)`` for the first id that has rows."""
+    seen: list[str] = []
+    for cid in conversation_ids:
+        text = (cid or "").strip()
+        if not text or text in seen:
+            continue
+        seen.append(text)
+        rows = [summary_to_dict(row) for row in list_summaries(text)]
+        if rows:
+            return text, rows
+    return (seen[0] if seen else ""), []
+
+
+@login_required
+@ensure_csrf_cookie
+@require_http_methods(["GET"])
+def chat_thread(request):
+    """Return the persisted transcript for one agent (JSON store, DB fallback)."""
+    from swarm.core.agent_settings import is_new_chat_per_task
+    from swarm.core.session_policy import list_active_task_sessions
+
+    agent = chat_store.normalize_agent_id(request.GET.get("agent"))
+    user_key = _user_key(request.user)
+    conversation_id = chat_store.conversation_id_for(request.user, agent)
+    requested_cid = (request.GET.get("conversation_id") or "").strip()
+    fresh_task = is_new_chat_per_task(agent)
+    if fresh_task:
+        record = chat_store.load(
+            user_key,
+            agent,
+            conversation_id=requested_cid,
+            session_id=requested_cid,
+        ) if requested_cid else None
+    else:
+        record = chat_store.load(user_key, agent)
     messages = (record or {}).get("messages") if record else None
-    resolved_id = conversation_id
-    if record and record.get("conversation_id"):
-        resolved_id = record["conversation_id"]
-    if not messages:
-        db_id = (record or {}).get("conversation_id") or conversation_id
-        messages = _messages_from_db(user, db_id)
-        if messages and record is None:
+    if fresh_task and not requested_cid:
+        # New task: do not hydrate the reused agent transcript.
+        messages = []
+    if not messages and not (fresh_task and not requested_cid):
+        db_id = requested_cid or (record or {}).get("conversation_id") or conversation_id
+        messages = _messages_from_db(request.user, db_id)
+        if messages and record is None and not fresh_task:
+            # Upgrade path: mirror an existing Django row onto disk.
             try:
                 chat_store.save(
                     user_key,
@@ -88,119 +114,79 @@ def _load_thread_messages(user, agent: str, conversation_id: str) -> tuple[list[
                 )
             except OSError:
                 logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
-        resolved_id = db_id or resolved_id
-    if not messages:
-        from swarm.consumers import IN_MEMORY_CONVERSATIONS, _conversation_cache_key
-
-        for cid in (conversation_id, resolved_id):
-            if not cid:
-                continue
-            cached = IN_MEMORY_CONVERSATIONS.get(_conversation_cache_key(user, cid))
-            if cached:
-                messages = list(cached)
-                resolved_id = cid
-                break
-    return list(messages or []), resolved_id
-
-
-def _sync_django_and_memory(user, messages, conversation_ids: list[str]) -> None:
-    """Mirror the edited transcript onto Django rows + the live WS cache."""
-    from swarm.consumers import IN_MEMORY_CONVERSATIONS, _conversation_cache_key
-
-    seen: set[str] = set()
-    for cid in conversation_ids:
-        if not cid or cid in seen:
-            continue
-        seen.add(cid)
-        chat, created = ChatConversation.objects.get_or_create(
-            conversation_id=cid,
-            defaults={"student": user},
+    if requested_cid:
+        conversation_id = requested_cid
+    elif record and record.get("conversation_id") and not fresh_task:
+        conversation_id = record["conversation_id"]
+    conversation_id, summaries = _summaries_for(
+        requested_cid,
+        (record or {}).get("conversation_id") if record else "",
+        conversation_id,
+    )
+    if not conversation_id:
+        conversation_id = requested_cid or (record or {}).get("conversation_id") or chat_store.conversation_id_for(
+            request.user, agent
         )
-        if not created and chat.student_id is not None and chat.student_id != user.pk:
-            continue
-        if chat.student_id is None:
-            chat.student = user
-            chat.save(update_fields=["student"])
-        ChatMessage.objects.filter(conversation=chat).delete()
-        ChatMessage.objects.bulk_create(
-            [
-                ChatMessage(
-                    conversation=chat,
-                    sender=item.get("role", "user"),
-                    content=item.get("content", ""),
-                )
-                for item in messages
-            ]
-        )
-        IN_MEMORY_CONVERSATIONS[_conversation_cache_key(user, cid)] = [
-            {"role": item.get("role", "user"), "content": item.get("content", "")}
-            for item in messages
-        ]
+    sessions = list_active_task_sessions(user_key, agent) if fresh_task else []
+    return JsonResponse(
+        {
+            "agent_id": agent,
+            "conversation_id": conversation_id,
+            "new_chat_per_task": fresh_task,
+            "active_sessions": sessions,
+            "messages": [
+                {"role": m.get("role", "user"), "content": m.get("content", "")}
+                for m in (messages or [])
+            ],
+            "summaries": summaries if not (fresh_task and not requested_cid) else [],
+        }
+    )
 
 
 @login_required
-@require_http_methods(["GET", "PATCH"])
-def chat_thread(request):
-    """Hydrate (GET) or edit (PATCH) the persisted transcript for one agent."""
-    agent_raw = request.GET.get("agent")
-    agent = chat_store.normalize_agent_id(agent_raw)
-    user_key = _user_key(request.user)
-    conversation_id = chat_store.conversation_id_for(request.user, agent)
-    messages, conversation_id = _load_thread_messages(request.user, agent, conversation_id)
-
-    if request.method == "GET":
-        return JsonResponse(_thread_payload(agent, conversation_id, messages, agent_raw=agent_raw))
-
-    # PATCH — API-agent threads only (CLI/remote are owned outside swarm).
-    if not can_edit_agent_messages(agent_raw or agent):
-        return JsonResponse(
-            {"error": "Edits are only allowed on API-agent threads."},
-            status=403,
-        )
-    try:
-        body = json.loads(request.body or b"{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON."}, status=400)
-    if not isinstance(body, dict):
-        return JsonResponse({"error": "Invalid JSON."}, status=400)
-
-    index = body.get("index")
-    content = body.get("content")
-    if type(index) is not int:
-        return JsonResponse({"error": "index must be an integer."}, status=400)
-    if not isinstance(content, str):
-        return JsonResponse({"error": "content must be a string."}, status=400)
-    if index < 0 or index >= len(messages):
-        return JsonResponse({"error": "No message at that index."}, status=404)
-
-    current = dict(messages[index])
-    current["content"] = content
-    current["edited"] = True
-    messages[index] = current
-
-    client_cid = body.get("conversation_id")
-    if isinstance(client_cid, str) and client_cid.strip():
-        conversation_id = client_cid.strip()
-
-    try:
-        chat_store.save(
-            user_key,
-            agent,
-            messages,
-            conversation_id=conversation_id,
-        )
-    except OSError:
-        logger.exception("Failed to persist edited chat JSON for %s/%s", user_key, agent)
-        return JsonResponse(
-            {"error": "Could not persist the edit. See server logs."},
-            status=500,
-        )
-    _sync_django_and_memory(
-        request.user,
-        messages,
-        [conversation_id, chat_store.conversation_id_for(request.user, agent)],
+@require_http_methods(["POST"])
+def chat_compact(request):
+    """Summarise the current backlog (or a selected span) into a nested summary."""
+    payload = _json_body(request)
+    agent = chat_store.normalize_agent_id(
+        payload.get("agent") or payload.get("agent_id") or request.POST.get("agent_id")
     )
-    return JsonResponse(_thread_payload(agent, conversation_id, messages, agent_raw=agent_raw))
+    conversation_id = (
+        (payload.get("conversation_id") or request.POST.get("conversation_id") or "")
+        .strip()
+    )
+    if not conversation_id:
+        conversation_id = chat_store.conversation_id_for(request.user, agent)
+    messages = payload.get("messages")
+    span_start = payload.get("span_start", payload.get("start"))
+    span_end = payload.get("span_end", payload.get("end"))
+    try:
+        start = int(span_start) if span_start is not None and span_start != "" else None
+        end = int(span_end) if span_end is not None and span_end != "" else None
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "span_start / span_end must be integers."}, status=400)
+    try:
+        row, raw = compact_backlog(
+            user=request.user,
+            conversation_id=conversation_id,
+            agent_id=agent,
+            messages=messages if isinstance(messages, list) else None,
+            span_start=start,
+            span_end=end,
+        )
+    except CompactError as exc:
+        return JsonResponse({"error": str(exc)}, status=exc.status)
+    summaries = [summary_to_dict(item) for item in list_summaries(conversation_id)]
+    from swarm.core.chat_compact import build_model_context
+
+    return JsonResponse(
+        {
+            "summary": summary_to_dict(row),
+            "summaries": summaries,
+            "context": build_model_context(raw, list_summaries(conversation_id)),
+            "raw_count": len(raw),
+        }
+    )
 
 
 @login_required
