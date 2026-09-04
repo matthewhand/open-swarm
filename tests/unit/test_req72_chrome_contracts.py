@@ -53,15 +53,17 @@ def test_sidebar_team_hide_id_and_plugins_empty_copy():
     assert "teamHideId(team.id)" in src
     assert "No plugins installed." in src
     assert "Unpin" in src
-    assert 'aria-label="Open agents sidebar"' not in src  # hamburger lives in App.tsx
+    assert 'aria-label="Open agents sidebar"' not in src  # REQ-54: hamburger removed
 
 
-def test_app_mobile_drawer_and_settings_event():
-    """#322 mobile drawer; #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
+def test_app_mobile_rail_and_settings_event():
+    """REQ-54 tucked rail + #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
     src = APP.read_text(encoding="utf-8")
-    assert 'aria-label="Open agents sidebar"' in src
     assert "OPEN_SETTINGS_EVENT" in src
     assert "setSettingsBlueprintId" in src
+    assert "useLeftEdgeSwipe" in src
+    assert "SwipeHint" in src
+    assert 'aria-label="Open agents sidebar"' not in src
 
 
 def test_hostname_rail_and_settings_keys_are_distinct():

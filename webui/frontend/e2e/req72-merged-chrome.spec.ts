@@ -204,13 +204,13 @@ test('REQ-5c #322: Search palette choosing a bot navigates to that chat', async 
   await expect(page.getByRole('heading', { name: 'Codey' })).toBeVisible()
 })
 
-test('REQ-5c #322: mobile drawer opens the rail and closes after an agent pick', async ({
+test('REQ-54: mobile header opens the tucked rail and closes after an agent pick', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await stubChromeApis(page)
   await page.goto('/')
-  const open = page.getByRole('button', { name: 'Open agents sidebar' })
+  const open = page.getByRole('button', { name: 'Open agent list' })
   await expect(open).toBeVisible()
   const backdrop = page.locator('button.fixed.inset-0[aria-label="Close agents sidebar"]')
   await expect(backdrop).toBeHidden()

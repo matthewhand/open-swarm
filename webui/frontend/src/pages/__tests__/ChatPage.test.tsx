@@ -311,7 +311,7 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
     expect(avatar).toHaveClass('os-chat-header__avatar')
     expect(identity.firstElementChild).toBe(avatar)
     expect(heading.compareDocumentPosition(avatar!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
-    expect(identity.querySelector('button')).toBeNull()
+    expect(within(identity).getByRole('button', { name: 'Open Codey definition' })).toBeInTheDocument()
     expect(identity.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
   })
 
