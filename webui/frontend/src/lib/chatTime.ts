@@ -96,3 +96,111 @@ export function shouldShowGapStamp(
   if (nextMs - previousMs >= CHAT_GAP_MS) return true
   return sydneyDayKey(previousMs, timeZone) !== sydneyDayKey(nextMs, timeZone)
 }
+
+/**
+ * REQ-86: Left-rail timestamp for an agent/team/remote row.
+ * Relative for recent (<60m), then Today HH:MM AM/PM, Yesterday, or Wed D MMM.
+ * Returns null if the thread has no messages.
+ */
+export function formatRailTimestamp(
+  ms: number | undefined | null,
+  nowMs: number = Date.now(),
+  timeZone: string = CHAT_TIME_ZONE,
+): string | null {
+  if (ms == null || !Number.isFinite(ms) || ms <= 0) return null
+  const diffMs = nowMs - ms
+  if (diffMs >= 0 && diffMs < 60 * 1000) {
+    return 'Just now'
+  }
+  if (diffMs >= 60 * 1000 && diffMs < 60 * 60 * 1000) {
+    const mins = Math.floor(diffMs / 60000)
+    return `${mins} min ago`
+  }
+  const clock = formatClock(ms, timeZone)
+  const day = sydneyDayKey(ms, timeZone)
+  const today = sydneyDayKey(nowMs, timeZone)
+  if (day === today) return `Today ${clock}`
+
+  const todayParts = partMap(nowMs, timeZone, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  })
+  const yesterday = addCalendarDays(
+    Number(todayParts.year),
+    Number(todayParts.month),
+    Number(todayParts.day),
+    -1,
+  )
+  const yesterdayKey = `${yesterday.year}-${String(yesterday.month).padStart(2, '0')}-${String(yesterday.day).padStart(2, '0')}`
+  if (day === yesterdayKey) return `Yesterday ${clock}`
+
+  const stamp = partMap(ms, timeZone, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+  return `${stamp.weekday} ${stamp.day} ${stamp.month}`
+}
+
+/**
+ * Resolves the last message snippet and timestamp for a rail row.
+ */
+export function getRowLastMessage(
+  id: string,
+  sessions?: Array<{ updatedAt?: number; startedAt?: number; snippet?: string }>,
+  agentMeta?: Record<string, unknown>,
+): { snippet: string | null; timestamp: number | null } {
+  const rawTime =
+    agentMeta?.last_message_at ?? agentMeta?.lastMessageAt ?? agentMeta?.updated_at
+  let parsedTime: number | null = null
+  if (typeof rawTime === 'number' && Number.isFinite(rawTime)) {
+    parsedTime = rawTime
+  } else if (typeof rawTime === 'string') {
+    const p = Date.parse(rawTime)
+    if (Number.isFinite(p)) parsedTime = p
+  }
+
+  const rawSnippet =
+    (agentMeta?.last_message ?? agentMeta?.lastMessage ?? agentMeta?.snippet) as string | undefined
+
+  if (sessions && sessions.length > 0) {
+    const sorted = [...sessions].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    const top = sorted[0]
+    if (top) {
+      return {
+        snippet: rawSnippet ?? top.snippet ?? null,
+        timestamp: parsedTime ?? top.updatedAt ?? top.startedAt ?? null,
+      }
+    }
+  }
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawChats = localStorage.getItem('swarm_agent_chat_sessions')
+      if (rawChats) {
+        const parsed = JSON.parse(rawChats)
+        const session = parsed?.[id]
+        if (session && Array.isArray(session.messages) && session.messages.length > 0) {
+          const lastMsg = session.messages[session.messages.length - 1]
+          let ts = parsedTime
+          if (!ts && typeof lastMsg.key === 'string') {
+            const match = lastMsg.key.match(/-(\d{12,})$/)
+            if (match) ts = Number(match[1])
+          }
+          return {
+            snippet: rawSnippet ?? lastMsg.text ?? null,
+            timestamp: ts ?? null,
+          }
+        }
+      }
+    }
+  } catch {
+    /* storage unavailable */
+  }
+
+  return {
+    snippet: rawSnippet ?? (agentMeta?.description as string) ?? null,
+    timestamp: parsedTime,
+  }
+}
