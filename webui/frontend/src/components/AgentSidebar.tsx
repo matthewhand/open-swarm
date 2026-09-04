@@ -782,7 +782,7 @@ export default function AgentSidebar({
             </span>
             {badge ? (
               <span
-                className={`os-agent-role-badge shrink-0 ${roleCssClass(role)}`}
+                className={`os-agent-role-badge ${roleCssClass(role)}`}
                 data-role={role}
                 data-definition-id={agent.id}
                 role="button"

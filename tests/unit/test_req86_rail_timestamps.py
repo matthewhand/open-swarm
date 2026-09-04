@@ -29,7 +29,7 @@ def test_sidebar_name_row_has_timestamp_and_no_badge():
 def test_sidebar_second_row_has_snippet_and_role_badge():
     content = SIDEBAR_TSX.read_text(encoding="utf-8")
     # Role badge must be rendered after snippet on the second row
-    assert "os-agent-role-badge shrink-0" in content
+    assert "os-agent-role-badge" in content
     assert "snippet || agent.description" in content
     assert "teamSnippet || team.description" in content
     assert "remoteSnippet ||" in content
