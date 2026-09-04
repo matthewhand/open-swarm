@@ -552,45 +552,40 @@ button.os-agent-row {
 .os-py-num { color: #f78c6c; }
 .os-py-fn { color: #82aaff; }
 
-.os-hide-drop,
-.os-drop-target {
-  margin-top: 0.5rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.55rem;
-  border: 1px dashed color-mix(in srgb, var(--color-base-content) 22%, transparent);
-  background: color-mix(in srgb, var(--color-base-content) 3%, transparent);
-  color: color-mix(in srgb, var(--color-base-content) 48%, transparent);
+.os-hidden-bots {
+  margin-top: 0.35rem;
+}
+.os-hidden-bots__action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
   transition:
-    border-color 0.15s ease,
     background-color 0.15s ease,
     color 0.15s ease;
 }
-.os-hide-drop--active,
-.os-hide-drop[data-drag-over],
-.os-drop-target[data-drag-over] {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
-  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-base-200));
-  color: color-mix(in srgb, var(--color-base-content) 78%, transparent);
-}
-.os-hide-drop__hint {
-  margin: 0;
-  font-size: 0.75rem;
-  letter-spacing: 0.01em;
-}
-.os-hide-drop__action {
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  font-size: 0.75rem;
-  color: inherit;
-  cursor: pointer;
-}
-.os-hide-drop__action:hover {
+.os-hidden-bots__action:hover,
+.os-hidden-bots__action:focus-visible,
+.os-hidden-bots--active .os-hidden-bots__action,
+.os-hidden-bots[data-drag-over] .os-hidden-bots__action {
+  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
   color: var(--color-base-content);
+}
+.os-hidden-bots__label,
+.os-hidden-bots__meta {
+  line-height: 1.2;
+}
+.os-hidden-bots__meta {
+  font-variant-numeric: tabular-nums;
 }
 
 .os-hide-drop--has-hidden:not([data-drag-over]):not(.os-hide-drop--active) {

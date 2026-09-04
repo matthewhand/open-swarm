@@ -526,15 +526,14 @@ export default function AgentSidebar({
     Boolean(id && pins.some((pin) => pin.id === id))
 
   /**
-   * Hide wins: the id leaves the conversation list and the favourite pin grid.
-   * Role agents (support, gate, skeptic) are not exempt. Unhide restores the
-   * list row only — it does not re-pin.
+   * Hide conceals the id from the conversation list and the visible favourite
+   * grid. The pin stays in swarm_pinned_agents so Unhide restores the same
+   * favourite slot. Role agents (support, gate, skeptic) are not exempt.
    */
   const hideFromRail = (id: string) => {
     if (!id) return
     if (agents.some((agent) => agent.id === id && isCliRailAgent(agent))) return
     setHiddenIds((current) => hideAgentId(id, current ?? resolvedHiddenIds))
-    setPins((current) => unpinAgent(id, current))
   }
 
   const hideAgent = (id: string) => {
@@ -1308,35 +1307,36 @@ export default function AgentSidebar({
             )}
           </div>
 
-          <div
-            className={`os-hide-drop os-drop-target ${hideDropActive ? 'os-hide-drop--active' : ''} ${hiddenCount > 0 ? 'os-hide-drop--has-hidden' : ''}`}
-            data-drag-over={hideDropActive ? 'true' : undefined}
-            role="region"
-            aria-label="Hidden"
-            onDragEnter={(event) => {
-              event.preventDefault()
-              hideDropDepth.current += 1
-              setHideDropActive(true)
-            }}
-            onDragOver={(event) => {
-              event.preventDefault()
-              try {
-                event.dataTransfer.dropEffect = 'move'
-              } catch {
-                /* synthetic events may omit dataTransfer */
-              }
-              setHideDropActive(true)
-            }}
-            onDragLeave={() => {
-              hideDropDepth.current -= 1
-              if (hideDropDepth.current <= 0) {
-                hideDropDepth.current = 0
-                setHideDropActive(false)
-              }
-            }}
-            onDrop={dropHide}
-          >
-            {hiddenCount > 0 ? (
+          {hiddenCount > 0 ? (
+            <div
+              className={`os-hide-drop os-hide-drop--has-hidden ${hideDropActive ? 'os-hide-drop--active' : ''}`}
+              data-testid="hidden-bots-row"
+              data-drag-over={hideDropActive ? 'true' : undefined}
+              role="region"
+              aria-label="Hidden Bots"
+              onDragEnter={(event) => {
+                event.preventDefault()
+                hideDropDepth.current += 1
+                setHideDropActive(true)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                try {
+                  event.dataTransfer.dropEffect = 'move'
+                } catch {
+                  /* synthetic events may omit dataTransfer */
+                }
+                setHideDropActive(true)
+              }}
+              onDragLeave={() => {
+                hideDropDepth.current -= 1
+                if (hideDropDepth.current <= 0) {
+                  hideDropDepth.current = 0
+                  setHideDropActive(false)
+                }
+              }}
+              onDrop={dropHide}
+            >
               <button
                 type="button"
                 className="os-hide-drop__action os-hidden-bots-row group"
@@ -1350,18 +1350,23 @@ export default function AgentSidebar({
               >
                 <span className="os-hidden-bots-label font-medium">Hidden Bots</span>
                 <span className="os-hidden-bots-tail font-mono text-xs" data-testid="os-hidden-bots-tail">
-                  <span className={`os-hidden-bots-count ${hoveringHidden ? 'hidden' : 'inline group-hover:hidden'}`} data-testid="os-hidden-bots-count">
+                  <span
+                    className={`os-hidden-bots-count ${hoveringHidden ? 'hidden' : 'inline group-hover:hidden'}`}
+                    data-testid="os-hidden-bots-count"
+                  >
                     {hiddenCount}
                   </span>
-                  <span className={`os-hidden-bots-chevron ${hoveringHidden ? 'inline' : 'hidden group-hover:inline'}`} aria-hidden="true" data-testid="os-hidden-bots-chevron">
+                  <span
+                    className={`os-hidden-bots-chevron ${hoveringHidden ? 'inline' : 'hidden group-hover:inline'}`}
+                    aria-hidden="true"
+                    data-testid="os-hidden-bots-chevron"
+                  >
                     &gt;
                   </span>
                 </span>
               </button>
-            ) : (
-              <p className="os-hide-drop__hint">drop here to hide</p>
-            )}
-          </div>
+            </div>
+          ) : null}
         </nav>
 
         <div className="mt-auto border-t border-base-300/70 px-3 py-3">

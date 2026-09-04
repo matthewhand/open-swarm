@@ -278,7 +278,7 @@ test('REQ-24 #342: dragging a team row onto Hidden stores team:<id>', async ({ p
   const list = page.getByRole('navigation', { name: 'Agent list' })
   const team = list.getByRole('link', { name: /Demo Team \(team\)/ })
   await expect(team).toBeVisible()
-  const zone = page.getByRole('region', { name: 'Hidden' })
+  const zone = page.getByRole('region', { name: 'Hidden Bots' })
   await team.evaluate((el) => {
     el.dispatchEvent(
       new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }),
