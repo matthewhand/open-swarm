@@ -144,4 +144,45 @@ describe('AgentMessageBubble', () => {
     expect(container.querySelector('.os-py-kw')).toBeTruthy()
     expect(container.querySelector('.os-py-str')).toBeTruthy()
   })
+
+  it('does not render visible You or agent name headers above bubbles (REQ-179)', () => {
+    const assistantMsg: ChatMessage = {
+      key: 'a1',
+      role: 'assistant',
+      text: 'Here is the plan',
+      agent: 'Architect',
+      timestamp: new Date(0),
+    }
+    const { rerender } = renderBubble(<AgentMessageBubble message={assistantMsg} />)
+    expect(screen.queryByText('Architect')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Architect message')).toBeInTheDocument()
+
+    rerender(
+      <ToastProvider>
+        <AgentMessageBubble message={userMsg} />
+      </ToastProvider>,
+    )
+    expect(screen.queryByText('You')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('You message')).toBeInTheDocument()
+
+    const reviewMsg: ChatMessage = {
+      key: 'r1',
+      role: 'assistant',
+      text: 'Approval needed for PR',
+      kind: 'review',
+      oversightRole: 'taskmaster',
+      agent: 'SecurityBot',
+      timestamp: new Date(0),
+    }
+    rerender(
+      <ToastProvider>
+        <AgentMessageBubble message={reviewMsg} />
+      </ToastProvider>,
+    )
+    expect(screen.queryByText(/SecurityBot/)).not.toBeInTheDocument()
+    expect(screen.getByText('Taskmaster')).toBeInTheDocument()
+    expect(screen.getByLabelText('SecurityBot message')).toBeInTheDocument()
+  })
 })
+
+
