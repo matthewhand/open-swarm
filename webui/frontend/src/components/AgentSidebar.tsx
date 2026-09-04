@@ -597,6 +597,12 @@ export default function AgentSidebar({
     finishDrag()
   }
 
+  const dropOnSelf = (event: ReactDragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    finishDrag()
+  }
+
   const beginRowDrag = (event: ReactDragEvent, agent: { id: string; name: string }) => {
     writeAgentDragPayload(event.dataTransfer, agent)
     beginRailDrag(agent.id)

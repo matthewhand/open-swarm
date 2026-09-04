@@ -157,20 +157,6 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method: 'PATCH',
-    headers: buildHeaders(true),
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    await throwApiError(path, response)
-  }
-
-  return (await response.json()) as T
-}
-
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -180,20 +166,6 @@ export async function apiDelete(path: string): Promise<void> {
   if (!response.ok) {
     await throwApiError(path, response)
   }
-}
-
-export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method: 'PATCH',
-    headers: buildHeaders(true),
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    await throwApiError(path, response)
-  }
-
-  return (await response.json()) as T
 }
 
 // ---------------------------------------------------------------------------
@@ -826,16 +798,8 @@ export interface RemoteOperateResult {
   gap?: string
 }
 
-export function fetchRemotes(): Promise<RemotesListResponse> {
-  return apiGet<RemotesListResponse>('/v1/remotes/')
-}
-
 export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
   return apiPost<RemoteConnection>('/v1/remotes/', body)
-}
-
-export function deleteRemote(remoteId: string): Promise<void> {
-  return apiDelete(`/v1/remotes/${encodeURIComponent(remoteId)}/`)
 }
 
 export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
