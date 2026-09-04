@@ -835,6 +835,7 @@ export default function AgentSidebar({
     const active = selectedTeamId === team.id
     const sessions = sessionsForTeam(team)
     const stacked = selectStackedFaces(stackFacesForTeam(team))
+    const dragging = draggingId === hideId
     const dropping = dropTargetId === hideId
     return (
       <Link
