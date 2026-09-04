@@ -82,6 +82,25 @@ def test_chat_thread_backfills_from_django_db(client, user):
 
 
 @pytest.mark.django_db
+def test_chat_thread_isolates_two_agents_after_switch(client, user):
+    """REQ-14 #319: GET /chat/thread/?agent= returns that agent's messages only."""
+    _seed_thread(user, "codey", "prior question A")
+    _seed_thread(user, "stewie", "prior question B")
+
+    codey = client.get("/chat/thread/?agent=codey")
+    stewie = client.get("/chat/thread/?agent=stewie")
+    assert codey.status_code == 200
+    assert stewie.status_code == 200
+    assert codey.json()["agent_id"] == "codey"
+    assert stewie.json()["agent_id"] == "stewie"
+    assert codey.json()["messages"][0]["content"] == "prior question A"
+    assert stewie.json()["messages"][0]["content"] == "prior question B"
+    assert codey.json()["conversation_id"] != stewie.json()["conversation_id"]
+    assert all(row["content"] != "prior question B" for row in codey.json()["messages"])
+    assert all(row["content"] != "prior question A" for row in stewie.json()["messages"])
+
+
+@pytest.mark.django_db
 def test_chat_thread_requires_login():
     resp = Client().get("/chat/thread/?agent=jeeves")
     assert resp.status_code == 302

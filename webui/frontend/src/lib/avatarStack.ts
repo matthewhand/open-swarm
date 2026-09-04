@@ -1,87 +1,80 @@
 /**
- * Shared stacked-avatar math for scale-out rails (REQ-66 #394, REQ-68 #398).
+ * Shared stacked-avatar math (REQ-66 #394).
  *
- * One rail row shows at most {@link STACK_FACE_LIMIT} faces (most recently
- * active) plus a remainder. Every face in a team/remote stack is animated;
- * phase is staggered from `startedAt` so the stack does not pulse in lockstep.
+ * One rail row shows at most {@link STACK_FACE_LIMIT} faces plus a +N
+ * remainder. Every face animates; phase is staggered from `startedAt`
+ * so the stack does not pulse in lockstep.
  *
- * #394 (agent session stacks) should import these helpers and `AvatarStack`
- * rather than forking the widget.
+ * #398 (teams / remotes) should import these helpers and `AvatarStack`.
+ * This module is domain-agnostic: do not put session, team, or remote
+ * catalog logic here.
  */
 
+/** Rail stack shows this many faces; extras become a +N remainder. */
 export const STACK_FACE_LIMIT = 3
 
-/** Same period as the working-agent / running-tool pulse. */
-export const WORKING_PULSE_MS = 1350
+/** Matches `.os-scale-out-pulse` / `.os-stacked-avatar--pulse` (1.4s). */
+export const STACK_PULSE_MS = 1400
 
 export interface StackFace {
   id: string
-  name: string
+  name?: string
+  /** Epoch ms used to stagger animation-delay. */
   startedAt: number
+  /** Color-hash key; defaults to `id`. */
+  markId?: string
   role?: string
-  working?: boolean
 }
 
 export interface StackSelection<T extends StackFace = StackFace> {
   faces: T[]
   remainder: number
+  delaysMs: number[]
 }
 
-export function parseStartedAt(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim()) {
-    const ms = Date.parse(value)
-    if (!Number.isNaN(ms)) return ms
-    const asNum = Number(value)
-    if (Number.isFinite(asNum)) return asNum
-  }
-  return fallback
+/**
+ * Phase offset for the shared pulse. Different `startedAt` values land on
+ * different points in the loop so stacked faces do not lockstep.
+ */
+export function stackAnimationDelayMs(
+  startedAt: number,
+  origin = 0,
+  periodMs = STACK_PULSE_MS,
+): number {
+  const period = periodMs > 0 ? periodMs : STACK_PULSE_MS
+  const delta = startedAt - origin
+  return ((delta % period) + period) % period
 }
 
-/** Most recent `limit` faces, remainder is how many did not fit. */
+export function earliestStartedAt(faces: ReadonlyArray<{ startedAt: number }>): number {
+  if (faces.length === 0) return 0
+  return faces.reduce((min, face) => Math.min(min, face.startedAt), faces[0]!.startedAt)
+}
+
+/**
+ * Most recent `maxFaces` by `startedAt`, plus remainder.
+ * Callers that need a different order (e.g. running-first) should pass
+ * a pre-sliced list plus an explicit remainder to `AvatarStack`.
+ */
 export function selectStackedFaces<T extends StackFace>(
-  faces: T[],
-  limit = STACK_FACE_LIMIT,
+  faces: readonly T[],
+  maxFaces = STACK_FACE_LIMIT,
 ): StackSelection<T> {
+  const cap = Math.max(0, maxFaces)
   const sorted = [...faces].sort((a, b) => {
     if (b.startedAt !== a.startedAt) return b.startedAt - a.startedAt
     return a.id.localeCompare(b.id)
   })
-  const visible = sorted.slice(0, Math.max(0, limit))
+  const visible = sorted.slice(0, cap)
+  const origin = earliestStartedAt(visible)
   return {
     faces: visible,
     remainder: Math.max(0, faces.length - visible.length),
+    delaysMs: visible.map((face) => stackAnimationDelayMs(face.startedAt, origin)),
   }
 }
 
-export function earliestStartedAt(faces: Array<{ startedAt: number }>): number {
-  if (faces.length === 0) return 0
-  return faces.reduce((min, face) => Math.min(min, face.startedAt), faces[0].startedAt)
-}
-
-/**
- * Animation phase offset so a later `startedAt` starts later in the pulse.
- * Same motion language for every face — only the delay changes.
- */
-export function stackAnimationDelayMs(
-  startedAt: number,
-  earliest: number,
-  periodMs = WORKING_PULSE_MS,
-): number {
-  const delta = Math.max(0, startedAt - earliest)
-  if (periodMs <= 0) return delta
-  return delta % periodMs
-}
-
-export function stackAnimationDelayStyle(
-  startedAt: number,
-  earliest: number,
-  periodMs = WORKING_PULSE_MS,
-): { animationDelay: string } {
-  return { animationDelay: `${stackAnimationDelayMs(startedAt, earliest, periodMs)}ms` }
-}
-
 /** A single face is not a stack (no overlap, no remainder chip). */
-export function isAvatarStack(faces: number, remainder = 0): boolean {
-  return faces > 1 || remainder > 0
+export function isAvatarStack(faceCount: number, remainder = 0): boolean {
+  return faceCount > 1 || remainder > 0
 }

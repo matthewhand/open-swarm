@@ -3,10 +3,9 @@ from pathlib import Path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.http import FileResponse, HttpResponse
+from django.http import HttpResponse
 from django.urls import path, re_path
 from django.views.generic import RedirectView
-from django.views.static import serve
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -25,19 +24,43 @@ from swarm.views.api_views import (
     BlueprintsListView,
     BlueprintSourceView,
     BlueprintToolsView,
+    CliAgentModelsView,
     CliAgentsView,
     ConfigOptionsView,
     CustomBlueprintDetailView,
     CustomBlueprintsView,
     MarketplaceGitHubBlueprintsView,
     MarketplaceGitHubMCPConfigsView,
+    SupportContextView,
 )
+from swarm.views.definition_views import DefinitionDetailView, DefinitionSummarizeView
 from swarm.views.api_views import ModelsListView as OpenAIModelsView
+from swarm.views.agent_router_page import agent_router_page
+from swarm.views.agent_router_views import (
+    agent_context_view,
+    agent_conversations_view,
+    agent_delegations_view,
+    create_designed_agent,
+    delete_designed_agent,
+    delegate_agent_view,
+    get_agent_info,
+    get_agent_status_view,
+    generate_agent_quickstarts,
+    get_routing_options,
+    list_agents,
+    list_cli_catalog,
+    list_llm_profiles,
+    launch_remote_framework,
+    list_remote_catalog,
+    route_message,
+    send_to_agent,
+)
 from swarm.views.blueprint_library_views import (
     add_blueprint_to_library,
     blueprint_creator,
     blueprint_library,
     blueprint_requirements_status,
+    blueprint_source_page,
     check_comfyui_status,
     generate_avatar,
     my_blueprints,
@@ -49,6 +72,7 @@ from swarm.views.herdr_api import (
     HerdrAgentsAPIView,
     HerdrDiscoverAPIView,
 )
+from swarm.views.llm_profiles_api import LlmProfilesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.responses_views import (
     ResponsesCancelView,
@@ -61,6 +85,7 @@ from swarm.views.session_explorer import (
     session_list_api,
 )
 from swarm.views.chat_persist_views import chat_compact, chat_retention_action, chat_thread
+from swarm.views.system_views import LocalStoreView
 from swarm.views.settings_views import (
     environment_variables,
     settings_api,
@@ -73,9 +98,11 @@ from swarm.views.remotes_api import (
     RemoteOperateView,
     RemotesListView,
 )
+from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
+    asgi_file_response,
     custom_login,
     index,
     profiles_page,
@@ -92,19 +119,11 @@ from swarm.views.webui import WebUIView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", index, name="index"),  # Root path for web UI
-    # First-class SPA Chat. Must stay /chat (composer + Connected), not /agents.
+    # First-class SPA Chat (composer + Connected). Agent Router is /agents.
     path("chat", spa_chat, name="spa_chat"),
     path("chat/", spa_chat, name="spa_chat_slash"),
-    path(
-        "agents",
-        RedirectView.as_view(url="/chat", permanent=False, query_string=True),
-        name="spa_agents_to_chat",
-    ),
-    path(
-        "agents/",
-        RedirectView.as_view(url="/chat", permanent=False, query_string=True),
-        name="spa_agents_slash_to_chat",
-    ),
+    path("agents", agent_router_page, name="spa_agents"),
+    path("agents/", agent_router_page, name="spa_agents_slash"),
     # Lightweight liveness probe (no auth) — used by the Fly health check.
     path("health", HealthCheckView.as_view(), name="health"),
     path("health/", HealthCheckView.as_view()),
@@ -128,10 +147,39 @@ urlpatterns = [
     path("v1/blueprints/<str:blueprint_id>/source/", BlueprintSourceView.as_view(), name="blueprint-source-slash"),
     path("v1/blueprints/<str:blueprint_id>/tools", BlueprintToolsView.as_view(), name="blueprint-tools"),
     path("v1/blueprints/<str:blueprint_id>/tools/", BlueprintToolsView.as_view(), name="blueprint-tools-slash"),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>/summarize",
+        DefinitionSummarizeView.as_view(),
+        name="definition-summarize",
+    ),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>/summarize/",
+        DefinitionSummarizeView.as_view(),
+        name="definition-summarize-slash",
+    ),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>",
+        DefinitionDetailView.as_view(),
+        name="definition-detail",
+    ),
+    path(
+        "v1/definitions/<str:kind>/<str:definition_id>/",
+        DefinitionDetailView.as_view(),
+        name="definition-detail-slash",
+    ),
     path("v1/cli-agents", CliAgentsView.as_view(), name="cli-agents-api-no-slash"),
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
+    path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),
+    path("v1/llm-profiles/", LlmProfilesView.as_view(), name="llm-profiles-api"),
+    # Live list-models probes (REQ-44). More specific "models" routes first.
+    path("v1/cli-agents/models", CliAgentModelsView.as_view(), name="cli-agent-models-all-no-slash"),
+    path("v1/cli-agents/models/", CliAgentModelsView.as_view(), name="cli-agent-models-all"),
+    path("v1/cli-agents/<str:cli>/models", CliAgentModelsView.as_view(), name="cli-agent-models-no-slash"),
+    path("v1/cli-agents/<str:cli>/models/", CliAgentModelsView.as_view(), name="cli-agent-models"),
     path("v1/config-options", ConfigOptionsView.as_view(), name="config-options-api-no-slash"),
     path("v1/config-options/", ConfigOptionsView.as_view(), name="config-options-api"),
+    path("v1/support/context", SupportContextView.as_view(), name="support-context-no-slash"),
+    path("v1/support/context/", SupportContextView.as_view(), name="support-context"),
     path("v1/blueprints/custom/", CustomBlueprintsView.as_view(), name="custom-blueprints"),
     path("v1/blueprints/custom/<str:blueprint_id>/", CustomBlueprintDetailView.as_view(), name="custom-blueprint-detail"),
     # GitHub-topics marketplace discovery (returns empty list if disabled)
@@ -188,6 +236,24 @@ urlpatterns = [
     path("v1/library", LibraryAPIView.as_view(), name="library-api-no-slash"),
     path("v1/library/", LibraryAPIView.as_view(), name="library-api"),
     path("v1/library/<str:blueprint_name>/", LibraryDetailAPIView.as_view(), name="library-api-detail"),
+    # Agent Router API (SPA /agents chat uses these)
+    path("v1/agents/", list_agents, name="list_agents"),
+    path("v1/agents/routing-options/", get_routing_options, name="get_routing_options"),
+    path("v1/agents/route/", route_message, name="route_message"),
+    path("v1/agents/conversations/", agent_conversations_view, name="agent_conversations"),
+    path("v1/agents/delegations/", agent_delegations_view, name="agent_delegations"),
+    path("v1/agents/cli-catalog/", list_cli_catalog, name="list_cli_catalog"),
+    path("v1/agents/llm-profiles/", list_llm_profiles, name="list_llm_profiles"),
+    path("v1/agents/remote-catalog/", list_remote_catalog, name="list_remote_catalog"),
+    path("v1/agents/remote-launch/", launch_remote_framework, name="launch_remote_framework"),
+    path("v1/agents/quickstarts/", generate_agent_quickstarts, name="generate_agent_quickstarts"),
+    path("v1/agents/design/", create_designed_agent, name="create_designed_agent"),
+    path("v1/agents/design/<str:agent_id>/", delete_designed_agent, name="delete_designed_agent"),
+    path("v1/agents/<str:agent_id>/", get_agent_info, name="get_agent_info"),
+    path("v1/agents/<str:agent_id>/send/", send_to_agent, name="send_to_agent"),
+    path("v1/agents/<str:agent_id>/status/", get_agent_status_view, name="get_agent_status"),
+    path("v1/agents/<str:agent_id>/delegate/", delegate_agent_view, name="delegate_agent"),
+    path("v1/agents/<str:agent_id>/context/", agent_context_view, name="agent_context"),
     # Herdr members (REQ-21): name + optional --remote. Empty remote = localhost.
     path("v1/herdr-agents", HerdrAgentsAPIView.as_view(), name="herdr-agents-api-no-slash"),
     path("v1/herdr-agents/", HerdrAgentsAPIView.as_view(), name="herdr-agents-api"),
@@ -195,6 +261,14 @@ urlpatterns = [
     path("v1/herdr-agents/discover/", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover"),
     path("v1/herdr-agents/<str:agent_id>", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail-no-slash"),
     path("v1/herdr-agents/<str:agent_id>/", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail"),
+    # REQ-65: agent-scoped settings (new chat per task). Not global Settings.
+    path("v1/agents/<str:agent_id>/settings", AgentSettingsAPIView.as_view(), name="agent-settings-api-no-slash"),
+    path("v1/agents/<str:agent_id>/settings/", AgentSettingsAPIView.as_view(), name="agent-settings-api"),
+    path("v1/agents/<str:agent_id>/sessions", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api-no-slash"),
+    path("v1/agents/<str:agent_id>/sessions/", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api"),
+    # Settings System section — local store facts (REQ-56). Read-only.
+    path("v1/system", LocalStoreView.as_view(), name="system-local-store-no-slash"),
+    path("v1/system/", LocalStoreView.as_view(), name="system-local-store"),
     path("teams/launch", team_launcher, name="teams_launch_no_slash"),
     path("teams/launch/", team_launcher, name="teams_launch"),
     path("teams/", team_admin, name="teams_admin"),
@@ -226,6 +300,11 @@ urlpatterns = [
     # Blueprint Library endpoints
     path("blueprint-library/", blueprint_library, name="blueprint_library"),
     path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),
+    path(
+        "blueprint-library/<str:blueprint_name>/source/",
+        blueprint_source_page,
+        name="blueprint_source",
+    ),
     path("blueprint-library/my-blueprints/", my_blueprints, name="my_blueprints"),
     path("blueprint-library/requirements/", blueprint_requirements_status, name="blueprint_requirements_status"),
     path("blueprint-library/add/<str:blueprint_name>/", add_blueprint_to_library, name="add_blueprint_to_library"),
@@ -300,22 +379,25 @@ def _get_frontend_path():
 
 frontend_path = _get_frontend_path()
 if frontend_path and frontend_path.exists():
-    from django.views.static import serve
-    # re_path imported from django.urls at module top (Django 4+)
+    import mimetypes
 
-    # Serve static assets
-    urlpatterns += [
-        re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': str(frontend_path / 'assets')}),
-    ]
+    def spa_asset(request, path):
+        root = (frontend_path / "assets").resolve()
+        target = (root / path).resolve()
+        if not str(target).startswith(str(root)) or not target.is_file():
+            return HttpResponse("Not Found", status=404)
+        ctype, _ = mimetypes.guess_type(str(target))
+        return asgi_file_response(target, ctype or "application/octet-stream")
 
     # SPA fallback - serve index.html for all non-API, non-admin, non-static routes
     # (the catch-all regex below has no capture group, so path must default)
     def spa_fallback(request, path=""):
         index_file = frontend_path / "index.html"
         if index_file.exists():
-            return FileResponse(open(index_file, 'rb'), content_type='text/html')
+            return asgi_file_response(index_file, "text/html")
         return HttpResponse("Not Found", status=404)
 
     urlpatterns += [
+        re_path(r'^assets/(?P<path>.*)$', spa_asset),
         re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/).*$', spa_fallback),
     ]

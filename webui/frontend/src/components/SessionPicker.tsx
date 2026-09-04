@@ -1,30 +1,74 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
-import { filterSessions, type MemberSession } from '../lib/sessionPicker'
+import { agentMarkIndex } from '../lib/hiddenAgents'
+import {
+  compareSessions,
+  filterAgentSessions,
+  type AgentSession,
+} from '../lib/scaleOutSessions'
+import type { MemberSession } from '../lib/sessionPicker'
+
+export type SessionPickerSession = (AgentSession | MemberSession) & {
+  agentId?: string
+  href?: string
+}
 
 export interface SessionPickerProps {
   open: boolean
-  title: string
-  sessions: MemberSession[]
+  title?: string
+  agentName?: string
+  sessions: readonly (AgentSession | MemberSession)[]
   onClose: () => void
-  onSelect: (session: MemberSession) => void
+  onSelect: (session: any) => void
+}
+
+function shortcutLabel(index: number): string {
+  return `⌃${index + 1}`
+}
+
+function sessionCompare(a: any, b: any): number {
+  if (typeof compareSessions === 'function' && 'startedAt' in a && 'startedAt' in b) {
+    const aRunning = a.status === 'running'
+    const bRunning = b.status === 'running'
+    if (aRunning && !bRunning) return -1
+    if (!aRunning && bRunning) return 1
+    return (b.startedAt ?? 0) - (a.startedAt ?? 0)
+  }
+  return 0
+}
+
+function sessionFilter(sessions: readonly any[], query: string): any[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return [...sessions]
+  return sessions.filter((s) => {
+    const title = (s.title || '').toLowerCase()
+    const snippet = (s.snippet || '').toLowerCase()
+    const id = (s.id || s.memberId || '').toLowerCase()
+    return title.includes(q) || snippet.includes(q) || id.includes(q)
+  })
 }
 
 /**
- * #394-style session picker: search-palette chrome (list, keyboard, filter),
- * pre-filtered to one team / remote / agent. Empty: “no sessions yet”.
+ * Search-palette chrome, pre-filtered to one agent, team, or remote's running + finished
+ * sessions. Not a new SPA page — overlay only; chat stays mounted.
  */
 export default function SessionPicker({
   open,
   title,
+  agentName,
   sessions,
   onClose,
   onSelect,
 }: SessionPickerProps) {
+  const displayName = title || agentName || ''
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const visible = useMemo(() => filterSessions(sessions, query), [sessions, query])
+
+  const visible = useMemo(
+    () => sessionFilter([...sessions].sort(sessionCompare), query),
+    [query, sessions],
+  )
 
   useEffect(() => {
     setActiveIdx(0)
@@ -35,6 +79,15 @@ export default function SessionPicker({
     setQuery('')
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [open])
+
+  const choose = useCallback(
+    (row: AgentSession | undefined) => {
+      if (!row) return
+      onSelect(row)
+      onClose()
+    },
+    [onClose, onSelect],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -56,19 +109,26 @@ export default function SessionPicker({
       }
       if (event.key === 'Enter') {
         event.preventDefault()
-        const row = visible[activeIdx]
-        if (row) onSelect(row)
+        choose(visible[activeIdx])
+        return
+      }
+      if (event.ctrlKey && /^[1-9]$/.test(event.key)) {
+        event.preventDefault()
+        choose(visible[Number(event.key) - 1])
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose, onSelect, visible, activeIdx])
+  }, [open, onClose, choose, visible, activeIdx])
 
   if (!open) return null
+
+  const label = `${displayName} sessions`
 
   return (
     <div
       className="os-search-overlay"
+      data-testid="os-session-picker"
       data-session-picker="true"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
@@ -77,7 +137,7 @@ export default function SessionPicker({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`${title} sessions`}
+        aria-label={label}
         className="os-search-palette"
       >
         <div className="os-search-palette__field">
@@ -88,8 +148,8 @@ export default function SessionPicker({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search"
-            aria-label="Filter sessions"
-            aria-controls="os-session-picker-results"
+            aria-label={title ? 'Filter sessions' : `Filter ${displayName} sessions`}
+            aria-controls="os-session-results"
             aria-activedescendant={
               visible[activeIdx] ? `os-session-row-${visible[activeIdx].id}` : undefined
             }
@@ -99,17 +159,15 @@ export default function SessionPicker({
             className="os-search-palette__input"
           />
         </div>
-        <p className="os-session-picker__sub">{title}</p>
+
         <ul
-          id="os-session-picker-results"
+          id="os-session-results"
           role="listbox"
-          aria-label="Sessions"
+          aria-label={label}
           className="os-search-palette__list"
         >
-          {sessions.length === 0 ? (
+          {visible.length === 0 ? (
             <li className="os-search-empty">no sessions yet</li>
-          ) : visible.length === 0 ? (
-            <li className="os-search-empty">No results</li>
           ) : (
             visible.map((row, idx) => (
               <li
@@ -118,14 +176,19 @@ export default function SessionPicker({
                 role="option"
                 aria-selected={idx === activeIdx}
                 data-session-id={row.id}
-                data-session-status={row.status}
+                data-status={row.status}
                 className={
                   idx === activeIdx ? 'os-search-row os-search-row--active' : 'os-search-row'
                 }
                 onMouseMove={() => setActiveIdx(idx)}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onSelect(row)}
+                onClick={() => choose(row)}
               >
+                <span
+                  className="os-search-row__icon"
+                  data-mark={String(agentMarkIndex(row.id))}
+                  aria-hidden="true"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="os-search-row__name">{row.title}</span>
                   <span className="os-search-row__desc">
@@ -133,6 +196,7 @@ export default function SessionPicker({
                     {row.snippet ? ` · ${row.snippet}` : ''}
                   </span>
                 </span>
+                {idx < 9 && <kbd className="os-search-shortcut">{shortcutLabel(idx)}</kbd>}
               </li>
             ))
           )}

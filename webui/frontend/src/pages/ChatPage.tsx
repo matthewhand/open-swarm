@@ -10,16 +10,25 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Layers, Mic, Plus, Settings } from 'lucide-react'
+import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
+import AgentAvatar from '../components/AgentAvatar'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
-import { OPEN_SETTINGS_EVENT } from '../components/SettingsSheet'
+import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
+import {
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+  openAgentEditor,
+  type AgentSettingsChangedDetail,
+} from '../lib/agentSettings'
+import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import { fetchBlueprints } from '../lib/api'
+import { RemoteSelect } from '../components/RemoteSelect'
+import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
-  conversationIdForAgent,
+  conversationIdForTask,
   fetchAgentThread,
   type ConversationSummary,
 } from '../lib/agentChat'
@@ -34,12 +43,14 @@ import {
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import { notifyGenerationComplete } from '../lib/railOrder'
 import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
   MANAGE_TEAMS_VALUE,
   fetchTeamRosters,
   memberOptionLabel,
+  teamHideId,
   teamThreadId,
 } from '../lib/teamRosters'
 import { fetchConfiguredRemotes } from '../lib/remotesCatalog'
@@ -57,7 +68,8 @@ import {
 import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
-import { exampleRoleAgents } from '../lib/agentRoles'
+import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
 import {
   agentLabel,
   defaultBlueprintId,
@@ -72,7 +84,7 @@ type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
@@ -97,18 +109,25 @@ export {
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
+  const { narrow, railOpen, openRail } = useRailChrome()
   const teamFromUrl = searchParams.get('team') ?? ''
   const remoteFromUrl = searchParams.get('remote') ?? ''
   const sessionFromUrl = searchParams.get('session') ?? ''
   const selectedBlueprint = teamFromUrl || remoteFromUrl
     ? ''
     : defaultBlueprintId(searchParams.get('blueprint'))
+  const [newChatPerTask, setNewChatPerTask] = useState(() =>
+    teamFromUrl || remoteFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
+  )
   const threadKey = teamFromUrl
     ? teamThreadId(teamFromUrl)
     : remoteFromUrl
       ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
-      : selectedBlueprint
-
+      : sessionFromUrl
+        ? `${selectedBlueprint}::${sessionFromUrl}`
+        : newChatPerTask
+          ? `${selectedBlueprint}::task`
+          : selectedBlueprint
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [summariesByThread, setSummariesByThread] = useState<
     Record<string, ConversationSummary[]>
@@ -120,12 +139,19 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [, setEditsTick] = useState(0)
+  const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
       : remoteFromUrl
         ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
-        : conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+        : sessionFromUrl ||
+          conversationIdForTask(agentIdFromBlueprint(selectedBlueprint), {
+            newChatPerTask: loadLocalNewChatPerTask(
+              defaultBlueprintId(searchParams.get('blueprint')),
+            ),
+          }),
   )
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
@@ -163,6 +189,10 @@ const ChatPage = () => {
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
   const teamsQuery = useQuery({
     queryKey: ['team-rosters'],
     queryFn: fetchTeamRosters,
@@ -170,24 +200,30 @@ const ChatPage = () => {
   const remotesQuery = useQuery({
     queryKey: ['configured-remotes'],
     queryFn: fetchConfiguredRemotes,
+    retry: 1,
   })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const cliAgents = cliQuery.data?.rail ?? []
   const teams = teamsQuery.data ?? []
   const remotes = remotesQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const selectedRemote = remotes.find((remote) => remote.id === remoteFromUrl) ?? null
   const selectedRemoteSession = selectedRemote?.agents.find((agent) => agent.id === sessionFromUrl)
   const selectedTeamSession = selectedTeam?.members.find((member) => member.id === sessionFromUrl)
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
+  const runtimeBlueprint = teamFromUrl ? '' : assignedBlueprintId(selectedBlueprint)
   const selectedAgentName = teamFromUrl
     ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
     : remoteFromUrl
       ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
-      : selectedAgent
-        ? agentLabel(selectedAgent)
-        : selectedBlueprint === SUPPORT_AGENT_ID
-          ? 'Support'
-          : selectedBlueprint
+      : selectedCli
+        ? selectedCli.name
+        : selectedAgent
+          ? agentLabel(selectedAgent)
+          : selectedBlueprint === SUPPORT_AGENT_ID
+            ? 'Support'
+            : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
@@ -206,6 +242,29 @@ const ChatPage = () => {
     }
     setMemberTarget(ALL_MEMBERS_TARGET)
   }, [teamFromUrl, sessionFromUrl])
+
+  useEffect(() => {
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+  }, [])
+
+  useEffect(() => {
+    if (teamFromUrl) {
+      setNewChatPerTask(false)
+      return
+    }
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    setNewChatPerTask(loadLocalNewChatPerTask(agent))
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<AgentSettingsChangedDetail>).detail
+      if (detail?.agentId && detail.agentId === agent) {
+        setNewChatPerTask(detail.new_chat_per_task)
+      }
+    }
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+  }, [selectedBlueprint, teamFromUrl])
 
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
@@ -238,29 +297,41 @@ const ChatPage = () => {
       return
     }
 
-    const agent = agentIdFromBlueprint(selectedBlueprint)
+    const fresh = !sessionFromUrl && newChatPerTask
+    const nextId = fresh
+      ? conversationIdForTask(agent, { newChatPerTask: true })
+      : sessionFromUrl || conversationIdForAgent(agent)
+    const hydrateKey = sessionFromUrl
+      ? `${agent}::${sessionFromUrl}`
+      : fresh
+        ? nextId
+        : agent
     const switched =
       lastHydratedAgentRef.current !== null &&
-      lastHydratedAgentRef.current !== agent
-    lastHydratedAgentRef.current = agent
-    setConversationId(conversationIdForAgent(agent))
+      lastHydratedAgentRef.current !== hydrateKey
+    lastHydratedAgentRef.current = hydrateKey
+    setConversationId(nextId)
     userKeyCounterRef.current = 0
     if (switched) {
-      setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
-      setSummariesByThread((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: [] }))
+    }
+    if (fresh) {
+      // New empty session — do not restore a prior transcript.
+      return
     }
     let cancelled = false
     ;(async () => {
-      const thread = await fetchAgentThread(agent)
+      const thread = await fetchAgentThread(agent, sessionFromUrl || undefined)
       if (cancelled) return
       setSummariesByThread((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.summaries,
+        [threadKey]: thread.summaries,
       }))
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.messages.map((message, index) => ({
+        [threadKey]: thread.messages.map((message, index) => ({
           key: `hist-${index}-${message.role}`,
           role: message.role,
           text: message.content,
@@ -271,7 +342,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, teamFromUrl, remoteFromUrl, sessionFromUrl])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -309,11 +380,25 @@ const ChatPage = () => {
               m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
             )
             break
+          case 'status':
+            next = [
+              ...current,
+              {
+                key: `status-${current.length}-${Date.now()}`,
+                role: 'status',
+                text: event.text,
+                streaming: false,
+              },
+            ]
+            break
         }
         return { ...prev, [threadKey]: next }
       })
+      if (event.kind === 'assistant_final') {
+        notifyGenerationComplete(teamFromUrl ? teamHideId(teamFromUrl) : selectedBlueprint)
+      }
     },
-    [threadKey],
+    [threadKey, teamFromUrl, selectedBlueprint],
   )
 
   useEffect(() => {
@@ -330,7 +415,7 @@ const ChatPage = () => {
     let ws: WebSocket
     try {
       ws = new WebSocket(
-        buildChatWsUrl(conversationId, teamFromUrl ? undefined : selectedBlueprint || undefined),
+        buildChatWsUrl(conversationId, teamFromUrl ? undefined : runtimeBlueprint || undefined),
       )
     } catch {
       setStatus('failed')
@@ -386,7 +471,7 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint, teamFromUrl])
+  }, [connectAttempt, handleWsEvent, conversationId, runtimeBlueprint, teamFromUrl])
 
   const pinnedToBottomRef = useRef(true)
   useEffect(() => {
@@ -469,9 +554,27 @@ const ChatPage = () => {
         )
         return
       }
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          runtimeBlueprint || selectedBlueprint || undefined,
+          selectedCli
+            ? { cli: selectedCli.cli }
+            : newChatPerTask
+              ? { new_session: messages.length === 0 }
+              : undefined,
+        ),
+      )
     },
-    [selectedBlueprint, teamFromUrl, memberTarget],
+    [
+      runtimeBlueprint,
+      selectedBlueprint,
+      selectedCli,
+      teamFromUrl,
+      memberTarget,
+      newChatPerTask,
+      messages.length,
+    ],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -588,8 +691,79 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <h1 className="truncate text-base font-semibold tracking-tight">{selectedAgentName}</h1>
+        <div className="os-chat-header__identity flex min-w-0 items-center gap-2" data-testid="selected-agent-header">
+          {narrow ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square shrink-0"
+              aria-label="Open agent list"
+              aria-expanded={railOpen}
+              onClick={openRail}
+            >
+              <PanelLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
+          {!teamFromUrl ? (
+            <AgentAvatar
+              src={selectedAgent?.avatar_path}
+              size="lg"
+              className="os-chat-header__avatar"
+            />
+          ) : null}
+          <h1 className="truncate text-base font-semibold tracking-tight">
+            <button
+              type="button"
+              className="os-identity-btn truncate text-left"
+              aria-label={`Open ${selectedAgentName} definition`}
+              onClick={() => {
+                if (teamFromUrl) {
+                  openSettingsSheet({
+                    section: 'definition',
+                    definitionKind: 'team',
+                    definitionId: teamFromUrl,
+                    teamId: teamFromUrl,
+                  })
+                  return
+                }
+                const role = agentRole({
+                  id: selectedBlueprint,
+                  name: selectedAgentName,
+                  role: selectedAgent?.role,
+                })
+                openSettingsSheet({
+                  section: 'definition',
+                  definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
+                  definitionId: selectedBlueprint,
+                  blueprintId: selectedBlueprint,
+                })
+              }}
+            >
+              {selectedAgentName}
+            </button>
+          </h1>
+          {!teamFromUrl && selectedBlueprint ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              aria-label={`Edit ${selectedAgentName}`}
+              onClick={() =>
+                openAgentEditor({
+                  agentId: selectedBlueprint,
+                })
+              }
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
         <div className="flex items-center gap-2">
+          <RemoteSelect
+            remotes={remotesQuery.data}
+            value={selectedRemoteId}
+            onChange={setSelectedRemoteId}
+            size="sm"
+            className="h-8 max-w-[10rem]"
+          />
           {teamFromUrl ? (
             <select
               className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
@@ -665,6 +839,13 @@ const ChatPage = () => {
               )
             }
             const message = item.message
+            if (message.role === 'status') {
+              return (
+                <p key={message.key} className="os-chat-status" data-role="status">
+                  {message.text}
+                </p>
+              )
+            }
             const isLast = idx === displayItems.length - 1
             const retryEnabled =
               SHOW_MESSAGE_ACTIONS &&

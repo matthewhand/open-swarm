@@ -66,7 +66,16 @@ async function stubApis(page: import('@playwright/test').Page) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ object: 'list', data: [] }),
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+        ],
+        configured: [],
+        data: [],
+      }),
     })
   })
 }
@@ -90,9 +99,12 @@ test('sidepane mixes a team row; selecting it shows the unlabeled member dropdow
   await picker.getByRole('option', { name: /Codey/ }).click()
   await expect(page).toHaveURL(/[?&]team=demo-team/)
 
-  const dropdown = page.getByRole('combobox')
+  const dropdown = page.getByRole('combobox', { name: 'Team members' })
   await expect(dropdown).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Blueprint' })).toHaveCount(0)
+  const remotes = page.getByRole('combobox', { name: 'Remote' })
+  await expect(remotes).toBeVisible()
+  await expect(remotes.locator('option')).toHaveText(['No remotes', 'Add remote'])
   await expect(page.getByText('Blueprint', { exact: true })).toHaveCount(0)
   await expect(dropdown.locator('option')).toHaveText([
     'All members',

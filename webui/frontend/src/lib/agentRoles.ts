@@ -1,4 +1,5 @@
 import type { AgentRole, Blueprint } from './api'
+import { loadAgentEdit } from './agentEdits'
 import { SUPPORT_AGENT_ID, SYNTHETIC_SUPPORT, isSupportAgent } from './supportAgent'
 
 /** Example roles that demonstrate blueprint design (REQ-25). */
@@ -7,6 +8,7 @@ export type ExampleRole = (typeof EXAMPLE_ROLES)[number]
 
 export const GATE_AGENT_ID = 'gate'
 export const SKEPTIC_AGENT_ID = 'skeptic'
+export const COS_AGENT_ID = 'cos'
 
 const ROLE_ALIASES: Record<string, AgentRole> = {
   default: 'default',
@@ -130,6 +132,8 @@ export function agentRole(agent: {
   name?: string | null
   role?: string | null
 }): AgentRole {
+  const edited = agent.id ? loadAgentEdit(agent.id).role : undefined
+  if (edited) return normalizeAgentRole(edited)
   const explicit = normalizeAgentRole(agent.role)
   if (explicit !== 'default') return explicit
   if (isSupportAgent({ id: agent.id || '', name: agent.name })) return 'support'
@@ -137,7 +141,14 @@ export function agentRole(agent: {
   const name = (agent.name || '').trim().toLowerCase()
   if (id === GATE_AGENT_ID || name === 'gate' || name === 'tool gate') return 'gate'
   if (id === SKEPTIC_AGENT_ID || name === 'skeptic') return 'skeptic'
-  if (id === 'cos' || id === 'chief' || id === 'chief_of_staff' || name === 'chief of staff') {
+  if (
+    id === COS_AGENT_ID
+    || id === 'chief'
+    || id === 'chief-of-staff'
+    || id === 'chief_of_staff'
+    || name === 'cos'
+    || name === 'chief of staff'
+  ) {
     return 'chief_of_staff'
   }
   return normalizeAgentRole(id) === 'default' ? 'default' : normalizeAgentRole(id)
@@ -227,6 +238,15 @@ export function exampleRoleAgents(agents: Blueprint[]): Blueprint[] {
 
 export function fallbackBlueprintSource(blueprintId: string, role: AgentRole): string {
   if (isExampleRole(role)) return ROLE_FALLBACK_SOURCE[role]
+  if (role === 'chief_of_staff') {
+    return (
+      `# Blueprint recipe — Chief of Staff (talk-to-any-team)\n` +
+      `COS_INSTRUCTIONS = (\n` +
+      `    "You are Chief of Staff. Route the operator to the right team. "\n` +
+      `    "Talk to any roster; do not do the specialist work yourself."\n` +
+      `)\n`
+    )
+  }
   return (
     `# Blueprint ${blueprintId}\n` +
     `# No source is published for this agent yet.\n` +

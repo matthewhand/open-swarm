@@ -1,65 +1,92 @@
 import { agentMarkColor, agentMarkIndex } from '../lib/hiddenAgents'
 import {
+  STACK_FACE_LIMIT,
   earliestStartedAt,
   isAvatarStack,
-  stackAnimationDelayStyle,
+  selectStackedFaces,
+  stackAnimationDelayMs,
   type StackFace,
 } from '../lib/avatarStack'
 
 export type { StackFace }
 
 export interface AvatarStackProps {
-  faces: StackFace[]
+  faces: readonly StackFace[]
+  /** When omitted, extras beyond `maxFaces` become the remainder. */
   remainder?: number
-  /** Team/remote stacks animate every face (REQ-68 addendum). */
+  /** Override the rail cap (tests may render 4 faces). Default 3. */
+  maxFaces?: number
+  /**
+   * Animate every face (REQ-66 addendum / #398 addendum).
+   * Default true — idle vs working is a caller concern, not this widget.
+   */
   animate?: boolean
-  label?: string
+  className?: string
 }
 
 /**
- * Shared stacked-avatar widget for #394 (scale-out agent) and #398 (team/remote).
- * Max 3 faces + remainder. Do not fork this in the #394 PR — import it.
+ * Reusable hop-style stack: overlapping circular faces, then +N.
+ *
+ * Scale-out agents (#394) and later teams/remotes (#398) share this widget.
+ * Do not fork it in the REQ-68 PR — import `AvatarStack` and `selectStackedFaces`.
  */
 export default function AvatarStack({
   faces,
-  remainder = 0,
+  remainder,
+  maxFaces = STACK_FACE_LIMIT,
   animate = true,
-  label,
+  className = '',
 }: AvatarStackProps) {
-  const stacked = isAvatarStack(faces.length, remainder)
-  const earliest = earliestStartedAt(faces)
+  const planned =
+    remainder == null
+      ? selectStackedFaces(faces, maxFaces)
+      : {
+          faces: faces.slice(0, Math.max(0, maxFaces)),
+          remainder,
+        }
+  const shown = planned.faces
+  const extra = planned.remainder
+  if (shown.length === 0) return null
+
+  const origin = earliestStartedAt(shown)
+  const stacked = isAvatarStack(shown.length, extra)
+
   return (
     <span
-      className={`os-avatar-stack shrink-0 ${stacked ? 'os-avatar-stack--stacked' : ''}`}
+      className={`os-stacked-avatars ${className}`.trim()}
       data-avatar-stack={stacked ? 'true' : 'false'}
-      data-stack-count={String(faces.length)}
-      data-remainder={String(remainder)}
-      aria-hidden={label ? undefined : true}
-      aria-label={label}
+      data-face-count={String(shown.length)}
+      data-remainder={String(extra)}
+      aria-hidden="true"
     >
-      {faces.map((face) => {
-        const delay = stackAnimationDelayStyle(face.startedAt, earliest)
-        const working = animate || face.working
-        return (
-          <span
-            key={face.id}
-            className={`os-avatar-stack__face ${working ? 'os-avatar-stack__face--working' : ''}`}
-            data-face-id={face.id}
-            data-started-at={String(face.startedAt)}
-            data-working={working ? 'true' : undefined}
-            data-mark={String(agentMarkIndex(face.id))}
-            data-role={face.role}
-            title={face.name}
-            style={{
-              backgroundColor: agentMarkColor(face.id),
-              ...(working ? delay : {}),
-            }}
-          />
-        )
-      })}
-      {remainder > 0 ? (
-        <span className="os-avatar-stack__remainder" data-remainder-count={String(remainder)}>
-          +{remainder}
+      {shown.map((face) => (
+        <span
+          key={face.id}
+          className={`os-stacked-avatar os-stacked-avatar--stacked${
+            animate ? ' os-stacked-avatar--pulse' : ''
+          }`}
+          data-testid="os-stacked-avatar"
+          data-face-id={face.id}
+          data-session-id={face.id}
+          data-started-at={String(face.startedAt)}
+          data-mark={String(agentMarkIndex(face.markId || face.id))}
+          data-role={face.role}
+          title={face.name}
+          style={{
+            backgroundColor: agentMarkColor(face.markId || face.id),
+            ...(animate
+              ? { animationDelay: `${stackAnimationDelayMs(face.startedAt, origin)}ms` }
+              : {}),
+          }}
+        />
+      ))}
+      {extra > 0 ? (
+        <span
+          className="os-stacked-remainder"
+          data-testid="os-stacked-remainder"
+          data-remainder-count={String(extra)}
+        >
+          +{extra}
         </span>
       ) : null}
     </span>
