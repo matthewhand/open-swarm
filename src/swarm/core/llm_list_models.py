@@ -5,6 +5,8 @@
 ``--help`` and does not spawn CLIs. When the sibling helper is importable,
 auto-pick consumes ``{cli, models: [...], warning?}``. Until #360 merges,
 the picker stubs on the OpenAI ``/v1/models`` list shape plus fixtures.
+
+User-visible warnings never include REQ/Issue ticket jargon.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
@@ -20,6 +23,19 @@ logger = logging.getLogger("swarm.llm_list_models")
 
 SOURCE_REQ44 = "req44"
 SOURCE_STUB = "stub"
+
+# Calm Settings / API copy. Never put REQ-xx or Issue numbers in product UI.
+SKIPPED_NO_CLI_COPY = "No CLI agents connected — add a CLI to list models"
+HELPER_UNAVAILABLE_COPY = (
+    "Could not list models from connected CLIs; using the configured catalog instead."
+)
+
+_TICKET_JARGON_RE = re.compile(
+    r"\(?\bREQ-\d+\b\)?"
+    r"|\(?\bIssue\s+#?\d+\b\)?"
+    r"|#\d+\b",
+    re.IGNORECASE,
+)
 
 # Live REQ-44 probes are cached per connected CLI set so Settings / chat
 # do not re-run each CLI on every resolve. Tests call clear_discovery_cache().
@@ -60,6 +76,63 @@ def configured_cli_names(config: dict[str, Any] | None) -> list[str]:
     if not isinstance(block, dict):
         return []
     return [str(name) for name in block if str(name).strip()]
+
+
+def sanitize_ui_warning(text: str) -> str:
+    """Strip REQ/Issue ticket jargon from copy shown in product UI."""
+    if not text or not str(text).strip():
+        return ""
+    cleaned = _TICKET_JARGON_RE.sub(" ", str(text))
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    return cleaned.strip(" \t;,.-\u2014")
+
+
+def sanitize_ui_warnings(warnings: Iterable[str]) -> list[str]:
+    """Deduped, ticket-jargon-free warning list for Settings / API."""
+    out: list[str] = []
+    for raw in warnings:
+        cleaned = sanitize_ui_warning(raw)
+        if cleaned and cleaned not in out:
+            out.append(cleaned)
+    return out
+
+
+def probe_cli_names(
+    config: dict[str, Any] | None,
+    *,
+    installed: Iterable[str] | None = None,
+    include_installed: bool = False,
+) -> list[str]:
+    """CLI ids to probe: configured agents, plus installed catalog CLIs when asked.
+
+    ``installed`` is an explicit list (tests). Live Settings passes
+    ``include_installed=True`` so PATH CLIs are probed even when
+    ``cli_agents`` is empty. This function never scrapes ``--help``.
+    """
+    names = list(configured_cli_names(config))
+    seen = {name.lower() for name in names}
+    extras: Iterable[str]
+    if installed is not None:
+        extras = installed
+    elif include_installed:
+        extras = _installed_probe_names(config)
+    else:
+        extras = []
+    for raw in extras:
+        name = str(raw).strip()
+        if not name or name.lower() in seen:
+            continue
+        names.append(name)
+        seen.add(name.lower())
+    return names
+
+
+def _installed_probe_names(config: dict[str, Any] | None) -> list[str]:
+    try:
+        from swarm.core.cli_catalog import has_list_models, installed_host_clis
+    except ImportError:
+        return []
+    return [name for name in installed_host_clis(config) if has_list_models(name)]
 
 
 def normalize_list_models_payload(payload: Any) -> list[dict[str, Any]]:
@@ -172,6 +245,7 @@ def discover_cli_model_lists(
     v1_models: Any = None,
     fixtures: Iterable[str | Path | dict[str, Any]] | None = None,
     probe: bool | None = None,
+    installed: Iterable[str] | None = None,
 ) -> tuple[list[dict[str, Any]], str, list[str]]:
     """Return ``({cli, models}…, source, warnings)``.
 
@@ -179,11 +253,12 @@ def discover_cli_model_lists(
       real import. ``False`` forces the stub path (tests / no probe).
     * Live probes run only when the helper exists, ``probe`` is true, and we
       are not in ``SWARM_TEST_MODE``. This PR never scrapes ``--help``.
+    * When CLIs are installed on PATH (or passed via ``installed``), the
+      probe runs even if ``cli_agents`` is empty.
     * Stub path consumes ``v1_models`` (OpenAI list) + fixtures + optional
       ``config['v1_models']`` / ``config['list_models']``.
     """
     warnings: list[str] = []
-    names = configured_cli_names(config)
 
     resolved_helper: Callable[[str], Any] | None
     if helper is False:
@@ -196,6 +271,12 @@ def discover_cli_model_lists(
     should_probe = probe
     if should_probe is None:
         should_probe = resolved_helper is not None and not _in_test_mode()
+
+    names = probe_cli_names(
+        config,
+        installed=installed,
+        include_installed=bool(should_probe and not _in_test_mode() and installed is None),
+    )
 
     if resolved_helper is not None and should_probe and names:
         cache_key = tuple(names)
@@ -213,10 +294,11 @@ def discover_cli_model_lists(
                 warnings.append(warning)
                 continue
             row = _as_req44_dict(raw, name)
-            rows.append(row)
             if row.get("warning"):
+                row["warning"] = sanitize_ui_warning(str(row["warning"])) or row["warning"]
                 warnings.append(str(row["warning"]))
-        result = (rows, SOURCE_REQ44, warnings)
+            rows.append(row)
+        result = (rows, SOURCE_REQ44, sanitize_ui_warnings(warnings))
         if helper is None:
             _DISCOVERY_CACHE[cache_key] = result
         return result
@@ -238,10 +320,7 @@ def discover_cli_model_lists(
 
     if not rows:
         if names:
-            warning = (
-                "REQ-44 list-models helper not available; auto-pick stubbed "
-                "from /v1/models + fixtures (no CLI --help scrape)."
-            )
+            warning = HELPER_UNAVAILABLE_COPY
             warnings.append(warning)
             for name in names:
                 rows.append({"cli": name, "models": [], "warning": warning})
@@ -252,5 +331,5 @@ def discover_cli_model_lists(
     source = SOURCE_STUB
     if resolved_helper is not None and should_probe and not names:
         source = SOURCE_REQ44
-        warnings.append("No connected cli_agents; skipped REQ-44 list-models probe.")
-    return rows, source, warnings
+        warnings.append(SKIPPED_NO_CLI_COPY)
+    return rows, source, sanitize_ui_warnings(warnings)

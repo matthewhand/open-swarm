@@ -68,7 +68,7 @@ describe('SettingsSheet', () => {
     expect(screen.queryByRole('button', { name: 'Rakazo' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'LLM profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show LLM profiles' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
   })
@@ -148,7 +148,8 @@ describe('SettingsSheet', () => {
       } as Response),
     )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
+    expect(await screen.findByRole('heading', { name: 'LLM profiles' })).toBeInTheDocument()
     expect(await screen.findByText(/No connected models yet/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'No models connected' })).toBeInTheDocument()
   })
@@ -163,7 +164,7 @@ describe('SettingsSheet', () => {
       } as Response),
     )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(
       await screen.findByText(/Could not load configured profiles/i, undefined, { timeout: 4000 }),
     ).toBeInTheDocument()
@@ -382,7 +383,7 @@ describe('SettingsSheet', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(await screen.findByRole('list', { name: 'Configured LLM profiles' })).toBeInTheDocument()
     const defaultSelect = await screen.findByLabelText('Default')
     expect(defaultSelect).toHaveValue('gpt-5.6-terra')
@@ -423,7 +424,7 @@ describe('SettingsSheet', () => {
       } as Response),
     )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(await screen.findByLabelText('Default')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Override per task' })).toHaveAttribute(
       'aria-checked',
@@ -460,13 +461,41 @@ describe('SettingsSheet', () => {
       } as Response),
     )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(await screen.findByLabelText('Delegation (design / coding)')).toHaveValue('o3')
     expect(screen.getByLabelText('Auxiliary (code summary)')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Override per task' })).toHaveAttribute(
       'aria-checked',
       'true',
     )
+  })
+
+  it('strips REQ ticket jargon from list-models status copy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'llm_profiles',
+          profiles: [],
+          default_llm_profile: '',
+          default_is_auto: true,
+          override_per_task: false,
+          task_llm_profiles: {},
+          auto_picks: {},
+          warnings: ['No connected cli_agents; skipped REQ-44 list-models probe.'],
+          routes: {},
+          task_classes: ['orchestration', 'auxiliary', 'delegation'],
+        }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/CLI/i)
+    expect(alert).not.toHaveTextContent(/REQ-/)
+    expect(alert).not.toHaveTextContent(/#\d+/)
   })
 
   it('warns when a selected profile is missing from the catalog', async () => {
@@ -492,7 +521,7 @@ describe('SettingsSheet', () => {
       } as Response),
     )
     renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/missing-slug/)
     expect(screen.getByRole('alert')).toHaveTextContent(/gpt-5.6-terra/)
   })

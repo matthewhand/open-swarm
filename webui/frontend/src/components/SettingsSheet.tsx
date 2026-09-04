@@ -27,7 +27,7 @@ import {
   remoteKinds,
   unusedRemoteKinds,
 } from '../lib/remotes'
-import { TASK_CLASS_LABELS, missingProfileWarning } from '../lib/llmProfiles'
+import { TASK_CLASS_LABELS, missingProfileWarning, uiStatusWarnings } from '../lib/llmProfiles'
 import {
   agentRole,
   exampleRoleAgents,
@@ -213,7 +213,7 @@ export default function SettingsSheet({
                 aria-current={section === 'llm-profiles' ? 'page' : undefined}
                 onClick={() => setSection('llm-profiles')}
               >
-                LLM profiles
+                Show LLM profiles
               </button>
             </li>
             <li>
@@ -930,13 +930,15 @@ function LlmProfilesPane() {
   const profiles = remote?.profiles ?? []
   const ids = profiles.map((profile) => profile.id)
   const fallback = defaultId || remote?.default_llm_profile || 'default'
-  const warnings = [
-    ...(remote?.warnings ?? []),
-    missingProfileWarning(defaultId, remote, fallback),
-    ...((['orchestration', 'auxiliary', 'delegation'] as const).map((cls) =>
-      overrideOn ? missingProfileWarning(taskMap[cls], remote, fallback) : null,
-    )),
-  ].filter((text, index, all): text is string => Boolean(text) && all.indexOf(text) === index)
+  const warnings = uiStatusWarnings(
+    [
+      ...(remote?.warnings ?? []),
+      missingProfileWarning(defaultId, remote, fallback),
+      ...((['orchestration', 'auxiliary', 'delegation'] as const).map((cls) =>
+        overrideOn ? missingProfileWarning(taskMap[cls], remote, fallback) : null,
+      )),
+    ].filter((text): text is string => Boolean(text)),
+  )
 
   const optionIds = Array.from(
     new Set(

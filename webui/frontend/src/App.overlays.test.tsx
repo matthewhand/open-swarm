@@ -183,6 +183,21 @@ describe('REQ-48 chat stays mounted under overlays', () => {
     expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
   })
 
+  it('Show LLM profiles overlay opens Settings on the profiles pane', async () => {
+    await mountChatWithFixture()
+    await act(async () => {
+      openChromeOverlay('llm-profiles')
+    })
+    const settings = await screen.findByRole('dialog', { name: 'Settings', hidden: true })
+    expect(settings).toHaveClass('modal-open')
+    expect(await screen.findByRole('heading', { name: 'LLM profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show LLM profiles' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
+  })
+
   it('does not add a /settings React route that unmounts Chat', async () => {
     await mountChatWithFixture()
     expect(window.location.pathname).toBe('/chat')

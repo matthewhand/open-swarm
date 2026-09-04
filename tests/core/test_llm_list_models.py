@@ -129,6 +129,48 @@ def test_empty_list_models_payload_warns_no_crash():
     assert any(entry.id == "unknown-cli" for entry in catalog)
 
 
+def test_skip_copy_is_calm_and_has_no_ticket_jargon():
+    rows, source, warnings = llm_list_models.discover_cli_model_lists(
+        {},
+        helper=lambda name: {"cli": name, "models": ["x"]},
+        probe=True,
+    )
+    assert rows == []
+    assert source == llm_list_models.SOURCE_REQ44
+    assert warnings == [llm_list_models.SKIPPED_NO_CLI_COPY]
+    blob = " ".join(warnings)
+    assert "REQ-" not in blob
+    assert "#" not in blob
+    assert "cli_agents" not in blob
+
+
+def test_probe_runs_for_installed_clis_when_cli_agents_empty():
+    def fake_helper(name: str):
+        return {"cli": name, "models": ["grok-4"]}
+
+    rows, source, warnings = llm_list_models.discover_cli_model_lists(
+        {},
+        helper=fake_helper,
+        probe=True,
+        installed=["grok"],
+    )
+    assert source == llm_list_models.SOURCE_REQ44
+    assert rows[0]["cli"] == "grok"
+    assert rows[0]["models"] == ["grok-4"]
+    assert not any("REQ-" in w or "#" in w for w in warnings)
+
+
+def test_sanitize_ui_warning_strips_req_and_issue_numbers():
+    raw = "No connected cli_agents; skipped REQ-44 list-models probe."
+    cleaned = llm_list_models.sanitize_ui_warning(raw)
+    assert "REQ-" not in cleaned
+    assert "#" not in cleaned
+    assert llm_list_models.sanitize_ui_warnings([raw, "Issue #536 status"]) == [
+        llm_list_models.sanitize_ui_warning(raw),
+        "status",
+    ]
+
+
 def test_settings_payload_records_stub_source(tmp_path: Path):
     payload = settings_public_payload(
         {
@@ -144,3 +186,5 @@ def test_settings_payload_records_stub_source(tmp_path: Path):
     assert "sk-" not in blob
     assert "api_key" not in blob
     assert "--help" not in blob
+    assert "REQ-" not in blob
+    assert not any("REQ-" in (w or "") or "#" in (w or "") for w in payload["warnings"])

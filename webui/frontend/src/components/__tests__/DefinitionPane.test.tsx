@@ -58,7 +58,41 @@ describe('DefinitionPane', () => {
     expect(pane).toHaveAttribute('data-definition-id', 'gate')
     expect(screen.getByTestId('definition-explanation').textContent).toMatch(/YES\/NO/)
     expect(screen.getByTestId('missing-model-hint').textContent).toMatch(/No default LLM/)
+    expect(screen.getByRole('button', { name: 'Show LLM profiles' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /re-summarise/i })).toBeDisabled()
+  })
+
+  it('Show LLM profiles dispatches Settings → llm-profiles', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          kind: 'role',
+          id: 'gate',
+          title: 'Gate',
+          role: 'gate',
+          explanation: 'Gate is a YES/NO classifier.',
+          source: 'GATE_INSTRUCTIONS = "YES or NO"',
+          injected: {
+            system_prompt: 'YES or NO',
+            tools: {},
+            metadata: { id: 'gate', role: 'gate' },
+            handoff: 'as_tool',
+            extra: 'runtime',
+          },
+          default_llm: { configured: false, model: null },
+        }),
+      ),
+    )
+    const opened: Array<{ section?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent<{ section?: string }>).detail ?? {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    renderPane('role', 'gate')
+    fireEvent.click(await screen.findByRole('button', { name: 'Show LLM profiles' }))
+    window.removeEventListener('swarm:open-settings', onOpen)
+    expect(opened).toEqual([{ section: 'llm-profiles' }])
   })
 
   it('shows a stub/default LLM summary that includes the injected fixture string', async () => {

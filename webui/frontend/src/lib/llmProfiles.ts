@@ -33,6 +33,30 @@ export function isKnownProfile(
   return profileIds(settings).includes(id)
 }
 
+const TICKET_JARGON = /\(?\bREQ-\d+\b\)?|\(?\bIssue\s+#?\d+\b\)?|#\d+\b/gi
+
+/** Strip REQ/Issue ticket jargon from Settings status lines. */
+export function sanitizeUiWarning(text: string): string {
+  return text
+    .replace(TICKET_JARGON, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s;,.–—-]+|[\s;,.–—-]+$/g, '')
+    .trim()
+}
+
+/** UI-only status lines — never feed these into LLM context. */
+export function uiStatusWarnings(warnings: string[] | undefined | null): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of warnings ?? []) {
+    const cleaned = sanitizeUiWarning(raw)
+    if (!cleaned || seen.has(cleaned)) continue
+    seen.add(cleaned)
+    out.push(cleaned)
+  }
+  return out
+}
+
 export function missingProfileWarning(
   id: string | undefined,
   settings: LlmProfilesSettings | null | undefined,
