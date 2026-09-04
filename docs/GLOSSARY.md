@@ -6,6 +6,25 @@ Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.
 [ADR-003 — Desktop packaging](./adr/003-desktop-packaging.md) (planned Windows pane of glass).
 Chat list windowing: [ADR-004](./adr/004-virtualized-chat-history.md) (REQ-163).
 
+## Harness type (API / CLI / remote)
+
+Three ways an agent runs. **API** (OpenAI-compatible / blueprints) is the only
+type that can execute an openai-agents **handoff / as-tool graph**. **CLI**
+(`grok` / `agy` / …) and **Remote** (Hermes / OpenMousBot / Herdr / …) stay
+native sessions — the framework is not injected into those harnesses. A
+**cross-type team** may still mix all three for coordination; only API
+members own the programmatic topology. See
+[openai-agents-handoff-graphs](./examples/openai-agents-handoff-graphs/README.md)
+(REQ-156).
+
+## Handoff graph
+
+A declared list of directed openai-agents `handoff` (or `as_tool`) edges
+among API seats. Forced sequence = each seat has only the next hop
+(BA → Engineer → Tester). Circular skeptic = last reviewer may punt back
+to an earlier role. Tests lock live `Handoff.agent_name` against the JSON.
+This is **not** the #561 peer mailbox (`list_agents` / `send_message`).
+
 ## Blueprint
 
 A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed).

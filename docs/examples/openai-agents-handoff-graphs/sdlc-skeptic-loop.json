@@ -1,0 +1,43 @@
+{
+  "id": "sdlc-skeptic-loop",
+  "name": "Demo SDLC Skeptic Loop",
+  "variant": "circular-skeptic",
+  "entry": "ba",
+  "description": "Forced BA → Engineer → Tester, then Skeptic may punt back to Engineer. Mode B names (REQ-135): BA, Engineer, Tester, Skeptic.",
+  "nodes": [
+    {
+      "id": "ba",
+      "name": "BA",
+      "role": "default",
+      "kind": "api",
+      "instructions": "You are BA. Capture Intent, Success, Constraints, Owner. Hand off only to engineer. Do not skip to tester or skeptic."
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "role": "default",
+      "kind": "api",
+      "instructions": "You are Engineer. Implement to Success. When ready for verification, hand off only to tester. Accept a punt-back from skeptic as a rework request."
+    },
+    {
+      "id": "tester",
+      "name": "Tester",
+      "role": "default",
+      "kind": "api",
+      "instructions": "You are Tester. Verify against Success, then hand off only to skeptic. Do not skip back to ba."
+    },
+    {
+      "id": "skeptic",
+      "name": "Skeptic",
+      "role": "skeptic",
+      "kind": "api",
+      "instructions": "You are Skeptic. Look-only PASS/FAIL. On FAIL, hand off back to engineer (punt-back). On PASS, stop. Do not implement. Do not invent a hop to ba or tester."
+    }
+  ],
+  "edges": [
+    {"from": "ba", "to": "engineer", "channel": "handoff"},
+    {"from": "engineer", "to": "tester", "channel": "handoff"},
+    {"from": "tester", "to": "skeptic", "channel": "handoff"},
+    {"from": "skeptic", "to": "engineer", "channel": "handoff"}
+  ]
+}

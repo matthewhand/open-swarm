@@ -31,6 +31,70 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 
 ---
 
+## Why openai-agents (and three harness types)
+
+AI enthusiasts juggle many frameworks; some combine CLIs and APIs, but still
+do not talk to **remote harnesses** (Hermes, OpenMousBot as remote, …).
+Open Swarm is a Grok-agnostic Grok-Bot-like UI **and** a bridge — task one
+place, coordinate across CLI, API, remotes, and local blueprints.
+
+**Why a programmatic graph?** openai-agents (formerly “swarm”) lets us
+**define any workflow** with handoff / as-tool edges. LLM-only freestyle
+cannot reliably enforce topology.
+
+- **Forced sequence** — BA → Engineer → Tester because each agent has
+  **only one handoff** to the next. BA cannot skip to Tester.
+- **Circular / punt-back** — the last skeptic can hand off back to Engineer.
+
+**Limit (up front):** that graph runs **inside API / blueprint agents
+only**. We cannot inject openai-agents into **CLI** or **remote** harnesses —
+those stay native sessions (CLI is also the quota-hop escape hatch).
+
+```mermaid
+flowchart LR
+  BA[BA] --> Eng[Engineer]
+  Eng --> Test[Tester]
+```
+
+```mermaid
+flowchart LR
+  BA[BA] --> Eng[Engineer]
+  Eng --> Test[Tester]
+  Test --> Sk[Skeptic]
+  Sk --> Eng
+```
+
+```mermaid
+flowchart TB
+  User[User task] --> OS[Open Swarm]
+  OS --> API[API harness]
+  OS --> CLI[CLI harness]
+  OS --> Remote[Remote harness]
+  API --> Graph[openai-agents graph]
+  CLI --> NativeCLI[native grok or agy session]
+  Remote --> NativeRemote[native Hermes or OpenMousBot]
+```
+
+**API** is the only type that gets the programmatic graph. **CLI**
+(`grok` / `agy` / …) and **Remote** (Hermes / OpenMousBot / Herdr / …)
+stay native. **Cross-type teams** still work: a CoS API member can sit
+with Grok CLI and Hermes Remote for coordination even when only the API
+seat owns the graph.
+
+```mermaid
+flowchart LR
+  CoS[CoS API] --- Grok[Grok CLI]
+  CoS --- Hermes[Hermes Remote]
+```
+
+Worked configs, Mode A/B demo names, tests that lock the edges, and
+`:8001` seed steps (no secrets):
+[docs/examples/openai-agents-handoff-graphs/](docs/examples/openai-agents-handoff-graphs/README.md)
+(REQ-156 / #564). Peer mailbox tools (`list_agents` / `send_message`) are
+a different surface ([#561](https://github.com/matthewhand/open-swarm/issues/561)).
+
+---
+
 ## Quickstart (CLI)
 
 ```bash
@@ -212,6 +276,7 @@ Flagship blueprints (maintained, with the unified spinner/result-box CLI UX):
 | `rue_code` | Code execution / file-system interaction |
 | `zeus` | General-purpose team launcher |
 | `poets` | SQLite-backed creative-writing agents |
+| `sdlc_handoff` | Example openai-agents graph: forced BA→Engineer→Tester, or circular skeptic (API only) |
 
 CLI Agent Fusion blueprints (wrap your installed agentic CLIs — see [docs/CLI_FUSION.md](docs/CLI_FUSION.md)):
 
@@ -363,7 +428,8 @@ ruff check .                          # lint
 * The optional React frontend lives in `webui/frontend/` (Node >= 22, `npm install && npm run build`). When `dist/` is built, `/` serves that SPA dashboard + `/chat`; without it, `/` falls back to Django templates. **Supported operator UI** is the Django trailing-slash pages (`/teams/`, `/blueprint-library/`, `/settings/`, …); SPA Chat is retained per [ADR-001](docs/ADR-001-primary-ui.md) — see Roadmap.
 Documentation map:
 
-* [docs/GLOSSARY.md](./docs/GLOSSARY.md) — v1 product vocabulary (Blueprint vs Team alias, MoA/Persona, Operator UI vs SPA Chat).
+* [docs/GLOSSARY.md](./docs/GLOSSARY.md) — v1 product vocabulary (Blueprint vs Team alias, MoA/Persona, harness types, Operator UI vs SPA Chat).
+* [docs/examples/openai-agents-handoff-graphs/](./docs/examples/openai-agents-handoff-graphs/README.md) — why openai-agents (forced / circular graphs), three harness types, `:8001` seed (REQ-156).
 * [USERGUIDE.md](./USERGUIDE.md) — task-oriented `swarm-cli` reference.
 * [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — runbook for deploying a CLI-wrapping OpenAI-compatible server (pull → configure → prove).
 * [docs/AUTH.md](./docs/AUTH.md) — auth & trust model (Bearer vs session, WS 4401, Explorer bridge, workdir, blueprint sandbox, CSRF/prod CSP).

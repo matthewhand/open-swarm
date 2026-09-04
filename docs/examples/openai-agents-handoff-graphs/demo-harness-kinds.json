@@ -1,0 +1,37 @@
+{
+  "id": "demo-harness-kinds",
+  "name": "Demo Harness Kinds",
+  "members": [
+    {
+      "id": "grok-cli",
+      "kind": "cli",
+      "role": "default",
+      "source": "cli:grok"
+    },
+    {
+      "id": "antigravity-cli",
+      "kind": "cli",
+      "role": "default",
+      "source": "cli:agy"
+    },
+    {
+      "id": "litellm-api",
+      "kind": "api",
+      "role": "default",
+      "source": "blueprint:sdlc_handoff"
+    },
+    {
+      "id": "hermes-remote",
+      "kind": "remote",
+      "role": "default",
+      "source": "placeholder:remote:hermes"
+    },
+    {
+      "id": "openmousbot-remote",
+      "kind": "remote",
+      "role": "default",
+      "source": "placeholder:remote:omb"
+    }
+  ],
+  "wires": {"handoff": true, "as_tool": true}
+}

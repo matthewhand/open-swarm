@@ -1,0 +1,25 @@
+{
+  "id": "demo-bridge",
+  "name": "Demo Bridge",
+  "members": [
+    {
+      "id": "cos",
+      "kind": "api",
+      "role": "chief_of_staff",
+      "source": "blueprint:sdlc_handoff"
+    },
+    {
+      "id": "grok-cli",
+      "kind": "cli",
+      "role": "default",
+      "source": "cli:grok"
+    },
+    {
+      "id": "hermes-remote",
+      "kind": "remote",
+      "role": "default",
+      "source": "placeholder:remote:hermes"
+    }
+  ],
+  "wires": {"handoff": true, "as_tool": true}
+}

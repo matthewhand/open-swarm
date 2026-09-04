@@ -1,0 +1,34 @@
+{
+  "id": "sdlc-pipeline",
+  "name": "Demo SDLC Pipeline",
+  "variant": "forced-sequence",
+  "entry": "ba",
+  "description": "One-way BA → Engineer → Tester. Each API seat has only the next handoff. Mode B names (REQ-135): BA, Engineer, Tester.",
+  "nodes": [
+    {
+      "id": "ba",
+      "name": "BA",
+      "role": "default",
+      "kind": "api",
+      "instructions": "You are BA (business analyst). Capture Intent, Success, Constraints, Owner. When the brief is ready, hand off only to engineer. Do not skip to tester. Do not implement."
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "role": "default",
+      "kind": "api",
+      "instructions": "You are Engineer. Implement to Success from the BA brief. When implementation is ready for verification, hand off only to tester. Do not skip back to ba."
+    },
+    {
+      "id": "tester",
+      "name": "Tester",
+      "role": "default",
+      "kind": "api",
+      "instructions": "You are Tester. Verify the engineer work against Success. You have no further programmatic handoff. Finish and stop."
+    }
+  ],
+  "edges": [
+    {"from": "ba", "to": "engineer", "channel": "handoff"},
+    {"from": "engineer", "to": "tester", "channel": "handoff"}
+  ]
+}

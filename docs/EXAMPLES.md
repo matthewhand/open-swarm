@@ -12,6 +12,9 @@ Base URL in examples: `http://localhost:8000/v1` (swap for your host). Add
 > your own personas, teams, and consensus rules via config or Django
 > [`/agent-creator/`](../FEATURE_STATUS.md) (the SPA Builder route is unmounted).
 > Architecture + diagrams: [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md).
+Forced / circular openai-agents graphs and the three harness types:
+[openai-agents-handoff-graphs](./examples/openai-agents-handoff-graphs/README.md)
+(REQ-156).
 
 ---
 

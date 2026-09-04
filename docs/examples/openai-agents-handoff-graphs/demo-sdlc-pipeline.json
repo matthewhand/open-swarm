@@ -1,0 +1,10 @@
+{
+  "id": "demo-sdlc-pipeline",
+  "name": "Demo SDLC Pipeline",
+  "members": [
+    {"id": "ba", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
+    {"id": "engineer", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
+    {"id": "tester", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"}
+  ],
+  "wires": {"handoff": true, "as_tool": false}
+}
