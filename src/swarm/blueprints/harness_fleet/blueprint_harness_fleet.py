@@ -73,13 +73,25 @@ _BUILTIN_FLEET: dict[str, dict[str, Any]] = {
     "codeproject-ai-32": {
         "host": "10.0.0.32", "port": 5000, "kind": "codeproject ai server",
     },
+    "rakazo-32": {
+        "host": "10.0.0.32", "port": 3100, "kind": "rakazo api",
+        "health_path": "/health",
+        "note": "Windows2 C:\\rakazo — UI :5173; operate via remotes.rakazo / remote_harness",
+    },
     "rakoza-32": {
-        "host": "10.0.0.32", "endpoint_tbd": True,
-        "kind": "agent service", "note": "port unknown — set port in swarm_config",
+        "host": "10.0.0.32", "port": 3100, "kind": "rakazo api",
+        "health_path": "/health",
+        "note": "alias of rakazo-32 (legacy misspelling)",
+    },
+    "omb-32": {
+        "host": "10.0.0.32", "port": 8802, "kind": "openmausbot",
+        "health_path": "/api/health",
+        "note": "Windows2 OpenMausBot — operate via remotes.omb / remote_harness",
     },
     "openmousbot-32": {
-        "host": "10.0.0.32", "endpoint_tbd": True,
-        "kind": "agent service", "note": "port unknown — set port in swarm_config",
+        "host": "10.0.0.32", "port": 8802, "kind": "openmausbot",
+        "health_path": "/api/health",
+        "note": "alias of omb-32 (legacy misspelling)",
     },
 }
 

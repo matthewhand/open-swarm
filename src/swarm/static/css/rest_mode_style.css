@@ -28,9 +28,30 @@
 }
 
 /* ---- page shell --------------------------------------------------------- */
+html {
+  background: #0c0c0c;
+  min-height: 100%;
+}
+html[data-os-theme="light"] {
+  background: #f4f4f5;
+}
 body {
   background: var(--os-bg);
   color: var(--os-text);
+}
+/* Operator pages: column chrome matching SPA Chat (header, then AGENTS+main).
+   Must beat any leftover flex-centering so the header stays in the first
+   viewport and the sidepane docks flush left — no reserved gutter. */
+body.os-app {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  margin: 0;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--os-bg);
+  background-image: none;
 }
 main { min-height: calc(100vh - 56px); }
 
@@ -442,16 +463,7 @@ html[data-os-theme="light"] .os-navbar .nav-link.active {
   color: inherit;
   cursor: pointer;
   white-space: nowrap;
-  width: 2.15rem;
-  height: 2.15rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
 }
-.os-theme-icon { display: none; }
-html[data-os-theme="dark"] .os-theme-icon--sun { display: inline-block; }
-html[data-os-theme="light"] .os-theme-icon--moon { display: inline-block; }
 .os-sidebar-toggle,
 .os-sidebar-close {
   background: transparent;
@@ -464,9 +476,18 @@ html[data-os-theme="light"] .os-theme-icon--moon { display: inline-block; }
   align-items: center;
   justify-content: center;
 }
+.os-header {
+  flex: 0 0 auto;
+  width: 100%;
+  z-index: 1030;
+}
 .os-shell {
   display: flex;
+  flex-direction: row;
   align-items: stretch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: calc(100vh - 56px);
 }
 .os-agent-sidebar {
@@ -477,6 +498,7 @@ html[data-os-theme="light"] .os-theme-icon--moon { display: inline-block; }
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 html[data-os-theme="light"] .os-agent-sidebar {
   background: #ececee;
@@ -531,9 +553,22 @@ html[data-os-theme="light"] .os-agent-sidebar {
   border-radius: 0.65rem;
   color: var(--os-text-strong);
   text-decoration: none;
+  min-width: 0;
 }
 .os-agent-item:hover { background: var(--os-panel-2); color: var(--os-text-strong); }
-.os-agent-item__name { display: block; font-size: 0.88rem; font-weight: 650; }
+.os-agent-item__text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.os-agent-item__name {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .os-agent-item__desc {
   display: block;
   font-size: 0.75rem;
@@ -541,7 +576,7 @@ html[data-os-theme="light"] .os-agent-sidebar {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 12rem;
+  max-width: 100%;
 }
 .os-agent-dot {
   width: 0.7rem;
@@ -557,61 +592,134 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
+.os-agent-item--support {
+  background: color-mix(in srgb, #2f8f7b 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #2f8f7b 45%, transparent);
+}
+.os-agent-item--gate {
+  background: color-mix(in srgb, #c4a035 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #c4a035 50%, transparent);
+}
+.os-agent-item--skeptic {
+  background: color-mix(in srgb, #7a6b9b 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #7a6b9b 50%, transparent);
+}
+.os-agent-role-mark {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+  margin-top: 0.28rem;
+  border-radius: 999px;
+}
+.os-agent-role-mark--support {
+  background: radial-gradient(circle, transparent 32%, #2f8f7b 33% 58%, transparent 59%);
+  box-shadow: 0 0 0 1px #2f8f7b;
+}
+.os-agent-role-mark--gate {
+  border-radius: 0.15rem 0.15rem 0.45rem 0.45rem;
+  background: #c4a035;
+}
+.os-agent-role-mark--skeptic {
+  width: 0;
+  height: 0;
+  border-left: 0.42rem solid transparent;
+  border-right: 0.42rem solid transparent;
+  border-bottom: 0.72rem solid #7a6b9b;
+  background: transparent;
+  border-radius: 0;
+}
+.os-agent-item__name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.os-role-pill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  line-height: 1.2;
+  flex: 0 0 auto;
+}
+.os-role-pill--support { background: #2f8f7b; color: #04110e; }
+.os-role-pill--gate { background: #c4a035; color: #1a1403; }
+.os-role-pill--skeptic { background: #7a6b9b; color: #f4f1fb; }
+.os-team-item { color: var(--os-text-strong); }
+.os-team-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0.3rem;
+  background: var(--os-panel-2);
+  color: var(--os-text-strong);
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+}
+.os-team-item__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.os-team-badge {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--os-muted);
+  border: 1px solid var(--os-border);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
+/* REQ-67: role colour lives on .os-agent-role-badge only — no row fill/border. */
+.os-agent-item[data-kind="team"] { box-shadow: inset 2px 0 0 #6b7c8a; }
+.os-agent-item--nested { margin-left: 0.85rem; }
+.os-agent-role-badge {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--os-muted);
+}
+.os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
+.os-agent-role-badge[data-role="gate"] { color: #c9a227; }
+.os-agent-role-badge[data-role="skeptic"] { color: #8a5a9b; }
+.os-agent-role-badge[data-role="chief_of_staff"] { color: #4f8ec9; }
+.os-agent-role-badge[data-kind="team"] { color: #6b7c8a; }
+.os-agent-hidden { margin-top: 0.65rem; padding-top: 0.5rem; border-top: 1px solid var(--os-border); }
 .os-agent-hidden__toggle {
   width: 100%;
   background: transparent;
   border: 0;
   color: var(--os-muted);
   text-align: left;
-  font-size: 0.75rem;
-  padding: 0.4rem 0.5rem;
-  margin-top: 0.35rem;
-  cursor: pointer;
-  border-radius: 0.4rem;
-}
-.os-agent-hidden__toggle:hover { color: var(--os-text); background: rgba(255,255,255,0.04); }
-.os-agent-hidden-dialog {
-  border: 1px solid var(--os-border);
-  border-radius: 0.75rem;
-  background: var(--os-panel);
-  color: var(--os-text);
-  padding: 0.85rem 1rem 1rem;
-  min-width: 16rem;
-  max-width: 22rem;
-}
-.os-agent-hidden-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
-.os-agent-hidden-dialog__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.65rem;
-}
-.os-agent-hidden-dialog__head h2 {
-  margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.72rem;
   font-weight: 650;
-}
-.os-agent-hidden-dialog__close {
-  background: transparent;
-  border: 0;
-  color: var(--os-muted);
-  cursor: pointer;
-  width: 1.75rem;
-  height: 1.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.4rem;
 }
 .os-agent-hidden__row {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.2rem 0;
+  align-items: flex-start;
+  gap: 0.25rem;
 }
 .os-agent-unhide {
   background: transparent;
   border: 0;
   color: var(--os-muted);
-  font-size: 0.75rem;
-  margin-left: auto;
+  font-size: 0.7rem;
+  margin-top: 0.45rem;
   cursor: pointer;
 }
 .os-agent-sidebar__foot {
@@ -655,7 +763,24 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-main {
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
   padding: 1rem 1.15rem 1.5rem;
+}
+.se-card,
+.se-preview,
+.se-error {
+  min-width: 0;
+  max-width: 100%;
+}
+.se-preview,
+.se-error {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 @media (max-width: 991.98px) {
   .os-agent-sidebar {

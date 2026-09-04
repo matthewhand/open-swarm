@@ -1,6 +1,8 @@
 # src/swarm/middleware.py
 import asyncio  # Import asyncio
+import ipaddress
 import logging
+import os
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
@@ -91,3 +93,90 @@ def AsyncAuthMiddleware(get_response):
             return get_response(request)
 
         return middleware
+
+
+def is_lan_or_loopback(ip: str | None) -> bool:
+    """True for loopback, RFC1918, and link-local (including IPv6 ULA/link-local)."""
+    if not ip:
+        return False
+    try:
+        addr = ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return False
+    return bool(
+        addr.is_loopback
+        or addr.is_private
+        or addr.is_link_local
+    )
+
+
+def client_ip_from_scope(scope: dict | None) -> str | None:
+    """Channels ASGI ``scope['client']`` is ``(host, port)``."""
+    if not isinstance(scope, dict):
+        return None
+    client = scope.get("client")
+    if isinstance(client, (list, tuple)) and client:
+        return str(client[0])
+    return None
+
+
+def swarm_allow_anonymous(
+    client_ip: str | None = None,
+    *,
+    debug: bool | None = None,
+    testing: bool | None = None,
+) -> bool:
+    """Auth-free preview: explicit env, or DEBUG + LAN/loopback (not pytest).
+
+    ``SWARM_ALLOW_ANONYMOUS=1`` forces on (any IP). ``=0``/false forces off.
+    Otherwise, ``DJANGO_DEBUG=true`` auto-logs LAN and loopback clients so a
+    phone on the same network can use the operator UI and websockets without
+    a password. Production (DEBUG=False) and the pytest suite stay gated.
+    """
+    raw = os.environ.get("SWARM_ALLOW_ANONYMOUS", "").strip().lower()
+    if raw in {"0", "false", "no", "n", "off"}:
+        return False
+    if raw in {"1", "true", "yes", "y", "on"}:
+        return True
+    if testing is None:
+        testing = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    if testing:
+        return False
+    if debug is None:
+        from swarm.utils.env_utils import is_django_debug
+        debug = is_django_debug()
+    return bool(debug) and is_lan_or_loopback(client_ip)
+
+
+def get_or_create_preview_user():
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user, created = User.objects.get_or_create(
+        username="swarm-anon-preview",
+        defaults={"email": "anon-preview@localhost"},
+    )
+    if created or user.has_usable_password():
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+    return user
+
+
+class AllowAnonymousPreviewMiddleware:
+    """Dev LAN / loopback: auto-login a dummy user so pages and WS share a session.
+
+    Forced on with ``SWARM_ALLOW_ANONYMOUS=1``; forced off with ``=0``.
+    Default: only when ``DJANGO_DEBUG=true`` and the client IP is LAN/loopback.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        ip = (request.META.get("REMOTE_ADDR") or "").strip() or None
+        if swarm_allow_anonymous(ip):
+            user = getattr(request, "user", None)
+            if user is None or not getattr(user, "is_authenticated", False):
+                from django.contrib.auth import login
+                preview = get_or_create_preview_user()
+                login(request, preview, backend="django.contrib.auth.backends.ModelBackend")
+        return self.get_response(request)

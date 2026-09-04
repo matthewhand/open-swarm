@@ -49,12 +49,13 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    const backdrop = screen.getByRole('button', { name: 'Close modal' });
-    expect(backdrop).toBeInTheDocument();
-    expect(backdrop).toHaveClass('modal-backdrop');
-    expect(backdrop).toHaveAttribute('tabIndex', '-1');
+    const backdropButton = screen.getByRole('button', { name: 'Close modal', hidden: true });
+    expect(backdropButton).toBeInTheDocument();
+    expect(backdropButton).toHaveAttribute('tabIndex', '-1');
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(backdropButton.closest('form')).toHaveAttribute('aria-hidden', 'true');
 
-    backdrop.click();
+    backdropButton.click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -79,6 +80,33 @@ describe('Modal Accessibility and Focus Restoration', () => {
     const openDialog = screen.getByRole('dialog', { hidden: true });
     expect(openDialog).toHaveClass('modal-open');
     expect(openDialog).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('applies DaisyUI modal-end for a right-docked sheet', () => {
+    render(
+      <Modal isOpen={true} onClose={() => {}} placement="end" size="sheet" title="Sheet">
+        <p>Docked</p>
+      </Modal>
+    );
+    const dialog = screen.getByRole('dialog', { hidden: true });
+    expect(dialog).toHaveClass('modal');
+    expect(dialog).toHaveClass('modal-end');
+    expect(dialog).not.toHaveClass('drawer');
+    // eslint-disable-next-line testing-library/no-node-access
+    const box = dialog.querySelector('.modal-box');
+    expect(box).toHaveClass('max-w-4xl');
+  });
+
+  it('closes when the click lands outside modal-box (sheet gutter)', () => {
+    const onClose = vi.fn();
+    render(
+      <Modal isOpen={true} onClose={onClose} placement="end" size="sheet" title="Sheet">
+        <p>Docked</p>
+      </Modal>
+    );
+    const dialog = screen.getByRole('dialog', { hidden: true });
+    fireEvent.click(dialog);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('exposes aria-label when title is omitted', () => {

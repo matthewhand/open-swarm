@@ -423,8 +423,12 @@ class BlueprintBase(ABC):
         profile_source = None
         import logging
         logger = logging.getLogger(__name__)
-        logger.debug(f"[DEBUG _resolve_llm_profile] blueprint_id/name: {name}")
-        logger.debug(f"[DEBUG _resolve_llm_profile] self._config: {self._config}")
+        logger.debug("[DEBUG _resolve_llm_profile] blueprint_id/name: %s", name)
+        if isinstance(self._config, dict):
+            logger.debug(
+                "[DEBUG _resolve_llm_profile] config keys: %s",
+                list(self._config.keys()),
+            )
 
         # 1. Explicit override
         if getattr(self, '_llm_profile_name', None):
@@ -638,6 +642,9 @@ class BlueprintBase(ABC):
         api_mode = os.getenv("SWARM_LLM_API_MODE", api_mode)
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model")
         provider = profile_data.get("provider", "openai")
+        # LiteLLM is OpenAI-compatible; keep using the OpenAI client.
+        if provider == "litellm":
+            provider = "openai"
         client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
         filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}
         log_kwargs = {k:v for k,v in filtered_kwargs.items() if k != 'api_key'}
@@ -792,7 +799,7 @@ class BlueprintBase(ABC):
         self.run = run_with_memory
         self._memory_run_wrapped = True
 
-    def make_agent(self, name, instructions, tools, mcp_servers=None, memory_type=None, memory_config=None, inference_profile=None, **kwargs):
+    def make_agent(self, name, instructions, tools, mcp_servers=None, memory_type=None, memory_config=None, inference_profile=None, role=None, **kwargs):
         """Factory for creating an Agent with the correct model instance from framework config.
 
         ``inference_profile`` (optional) is a *suggestion* of the kind of inference
@@ -815,6 +822,9 @@ class BlueprintBase(ABC):
         memory_config = memory_config or self.config.get("settings", {}).get("default_memory_config")
         memory_instance = self._get_memory_instance(memory_type, memory_config)
 
+        from swarm.core.agent_roles import attach_role, normalize_agent_role
+
+        role = normalize_agent_role(kwargs.pop("role", None) or role)
         agent = Agent(
             name=name,
             model=model_instance,
@@ -823,6 +833,7 @@ class BlueprintBase(ABC):
             mcp_servers=mcp_servers or [],
             **kwargs
         )
+        attach_role(agent, role)
 
         # Attach memory if any
         if memory_instance:

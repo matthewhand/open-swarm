@@ -50,7 +50,7 @@ uv run swarm-cli launch codey --message "Explain this repo's structure"
 uv run swarm-cli install codey
 ```
 
-`swarm-cli` commands available today: `list`, `launch`, `install` / `install-executable`, `uninstall`, `add`, `delete`, `config` (list/add/remove LLM profiles and MCP servers), `cli-agents` (alias `agents`) — autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated — `skills` (reusable `SKILL.md` capabilities via the `cli_agent` `skill=` param), `wizard`, `moa` (Mixture of Agents consensus; optional `--team --workdir` for post-consensus specialists without openai-agents), and `moa-init`. See [docs/MOA.md](docs/MOA.md).
+`swarm-cli` commands available today: `list`, `launch`, `install` / `install-executable`, `uninstall`, `add`, `delete`, `config` (list/add/remove LLM profiles, MCP servers, and remotes), `remotes` (Hermes / OpenMausBot / Rakazo — persist, health, operate, and place in a handoff Team; see [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md)), `cli-agents` (alias `agents`) — autodiscovers which of your installed agentic CLIs are configured, installed, and (with `--check-auth`) authenticated — `skills` (reusable `SKILL.md` capabilities via the `cli_agent` `skill=` param), `wizard`, `moa` (Mixture of Agents consensus; optional `--team --workdir` for post-consensus specialists without openai-agents), and `moa-init`. See [docs/MOA.md](docs/MOA.md).
 
 **MoA team path** — multi-seat read-only consensus, then optional scripted specialists (no openai-agents required):
 
@@ -86,6 +86,16 @@ curl -sf http://localhost:8000/v1/responses \
 ```
 
 The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). **Web UI:** when `webui/frontend/dist/` is built, `/` prefers that React SPA dashboard (falls back to Django templates otherwise). Day-to-day operator UI is Django server-rendered + HTMx at trailing-slash routes (`/teams/`, `/blueprint-library/`, `/agent-creator/`, `/settings/`, `/sessions/`, …). The SPA is experimental and not at parity with those pages — see [USERGUIDE.md](./USERGUIDE.md) and [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md).
+
+## Pinokio (local sideload)
+
+Open Swarm is **not** in the Pinokio public catalog. In Pinokio, add the git URL only (Download from URL / sideload) — do not search Discover:
+
+```
+https://github.com/matthewhand/open-swarm.git
+```
+
+Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home` (REQ-45).
 
 ---
 
@@ -139,7 +149,9 @@ Vocabulary for the v1 cut: [docs/GLOSSARY.md](docs/GLOSSARY.md) · UI boundary: 
 
 * **Agents** — individual AI workers powered by LLMs, built on the `openai-agents` SDK (agents, tools, handoffs).
 * **Blueprints** — `BlueprintBase` subclasses defining a multi-agent (or single-agent) workflow: agents, coordination logic, tools, and required MCP servers/env vars. Discovered by directory scan; each blueprint is independently runnable, testable, and compilable. Blueprints can call other blueprints as tools (`swarm.core.blueprint_utils.blueprint_tool`).
-* **Team (`/v1/teams`)** — a dynamic **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`), also editable under Django `/teams/`. Appears as an OpenAI-compatible model id and proxies chat through `DynamicTeamBlueprint`. **Not** a multi-agent team builder — for that, author or run a Blueprint (or MoA / persona patterns).
+* **Team** — API agents, CLI agents, and **remote** agents (Hermes / OpenMausBot / Rakazo) that **see and talk** via openai-agents handoff / as_tool. Place remotes with `swarm-cli remotes place|unplace` or `PATCH /v1/agent-team/`. Blueprint: `remote_harness`. See [docs/GLOSSARY.md](docs/GLOSSARY.md).
+* **Profiles (`/v1/teams`)** — a dynamic **LLM-profile alias** (`id` / `description` / `llm_profile` in `teams.json`), also editable under Django `/teams/`. Appears as an OpenAI-compatible model id and proxies chat through `DynamicTeamBlueprint`. Prefer this name in new copy; the URL still says teams (name collision with Team above).
+* **Team roster (`/v1/team-rosters`)** — composition contract in `team_rosters.json`: members (`api` / `cli` / `remote`) + per-team `handoff` / `as_tool` wires. SPA chat-header **Compose team** overlay (not a top-nav Teams tab). See [docs/TEAM_ROSTERS.md](docs/TEAM_ROSTERS.md).
 * **Persona / MoA** — two multi-agent styles: MoA = read-only consensus seats then orchestrator act (`swarm-cli moa`); Persona = openai-agents coordinator switching specialists (`persona_council` and most coding blueprints). See [docs/SWARM_WORKFLOWS.md](docs/SWARM_WORKFLOWS.md).
 * **MCP servers** — external tool providers (filesystem, search, databases, …) declared **in config, not code**; agents get their tools at runtime via the Model Context Protocol.
 * **CLI agents & fusion** — wrap your installed agentic CLIs (`grok`/`agent`, `claude`, `gemini`, `codex`, `opencode`, …) as subagents behind the OpenAI API, and compose them four ways:
@@ -149,7 +161,7 @@ Vocabulary for the v1 cut: [docs/GLOSSARY.md](docs/GLOSSARY.md) · UI boundary: 
   * `model: "cli_map"` — decompose a task, distribute the subtasks across worker CLIs in parallel, and reduce the results into one answer.
 
   Consensus can be framework-driven (self-consensus: the same persona N times; or a multi-persona panel) **or** delegated to a CLI's own built-in mode where one exists (e.g. grok's `--best-of-n N`) — and the two compose. `grok` is the preferred default for judge/router/planner roles. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). Worked 3-CLI consensus transcripts — each showing every agent's individual contribution, the judge's analysis, and the synthesis (including where the panel *disagrees*) — live in [docs/examples/](docs/examples/).
-* **Skills** — reusable capabilities packaged as `SKILL.md` directories (YAML frontmatter + instructions, optionally bundled scripts), following Anthropic's [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) open standard so they're portable to Claude Code / the Skills API. List them with `swarm-cli skills`; apply one to any CLI with the `cli_agent` `skill=<name>` param — it prepends the skill's instructions and stages any bundled assets into the workdir for a write-mode CLI to run. Skills are CLI-agnostic: the same skill works on grok, claude, or gemini. Bundled examples: `conventional-commit`, `reviewing-code`, `writing-changelog`, `counting-lines` (ships an executable `count.py`).
+* **Skills** — reusable capabilities packaged as `SKILL.md` directories (YAML frontmatter + instructions, optionally bundled scripts), following Anthropic's [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) open standard so they're portable to Claude Code / the Skills API. List them with `swarm-cli skills`; apply one to any CLI with the `cli_agent` `skill=<name>` param — it prepends the skill's instructions and stages any bundled assets into the workdir for a write-mode CLI to run. Skills are CLI-agnostic: the same skill works on grok, claude, or gemini. Bundled examples: `conventional-commit`, `reviewing-code`, `writing-changelog`, `counting-lines` (ships an executable `count.py`), `support-session-ownership` (Support session ownership).
 * **Inference profiles** — a blueprint can declare *what kind of thinking it wants* — `intelligence`, `speed`, `cost` as 0–1 priorities — instead of hard-coding a model. Each backend is tagged with capability traits (defaults you override per-agent), and the best match is chosen automatically. So a reasoning-heavy blueprint routes to whatever *you* labelled smart (e.g. `claude opus 4.8 → intelligence 1.0`); a high-volume one routes to your fast/cheap CLI. Keeps blueprints portable across hosts. See [docs/CLI_FUSION.md](docs/CLI_FUSION.md#inference-profiles--say-what-you-want-not-which-model).
 * **Configuration** — one JSON file (`~/.config/swarm/swarm_config.json`) holding named LLM profiles and MCP server definitions, with `${ENV_VAR}` placeholders so secrets stay in the environment / `.env`.
 
@@ -234,6 +246,107 @@ Feature-flag variables for experimental subsystems (`ENABLE_MCP_SERVER`, `ENABLE
 
 ---
 
+## Developer
+
+Runtime maps from the code. GitHub-safe Mermaid: short plain labels, no HTML, no markdown links in nodes. Dates are from git tags and the commits that added each surface.
+
+### Gateway vs workers
+
+Block view below uses flowchart subgraphs (GitHub Mermaid; `block-beta` is not reliable there). The API process is the gateway: `swarm.core.swarm_api` starts uvicorn on `swarm.asgi:application`. Default is one uvicorn worker (`SWARM_UVICORN_WORKERS=1`; `swarm.core.concurrency.resolved_uvicorn_workers` refuses more unless `SWARM_ENFORCE_SINGLE_WORKER` is false). Inflight slots for async work are process-local (`SWARM_MAX_INFLIGHT`). Long `/v1/responses` jobs run in a daemon thread (`_spawn_worker` in `swarm.views.responses_views`), not extra uvicorn workers. The blueprint then calls host CLI adapters or REST/LLM profiles.
+
+```mermaid
+flowchart TB
+  subgraph clients [Clients]
+    C[Client]
+  end
+  subgraph gateway [API gateway]
+    CH[Chat view]
+    RV[Responses view]
+    ST[File store]
+  end
+  subgraph workers [Workers]
+    DW[Daemon worker]
+    BP[Blueprint run]
+    CLI[CLI adapters]
+    LLM[REST LLM]
+  end
+  C --> CH
+  C --> RV
+  RV --> ST
+  RV --> DW
+  CH --> BP
+  DW --> BP
+  BP --> CLI
+  BP --> LLM
+```
+
+### Request sequence
+
+`POST /v1/responses` (`ResponsesView.post` in `swarm.views.responses_views`): authenticate, resolve the blueprint from `model`, persist a queued record (`swarm.core.responses_store`), spawn the daemon worker, then return 200 if the wait window hits completion or 202 to poll. `GET /v1/responses/{id}` reads the store. Chat `background:true` reuses the same worker (`ChatCompletionsView._handle_background_chat`).
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant FileStore
+    participant Worker
+    participant Blueprint
+
+    Client->>Gateway: POST /v1/responses
+    Gateway->>Gateway: auth and load blueprint
+    Gateway->>FileStore: save queued record
+    Gateway->>Worker: spawn daemon thread
+    alt wait is zero
+        Gateway-->>Client: 202 queued handle
+    else wait window
+        Gateway-->>Client: 200 done or 202 poll
+    end
+    Worker->>FileStore: set in_progress
+    Worker->>Blueprint: run messages
+    Blueprint-->>Worker: output
+    Worker->>FileStore: completed or failed
+    Client->>Gateway: GET /v1/responses/id
+    Gateway->>FileStore: load record
+    FileStore-->>Gateway: status and output
+    Gateway-->>Client: JSON body
+```
+
+### History
+
+Real dates only (git). The changelog `0.1.0` row dated 2024-01-01 is not a tag and is omitted.
+
+```mermaid
+gantt
+    title Open Swarm git history
+    dateFormat YYYY-MM-DD
+    axisFormat %Y-%m
+    section Start
+    Initial commit           :milestone, 2024-12-21, 0d
+    Django REST API          :2024-12-26, 2025-01-04
+    section Releases
+    Tag 0.0.1                :milestone, 2026-02-20, 0d
+    React Web UI             :milestone, 2026-04-04, 0d
+    v0.3 MoA                 :2026-06-11, 2026-06-12
+    v0.4 CLI fusion          :2026-06-16, 2026-06-17
+    v0.5 responses           :2026-06-18, 2026-06-19
+    section Later
+    Worker gates             :milestone, 2026-07-22, 0d
+    ADR-001 Django UI        :2026-08-18, 2026-08-24
+```
+
+| Date | What | Evidence |
+|---|---|---|
+| 2024-12-21 | Initial commit | git root commit |
+| 2024-12-26 | Django REST API | commit `c3a092c4` |
+| 2026-02-20 | Tag 0.0.1 | git tag |
+| 2026-04-04 | React Web UI | commit `9077902b` |
+| 2026-06-11 | v0.3.0 MoA | tag `v0.3.0` |
+| 2026-06-16 | CLI fusion | commit `976cbd49` |
+| 2026-06-18 | `/v1/responses` | commit `50492380` |
+| 2026-06-19 | v0.5.4 | tag `v0.5.4` |
+| 2026-07-22 | Worker gates | commit `ff014180` |
+| 2026-08-18 | ADR-001 | commit `3d870d62` |
+
 ## Development
 
 ```bash
@@ -256,7 +369,9 @@ Documentation map:
 * [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) — visual page-by-page tour of the web UI (React SPA + Django templates).
 * [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/MOA.md](./docs/MOA.md) — Mixture of Agents consensus and consensus→team path.
+* [docs/HERDR.md](./docs/HERDR.md) — Herdr members (`kind=herdr`): same-host CLI default, optional `--remote` from configured remotes kind (REQ-64), mocked in CI.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
+* [Developer](#developer) — gateway vs workers, `/v1/responses` sequence, git-dated history.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.
 * [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) — common issues (CLI/blueprint not found, API errors, the production `ImproperlyConfigured` startup crash) and fixes.
 

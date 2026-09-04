@@ -5,11 +5,12 @@
 Swarm supports both interactive and manual configuration. The recommended way to set up and manage your config is via the `swarm-cli`, which provides commands to initialize, edit, and validate your configuration interactively. However, you can also hand-edit the config JSON if you prefer full control or need to automate deployment.
 
 - **CLI (`swarm-cli config`):**
-  - `swarm-cli config list [--section llm|mcpServers]` — view profiles / MCP servers.
+  - `swarm-cli config list [--section llm|mcpServers|remotes]` — view profiles / MCP servers / remotes.
   - `swarm-cli config init [--force]` — write a default `swarm_config.json` (refuses to overwrite unless `--force`).
-  - `swarm-cli config add --section llm|mcpServers --name <name> --json '<...>'` — add a profile or MCP server entry.
+  - `swarm-cli config add --section llm|mcpServers|remotes --name <name> --json '<...>'` — add a profile, MCP server, or remote entry.
   - `swarm-cli config remove --section … --name …` — remove an entry.
   - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
+- **Remote harnesses (`swarm-cli remotes`):** persist + probe + operate Hermes / OMB / Rakazo. See [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md).
 - **Manual:**
   - Edit `~/.config/swarm/swarm_config.json` directly (or wherever your config is located).
 
@@ -74,7 +75,13 @@ directory search for a project-local `swarm_config.json`.)
     }
   },
   "settings": {
-    "default_llm_profile": "gpt-4o"
+    "default_llm_profile": "gpt-4o",
+    "override_per_task": false,
+    "task_llm_profiles": {
+      "orchestration": "gpt-4o",
+      "auxiliary": "gpt-4o-mini",
+      "delegation": "o3"
+    }
   },
   "blueprints": {
     "rue_code": { "default_model": "o3-mini" },
@@ -105,7 +112,9 @@ directory search for a project-local `swarm_config.json`.)
 - **Per-Blueprint Model Overrides:** `blueprints` section allows each blueprint to specify a `default_model`.
 - **Agent/Task Overrides:** Blueprints themselves can choose models per agent/task.
 - **MCP Servers:** The `mcpServers` section defines available MCP servers, their endpoints, and credentials.
+- **Remote harnesses:** The `remotes` section stores `base_url` + auth for Hermes, OpenMausBot, Rakazo, and nested open-swarm (`swarm`). CLI `swarm-cli remotes set|health|operate|team|place|unplace`; REST `/v1/remotes/` and `/v1/agent-team/`. `agent_team.members` is the handoff Team roster (not `/v1/teams/` Profiles). Nested swarm default is the stub `http://127.0.0.1:9`; v1 refuses this process listen URL. Do **not** point remotes at Fly open-litellm. LAN LLM for this swarm is `http://10.0.0.30:8000/v1`. Full map: [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md).
 - **CLI Agent Fusion:** A `cli_agents` section wraps your installed agentic CLIs (grok/claude/gemini/codex/opencode) as subagents, with `cli_fusion` / `cli_map` / `cli_orchestrator` blocks composing them. Calling the API with `model: "cli_fusion"` (consensus across CLIs) or `model: "cli_map"` (many agents, each one CLI) runs them. Generate this block with `swarm-cli cli-agents --init --write`; full reference in **[docs/CLI_FUSION.md](docs/CLI_FUSION.md)** and the deploy runbook **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+- **Per-task override (REQ-43):** `settings.override_per_task` plus `settings.task_llm_profiles` map task classes (`orchestration` / `auxiliary` / `delegation`) to any connected model id. Those names are roles, not required slugs. SPA Settings auto-picks three models when the user never opens the picker. Live CLI catalogs come from sibling REQ-44 (`{cli, models}`) when that helper is merged; until then auto-pick stubs on `/v1/models` + fixtures and does not scrape CLI `--help`. Off = everything uses Default.
 - **Fallbacks:**
   - If a **named** model/profile is requested and missing, the system logs a **warning** and falls back to `settings.default_llm_profile` (else `default`). This is never silent.
   - Unspecified profile (no name requested) quietly uses the documented default chain — that quiet path is intentional.
@@ -257,10 +266,15 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | Variable | Purpose | Default |
 |---|---|---|
 | `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (wins over discovery). | unset → XDG-first discovery (see [§1](#1-config-file-location-and-discovery)) |
-| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json`). | `~/.config` |
+| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json` aliases, `team_rosters.json` composition). | `~/.config` |
 | `SWARM_RESPONSES_DIR` | Where `/v1/responses` stores records for `previous_response_id` chaining and `GET`/`DELETE`. | `$XDG_DATA_HOME/swarm/responses` (i.e. `~/.local/share/swarm/responses`) |
 | `SWARM_RESPONSES_SYNC_TIMEOUT` | Default seconds a `/v1/responses` request waits inline before auto-escalating to a queued handle (per-request override: `max_wait_seconds`). Unset = fully-blocking sync. | unset |
 | `SWARM_RESPONSES_MAX_AGE_DAYS` | Optional retention for `swarm.core.responses_store.prune_expired()` (terminal records only; skips `queued`/`in_progress`). **Not applied automatically** — call the helper or cron it. Unset / ≤0 = prune no-op when age omitted. | unset |
+| `SWARM_CHAT_DIR` | Per-agent SPA chat JSON store (`active/<user>/<agent>.json` + `trash/`). Used to restore Chat after reload / agent switch. Retention UI is Settings-only. | `$SWARM_USER_DATA_DIR/chats` (platformdirs if unset) |
+| `SWARM_ATTACHMENTS_DIR` | Composer file-attach bytes (REQ-38). Metadata is Django sqlite `ChatAttachment`; paths are `{user_key}/{uuid}` only. | `$SWARM_USER_DATA_DIR/attachments` |
+| `SWARM_CHAT_MAX_AGE_DAYS` | Auto-**move to trash** (never hard-delete) inactive agent chats older than this many days when Settings loads. `0` disables. Empty trash is a manual Settings action. | `90` |
+| `SWARM_RUNTIME_MODE` | Where **this app** is running (SPA runtime banner). `bare-metal` (dedicated harness, no container), `sandbox-home` (compose with `$HOME` / `SWARM_SANDBOX_ROOT` mapped), `sandbox-isolated` (compose without that tree). Missing / unrecognized → **unknown** (never fake a green sandbox). This is **not** the browser-control provider. Compose: `docker-compose.yml` defaults isolated; `docker-compose.dev.yml` defaults sandbox-home. | unset → unknown |
+| `SWARM_CHROME_CDP` | Optional Chrome DevTools URL for Playwright **attach** (`Browser (this machine)`). Launch is used when unset. | unset |
 | `XDG_DATA_HOME` | Base for state data (responses store). | `~/.local/share` |
 | `SWARM_WORKSPACES_DIR` / `WORKSPACES_DIR` | Root for per-request `params.workdir` / `params.cwd` and `swarm-cli moa --workdir` / `--cwd`. Relative paths resolve here; absolute paths outside this root are rejected unless unrestricted (below). | `$XDG_DATA_HOME/…/swarm/workspaces` (via `SWARM_USER_DATA_DIR` / platformdirs) |
 | `ALLOW_UNRESTRICTED_WORKDIR` | When `true`/`1`/`yes`, allow absolute workdirs outside `SWARM_WORKSPACES_DIR` (local CLI power users writing under `/tmp/…` or a repo checkout). Keep **off** for API servers. | `false` |
@@ -272,7 +286,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 |---|---|---|
 | `DJANGO_SECRET_KEY` | Django secret. **Required in production** (server refuses to start without it). | dev only: fixed insecure fallback |
 | `DJANGO_DEBUG` | Debug mode (verbose errors, DEBUG logging, relaxed auth). Keep **off** in prod. | `false` |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** | dev: `localhost,127.0.0.1` |
+| `DJANGO_ALLOWED_HOSTS` | Comma-separated allowed hosts (whitespace-trimmed, empties dropped). **Required in production.** In debug, `*` is prepended so LAN Host / websocket Origin work. | dev: `*,localhost,127.0.0.1` |
+| `SWARM_ALLOW_ANONYMOUS` | Auth-free preview user. Unset: auto-on for DEBUG + LAN/loopback (HTTP session + websocket). `1` force on (any IP); `0` force off. Never implicit in pytest or production. | unset (debug LAN) |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins for CSRF on mutating routes (whitespace-trimmed, empties dropped). Must include scheme + host + port. Add LAN/proxy origins (e.g. `http://10.0.0.30:8000`) when the UI is not on localhost. | `http://localhost:8000,http://127.0.0.1:8000` |
 | `API_AUTH_TOKEN` | Bearer token OpenAI clients present to the API. Primary when set. **Required in production** (`DEBUG=False`) unless `SWARM_ALLOW_NO_AUTH=true` — server refuses to start without any token. | none |
 | `SWARM_API_KEY` | Legacy alias for `API_AUTH_TOKEN` (used if the latter is unset). | none |
@@ -294,6 +309,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | Variable | Purpose | Default |
 |---|---|---|
 | `ENABLE_WEBUI` | Serve the web UI (`/` prefers SPA when built; canonical operator UI is Django trailing-slash pages — bare `/teams`→`/teams/launch/`, `/blueprints`→`/blueprint-library/`, etc.). Teams admin / blueprint library / sessions / settings need a login session; login POST is CSRF-protected. | on |
+| `SWARM_RUNTIME` | REQ-45 isolation mode announced to the app: `bare-metal` (no container), `sandbox-home` (compose with `$HOME` / `SWARM_SANDBOX_ROOT` mapped), `sandbox-isolated` (compose, no home map). Base `docker-compose.yml` defaults to `sandbox-home`. Missing = unknown, not a fake green. | compose: `sandbox-home`; else unset |
 | `ENABLE_ADMIN` | Mount the Django admin. | off |
 | `ENABLE_GITHUB_MARKETPLACE` | GitHub-topics blueprint discovery (`/marketplace/github/…`). Upstream GitHub failures return **429/502**, not an empty 200. Client `org`/`topic` must match `GITHUB_MARKETPLACE_ORG_ALLOWLIST` / `GITHUB_MARKETPLACE_TOPICS` when those lists are non-empty (else **400**); empty org allowlist means unscoped open search. | off |
 | `ENABLE_MCP_SERVER` | Aspirational MCP-server mode — warns loudly; see [docs/mcp_server_mode.md](./docs/mcp_server_mode.md). | off |
@@ -319,6 +335,28 @@ Model/provider keys and service endpoints — `OPENAI_API_KEY`, `OPENAI_BASE_URL
 > **Note for CLI agents:** wrapped CLIs (`claude`, `gemini`, `grok`, …) carry
 > **their own** authentication — Open Swarm never reads or stores it. These
 > provider keys are only for `llm` profiles and MCP tool servers.
+
+---
+
+## 10. Herdr members (REQ-21)
+
+Persisted Herdr connections (`kind=herdr`) live in the Django SQLite database
+(default; do **not** set `DATABASE_URL` / Neon for this). Empty `remote` means
+localhost — `herdr` with no `--remote` (unix sockets under `~/.config/herdr/`).
+When `remote` is set, every call is `herdr --remote <value> …`.
+
+CRUD: `/v1/herdr-agents/`. Discover live panes: `/v1/herdr-agents/discover/`
+(`herdr agent list` + `herdr workspace list`). Operator UI: `/settings/` and
+`/teams/#herdr-members`. Wrapper: `swarm.herdr.HerdrClient`. Full notes:
+[docs/HERDR.md](docs/HERDR.md) (not Hermes/OMB/Rakazo; cloud CI must mock `herdr`).
+
+**REQ-64 remotes kind:** add `herdr` like Hermes / OpenMousBot / Rakazo
+(`swarm-cli remotes set herdr --base-url … --api-key-env HERDR_API_KEY`, or
+Settings → Remotes → + Add remote). That configured base is what
+`herdr --remote` / `HerdrClient.from_remote_config()` use. Localhost omits the
+flag only when you set a loopback URL. Missing config is a clear error — not a
+silent other-host. Health/list use stub HTTP in tests (`GET /health`,
+`GET /agents`). No tokens in the repo.
 
 ---
 

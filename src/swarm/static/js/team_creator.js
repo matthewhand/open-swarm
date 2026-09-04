@@ -41,7 +41,18 @@ function addTeamMember() {
                     <input type="text" class="form-control member-name" id="member_name_${teamMemberCount}" name="member_name_${teamMemberCount}" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label" for="member_role_${teamMemberCount}">Role/Specialization</label>
+                    <label class="form-label" for="member_agent_role_${teamMemberCount}">Agent role</label>
+                    <select class="form-select member-agent-role" id="member_agent_role_${teamMemberCount}" name="member_agent_role_${teamMemberCount}">
+                        <option value="default" selected>default — worker</option>
+                        <option value="support">support — onboard / help (REQ-7)</option>
+                        <option value="gate">gate — tool-call approval</option>
+                        <option value="skeptic">skeptic — review + bounded retry</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <label class="form-label" for="member_role_${teamMemberCount}">Specialization</label>
                     <input type="text" class="form-control member-role" id="member_role_${teamMemberCount}" name="member_role_${teamMemberCount}"
                            placeholder="e.g., Writer, Researcher, Analyst">
                 </div>
@@ -335,7 +346,9 @@ function collectTeamData() {
     const memberElements = document.querySelectorAll('[id^="member-"]');
     memberElements.forEach(element => {
         const name = element.querySelector('.member-name').value.trim();
-        const role = element.querySelector('.member-role').value.trim();
+        const roleSelect = element.querySelector('.member-agent-role');
+        const role = roleSelect ? roleSelect.value.trim() : 'default';
+        const specialization = element.querySelector('.member-role').value.trim();
         const description = element.querySelector('.member-description').value.trim();
         const systemPrompt = element.querySelector('.member-instructions').value.trim();
         const model = element.querySelector('.member-model').value.trim();
@@ -344,8 +357,9 @@ function collectTeamData() {
         if (name) {
             members.push({
                 name: name,
-                role: role || name,
-                description: description || `${name} bot`,
+                role: role || 'default',
+                specialization: specialization,
+                description: description || specialization || `${name} bot`,
                 system_prompt: systemPrompt || `You are ${name}, a member of the ${teamName} swarm.`,
                 model_profile: model || 'default',
                 tools: tools ? tools.split(',').map(t => t.trim()).filter(Boolean) : []
