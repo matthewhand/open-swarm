@@ -146,6 +146,11 @@ function SearchProbe() {
   return <span data-testid="os-test-search">{params.toString()}</span>
 }
 
+/** Empty `[]` is a user preference (no re-seed). Missing key = first load. */
+function rememberEmptyFavourites() {
+  localStorage.setItem(PINNED_AGENTS_STORAGE_KEY, '[]')
+}
+
 function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -177,6 +182,7 @@ function railIds(list: HTMLElement): string[] {
 describe('AgentSidebar Grok rail', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal('fetch', mockFetch())
   })
 
@@ -777,6 +783,7 @@ describe('AgentSidebar special roles', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -807,6 +814,7 @@ describe('AgentSidebar special roles', () => {
 describe('AgentSidebar teams', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
@@ -922,12 +930,43 @@ describe('AgentSidebar teams', () => {
 describe('AgentSidebar favourites grid (REQ-94)', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal('fetch', mockFetch())
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     localStorage.clear()
+  })
+
+  it('seeds Support as the first-load favourite when prefs are missing', async () => {
+    localStorage.removeItem(PINNED_AGENTS_STORAGE_KEY)
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const grid = screen.getByTestId('agent-fav-grid')
+    const supportTile = await within(grid).findByRole('link', { name: 'Support' })
+    expect(supportTile.querySelector('.os-fav-tile__badge')).toHaveAttribute('data-role', 'support')
+    expect(within(list).queryByRole('link', { name: /Support/ })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'support', name: 'Support' },
+    ])
+  })
+
+  it('keeps an empty favourites grid bare with a quiet + until a drag starts', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    expect(grid).toHaveClass('os-fav-grid--bare')
+    expect(grid).toHaveAttribute('data-fav-empty', 'true')
+    expect(screen.getByTestId('fav-empty-hint')).toHaveTextContent('+')
+    expect(within(grid).queryByRole('link')).not.toBeInTheDocument()
+
+    const dt = mockDataTransfer()
+    fireEvent.dragStart(codey, { dataTransfer: dt })
+    expect(grid).not.toHaveClass('os-fav-grid--bare')
+    expect(screen.getByTestId('fav-empty-hint')).toHaveTextContent('drop')
+    fireEvent.dragEnd(codey, { dataTransfer: dt })
   })
 
   it('drops a row onto the 2-up grid as a named large avatar and removes it from the list', async () => {
@@ -1084,6 +1123,7 @@ describe('AgentSidebar favourites grid (REQ-94)', () => {
 describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal('fetch', mockFetch())
   })
 
@@ -1177,6 +1217,7 @@ const STACK_REMOTES = {
 describe('AgentSidebar stacked avatars (REQ-68)', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
@@ -1357,6 +1398,7 @@ describe('AgentSidebar special roles', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({

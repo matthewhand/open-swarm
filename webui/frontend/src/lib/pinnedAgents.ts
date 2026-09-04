@@ -10,6 +10,17 @@
 export const PINNED_AGENTS_STORAGE_KEY = 'swarm_pinned_agents'
 export const AGENT_DRAG_MIME = 'application/x-swarm-agent'
 
+/** First-load favourite when `swarm_pinned_agents` is missing (empty prefs). */
+export const DEFAULT_PINNED_SUPPORT: PinnedAgent = { id: 'support', name: 'Support' }
+
+export function hasPinnedAgentsStorage(): boolean {
+  try {
+    return localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
 export interface PinnedAgent {
   id: string
   name: string
@@ -44,6 +55,13 @@ function normalizePin(value: unknown): PinnedAgent | null {
     id: rec.id,
     name: typeof rec.name === 'string' && rec.name.length > 0 ? rec.name : rec.id,
   }
+}
+
+export function loadOrSeedPinnedAgents(): PinnedAgent[] {
+  if (hasPinnedAgentsStorage()) return loadPinnedAgents()
+  const seeded = [DEFAULT_PINNED_SUPPORT]
+  savePinnedAgents(seeded)
+  return seeded
 }
 
 export function loadPinnedAgents(): PinnedAgent[] {

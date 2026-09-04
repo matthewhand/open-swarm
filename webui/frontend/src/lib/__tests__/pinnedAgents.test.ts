@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  DEFAULT_PINNED_SUPPORT,
   PINNED_AGENTS_STORAGE_KEY,
   excludePinnedFromList,
+  loadOrSeedPinnedAgents,
   loadPinnedAgents,
   movePinnedAgent,
   pinAgent,
@@ -11,6 +13,13 @@ import {
 describe('pinnedAgents persistence', () => {
   afterEach(() => {
     localStorage.removeItem(PINNED_AGENTS_STORAGE_KEY)
+  })
+
+  it('seeds Support on first load when prefs are missing, but not when empty []', () => {
+    expect(loadOrSeedPinnedAgents()).toEqual([DEFAULT_PINNED_SUPPORT])
+    expect(loadPinnedAgents()).toEqual([DEFAULT_PINNED_SUPPORT])
+    localStorage.setItem(PINNED_AGENTS_STORAGE_KEY, '[]')
+    expect(loadOrSeedPinnedAgents()).toEqual([])
   })
 
   it('starts empty and pins without duplicates', () => {

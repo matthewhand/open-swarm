@@ -56,7 +56,7 @@ import {
 import {
   endAgentDrag,
   excludePinnedFromList,
-  loadPinnedAgents,
+  loadOrSeedPinnedAgents,
   movePinnedAgent,
   parseAgentDragPayload,
   pinAgent,
@@ -207,7 +207,7 @@ export default function AgentSidebar({
   const [hiddenIds, setHiddenIds] = useState<string[] | null>(() =>
     hasHiddenAgentsStorage() ? loadHiddenAgentIds() : null,
   )
-  const [pins, setPins] = useState<PinnedAgent[]>(() => loadPinnedAgents())
+  const [pins, setPins] = useState<PinnedAgent[]>(() => loadOrSeedPinnedAgents())
   const [hiddenOpen, setHiddenOpen] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
@@ -1148,10 +1148,17 @@ export default function AgentSidebar({
         </div>
 
         <div
-          className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''}`}
+          className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''} ${
+            visiblePins.length === 0 &&
+            !dropActive &&
+            !(draggingId && !isPinnedId(draggingId))
+              ? 'os-fav-grid--bare'
+              : ''
+          } ${visiblePins.length === 0 ? 'os-fav-grid--empty' : ''}`}
           aria-label="Pinned agents"
           data-fav-layout="2-up"
           data-testid="agent-fav-grid"
+          data-fav-empty={visiblePins.length === 0 ? 'true' : 'false'}
           onDragOver={(event) => {
             event.preventDefault()
             try {
@@ -1164,6 +1171,11 @@ export default function AgentSidebar({
           onDragLeave={() => setDropActive(false)}
           onDrop={dropPin}
         >
+          {visiblePins.length === 0 ? (
+            <div className="os-fav-grid__hint" data-testid="fav-empty-hint">
+              {dropActive || (draggingId && !isPinnedId(draggingId)) ? 'drop' : '+'}
+            </div>
+          ) : null}
           {visiblePins.map((pin) => {
             const live = agents.find((agent) => agent.id === pin.id)
             const pinName = live ? agentLabel(live) : pin.name || pin.id

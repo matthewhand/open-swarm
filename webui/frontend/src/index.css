@@ -331,6 +331,22 @@ html[data-theme="light"] #root {
   border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
   background: color-mix(in srgb, var(--color-base-300) 50%, transparent);
 }
+.os-fav-grid--bare {
+  border-color: transparent;
+  background: transparent;
+  min-height: 2.75rem;
+}
+.os-fav-grid__hint {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--color-base-content) 35%, transparent);
+  pointer-events: none;
+}
 .os-fav-tile {
   position: relative;
   display: flex;

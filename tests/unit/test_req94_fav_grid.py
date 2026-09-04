@@ -21,11 +21,16 @@ def test_spa_fav_grid_is_two_up_named_large_avatar():
     tile_block = css.split(".os-fav-tile {")[1].split("}")[0]
     assert "background: transparent" in tile_block
     assert ".os-fav-tile--active" in css
+    assert ".os-fav-grid--bare" in css
+    assert ".os-fav-grid__hint" in css
     assert 'data-fav-layout="2-up"' in sidebar
     assert 'size="lg"' in sidebar
     assert "os-fav-tile__name" in sidebar
     assert "os-fav-tile__badge" in sidebar
     assert "os-fav-tile--active" in sidebar
+    assert "os-fav-grid--bare" in sidebar
+    assert "fav-empty-hint" in sidebar
+    assert "loadOrSeedPinnedAgents" in sidebar
     assert "Favourites" not in sidebar
     assert "Favorites" not in sidebar
 
@@ -38,6 +43,8 @@ def test_spa_pin_is_a_move_out_of_the_rail_list():
     assert "move, not a copy" in pins
     assert "swarm_pinned_agents" in pins
     assert "movePinnedAgent" in pins
+    assert "loadOrSeedPinnedAgents" in pins
+    assert "DEFAULT_PINNED_SUPPORT" in pins
     assert "dropUnfavourite" in sidebar
     assert "dropPinReorder" in sidebar
     assert "agent-list-drop" in sidebar
