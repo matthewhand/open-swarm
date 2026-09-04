@@ -6,6 +6,12 @@
 - **Related:** [#540](https://github.com/matthewhand/open-swarm/issues/540) (REQ-144 prefs), [#508](https://github.com/matthewhand/open-swarm/issues/508) (REQ-123 Postgres compose), [CONFIGURATION.md](../../CONFIGURATION.md)
 - **Supersedes:** none. Complements [ADR-001](../ADR-001-primary-ui.md) (UI chrome), not config SoT.
 
+**Decision:** **hybrid** (not pure A, not pure B). Secrets stay env-only.
+Non-secret topology and prefs persist in the ownership-table SoT. Precedence
+is `force-env > persisted > env-bootstrap > defaults`. Settings must badge
+every field that has an env twin. Recovery uses explicit force-env flags.
+No sync daemon.
+
 This ADR is **feasibility-first**: it records what the code does on `main`
 (`04ccb53a` at writing) and then picks one ownership table. It does **not**
 implement sync, migrations, or Settings UI badges.
@@ -242,15 +248,39 @@ read-only filesystem.
 
 ---
 
-## 4. Decision: one ownership table (amended strawman + hybrid precedence)
+## 4. Evaluate A / B / hybrid — pick **hybrid**
 
-Pick the **CoS hybrid** (A-leaning persist, B’s recovery override), not A or B
-alone, and **not** a sync daemon.
+Matthew’s two models and the CoS strawman, scored against today’s code and
+UI honesty.
+
+| Model | Everyday SoT | Env role | Honesty risk | Recovery |
+|---|---|---|---|---|
+| **A** — env bootstraps; Settings override env | Persisted Settings/file after first save | Seed empty fields; then lose | High unless every override is badged — ops debug `.env` and the process ignores it | Weak: bad persist needs file/volume surgery |
+| **B** — DB/Settings SoT; env force-override | Persisted DB or file | Recovery only | Low if force is explicit and read-only | Strong: tweak env, boot past a broken volume |
+| **Hybrid (pick)** | Persisted SoT per §4 table (`swarm_config.json` for topology, Django for prefs/chats) | Secrets always; topology only as **bootstrap** or **explicit force** | Low: badges on every env twin | B’s flag (`SWARM_CONFIG_FORCE_ENV=1` / `SWARM_*_OVERRIDE`) |
+
+**Why not pure A.** Settings already persist remotes and LLM maps to
+`swarm_config.json` (`persist_remote`, `persist_llm_settings`). Pure A without
+badges is today’s remotes bug in reverse: file written, env still silently
+wins (`load_remote`: “env wins”). Pure A *with* badges is the hybrid’s
+everyday path — A’s seed + override — but A alone has no recovery story when
+the volume is garbage.
+
+**Why not pure B.** Putting topology in Django as the everyday SoT fights
+`swarm-cli` and hand-edited JSON ([CONFIGURATION.md](../../CONFIGURATION.md)).
+B’s “env can force-override” is the right **recovery** lever, not the everyday
+reader. Making env win every boot (current remotes) *is* B-everyday and
+misleads operators who just saved Settings.
+
+**Why hybrid.** Takes A’s persist-and-badge honesty and B’s explicit recovery
+without a second store or a sync daemon. Secrets never become Settings
+plaintext SoT (`${VAR}`, “set / not set” only).
 
 **Precedence (document + enforce in implement Issues):**
 
-1. **Explicit env force-override** — `SWARM_CONFIG_FORCE_ENV=1` or per-key
-   `SWARM_*_OVERRIDE` / existing remote env keys when marked force.
+1. **Explicit env force-override** — `SWARM_CONFIG_FORCE_ENV=1` (all
+   non-secret topology) or per-key `SWARM_*_OVERRIDE` /
+   `HERMES_BASE_URL` only when force is on.
 2. **Persisted Settings / `swarm_config.json`** (and sibling XDG JSON below).
 3. **Env bootstrap defaults** — used only when the persisted key is empty
    (first boot / missing file).
@@ -278,18 +308,13 @@ is set (or the field was never persisted).
 **Non-goals:** bidirectional XDG↔DB sync; silent dual-write of remotes into
 SQL; Settings rewriting `.env`; Neon as a config store.
 
-### Why not DB-only topology?
+### Why not DB-only topology? (B taken too far)
 
 Feasible but rejected: `swarm-cli` and hand-edited JSON are first-class
 ([CONFIGURATION.md](../../CONFIGURATION.md)). Remotes/LLM persist already
 target the file. Moving topology into Django would create the sync hell this
 Issue forbids unless CLI became a DB client. Keep JSON as topology SoT.
-
-### Why not env-only topology (pure A)?
-
-Rejected for everyday edits: Settings already persist remotes and LLM maps to
-disk. Pure A would make those writes lie. Env remains the **bootstrap and
-recovery** layer.
+B’s recovery flag still applies **to that file**, not only to SQL.
 
 ---
 
@@ -318,23 +343,102 @@ compose no longer does that ([docs/debt/qa-wave3-structure-root.md](../debt/qa-w
 
 ---
 
-## 6. UI honesty (badge copy — implement with ownership)
+## 6. UI honesty — Settings copy (implement with ownership)
 
-Settings fields that have an env twin must show one of:
+Every Settings field that has an env twin shows **exactly one** badge.
+Copy is for the SPA sheet (`webui/frontend/src/components/SettingsSheet.tsx`
+— Remotes / LLM profiles) and, later, the same strings on Django `/settings/`
+if that page grows writes. DaisyUI: `badge badge-ghost` / `badge-warning` /
+`badge-error`. No secret values in the badge — **names only**.
 
-| Badge | When |
-|---|---|
-| **Forced by env `FOO` (read-only)** | Force-override or `SWARM_CONFIG_FORCE_ENV=1`; persist disabled |
-| **From env (not overridden)** | Persisted value empty; effective value came from bootstrap env |
-| **Overrides env `FOO`** | File/Settings value differs from bootstrap env; file wins |
-| **From config** | File value, no env twin |
-| **Built-in default** | Neither file nor env |
+| Badge (visible text) | When | Control |
+|---|---|---|
+| `Forced by env FOO (read-only)` | `SWARM_CONFIG_FORCE_ENV=1` or `SWARM_*_OVERRIDE` / forced remote env | Input disabled; Save no-ops that field |
+| `From env FOO (not overridden)` | Persisted key empty; effective value is bootstrap env | Editable; first save becomes “Overrides…” |
+| `Overrides env FOO` | Persisted value ≠ bootstrap env; file wins | Editable; helper: “`.env` still has FOO; this instance uses Settings.” |
+| `From config` | File value, no env twin | Editable |
+| `Built-in default` | Neither file nor env | Editable |
 
-Secrets fields stay **reference-only** (`${OPENAI_API_KEY}`, “set / not set”).
-No plaintext SoT in the UI.
+Secrets (API keys, tokens): never a plaintext SoT. Show
+`Uses ${OPENAI_API_KEY} — set` / `not set`. No override badge that implies
+the UI stored the secret.
 
-Django `/settings/` remains a **redacted inspector** until it either grows the
-same persist helpers + badges or clearly links to SPA Settings for writes.
+### Example — Settings → Remotes → Hermes
+
+```
+Remotes
+  Hermes
+  Base URL
+    [ https://hermes.lab.example ]     [ Overrides env HERMES_BASE_URL ]
+    .env still has HERMES_BASE_URL; this instance uses the URL saved here.
+    Clear to Settings to fall back to env bootstrap.
+
+  API key
+    [ Uses ${HERMES_API_KEY} — set ]   [ Secret · env-only ]
+    Not editable as plaintext. Rotate the env var, then reload.
+```
+
+Same pane, recovery boot (`SWARM_CONFIG_FORCE_ENV=1` or
+`SWARM_HERMES_BASE_URL_OVERRIDE=1`):
+
+```
+  Base URL
+    [ https://hermes-rescue.example ]  [ Forced by env HERMES_BASE_URL (read-only) ]
+    Persist is ignored until you unset SWARM_CONFIG_FORCE_ENV.
+    Saved Settings URL is kept on disk for when force is off.
+```
+
+First boot, file empty, compose injected `HERMES_BASE_URL`:
+
+```
+  Base URL
+    [ https://hermes.lab.example ]     [ From env HERMES_BASE_URL (not overridden) ]
+    Save keeps this URL in swarm_config.json (then badge → Overrides…).
+    Leave unsaved to keep env as the only source.
+```
+
+### Example — Settings → LLM profiles
+
+```
+LLM profiles
+  Default
+    [ gpt-4o-mini ▼ ]                  [ Overrides env DEFAULT_LLM ]
+    Chat uses this saved profile. Process env DEFAULT_LLM is ignored
+    unless you force-override.
+
+  Override per task                    [ From config ]
+    Off: every job uses Default.
+```
+
+Force-env recovery:
+
+```
+  Default
+    [ gpt-4o ▼ ]                       [ Forced by env DEFAULT_LLM (read-only) ]
+```
+
+No env twin (auto-pick only):
+
+```
+  Default
+    [ gpt-4o-mini ▼ (auto) ]           [ Built-in default ]
+    Auto-picked Default. Chat uses this until you save another id.
+```
+
+### Example — Settings → System (secrets inspector)
+
+```
+  OPENAI_API_KEY                       [ Secret · env-only ]
+    set
+  DJANGO_SECRET_KEY                    [ Secret · env-only ]
+    set
+  API_AUTH_TOKEN                       [ Secret · env-only ]
+    set
+```
+
+Django `/settings/` (“Operator dump”) stays a **redacted inspector** until it
+either grows the same persist helpers + these badges or keeps linking to SPA
+Settings for writes (`SettingsSheet` already links “Operator dump”).
 
 ---
 
