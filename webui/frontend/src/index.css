@@ -247,6 +247,54 @@ html[data-theme="light"] #root {
   }
 }
 
+.os-blob-avatar {
+  display: block;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+.os-blob-avatar--sm {
+  width: 2.15rem;
+  height: 2.15rem;
+}
+.os-blob-avatar--md {
+  width: 2.35rem;
+  height: 2.35rem;
+}
+.os-blob-eyes {
+  transform-box: fill-box;
+  transform-origin: 0 0;
+  transform: translate(var(--ex, 20px), var(--ey, 18px)) rotate(var(--ea, 0deg));
+}
+.os-blob-avatar[data-eye-state="active"] .os-blob-eyes {
+  animation: os-blob-wander var(--ed, 9s) ease-in-out var(--ew, 0s) infinite;
+}
+@keyframes os-blob-wander {
+  0%,
+  100% {
+    transform: translate(var(--ex, 20px), var(--ey, 18px)) rotate(var(--ea, 0deg));
+  }
+  28% {
+    transform: translate(calc(var(--ex, 20px) + 2.8px), calc(var(--ey, 18px) - 1.8px))
+      rotate(calc(var(--ea, 0deg) + 10deg));
+  }
+  62% {
+    transform: translate(calc(var(--ex, 20px) - 2.4px), calc(var(--ey, 18px) + 2.1px))
+      rotate(calc(var(--ea, 0deg) - 9deg));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-blob-avatar[data-eye-state="active"] .os-blob-eyes {
+    animation: none;
+  }
+}
+.os-fav-tile .os-blob-avatar--sm {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+.os-agent-row .os-blob-avatar {
+  margin-top: 0;
+}
+
 .os-rail-search {
   display: flex;
   align-items: center;
