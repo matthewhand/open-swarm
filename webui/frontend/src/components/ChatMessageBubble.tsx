@@ -9,8 +9,8 @@ import {
 } from 'react'
 import { Pencil } from 'lucide-react'
 import { Textarea, LoadingDots } from './DaisyUI'
-import { copyTextToClipboard } from '../lib/clipboard'
 import { renderSafeMarkdown } from '../lib/markdown'
+import { setupCodeFenceControls } from '../lib/codeFences'
 
 export interface ChatMessageBubbleProps {
   role: 'user' | 'assistant'
@@ -49,26 +49,13 @@ export const ChatBubbleBody = memo(
     streaming: boolean
   }) {
     const mdRef = useRef<HTMLDivElement | null>(null)
+    const expandedIndicesRef = useRef<Set<number>>(new Set())
 
     useEffect(() => {
       const root = mdRef.current
       if (!root) return
-      root.querySelectorAll('pre').forEach((pre) => {
-        if (pre.querySelector('[data-testid="code-copy"]')) return
-        const btn = document.createElement('button')
-        btn.type = 'button'
-        btn.className = 'btn btn-ghost btn-xs os-code-copy'
-        btn.dataset.testid = 'code-copy'
-        btn.setAttribute('aria-label', 'Copy code')
-        btn.textContent = 'Copy'
-        btn.addEventListener('click', (event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          const code = pre.querySelector('code')
-          void copyTextToClipboard(code?.textContent ?? pre.textContent ?? '')
-        })
-        pre.insertBefore(btn, pre.firstChild)
-      })
+      // Set up code-copy and collapsible code fence controls (REQ-127, REQ-117)
+      setupCodeFenceControls(root, expandedIndicesRef.current)
     }, [text])
 
     if (text.length === 0) {
