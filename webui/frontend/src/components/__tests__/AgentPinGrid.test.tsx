@@ -95,7 +95,10 @@ describe('AgentPinGrid drag-to-pin', () => {
     renderChrome()
 
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
-    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const codey = (await within(list).findAllByRole('link', { name: /Codey/ })).find((el) =>
+      (el.getAttribute('href') || '').includes('blueprint=codey'),
+    )
+    if (!codey) throw new Error('missing Codey rail row')
     expect(codey).toHaveAttribute('draggable', 'true')
 
     expect(screen.queryByText(/Favourites/i)).not.toBeInTheDocument()
@@ -110,7 +113,11 @@ describe('AgentPinGrid drag-to-pin', () => {
 
     const tile = await within(grid).findByRole('link', { name: /Codey/ })
     expect(tile).toHaveAttribute('href', '/chat?blueprint=codey')
-    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    expect(
+      within(list)
+        .getAllByRole('link', { name: /Codey/ })
+        .some((el) => (el.getAttribute('href') || '').includes('blueprint=codey')),
+    ).toBe(true)
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
       { id: 'codey', name: 'Codey' },
     ])

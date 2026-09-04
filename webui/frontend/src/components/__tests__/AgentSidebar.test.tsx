@@ -250,7 +250,6 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(list).getByRole('link', { name: /pi_agent/ })).toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
   })
-  })
 
   it('seeds Hidden with gate and skeptic on first load; Support stays visible', async () => {
     renderSidebar()
