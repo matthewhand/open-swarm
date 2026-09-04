@@ -17,7 +17,7 @@ Swarm supports both interactive and manual configuration. The recommended way to
   - `swarm-cli config add --section llm|mcpServers|remotes --name <name> --json '<...>'` — add a profile, MCP server, or remote entry.
   - `swarm-cli config remove --section … --name …` — remove an entry.
   - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
-- **Remote harnesses (`swarm-cli remotes`):** persist + probe + operate Hermes / OMB / Rakazo. See [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md).
+- **Remote harnesses (`swarm-cli remotes`):** persist + probe + operate Hermes / OMB / Rakazo. See [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md). Local computer-control adaptation (browser vs Docker sandbox vs host via placed remotes; SaaS deferred) is [ADR-007](docs/adr/007-local-computer-control.md) (REQ-189 / #645).
 - **Manual:**
   - Edit `~/.config/swarm/swarm_config.json` directly (or wherever your config is located).
 
@@ -280,7 +280,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_CHAT_DIR` | Per-agent SPA chat JSON store (`active/<user>/<agent>.json` + `trash/`). Used to restore Chat after reload / agent switch. Retention UI is Settings-only. | `$SWARM_USER_DATA_DIR/chats` (platformdirs if unset) |
 | `SWARM_ATTACHMENTS_DIR` | Composer file-attach bytes (REQ-38). Metadata is Django sqlite `ChatAttachment`; paths are `{user_key}/{uuid}` only. | `$SWARM_USER_DATA_DIR/attachments` |
 | `SWARM_CHAT_MAX_AGE_DAYS` | Auto-**move to trash** (never hard-delete) inactive agent chats older than this many days when Settings loads. `0` disables. Empty trash is a manual Settings action. | `90` |
-| `SWARM_RUNTIME_MODE` | Where **this app** is running (SPA runtime banner). `bare-metal` (dedicated harness, no container), `sandbox-home` (compose with `$HOME` / `SWARM_SANDBOX_ROOT` mapped), `sandbox-isolated` (compose without that tree). Missing / unrecognized → **unknown** (never fake a green sandbox). This is **not** the browser-control provider. Compose: `docker-compose.yml` defaults isolated; `docker-compose.dev.yml` defaults sandbox-home. | unset → unknown |
+| `SWARM_RUNTIME_MODE` | Where **this app** is running (SPA runtime banner). `bare-metal` (dedicated harness, no container), `sandbox-home` (compose with `$HOME` / `SWARM_SANDBOX_ROOT` mapped), `sandbox-isolated` (compose without that tree). Missing / unrecognized → **unknown** (never fake a green sandbox). This is **not** the browser-control or computer-control provider ([ADR-007](docs/adr/007-local-computer-control.md)). Compose: `docker-compose.yml` defaults `sandbox-home`; `docker-compose.dev.yml` also defaults sandbox-home. | unset → unknown |
 | `SWARM_CHROME_CDP` | Optional Chrome DevTools URL for Playwright **attach** (`Browser (this machine)`). Launch is used when unset. | unset |
 | `XDG_DATA_HOME` | Base for state data (responses store). | `~/.local/share` |
 | `SWARM_WORKSPACES_DIR` / `WORKSPACES_DIR` | Root for per-request `params.workdir` / `params.cwd` and `swarm-cli moa --workdir` / `--cwd`. Relative paths resolve here; absolute paths outside this root are rejected unless unrestricted (below). | `$XDG_DATA_HOME/…/swarm/workspaces` (via `SWARM_USER_DATA_DIR` / platformdirs) |
