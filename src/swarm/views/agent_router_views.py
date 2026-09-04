@@ -403,20 +403,8 @@ def send_to_agent(request, agent_id):
                 collected_responses.append(chunk)
                 
         # Run async function synchronously
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        try:
-            loop.run_until_complete(collect_responses())
-        finally:
-            try:
-                loop.close()
-            except:
-                pass
+        from swarm.core.async_utils import run_coro_sync
+        run_coro_sync(collect_responses())
         
         if not collected_responses:
             return JsonResponse({

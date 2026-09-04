@@ -700,16 +700,18 @@ class CliAdapter:
     @staticmethod
     async def _terminate(proc: asyncio.subprocess.Process) -> None:
         """Kill a timed-out process group: SIGTERM, grace, then SIGKILL."""
-        if proc.returncode is not None:
+        if proc.returncode is not None or not proc.pid or proc.pid <= 1:
             return
         try:
             pgid = os.getpgid(proc.pid)
-        except ProcessLookupError:
+            if pgid <= 1:
+                return
+        except (ProcessLookupError, OSError):
             return
         for sig in (signal.SIGTERM, signal.SIGKILL):
             try:
                 os.killpg(pgid, sig)
-            except ProcessLookupError:
+            except (ProcessLookupError, OSError):
                 return
             try:
                 await asyncio.wait_for(proc.wait(), timeout=TERM_GRACE)

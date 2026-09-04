@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
-from swarm.core.local_store import local_store_facts
+from swarm.core.local_store import NOT_CREATED, local_store_facts
 
 logger = logging.getLogger(__name__)
 
@@ -37,5 +37,12 @@ class LocalStoreView(APIView):
             facts = local_store_facts()
         except Exception:
             logger.exception("Failed to collect local store facts")
-            facts = local_store_facts(path=None, conversation_count=0, message_count=0, discover=False)
+            facts = {
+                "path": NOT_CREATED,
+                "size_bytes": 0,
+                "size_label": NOT_CREATED,
+                "created": False,
+                "conversation_count": 0,
+                "message_count": 0,
+            }
         return Response(facts)

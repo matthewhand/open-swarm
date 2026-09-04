@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
+from swarm.core.async_utils import run_coro_sync
+
 logger = logging.getLogger(__name__)
 
 
@@ -224,18 +226,7 @@ def build_persona_agents(tools: WorkspaceTools) -> dict[str, Any]:
                 },
             )
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Nested loop: run in a fresh loop via thread if needed.
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    payload = pool.submit(lambda: asyncio.run(_run())).result()
-            else:
-                payload = loop.run_until_complete(_run())
-        except RuntimeError:
-            payload = asyncio.run(_run())
+        payload = run_coro_sync(_run())
 
         moa_calls.append({"question": question, "payload": payload})
         det = (payload or {}).get("determination") or {}

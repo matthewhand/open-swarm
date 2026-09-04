@@ -42,10 +42,10 @@ export interface StackedAvatarPlan {
 
 export function sessionToStackFace(session: AgentSession): StackFace {
   return {
-    id: session.id,
-    name: session.title,
-    startedAt: session.startedAt,
-    markId: session.id || session.agentId,
+    id: session?.id || '',
+    name: session?.title || '',
+    startedAt: typeof session?.startedAt === 'number' ? session.startedAt : 0,
+    markId: session?.id || session?.agentId || '',
   }
 }
 
@@ -179,12 +179,15 @@ export function stackedAvatarPlan(
   sessions: readonly AgentSession[],
   maxFaces = STACKED_AVATAR_MAX,
 ): StackedAvatarPlan {
-  const running = sessions.filter((row) => row.status === 'running').sort(compareSessions)
+  if (!sessions || sessions.length === 0) {
+    return { faces: [], remainder: 0, delaysMs: [] }
+  }
+  const running = sessions.filter((row) => row?.status === 'running').sort(compareSessions)
   const ordered = running.length > 0 ? running : [...sessions].sort(compareSessions)
   const cap = Math.max(0, maxFaces)
   const faces = ordered.slice(0, cap)
   const remainder = Math.max(0, ordered.length - faces.length)
-  const origin = faces[0] ? Math.min(...faces.map((row) => row.startedAt)) : 0
-  const delaysMs = faces.map((row) => stackAnimationDelayMs(row.startedAt, origin))
+  const origin = faces[0] ? Math.min(...faces.map((row) => row?.startedAt ?? 0)) : 0
+  const delaysMs = faces.map((row) => stackAnimationDelayMs(row?.startedAt ?? 0, origin))
   return { faces, remainder, delaysMs }
 }

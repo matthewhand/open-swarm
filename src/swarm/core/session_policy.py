@@ -187,6 +187,7 @@ def continue_api_previous_response(agent_id: str, previous_response_id: str | No
     """
     if not previous_response_id:
         return None
-    if is_new_chat_per_task(agent_id):
+    aid = normalize_agent_id(agent_id)
+    if is_new_chat_per_task(aid):
         return None
     return str(previous_response_id)

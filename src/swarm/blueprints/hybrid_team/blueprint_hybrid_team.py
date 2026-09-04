@@ -315,7 +315,6 @@ class HybridTeamBlueprint(BlueprintBase):
         are staggered by ``_DELEGATION_LAUNCH_DELAY_S`` to protect free-CLI rate
         limits. Deterministic under ``SWARM_TEST_MODE`` (``_run_delegation`` stubs).
         """
-        loop = asyncio.get_event_loop()
         launch_gate = threading.Lock()  # serialize *starts* to stagger launches
 
         def _work(d: dict) -> dict:

@@ -33,7 +33,7 @@ def _repo_root() -> Path:
     for parent in (here, *here.parents):
         if (parent / "docs" / "QUICKSTART.md").is_file() or (parent / "pyproject.toml").is_file():
             return parent
-    return here.parents[3]
+    return here.parents[3] if len(here.parents) > 3 else (here.parents[-1] if here.parents else here.parent)
 
 
 def quickstart_path() -> Path | None:

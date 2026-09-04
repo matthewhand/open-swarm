@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,7 @@ DEFAULT_WIRES = {"handoff": True, "as_tool": True}
 
 # In-memory cache. Isolated from swarm.views.utils._dynamic_registry (teams.json).
 _roster_registry: dict[str, dict[str, Any]] | None = None
+_roster_lock = threading.RLock()
 
 
 def team_rosters_path() -> Path:
@@ -143,27 +145,28 @@ def serialize_roster(entry: dict[str, Any]) -> dict[str, Any]:
 def load_team_rosters() -> dict[str, dict[str, Any]]:
     """Load the in-memory roster registry from ``team_rosters.json``."""
     global _roster_registry
-    if _roster_registry is not None:
-        return _roster_registry
-    try:
-        path = team_rosters_path()
-        if path.exists():
-            raw = path.read_text(encoding="utf-8")
-            if not raw.strip():
-                _roster_registry = {}
-            else:
-                parsed = json.loads(raw) or {}
-                if not isinstance(parsed, dict):
-                    logger.error("team_rosters.json root must be an object; using empty registry.")
+    with _roster_lock:
+        if _roster_registry is not None:
+            return _roster_registry
+        try:
+            path = team_rosters_path()
+            if path.exists():
+                raw = path.read_text(encoding="utf-8")
+                if not raw.strip():
                     _roster_registry = {}
                 else:
-                    _roster_registry = parsed
-        else:
+                    parsed = json.loads(raw) or {}
+                    if not isinstance(parsed, dict):
+                        logger.error("team_rosters.json root must be an object; using empty registry.")
+                        _roster_registry = {}
+                    else:
+                        _roster_registry = parsed
+            else:
+                _roster_registry = {}
+        except Exception:
+            logger.exception("Failed to load team_rosters.json; using empty registry.")
             _roster_registry = {}
-    except Exception:
-        logger.exception("Failed to load team_rosters.json; using empty registry.")
-        _roster_registry = {}
-    return _roster_registry
+        return _roster_registry
 
 
 def save_team_rosters() -> None:
@@ -174,45 +177,50 @@ def save_team_rosters() -> None:
     path = team_rosters_path()
     if path.name != "team_rosters.json":
         raise RuntimeError("Refusing to persist team rosters to a non-roster path.")
-    try:
-        path.write_text(json.dumps(_roster_registry or {}, indent=2), encoding="utf-8")
-    except Exception:
-        logger.exception("Failed to persist team rosters to %s", path)
-        raise
+    with _roster_lock:
+        try:
+            path.write_text(json.dumps(_roster_registry or {}, indent=2), encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to persist team rosters to %s", path)
+            raise
 
 
 def get_roster(roster_id: str) -> dict[str, Any] | None:
-    return load_team_rosters().get(roster_id)
+    with _roster_lock:
+        return load_team_rosters().get(roster_id)
 
 
 def upsert_roster(roster: dict[str, Any]) -> dict[str, Any]:
     """Insert or replace a roster and persist. Returns the stored document."""
     normalized = normalize_roster(roster)
-    reg = load_team_rosters()
-    reg[normalized["id"]] = {
-        "id": normalized["id"],
-        "name": normalized["name"],
-        "members": normalized["members"],
-        "wires": normalized["wires"],
-    }
-    save_team_rosters()
-    return reg[normalized["id"]]
+    with _roster_lock:
+        reg = load_team_rosters()
+        reg[normalized["id"]] = {
+            "id": normalized["id"],
+            "name": normalized["name"],
+            "members": normalized["members"],
+            "wires": normalized["wires"],
+        }
+        save_team_rosters()
+        return reg[normalized["id"]]
 
 
 def delete_roster(roster_id: str) -> bool:
     """Remove a roster. Returns True if it existed."""
-    reg = load_team_rosters()
-    if roster_id not in reg:
-        return False
-    reg.pop(roster_id, None)
-    save_team_rosters()
-    return True
+    with _roster_lock:
+        reg = load_team_rosters()
+        if roster_id not in reg:
+            return False
+        reg.pop(roster_id, None)
+        save_team_rosters()
+        return True
 
 
 def reset_team_rosters(initial: dict[str, dict[str, Any]] | None = None) -> None:
     """Replace the in-memory cache (tests). Does not write disk unless save is called."""
     global _roster_registry
-    _roster_registry = None if initial is None else dict(initial)
+    with _roster_lock:
+        _roster_registry = None if initial is None else dict(initial)
 
 
 def iter_normalized_rosters(

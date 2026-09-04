@@ -54,7 +54,11 @@ def attachment_path(user, attachment_id, *, base_dir: Path | None = None) -> Pat
     """Absolute path for one attachment. ``attachment_id`` is a UUID string."""
     aid = str(attachment_id).strip()
     uuid.UUID(aid)
-    return store_dir(base_dir=base_dir) / user_key_for(user) / aid
+    root = store_dir(base_dir=base_dir).resolve()
+    target = (root / user_key_for(user) / aid).resolve()
+    if not target.is_relative_to(root):
+        raise ValueError("Invalid attachment path traversal")
+    return target
 
 
 def is_text_content_type(content_type: str) -> bool:

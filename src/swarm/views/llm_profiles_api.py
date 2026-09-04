@@ -88,9 +88,11 @@ class LlmProfilesView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        default = body.get("default_llm_profile") if "default_llm_profile" in body else None
-        if default is not None:
-            default = "" if default is None else str(default)
+        if "default_llm_profile" in body:
+            raw_default = body.get("default_llm_profile")
+            default = "" if raw_default is None else str(raw_default)
+        else:
+            default = None
 
         override = body.get("override_per_task") if "override_per_task" in body else None
         if override is not None:
