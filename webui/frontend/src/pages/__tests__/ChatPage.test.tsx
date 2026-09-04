@@ -1282,7 +1282,7 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lists only configured remotes plus Add remote', async () => {
+  it('lists only configured remotes plus Add remote on remote agents', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
@@ -1319,7 +1319,7 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
         } as Response
       }),
     )
-    renderChat()
+    renderChat('/chat?remote=omb')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
@@ -1333,6 +1333,99 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     expect(options).not.toContain('Rakazo')
     expect(options).not.toContain('OMB')
     expect(select.textContent).not.toMatch(/\bOMB\b/)
+  })
+
+  it('hides the Remotes control on local API and CLI agents', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+          configured: [{ id: 'omb', kind: 'omb', label: 'OpenMousBot' }],
+        }),
+      } as Response),
+    )
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+  })
+
+  it('hides the Remotes control on local teams', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [
+              {
+                id: 'local-team',
+                name: 'Local Team',
+                members: [{ id: 'codey', kind: 'agent' }],
+              },
+            ],
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?team=local-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+  })
+
+  it('shows the Remotes control on remote-backed teams', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => [
+              {
+                id: 'remote-team',
+                name: 'Remote Team',
+                members: [{ id: 'omb-bot', kind: 'remote' }],
+              },
+            ],
+          } as Response
+        }
+        if (url.includes('/v1/remotes')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+              configured: [{ id: 'omb', kind: 'omb', label: 'OpenMousBot' }],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?team=remote-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByRole('combobox', { name: 'Remote' })).toBeInTheDocument()
   })
 })
 
