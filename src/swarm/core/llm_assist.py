@@ -128,7 +128,8 @@ def generate_blueprint_class(
         f"Category: {category}\n"
         f"Tags: {', '.join(tag_list)}\n"
         f"Requirements:\n{requirements or '(none)'}\n"
-        "Must: subclass BlueprintBase, class-level metadata with name/title/"
+        "Must: subclass ApiKindBase (default) or CliKindBase / RemoteKindBase "
+        "(BlueprintBase only if you must), class-level metadata with name/title/"
         "description/version, async def run(self, messages, **kwargs) that yields "
         '{"messages": [{"role": "assistant", "content": "..."}]}. '
         "Use get_llm_profile / AsyncOpenAI if you need a model. No asyncio.run, "
@@ -145,7 +146,12 @@ def generate_blueprint_class(
     except Exception:
         return None
     code = extract_python(text)
-    if not code or "BlueprintBase" not in code or "async def run" not in code:
+    if not code or "async def run" not in code:
+        return None
+    if not any(
+        name in code
+        for name in ("ApiKindBase", "CliKindBase", "RemoteKindBase", "BlueprintBase")
+    ):
         return None
     return code
 

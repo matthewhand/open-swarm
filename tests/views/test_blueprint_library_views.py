@@ -1175,7 +1175,7 @@ class TestGenerateBlueprintCode:
             _requirements="summarise the last user message",
             assist=True,
         )
-        assert "class MyTeamBlueprint(BlueprintBase)" in code
+        assert "class MyTeamBlueprint(ApiKindBase)" in code
         assert "async def run" in code
         assert "chat_completion_stream" not in code
 

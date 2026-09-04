@@ -75,6 +75,9 @@ a formal vote; the coordinator (or graph) selects the next persona via:
 - agent-as-tool (`specialist.as_tool(...)`)  
 - shared `@function_tool` / MCP tools  
 
+Worked **forced sequence** (BA → Engineer → Tester) and **circular skeptic**
+graphs, plus the API vs CLI vs remote limit: [openai-agents-handoff-graphs](./examples/openai-agents-handoff-graphs/README.md) (REQ-156). Only API / blueprint seats get that graph.  
+
 **Code surfaces**
 
 - `openai-agents` dependency: `Agent`, `Runner`, `@function_tool`, handoffs  

@@ -10,13 +10,15 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 
 ---
 
-## 1. Core agent runtime — ✅ 3 · 🟡 1 · ❌ 1
+## 1. Core agent runtime — ✅ 5 · 🟡 1 · ❌ 1
 
 | Feature | Status | Evidence |
 |---|---|---|
 | Blueprint discovery | ✅ | `src/swarm/core/blueprint_discovery.py` (247 lines); `tests/core/test_blueprint_discovery_behavior.py` and `test_blueprint_discovery_comprehensive.py` pass in full-suite run |
 | Blueprint execution (`BlueprintBase.run`) | ✅ | `src/swarm/core/blueprint_base.py` (772 lines); `tests/core/test_blueprint_execution_comprehensive.py`, `test_blueprint_base.py`, `test_blueprint_model_override.py` all pass |
 | openai-agents SDK integration | ✅ | `blueprint_base.py:39` `from agents import set_default_openai_client`; `:644-648` selects `OpenAIResponsesModel` vs `OpenAIChatCompletionsModel` per `api_mode`; agents created via `make_agent` (`:659-683`) |
+| Handoff graphs + harness types (REQ-156) | ✅ | Docs + example pack + `sdlc_handoff` blueprint. Forced BA→Engineer→Tester and circular skeptic; API-only graph (CLI/remote native); cross-type Demo Bridge roster. Tests lock live edges: `tests/core/test_handoff_graph.py`, `tests/blueprints/test_sdlc_handoff.py`. `:8001` seed: `scripts/seed_req156_demo.py` (no secrets). Fixes #564. |
+| Kind bases API/CLI/remote (REQ-159) | ✅ | ADR-005 + stubs `swarm.core.kind_bases`. Support / `BLUEPRINT_AGENT_BRIEF` prefer kind templates. Creator validator accepts them. Cross-link from README openai-agents section. Wizard/library still emit `BlueprintBase` (follow-up). Fixes #570. |
 | Test suite health | ✅ | Goal is green `main` `Python Tests` (3.10/3.11/3.12). Own-diff triage still applies on a red PR, but a collection `ImportError` on tip of `main` is a must-fix (REQ-134 / #524). Intentional HOLD: `golden-journey` skipped (`visual-regression.yml` `if: false`, REQ-89 #446) until screenshot/tour recapture — not a pytest waiver. |
 | Consolidation deprecation shims | 🗑 removed | `extensions.blueprint`, `extensions.config.config_loader`, `blueprints.common.spinner`, `ux.spinner`, `utils.ansi_box`, `extensions.launchers.swarm_api` deleted. Use `swarm.core.*` / `swarm.ux.ansi_box`. Locked gone by `tests/unit/test_deprecation_shims.py` (ROADMAP §2.1). |
 

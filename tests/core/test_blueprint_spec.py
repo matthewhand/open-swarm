@@ -14,8 +14,12 @@ def test_interface_is_parseable_python():
 
 
 def test_interface_names_the_contract():
-    assert "class MyTeamBlueprint(BlueprintBase)" in BLUEPRINT_INTERFACE
+    assert "class MyTeamBlueprint(ApiKindBase)" in BLUEPRINT_INTERFACE
+    assert "from swarm.core.kind_bases import ApiKindBase" in BLUEPRINT_INTERFACE
     assert "async def run(self, messages, **kwargs)" in BLUEPRINT_INTERFACE
     assert '"messages"' in BLUEPRINT_INTERFACE
-    assert "BlueprintBase" in BLUEPRINT_AGENT_BRIEF
+    assert "ApiKindBase" in BLUEPRINT_AGENT_BRIEF
+    assert "CliKindBase" in BLUEPRINT_AGENT_BRIEF
+    assert "RemoteKindBase" in BLUEPRINT_AGENT_BRIEF
+    assert "fourth harness" in BLUEPRINT_AGENT_BRIEF
     assert "coded agent team" in BLUEPRINT_ONE_LINER

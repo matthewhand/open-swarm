@@ -38,7 +38,10 @@ control (DaisyUI `modal-end` Settings sheet is not in this tree).
 
 - `kind`: `api` | `cli` | `remote`
 - `role`: `support` | `gate` | `skeptic` | `default`
-- `wires.handoff` / `wires.as_tool`: default **both on**
+- `wires.handoff` / `wires.as_tool`: default **both on**. These are roster
+  toggles, not a per-seat edge list. Forced / circular **handoff graphs**
+  live on API blueprints (`sdlc_handoff`); CLI/remote members stay native.
+  See [openai-agents-handoff-graphs](./examples/openai-agents-handoff-graphs/README.md).
 - Gate runtime (REQ-314) is **not** in this tree. Unwired gate = all tools
   approved (UI copy only). Do not reimplement a gate here.
 

@@ -7,4 +7,7 @@ def test_support_spec_has_role_and_blueprint_brief():
     assert spec["role"] == "support"
     assert spec["agent_type"] == "api"
     assert "BlueprintBase" in spec["instructions"]
+    assert "ApiKindBase" in spec["instructions"]
+    assert "CliKindBase" in spec["instructions"]
+    assert "RemoteKindBase" in spec["instructions"]
     assert "first agent team" in spec["instructions"]

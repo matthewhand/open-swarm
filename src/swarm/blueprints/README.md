@@ -49,6 +49,7 @@ registers aliases (e.g. `moa` ← `cli_fusion` / `ensemble`; `dynamic_team` ←
 | `suggestion` | Structured JSON suggestion (`suggestion` CLI) |
 | `codey` | Coding workflow (`codey` CLI) |
 | `software_dev` | CoS / engineer / skeptic team via openai-agents as-tool (REQ-36; Issue #348) |
+| `sdlc_handoff` | Forced BA→Engineer→Tester handoff graph + circular skeptic variant (REQ-156; Issue #564). API only. |
 | `rue_code` | Multi-agent code workflow |
 | `jeeves` | MCP-aware butler demo |
 | `geese` | Multi-agent writing/research |

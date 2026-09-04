@@ -1,0 +1,11 @@
+{
+  "id": "demo-sdlc-skeptic-loop",
+  "name": "Demo SDLC Skeptic Loop",
+  "members": [
+    {"id": "ba", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
+    {"id": "engineer", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
+    {"id": "tester", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
+    {"id": "skeptic", "kind": "api", "role": "skeptic", "source": "blueprint:sdlc_handoff"}
+  ],
+  "wires": {"handoff": true, "as_tool": false}
+}

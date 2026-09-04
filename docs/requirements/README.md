@@ -31,6 +31,8 @@ Oracle from anything in this tree.
 | [REQ-67](./REQ-67.md) | [Role chrome is the badge only — no row fill/border](https://github.com/matthewhand/open-swarm/issues/396) |
 | [REQ-68](./REQ-68.md) | [Stacked avatars for teams and remotes (3 most recent, animate while working)](https://github.com/matthewhand/open-swarm/issues/398) |
 | [REQ-106](./REQ-106.md) | [Bee brand mark — SVG favicon + multi-size app icons (colour + mono)](https://github.com/matthewhand/open-swarm/issues/470) |
+| [REQ-156](./REQ-156.md) | [README — why openai-agents + 3 harness types + workflow diagrams](https://github.com/matthewhand/open-swarm/issues/564) |
+| [REQ-159](./REQ-159.md) | [Three kind bases (API/CLI/remote) — Support builds from these](https://github.com/matthewhand/open-swarm/issues/570) |
 
 ## Archived transcripts
 
