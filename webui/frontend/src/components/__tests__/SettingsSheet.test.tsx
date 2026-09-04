@@ -216,6 +216,60 @@ describe('SettingsSheet', () => {
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
   })
+
+  it('adds a Herdr remote then lists it in Settings Remotes', async () => {
+    const configured: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method || 'GET').toUpperCase()
+        if (url.includes('/v1/remotes/') && method === 'POST') {
+          const created = {
+            id: 'herdr',
+            kind: 'herdr',
+            label: 'Herdr',
+            title: 'Herdr',
+            host_label: '',
+            base_url: 'http://127.0.0.1:9',
+            source: 'config',
+          }
+          configured.push(created)
+          return { ok: true, status: 201, json: async () => created } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            kinds: [
+              { id: 'hermes', label: 'Hermes' },
+              { id: 'omb', label: 'OpenMousBot' },
+              { id: 'rakazo', label: 'Rakazo' },
+              { id: 'herdr', label: 'Herdr' },
+            ],
+            configured,
+            data: [],
+          }),
+        } as Response
+      }),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Add remote/i }))
+    const kindSelect = await screen.findByRole('combobox', { name: 'Kind' })
+    expect(within(kindSelect).getByRole('option', { name: 'Herdr' })).toBeInTheDocument()
+    fireEvent.change(kindSelect, { target: { value: 'herdr' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), {
+      target: { value: 'http://127.0.0.1:9' },
+    })
+    fireEvent.submit(kindSelect.closest('form') as HTMLFormElement)
+
+    const rows = await screen.findByRole('list', { name: 'Configured remotes' })
+    expect(within(rows).getByText('Herdr')).toBeInTheDocument()
+    expect(within(rows).getByText('http://127.0.0.1:9')).toBeInTheDocument()
+    const remoteSelect = screen.getByRole('combobox', { name: 'Remote' })
+    expect(within(remoteSelect).getByRole('option', { name: 'Herdr' })).toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {

@@ -291,6 +291,7 @@ async function addHerdrRemoteKind() {
     body: JSON.stringify({
       base_url: base,
       api_key: "${" + envName + "}",
+      api_key_env: envName,
     }),
   });
   let body = {};

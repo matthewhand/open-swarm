@@ -567,6 +567,7 @@ class SettingsManager:
                         "hermes": "HERMES_BASE_URL / HERMES_API_KEY",
                         "omb": "OMB_BASE_URL / OMB_API_KEY",
                         "rakazo": "RAKAZO_BASE_URL / RAKAZO_API_KEY / RAKAZO_SESSION_COOKIE",
+                        "herdr": "HERDR_BASE_URL / HERDR_API_KEY",
                         "swarm": "SWARM_REMOTE_BASE_URL / SWARM_REMOTE_API_KEY",
                     }.get(spec.id),
                     "type": "object",

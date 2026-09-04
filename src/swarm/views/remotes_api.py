@@ -62,8 +62,10 @@ class RemotesListView(APIView):
                 "id": serializers.CharField(required=False),
                 "base_url": serializers.CharField(required=False, allow_blank=True),
                 "api_key": serializers.CharField(required=False, allow_blank=True),
+                "api_key_env": serializers.CharField(required=False, allow_blank=True),
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
+                "session_cookie_env": serializers.CharField(required=False, allow_blank=True),
             },
         ),
         responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
@@ -77,7 +79,7 @@ class RemotesListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "ui_url", "cookie"):
+        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie", "session_cookie_env"):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
         try:
@@ -119,8 +121,10 @@ class RemoteDetailView(APIView):
             fields={
                 "base_url": serializers.CharField(required=False, allow_blank=True),
                 "api_key": serializers.CharField(required=False, allow_blank=True),
+                "api_key_env": serializers.CharField(required=False, allow_blank=True),
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
+                "session_cookie_env": serializers.CharField(required=False, allow_blank=True),
             },
         ),
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
@@ -128,12 +132,12 @@ class RemoteDetailView(APIView):
     def patch(self, request, remote_id: str, *_args, **_kwargs):
         body = request.data if isinstance(request.data, dict) else {}
         kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "ui_url", "cookie"):
+        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie", "session_cookie_env"):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
         if not kwargs:
             return Response(
-                {"error": "Provide at least one of base_url, api_key, ui_url, cookie."},
+                {"error": "Provide at least one of base_url, api_key, api_key_env, ui_url, cookie, session_cookie_env."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:

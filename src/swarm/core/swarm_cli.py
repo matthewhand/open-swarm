@@ -679,7 +679,7 @@ def remotes_cmd(
         "list",
         help="list | get | set | health | operate | team | place | unplace",
     ),
-    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | swarm"),
+    name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | herdr | swarm"),
     op: str = typer.Option("list", "--op", help="For operate: list or send"),
     base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
     api_key: str = typer.Option("", "--api-key", help="For set: env-var name or ${ENV} (not a token)"),
@@ -702,9 +702,10 @@ def remotes_cmd(
 
     act = (action or "list").strip().lower()
     rid = (name or "").strip()
+    cfg = _remotes.load_raw_config(config)[0]
 
     if act == "list":
-        specs = _remotes.load_all_remotes()
+        specs = _remotes.load_all_remotes(cfg)
         typer.echo("Remote harnesses:")
         for spec in specs.values():
             key = "set" if spec.public_dict()["api_key_set"] else "unset"
@@ -713,7 +714,7 @@ def remotes_cmd(
 
     if act == "get":
         try:
-            spec = _remotes.load_remote(rid)
+            spec = _remotes.load_remote(rid, cfg)
         except _remotes.RemoteError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1)
@@ -722,7 +723,7 @@ def remotes_cmd(
 
     if act == "set":
         if not rid:
-            typer.echo("remotes set requires a name (hermes|omb|rakazo|swarm)", err=True)
+            typer.echo("remotes set requires a name (hermes|omb|rakazo|herdr|swarm)", err=True)
             raise typer.Exit(code=1)
         kwargs: dict[str, str] = {}
         if base_url:
@@ -757,7 +758,7 @@ def remotes_cmd(
         any_down = False
         for target_id in targets:
             try:
-                result = _remotes.check_health(target_id)
+                result = _remotes.check_health(target_id, config=cfg)
             except _remotes.RemoteError as exc:
                 typer.echo(str(exc), err=True)
                 raise typer.Exit(code=1)
@@ -769,9 +770,9 @@ def remotes_cmd(
 
     if act == "operate":
         if not rid:
-            typer.echo("remotes operate requires a name (hermes|omb|rakazo|swarm)", err=True)
+            typer.echo("remotes operate requires a name (hermes|omb|rakazo|herdr|swarm)", err=True)
             raise typer.Exit(code=1)
-        result = _remotes.operate(rid, op, prompt=prompt, target=target)
+        result = _remotes.operate(rid, op, prompt=prompt, target=target, config=cfg)
         typer.echo(_json.dumps(result.as_dict(), indent=2, default=str))
         raise typer.Exit(code=0 if result.ok else 1)
 
@@ -782,7 +783,7 @@ def remotes_cmd(
 
     if act in ("place", "unplace"):
         if not rid:
-            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo|swarm)", err=True)
+            typer.echo(f"remotes {act} requires a name (hermes|omb|rakazo|herdr|swarm)", err=True)
             raise typer.Exit(code=1)
         try:
             if act == "place":

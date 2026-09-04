@@ -52,6 +52,8 @@ export function AddRemoteForm({
         { id: 'hermes', label: 'Hermes' },
         { id: 'omb', label: OPENMOUSBOT_LABEL },
         { id: 'rakazo', label: 'Rakazo' },
+        { id: 'herdr', label: 'Herdr' },
+        { id: 'swarm', label: 'Swarm' },
       ]
   const [kind, setKind] = useState(options[0]?.id ?? 'omb')
   const [baseUrl, setBaseUrl] = useState('')

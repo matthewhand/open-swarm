@@ -5,6 +5,8 @@ export const REMOTE_KIND_LABELS: Record<string, string> = {
   hermes: 'Hermes',
   omb: OPENMOUSBOT_LABEL,
   rakazo: 'Rakazo',
+  herdr: 'Herdr',
+  swarm: 'Swarm',
 }
 
 export function remoteKindLabel(id: string, fallback?: string): string {
