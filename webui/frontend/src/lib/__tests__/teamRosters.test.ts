@@ -5,6 +5,7 @@ import {
   MANAGE_TEAMS_HREF,
   fetchTeamRosters,
   memberOptionLabel,
+  memberTargetLabel,
   parseTeamRosters,
   teamHideId,
   teamThreadId,
@@ -72,6 +73,17 @@ describe('parseTeamRosters', () => {
 })
 
 describe('labels and ids', () => {
+  it('labels All members vs a chosen seat', () => {
+    const team = {
+      id: 'demo-team',
+      name: 'Demo Team',
+      description: '',
+      members: [{ id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' }],
+    }
+    expect(memberTargetLabel('all', team)).toBe('All members')
+    expect(memberTargetLabel('codey', team)).toBe('Codey (agent/coder)')
+  })
+
   it('formats name + kind/role for the unlabeled dropdown', () => {
     expect(memberOptionLabel({ id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' })).toBe(
       'Codey (agent/coder)',

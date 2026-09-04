@@ -71,5 +71,11 @@ mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
 SPA after reload or agent switch. Retention (counts, disk, trash,
 `SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
 
+Dropdown changes (REQ-46) append a `role=status` row. The SPA POSTs
+`/chat/thread/` and, when the socket is open, also sends
+`{"type":"status","text":"CLI: antigravity → grok"}`. The consumer persists
+that line and does **not** invoke a blueprint or LLM. Status rows are omitted
+from the model context.
+
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).

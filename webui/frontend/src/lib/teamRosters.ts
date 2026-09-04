@@ -61,6 +61,13 @@ export function memberOptionLabel(member: TeamMember): string {
   return kindRole ? `${name} (${kindRole})` : name
 }
 
+/** Human label for the team send-target dropdown (All members or a seat). */
+export function memberTargetLabel(target: string, team: TeamRoster | null | undefined): string {
+  if (!target || target === ALL_MEMBERS_TARGET) return 'All members'
+  const member = team?.members.find((item) => item.id === target)
+  return member ? memberOptionLabel(member) : target
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)

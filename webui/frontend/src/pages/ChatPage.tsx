@@ -64,6 +64,10 @@ import {
 } from '../lib/teamRosters'
 import { fetchConfiguredRemotes } from '../lib/remotesCatalog'
 import {
+  publishChatConnection,
+  type ChatConnectionStatus,
+} from '../lib/chatConnection'
+import {
   reconnectBackoffMs,
   shouldAutoReconnect,
   WS_AUTH_REQUIRED_CODE,
@@ -88,7 +92,7 @@ import {
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
 
-type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
+type ConnectionStatus = ChatConnectionStatus
 
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
@@ -556,6 +560,10 @@ const ChatPage = () => {
       if (wsRef.current === ws) wsRef.current = null
     }
   }, [connectAttempt, handleWsEvent, conversationId, runtimeBlueprint, teamFromUrl])
+
+  useEffect(() => {
+    publishChatConnection(status)
+  }, [status])
 
   const pinnedToBottomRef = useRef(true)
   useEffect(() => {

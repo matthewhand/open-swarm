@@ -157,11 +157,13 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+/** Multipart POST. Do not set Content-Type — the browser supplies the boundary. */
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  const headers = buildHeaders(false)
   const response = await fetch(path, {
-    method: 'PATCH',
-    headers: buildHeaders(true),
-    body: JSON.stringify(body),
+    method: 'POST',
+    headers,
+    body,
   })
 
   if (!response.ok) {
@@ -290,6 +292,16 @@ export interface LibraryEntry {
 
 export function fetchBlueprints(): Promise<ListResponse<Blueprint>> {
   return apiGet<ListResponse<Blueprint>>('/v1/blueprints/')
+}
+
+/** GET /v1/runtime/ — REQ-45 app runtime banner (AllowAny, no secrets). */
+export function fetchRuntimeBanner(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/runtime/')
+}
+
+/** GET /v1/browser-control/ — REQ-45 provider catalog (this-machine default). */
+export function fetchBrowserControl(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/browser-control/')
 }
 
 export function fetchModels(): Promise<ListResponse<Model>> {
@@ -485,13 +497,11 @@ export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult>
 
 export function operateRemote(
   remoteId: string,
-  op: 'list' | 'send',
-  prompt = '',
-  target = '',
+  body: { op: 'list' | 'send'; prompt?: string; target?: string },
 ): Promise<RemoteOperateResult> {
   return apiPost<RemoteOperateResult>(
     `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
-    { op, prompt, target },
+    body,
   )
 }
 
@@ -589,10 +599,6 @@ export interface CreateRemoteRequest {
   api_key?: string
   ui_url?: string
   cookie?: string
-}
-
-export function fetchRemotes(): Promise<RemotesListResponse> {
-  return apiGet<RemotesListResponse>('/v1/remotes/')
 }
 
 export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
@@ -907,27 +913,6 @@ export interface RemoteOperateResult {
   http_status?: number | null
   data?: unknown
   gap?: string
-}
-
-export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
-  return apiPost<RemoteConnection>('/v1/remotes/', body)
-}
-
-export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
-  return apiPost<RemoteHealthResult>(
-    `/v1/remotes/${encodeURIComponent(remoteId)}/health/`,
-    {},
-  )
-}
-
-export function operateRemote(
-  remoteId: string,
-  body: { op: 'list' | 'send'; prompt?: string; target?: string },
-): Promise<RemoteOperateResult> {
-  return apiPost<RemoteOperateResult>(
-    `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
-    body,
-  )
 }
 
 /** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements
