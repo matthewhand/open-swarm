@@ -629,6 +629,14 @@ button.os-agent-row {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* REQ-149: Scrollable capped lists in dense forms/fields (~8-10 rows / 288px) */
+.os-scrollable-picker-list,
+.os-capped-list {
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .os-rail-hostname-row {
   display: flex;
   align-items: center;

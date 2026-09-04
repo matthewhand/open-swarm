@@ -325,7 +325,7 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
                 </p>
               </div>
             ) : (
-              <ul className="flex flex-col gap-2" aria-label="Roster members">
+              <ul className="flex flex-col gap-2 os-scrollable-picker-list pr-1" aria-label="Roster members">
                 {members.map((member) => {
                   const agent: TeamAgent = {
                     id: member.id,
@@ -408,9 +408,7 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
                       </span>
                     </h4>
                     <ul
-                      className={`flex flex-col gap-1 ${
-                        kind === 'api' ? 'max-h-28 overflow-y-auto' : ''
-                      }`}
+                      className="flex flex-col gap-1 os-scrollable-picker-list max-h-40 overflow-y-auto pr-1"
                     >
                       {agentsByKind[kind].length === 0 ? (
                         <li className="px-2 py-1 text-xs text-base-content/40">None</li>
