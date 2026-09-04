@@ -85,6 +85,11 @@ export function buildToolDecisionFrame(
   return JSON.stringify({ type: 'tool_decision', id, decision })
 }
 
+/** Build the JSON frame that edits an existing transcript turn (REQ-49). */
+export function buildChatWsEditFrame(index: number, content: string): string {
+  return JSON.stringify({ edit: { index, content } })
+}
+
 export function newConversationId(): string {
   try {
     return crypto.randomUUID()

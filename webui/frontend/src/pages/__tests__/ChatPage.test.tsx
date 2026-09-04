@@ -1689,3 +1689,224 @@ describe('ChatPage Safety tool popups (REQ-55)', () => {
     })
   })
 })
+
+function mockChatFetches(options: {
+  blueprint: string
+  name: string
+  kind?: 'api' | 'cli' | 'remote'
+  messages: { role: 'user' | 'assistant'; content: string; edited?: boolean }[]
+}) {
+  const kind = options.kind ?? 'api'
+  return vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes('/chat/thread/') && (init?.method === 'PATCH' || init?.method === 'patch')) {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      const messages = options.messages.map((message, index) =>
+        index === body.index
+          ? { ...message, content: body.content, edited: true }
+          : message,
+      )
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: options.blueprint,
+          conversation_id: `agt-1-${options.blueprint}`,
+          kind,
+          editable: kind === 'api',
+          messages,
+        }),
+      } as Response
+    }
+    if (url.includes('/chat/thread/')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: options.blueprint,
+          conversation_id: `agt-1-${options.blueprint}`,
+          kind,
+          editable: kind === 'api',
+          messages: options.messages,
+        }),
+      } as Response
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [{ id: options.blueprint, name: options.name, description: options.name }],
+      }),
+    } as Response
+  })
+}
+
+describe('ChatPage REQ-49 message edit (API vs CLI/remote)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  it('API fixture chat shows edit on user and assistant; save is what the next send includes', async () => {
+    const fetchMock = mockChatFetches({
+      blueprint: 'jeeves',
+      name: 'Jeeves',
+      kind: 'api',
+      messages: [
+        { role: 'user', content: 'prior question' },
+        { role: 'assistant', content: 'prior answer' },
+      ],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+    expect(screen.getByText('prior answer')).toBeInTheDocument()
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-agent-kind',
+      'api',
+    )
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-messages-editable',
+      'true',
+    )
+
+    const editButtons = screen.getAllByRole('button', { name: 'Edit message' })
+    expect(editButtons).toHaveLength(2)
+
+    fireEvent.click(editButtons[0])
+    const editor = await screen.findByRole('textbox', { name: 'Edit message' })
+    fireEvent.change(editor, { target: { value: 'engineered question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('engineered question')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('edited-hint')).toBeInTheDocument()
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        (call) =>
+          String(call[0]).includes('/chat/thread/') &&
+          String(call[1]?.method || '').toUpperCase() === 'PATCH',
+      )
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual(
+        expect.objectContaining({ index: 0, content: 'engineered question' }),
+      )
+    })
+
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ edit: { index: 0, content: 'engineered question' } }),
+    )
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'follow up' } })
+    fireEvent.submit(composer.closest('form')!)
+    expect(ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ message: 'follow up', blueprint: 'jeeves' }),
+    )
+  })
+
+  it('clicking an API bubble enters edit mode', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetches({
+        blueprint: 'jeeves',
+        name: 'Jeeves',
+        messages: [
+          { role: 'user', content: 'click me' },
+          { role: 'assistant', content: 'assistant bubble' },
+        ],
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('assistant bubble')).toBeInTheDocument()
+    const bubbles = screen.getAllByTestId('chat-bubble')
+    fireEvent.click(bubbles[1])
+    expect(await screen.findByRole('textbox', { name: 'Edit message' })).toHaveValue(
+      'assistant bubble',
+    )
+  })
+
+  it('CLI fixture chat has no edit control and no click-to-edit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetches({
+        blueprint: 'cli:grok',
+        name: 'Grok CLI',
+        kind: 'cli',
+        messages: [
+          { role: 'user', content: 'cli user' },
+          { role: 'assistant', content: 'cli assistant' },
+        ],
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli:grok')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('cli user')).toBeInTheDocument()
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-agent-kind',
+      'cli',
+    )
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-messages-editable',
+      'false',
+    )
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByTestId('chat-bubble')[0])
+    expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('remote fixture chat has no edit control and no click-to-edit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetches({
+        blueprint: 'remote:acp',
+        name: 'Remote ACP',
+        kind: 'remote',
+        messages: [
+          { role: 'user', content: 'remote user' },
+          { role: 'assistant', content: 'remote assistant' },
+        ],
+      }),
+    )
+
+    renderChat('/chat?blueprint=remote:acp')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('remote user')).toBeInTheDocument()
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-agent-kind',
+      'remote',
+    )
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByTestId('chat-bubble')[1])
+    expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+  })
+})
