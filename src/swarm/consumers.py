@@ -240,6 +240,19 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             await self.resolve_tool_decision(text_data_json)
             return
 
+        if text_data_json.get("type") == "status":
+            status_text = text_data_json.get("text")
+            if not isinstance(status_text, str) or not status_text.strip():
+                return
+            agent = text_data_json.get("agent")
+            if isinstance(agent, str) and agent.strip():
+                self.active_agent = agent.strip()
+            self.messages.append({"role": "status", "content": status_text})
+            conversation_id = getattr(self, "conversation_id", None)
+            if conversation_id:
+                await self.save_conversation(conversation_id, self.messages)
+            return
+
         if "edit" in text_data_json:
             await self.apply_message_edit(text_data_json.get("edit"))
             return

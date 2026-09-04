@@ -82,6 +82,9 @@ def _public_messages(messages) -> list[dict]:
             "role": item.get("role", "user"),
             "content": item.get("content", ""),
         }
+        ts = item.get("ts") or item.get("timestamp")
+        if isinstance(ts, str) and ts:
+            row["ts"] = ts
         if item.get("edited"):
             row["edited"] = True
         out.append(row)
