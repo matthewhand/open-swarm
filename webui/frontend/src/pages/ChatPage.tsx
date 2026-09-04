@@ -33,7 +33,7 @@ import {
   getRecentSlashIds,
   recordRecentSlashId,
 } from '../lib/slashMenu'
-import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchLlmProfiles, fetchModels, fetchRemotes } from '../lib/api'
+import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchLlmProfiles, fetchRemotes } from '../lib/api'
 import { profileIds } from '../lib/llmProfiles'
 import {
   agentIdFromBlueprint,
@@ -324,12 +324,6 @@ const ChatPage = () => {
 
   const showRemotesControl = isRemoteAgent || isRemoteBackedTeam
 
-  const modelsQuery = useQuery({
-    queryKey: ['models'],
-    queryFn: fetchModels,
-    retry: 1,
-  })
-
   const isCliAgent = Boolean(
     !teamFromUrl &&
       !remoteFromUrl &&
@@ -388,10 +382,6 @@ const ChatPage = () => {
     return availableCliModels[0] || 'default'
   }, [searchParams, availableCliModels])
 
-  const availableApiAgents = useMemo(
-    () => blueprints.filter((bp) => !isCliBlueprintId(bp.id)),
-    [blueprints],
-  )
   const availableApiModels = useMemo(() => {
     if (isNamedApiAgent) {
       const ids = profileIds(llmProfilesQuery.data)
@@ -399,16 +389,14 @@ const ChatPage = () => {
       const list = ids.length ? ids : fallback ? [fallback] : []
       return list.length ? list : ['default']
     }
-    const list = modelsQuery.data?.data?.map((m) => m.id) ?? []
-    return list.length ? list : ['default']
-  }, [isNamedApiAgent, llmProfilesQuery.data, modelsQuery.data])
+    return ['default']
+  }, [isNamedApiAgent, llmProfilesQuery.data])
 
   const currentApiModel = useMemo(() => {
     const fromParam = (searchParams.get('model') ?? '').trim()
     if (fromParam && availableApiModels.includes(fromParam)) return fromParam
     return availableApiModels[0] || 'default'
   }, [searchParams, availableApiModels])
-
   const recordDropdownChange = useCallback(
     (kind: DropdownKind, fromLabel: string, toLabel: string) => {
       if (!shouldRecordDropdownChange(fromLabel, toLabel)) return
@@ -959,7 +947,6 @@ const ChatPage = () => {
       currentCli,
       currentCliModel,
       isApiAgent,
-      currentApiModel,
       teamFromUrl,
       memberTarget,
       newChatPerTask,
@@ -1470,63 +1457,6 @@ const ChatPage = () => {
                 </option>
               ))}
             </select>
-          ) : isApiAgent ? (
-            <>
-              <select
-                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
-                value={selectedBlueprint}
-                aria-label="API"
-                data-testid="api-select"
-                onChange={(e) => {
-                  const nextBp = e.target.value
-                  const prevBp = selectedBlueprint
-                  const prevAgent = blueprints.find((b) => b.id === prevBp)
-                  const nextAgent = blueprints.find((b) => b.id === nextBp)
-                  const prevLabel = prevAgent ? agentLabel(prevAgent) : prevBp
-                  const nextLabel = nextAgent ? agentLabel(nextAgent) : nextBp
-                  setSearchParams(
-                    (prevParams) => {
-                      const nextParams = new URLSearchParams(prevParams)
-                      nextParams.set('blueprint', nextBp)
-                      return nextParams
-                    },
-                    { replace: true },
-                  )
-                  recordDropdownChange('api', prevLabel, nextLabel)
-                }}
-              >
-                {availableApiAgents.map((bp) => (
-                  <option key={bp.id} value={bp.id}>
-                    {agentLabel(bp)}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
-                value={currentApiModel}
-                aria-label="Model"
-                data-testid="api-model-select"
-                onChange={(e) => {
-                  const nextModel = e.target.value
-                  const prev = currentApiModel
-                  setSearchParams(
-                    (prevParams) => {
-                      const nextParams = new URLSearchParams(prevParams)
-                      nextParams.set('model', nextModel)
-                      return nextParams
-                    },
-                    { replace: true },
-                  )
-                  recordDropdownChange('model', prev, nextModel)
-                }}
-              >
-                {availableApiModels.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </>
           ) : null}
           <div
             className="flex items-center gap-2"

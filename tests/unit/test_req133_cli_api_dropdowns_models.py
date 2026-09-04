@@ -28,7 +28,6 @@ def test_chat_page_renders_cli_and_api_dropdowns_with_models():
     # API controls
     assert 'data-testid="api-select"' in tsx
     assert 'aria-label="API"' in tsx
-    assert 'data-testid="api-model-select"' in tsx
 
     # Status tracking on change
     assert "recordDropdownChange('cli'" in tsx
