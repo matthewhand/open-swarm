@@ -5,16 +5,20 @@ import {
   ComputerControlStub,
 } from '../ComputerControlStub'
 
-describe('ComputerControlStub (REQ-27b)', () => {
-  it('shows a computer/monitor control labeled Computer control', () => {
+describe('ComputerControlStub (REQ-27b / REQ-93)', () => {
+  it('shows an icon-only computer/monitor control with an accessible name', () => {
     render(<ComputerControlStub />)
 
     const trigger = screen.getByRole('button', { name: 'Computer control' })
     expect(trigger).toBeInTheDocument()
     expect(trigger).not.toBeDisabled()
+    expect(trigger).toHaveAttribute('aria-label', 'Computer control')
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
     expect(trigger.className).toMatch(/opacity-50/)
+    expect(trigger.className).toMatch(/btn-square/)
     expect(trigger.querySelector('svg')).toBeTruthy()
+    expect(trigger).not.toHaveTextContent(/Computer control/i)
+    expect(trigger.closest('.tooltip')).toHaveAttribute('data-tip', 'Computer control')
   })
 
   it('opens a DaisyUI WIP modal; does not drive a machine', () => {

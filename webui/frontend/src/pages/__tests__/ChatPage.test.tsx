@@ -7,6 +7,7 @@ import { ToastProvider, TOAST_KIND_WS_DISCONNECT } from '../../components/DaisyU
 import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAvatar'
 import { resetConversationThreads } from '../../lib/chatMeter'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
+import { OPEN_AGENT_EDITOR_EVENT } from '../../lib/agentSettings'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -686,6 +687,9 @@ describe('ChatPage computer-control stub (REQ-27b)', () => {
     const tools = screen.getByRole('toolbar', { name: 'Chat tools' })
     const trigger = screen.getByRole('button', { name: 'Computer control' })
     expect(tools).toContainElement(trigger)
+    expect(trigger).toHaveAttribute('aria-label', 'Computer control')
+    expect(trigger).not.toHaveTextContent(/Computer control/i)
+    expect(trigger.closest('.tooltip')).toHaveAttribute('data-tip', 'Computer control')
 
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
@@ -693,6 +697,52 @@ describe('ChatPage computer-control stub (REQ-27b)', () => {
     expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OpenMousBot or Rakazo remote/)
     expect(dialog.textContent).not.toMatch(/\bOMB\b/)
     expect(dialog).toHaveTextContent(/not implemented here/i)
+  })
+})
+
+describe('ChatPage header Edit control (REQ-120)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('is an icon-only pencil that still opens the agent editor', async () => {
+    const opened: unknown[] = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent).detail)
+    }
+    window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpen)
+
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const header = screen.getByTestId('selected-agent-header')
+    const edit = within(header).getByRole('button', { name: 'Edit agent' })
+    expect(edit).toHaveAttribute('aria-label', 'Edit agent')
+    expect(edit).toHaveClass('btn-square')
+    expect(edit.querySelector('svg')).toBeTruthy()
+    expect(edit).not.toHaveTextContent(/^Edit$/i)
+    expect(within(header).queryByText('Edit')).not.toBeInTheDocument()
+    expect(edit.closest('.tooltip')).toHaveAttribute('data-tip', 'Edit agent')
+
+    fireEvent.click(edit)
+    expect(opened).toEqual([{ agentId: 'support' }])
+    window.removeEventListener(OPEN_AGENT_EDITOR_EVENT, onOpen)
   })
 })
 
@@ -996,7 +1046,7 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.queryByRole('menuitem', { name: 'Teams' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Edit / })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
     expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).not.toBeInTheDocument()
