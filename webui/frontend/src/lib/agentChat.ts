@@ -5,6 +5,7 @@ import {
   type ConversationSummary,
 } from './chatCompact'
 import { newConversationId } from './chatWs'
+import { asTranscriptRole, isStatusRole } from './chatStatus'
 
 export type { ConversationSummary } from './chatCompact'
 
@@ -112,17 +113,20 @@ export interface CompactResult {
   raw_count?: number
 }
 
-function isThreadMessage(value: unknown): value is AgentThreadMessage {
-  if (!value || typeof value !== 'object') return false
+function parseThreadMessage(value: unknown): AgentThreadMessage | null {
+  if (!value || typeof value !== 'object') return null
   const row = value as { role?: unknown; content?: unknown; edited?: unknown }
-  if (
-    !(row.role === 'user' || row.role === 'assistant' || row.role === 'status') ||
-    typeof row.content !== 'string'
-  ) {
-    return false
+  if (typeof row.role !== 'string' || typeof row.content !== 'string') return null
+  if (row.edited !== undefined && row.edited !== true) return null
+  if (row.role !== 'user' && row.role !== 'assistant' && !isStatusRole(row.role)) {
+    return null
   }
-  if (row.edited !== undefined && row.edited !== true) return false
-  return true
+  const parsed: AgentThreadMessage = {
+    role: asTranscriptRole(row.role),
+    content: row.content,
+  }
+  if (row.edited === true) parsed.edited = true
+  return parsed
 }
 
 function parseSummaries(value: unknown): ConversationSummary[] {
@@ -142,7 +146,7 @@ export async function fetchAgentThread(
       `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
     )
     const messages = Array.isArray(data?.messages)
-      ? data.messages.filter(isThreadMessage)
+      ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
       : []
     const kind = classifyAgentKind(agent, data?.kind)
     return {
@@ -187,7 +191,7 @@ export async function patchAgentMessage(
     body,
   )
   const messages = Array.isArray(data?.messages)
-    ? data.messages.filter(isThreadMessage)
+    ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
     : []
   const kind = classifyAgentKind(agent, data?.kind)
   return {

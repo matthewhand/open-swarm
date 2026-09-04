@@ -92,6 +92,7 @@ import {
   SUPPORT_AGENT_ID,
   supportTurnExtras,
 } from '../lib/supportAgent'
+import { asTranscriptRole, isStatusRole } from '../lib/chatStatus'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
@@ -377,7 +378,7 @@ const ChatPage = () => {
         ...prev,
         [threadKey]: thread.messages.map((message, index) => ({
           key: `hist-${index}-${message.role}`,
-          role: message.role,
+          role: asTranscriptRole(message.role),
           text: message.content,
           streaming: false,
           edited: message.edited === true,
@@ -1005,10 +1006,15 @@ const ChatPage = () => {
               )
             }
             const message = item.message
-            if (message.role === 'status') {
+            if (isStatusRole(message.role)) {
               return (
-                <p key={message.key} className="os-chat-status" data-role="status">
-                  {message.text}
+                <p
+                  key={message.key}
+                  className="os-chat-status"
+                  data-role="status"
+                  data-testid="chat-status"
+                >
+                  <span>{message.text}</span>
                 </p>
               )
             }
