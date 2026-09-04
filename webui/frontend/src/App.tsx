@@ -21,10 +21,14 @@ import { dismissSwipeHint, isSwipeHintDismissed } from './lib/swipeHint'
 import {
   initialTheme,
   persistTheme,
+  resolveTheme,
+  subscribeSystemTheme,
+  nextTheme,
   THEME_SET_EVENT,
   THEME_TOGGLE_EVENT,
   THEME_STORAGE_KEY,
   type Theme,
+  type ResolvedTheme,
 } from './lib/theme'
 
 /** EXPERIMENTAL: ⌘K command palette (see experimental/README.md). */
@@ -32,7 +36,7 @@ const SHOW_COMMAND_PALETTE = isExperimentalEnabled('command_palette')
 
 export { THEME_STORAGE_KEY }
 
-function applyDocumentTheme(theme: Theme) {
+function applyDocumentTheme(theme: ResolvedTheme) {
   if (typeof document === 'undefined') return
   const value = theme === 'dark' ? 'dark' : 'light'
   const bg = theme === 'dark' ? '#0c0c0c' : '#f4f4f5'
@@ -41,7 +45,7 @@ function applyDocumentTheme(theme: Theme) {
   if (document.body) document.body.style.backgroundColor = bg
 }
 
-applyDocumentTheme(initialTheme())
+applyDocumentTheme(resolveTheme(initialTheme()))
 
 /** Keep query string when aliasing a legacy chat path onto `/chat`. */
 export function chatPathWithSearch(search: string): string {
@@ -56,7 +60,10 @@ export function chatPathWithSearch(search: string): string {
  * Search / the settings gear.
  */
 function App() {
-  const [darkMode, setDarkMode] = useState<Theme>(initialTheme)
+  const [themePreference, setThemePreference] = useState<Theme>(initialTheme)
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+    resolveTheme(initialTheme()),
+  )
   const [narrow, setNarrow] = useState(isNarrowViewport)
   const [railOpen, setRailOpen] = useState(() => !isNarrowViewport())
   const [swipeHint, setSwipeHint] = useState(false)
@@ -96,18 +103,28 @@ function App() {
   useLeftEdgeSwipe(narrow && !railOpen && !searchOpen && !settingsOpen, openRail)
 
   useLayoutEffect(() => {
-    applyDocumentTheme(darkMode)
-  }, [darkMode])
+    applyDocumentTheme(resolvedTheme)
+  }, [resolvedTheme])
 
   useEffect(() => {
-    persistTheme(darkMode)
-  }, [darkMode])
+    persistTheme(themePreference)
+    setResolvedTheme(resolveTheme(themePreference))
+  }, [themePreference])
 
   useEffect(() => {
-    const onToggle = () => setDarkMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+    if (themePreference !== 'system') return
+    return subscribeSystemTheme((nextResolved) => {
+      setResolvedTheme(nextResolved)
+    })
+  }, [themePreference])
+
+  useEffect(() => {
+    const onToggle = () => setThemePreference((prev) => nextTheme(prev))
     const onSet = (event: Event) => {
       const detail = (event as CustomEvent<Theme>).detail
-      if (detail === 'light' || detail === 'dark') setDarkMode(detail)
+      if (detail === 'light' || detail === 'dark' || detail === 'system') {
+        setThemePreference(detail)
+      }
     }
     const onOpenSearch = () => setSearchOpen(true)
     const onOpenSettings = (event: Event) => {
@@ -170,7 +187,7 @@ function App() {
         <RailChromeProvider value={{ narrow, railOpen, openRail, closeRail }}>
           <div
             className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"
-            data-theme={darkMode === 'dark' ? 'dark' : 'light'}
+            data-theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
             data-narrow-viewport={narrow ? 'true' : undefined}
           >
             <a

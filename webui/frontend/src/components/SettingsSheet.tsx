@@ -52,11 +52,21 @@ import {
   type RetentionMode,
 } from '../lib/settingsPrefs'
 import { agentLabel, catalogLabel } from '../lib/supportAgent'
+import {
+  initialNavbarThemeVisible,
+  initialTheme,
+  dispatchSetNavbarThemeVisible,
+  dispatchSetTheme,
+  THEME_NAVBAR_SET_EVENT,
+  THEME_SET_EVENT,
+  type Theme,
+} from '../lib/theme'
 
 /** Window event so the rail hover-edit, command palette, and tests can open the sheet. */
 export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
 export type SettingsSection =
+  | 'general'
   | 'definition'
   | 'blueprint'
   | 'remotes'
@@ -160,6 +170,16 @@ export default function SettingsSheet({
             <li>
               <button
                 type="button"
+                className={section === 'general' ? 'menu-active' : undefined}
+                aria-current={section === 'general' ? 'page' : undefined}
+                onClick={() => setSection('general')}
+              >
+                General
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
                 className={section === 'definition' ? 'menu-active' : undefined}
                 aria-current={section === 'definition' ? 'page' : undefined}
                 onClick={() => setSection('definition')}
@@ -241,6 +261,7 @@ export default function SettingsSheet({
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-base-100 p-4 sm:p-5">
+          {section === 'general' && <GeneralPane />}
           {section === 'definition' && (
             <DefinitionPane
               kind={resolvedKind}
@@ -810,6 +831,96 @@ function HostnamePane({
         Save hostname
       </Button>
     </form>
+  )
+}
+
+function GeneralPane() {
+  const [themePref, setThemePref] = useState<Theme>(initialTheme)
+  const [navbarVisible, setNavbarVisible] = useState<boolean>(initialNavbarThemeVisible)
+
+  useEffect(() => {
+    const onSet = (event: Event) => {
+      const detail = (event as CustomEvent<Theme>).detail
+      if (detail === 'light' || detail === 'dark' || detail === 'system') {
+        setThemePref(detail)
+      }
+    }
+    const onNavbarToggle = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      setNavbarVisible(Boolean(detail))
+    }
+    window.addEventListener(THEME_SET_EVENT, onSet)
+    window.addEventListener(THEME_NAVBAR_SET_EVENT, onNavbarToggle)
+    return () => {
+      window.removeEventListener(THEME_SET_EVENT, onSet)
+      window.removeEventListener(THEME_NAVBAR_SET_EVENT, onNavbarToggle)
+    }
+  }, [])
+
+  const handleThemeChange = (value: Theme) => {
+    setThemePref(value)
+    dispatchSetTheme(value)
+  }
+
+  const handleNavbarChange = (visible: boolean) => {
+    setNavbarVisible(visible)
+    dispatchSetNavbarThemeVisible(visible)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h4 className="text-lg font-semibold">General</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Preferences for display and browser behavior.
+        </p>
+      </div>
+
+      <section aria-labelledby="os-visuals-heading" className="space-y-4">
+        <h5
+          id="os-visuals-heading"
+          className="text-base font-semibold border-b border-base-200 pb-1"
+        >
+          Visuals
+        </h5>
+
+        <div className="form-control w-full max-w-xs space-y-1">
+          <label htmlFor="os-theme-select" className="label py-0">
+            <span className="label-text font-medium">Theme</span>
+          </label>
+          <select
+            id="os-theme-select"
+            aria-label="Theme"
+            className="select select-bordered w-full"
+            value={themePref}
+            onChange={(e) => handleThemeChange(e.target.value as Theme)}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">Use system</option>
+          </select>
+          <p className="text-xs text-base-content/60">
+            Choose light, dark, or follow your operating system appearance (prefers-color-scheme).
+          </p>
+        </div>
+
+        <div className="form-control">
+          <label className="label cursor-pointer justify-start gap-4">
+            <input
+              type="checkbox"
+              className="toggle"
+              checked={navbarVisible}
+              onChange={(e) => handleNavbarChange(e.target.checked)}
+              aria-label="Show theme control in top bar"
+            />
+            <span className="label-text">Show theme control in top bar</span>
+          </label>
+          <p className="text-xs text-base-content/60">
+            Show a quick theme toggle button in the top navigation bar.
+          </p>
+        </div>
+      </section>
+    </div>
   )
 }
 
