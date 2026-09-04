@@ -89,9 +89,15 @@ export default function SessionPicker({
     [onClose, onSelect],
   )
 
+  const activeIdxRef = useRef(activeIdx)
+  activeIdxRef.current = activeIdx
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
+
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => {
+      const items = visibleRef.current
       if (event.key === 'Escape') {
         event.preventDefault()
         onClose()
@@ -99,7 +105,7 @@ export default function SessionPicker({
       }
       if (event.key === 'ArrowDown') {
         event.preventDefault()
-        setActiveIdx((i) => Math.min(i + 1, Math.max(0, visible.length - 1)))
+        setActiveIdx((i) => Math.min(i + 1, Math.max(0, items.length - 1)))
         return
       }
       if (event.key === 'ArrowUp') {
@@ -109,17 +115,17 @@ export default function SessionPicker({
       }
       if (event.key === 'Enter') {
         event.preventDefault()
-        choose(visible[activeIdx])
+        choose(items[activeIdxRef.current])
         return
       }
       if (event.ctrlKey && /^[1-9]$/.test(event.key)) {
         event.preventDefault()
-        choose(visible[Number(event.key) - 1])
+        choose(items[Number(event.key) - 1])
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose, choose, visible, activeIdx])
+  }, [open, onClose, choose])
 
   if (!open) return null
 

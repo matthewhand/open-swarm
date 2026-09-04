@@ -19,7 +19,7 @@ except ImportError:
     import asyncio
     async def ainput(prompt: str = "") -> str:
         # Fallback to synchronous input in thread
-        return await asyncio.get_event_loop().run_in_executor(None, input, prompt)
+        return await asyncio.get_running_loop().run_in_executor(None, input, prompt)
 
 def main():
     if os.environ.get('SWARM_TEST_MODE'):

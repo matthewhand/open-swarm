@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from swarm.core.async_utils import run_coro_sync
 from swarm.core.moa.policy import DEFAULT_PARTICIPANT_PERMISSION
 from swarm.core.moa.team import (
     SPECIALIST_PURPOSES,
@@ -114,15 +115,7 @@ def build_moa_orchestrator_agents(
                 cwd=str(tools.root),
             )
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    payload = pool.submit(lambda: asyncio.run(_run())).result()
-            else:
-                payload = loop.run_until_complete(_run())
-        except RuntimeError:
-            payload = asyncio.run(_run())
+        payload = run_coro_sync(_run())
 
         moa_calls.append({"question": question, "payload": payload})
         det = (payload or {}).get("determination") or {}
