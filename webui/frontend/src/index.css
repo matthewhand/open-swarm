@@ -849,12 +849,19 @@ button.os-agent-row {
   inset: 0;
   z-index: 100;
   background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }
 .os-search-palette {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  width: min(42rem, calc(100vw - 2rem));
+  position: relative;
+  width: min(48rem, calc(100vw - 2rem));
+  min-width: min(560px, calc(100vw - 2rem));
+  max-width: 52rem;
+  max-height: calc(100vh - 4rem);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 1.5rem;
   border: 1px solid color-mix(in srgb, var(--color-base-content) 10%, transparent);
@@ -902,7 +909,7 @@ button.os-agent-row {
   color: inherit;
 }
 .os-search-palette__list {
-  max-height: 24rem;
+  max-height: min(32rem, 60vh);
   overflow-y: auto;
   padding: 0.25rem 0.5rem 0.7rem;
 }
