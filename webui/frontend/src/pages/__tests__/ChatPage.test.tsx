@@ -312,7 +312,7 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
     expect(avatar).toHaveClass('os-chat-header__avatar')
     expect(identity.firstElementChild).toBe(avatar)
     expect(heading.compareDocumentPosition(avatar!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
-    expect(identity.querySelector('button')).toBeNull()
+    expect(within(identity).getByRole('button', { name: 'Open Codey definition' })).toBeInTheDocument()
     expect(identity.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
   })
 
@@ -1211,7 +1211,9 @@ describe('ChatPage team member dropdown', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    fireEvent.change(await screen.findByRole('combobox'), { target: { value: '__manage__' } })
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
+      target: { value: '__manage__' },
+    })
     expect(assign).toHaveBeenCalledWith('/teams/')
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
@@ -1546,7 +1548,7 @@ const REMOTE_ROSTER = {
       description: 'Remotes as Team members',
       members: [
         { id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' },
-        { id: 'omb', name: 'OMB', kind: 'remote', role: 'default' },
+        { id: 'omb', name: 'OpenMousBot', kind: 'remote', role: 'default' },
         { id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' },
       ],
     },
@@ -1582,7 +1584,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lists Hermes/OMB/Rakazo as kind=remote in the unlabeled member dropdown', async () => {
+  it('lists configured remotes as kind=remote in the unlabeled member dropdown', async () => {
     renderChat('/chat?team=harness-team')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -1592,7 +1594,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     expect(within(select).getAllByRole('option').map((opt) => opt.textContent)).toEqual([
       'All members',
       'Hermes (remote/default)',
-      'OMB (remote/default)',
+      'OpenMousBot (remote/default)',
       'Rakazo (remote/default)',
       'Manage Teams',
     ])
@@ -1600,7 +1602,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
   })
 
-  it('sends params {team, target} for a remote member without calling remotes APIs', async () => {
+  it('sends params {team, target} for a remote member', async () => {
     renderChat('/chat?team=harness-team')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -1621,8 +1623,6 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
       message: 'ping hermes',
       params: { team: 'harness-team', target: 'hermes' },
     })
-    const fetchMock = vi.mocked(fetch)
-    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/v1/remotes'))).toBe(true)
   })
 })
 
