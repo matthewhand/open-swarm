@@ -6,6 +6,17 @@ import {
   messageHasCopyableText,
 } from '../clipboard'
 
+/** jsdom does not implement document.execCommand. */
+function stubExecCommand(ok: boolean) {
+  const exec = vi.fn().mockReturnValue(ok)
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    writable: true,
+    value: exec,
+  })
+  return exec
+}
+
 describe('messageHasCopyableText / copyButtonLabel', () => {
   it('treats empty and whitespace as nothing to copy', () => {
     expect(messageHasCopyableText('')).toBe(false)
@@ -40,7 +51,7 @@ describe('copyTextToClipboard', () => {
   it('falls back to textarea + execCommand when writeText rejects', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('denied'))
     Object.assign(navigator, { clipboard: { writeText } })
-    const exec = vi.spyOn(document, 'execCommand').mockReturnValue(true)
+    const exec = stubExecCommand(true)
 
     await expect(copyTextToClipboard('fallback body')).resolves.toBe('copied')
     expect(writeText).toHaveBeenCalledWith('fallback body')
@@ -50,7 +61,7 @@ describe('copyTextToClipboard', () => {
 
   it('falls back when Clipboard API is missing', async () => {
     Object.assign(navigator, { clipboard: undefined })
-    const exec = vi.spyOn(document, 'execCommand').mockReturnValue(true)
+    const exec = stubExecCommand(true)
     await expect(copyTextToClipboard('no api')).resolves.toBe('copied')
     expect(exec).toHaveBeenCalledWith('copy')
   })
@@ -59,7 +70,7 @@ describe('copyTextToClipboard', () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
     })
-    vi.spyOn(document, 'execCommand').mockReturnValue(false)
+    stubExecCommand(false)
     await expect(copyTextToClipboard('still stuck')).resolves.toBe('failed')
   })
 })

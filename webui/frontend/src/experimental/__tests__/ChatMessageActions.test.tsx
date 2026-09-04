@@ -7,6 +7,16 @@ import {
 } from '../../lib/clipboard'
 import { ChatMessageActions } from '../ChatMessageActions'
 
+function stubExecCommand(ok: boolean) {
+  const exec = vi.fn().mockReturnValue(ok)
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    writable: true,
+    value: exec,
+  })
+  return exec
+}
+
 function renderActions(text: string, onRetry?: () => void) {
   return render(
     <ToastProvider>
@@ -38,7 +48,7 @@ describe('ChatMessageActions', () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
     })
-    const exec = vi.spyOn(document, 'execCommand').mockReturnValue(true)
+    const exec = stubExecCommand(true)
 
     renderActions('fallback body')
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
@@ -54,7 +64,7 @@ describe('ChatMessageActions', () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
     })
-    vi.spyOn(document, 'execCommand').mockReturnValue(false)
+    stubExecCommand(false)
 
     renderActions('still stuck')
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))

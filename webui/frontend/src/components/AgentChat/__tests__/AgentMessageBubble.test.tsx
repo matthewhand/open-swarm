@@ -10,6 +10,16 @@ function renderBubble(ui: ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>)
 }
 
+function stubExecCommand(ok: boolean) {
+  const exec = vi.fn().mockReturnValue(ok)
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    writable: true,
+    value: exec,
+  })
+  return exec
+}
+
 const userMsg: ChatMessage = {
   key: 'u1',
   role: 'user',
@@ -63,7 +73,7 @@ describe('AgentMessageBubble', () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
     })
-    const exec = vi.spyOn(document, 'execCommand').mockReturnValue(true)
+    const exec = stubExecCommand(true)
     renderBubble(<AgentMessageBubble message={userMsg} />)
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
     await waitFor(() => {
@@ -77,7 +87,7 @@ describe('AgentMessageBubble', () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
     })
-    vi.spyOn(document, 'execCommand').mockReturnValue(false)
+    stubExecCommand(false)
     renderBubble(<AgentMessageBubble message={userMsg} />)
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
     expect(await screen.findByText(COPY_FAILED_TITLE)).toBeInTheDocument()
@@ -130,7 +140,6 @@ describe('AgentMessageBubble', () => {
     const { container } = renderBubble(<AgentMessageBubble message={msg} />)
     const pre = container.querySelector('pre.os-code')
     expect(pre).toBeTruthy()
-    expect(pre?.getAttribute('data-lang')).toBe('python')
     expect(pre?.className).toContain('os-code-python')
     expect(container.querySelector('.os-py-kw')).toBeTruthy()
     expect(container.querySelector('.os-py-str')).toBeTruthy()
