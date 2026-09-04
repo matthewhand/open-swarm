@@ -151,7 +151,11 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
       size="lg"
       className="flex min-h-0 flex-col"
     >
-      <div id="os-agent-editor" className="space-y-4" data-agent-id={id || undefined}>
+      <div
+        id="os-agent-editor"
+        className="space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto pr-1"
+        data-agent-id={id || undefined}
+      >
         <p className="text-sm text-base-content/70">
           This pane is only about this agent. Blueprint picks a catalog recipe
           for this seat — it is not Settings.

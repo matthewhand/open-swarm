@@ -261,7 +261,7 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
         <div className="space-y-2">
           <p className="text-sm font-medium">{isOmb ? 'Bots' : 'List'}</p>
           {listed.ok && bots.length > 0 ? (
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-1 text-sm os-scrollable-picker-list pr-1">
               {bots.map((bot) => (
                 <li key={bot.id} className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2 font-mono">
                   {bot.id}

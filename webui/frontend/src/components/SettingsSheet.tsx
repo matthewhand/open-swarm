@@ -333,7 +333,7 @@ export function BlueprintsListPane({
       ) : items.length === 0 ? (
         <p className="text-sm text-base-content/60">No blueprints in the catalog.</p>
       ) : (
-        <ul role="listbox" aria-label="Blueprints" className="menu menu-md rounded-box border border-base-300 bg-base-200 p-2">
+        <ul role="listbox" aria-label="Blueprints" className="menu menu-md rounded-box border border-base-300 bg-base-200 p-2 os-scrollable-picker-list">
           {items.map((item) => {
             const selected = item.id === selectedId
             return (
@@ -618,7 +618,7 @@ function RemotesCatalogPane() {
           <span className="text-sm">No remotes configured yet.</span>
         </Alert>
       ) : configured.length === 0 ? null : (
-        <ul className="space-y-2" aria-label="Configured remotes">
+        <ul className="space-y-2 os-scrollable-picker-list" aria-label="Configured remotes">
           {configured.map((remote) => {
             const label = remoteKindLabel(remote.kind || remote.id, kinds)
             return (
@@ -1007,7 +1007,7 @@ function LlmProfilesPane() {
           </span>
         </Alert>
       ) : (
-        <ul className="space-y-1 text-sm" aria-label="Configured LLM profiles">
+        <ul className="space-y-1 text-sm os-scrollable-picker-list" aria-label="Configured LLM profiles">
           {profiles.map((profile) => (
             <li
               key={`${profile.source}:${profile.id}`}
