@@ -4,12 +4,6 @@ Initializes the views package and exposes key view modules and viewsets.
 # Import the view modules to make them accessible via swarm.views.*
 # Use try-except for robustness during development/refactoring
 try:
-    from . import core_views
-except ImportError as e:
-    print(f"Warning: Could not import swarm.views.core_views: {e}")
-    core_views = None
-
-try:
     from . import chat_views
 except ImportError as e:
     print(f"Warning: Could not import swarm.views.chat_views: {e}")
