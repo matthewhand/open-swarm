@@ -16,6 +16,7 @@ export function setupCodeFenceControls(
 ) {
   const pres = root.querySelectorAll('pre')
   pres.forEach((pre, index) => {
+    pre.classList.add('os-code')
     const code = pre.querySelector('code')
     const fullText = code?.textContent ?? pre.textContent ?? ''
     const lines = fullText.split('\n')
@@ -31,7 +32,7 @@ export function setupCodeFenceControls(
       pre.insertBefore(actions, pre.firstChild)
     }
 
-    // Always-available Copy button
+    // Always-available Copy button (concealed until hover / focus-within per REQ-174)
     let copyBtn = actions.querySelector<HTMLButtonElement>('[data-testid="code-copy"]')
     if (!copyBtn) {
       copyBtn = document.createElement('button')
@@ -44,6 +45,12 @@ export function setupCodeFenceControls(
         event.preventDefault()
         event.stopPropagation()
         void copyTextToClipboard(fullText)
+        if (copyBtn) {
+          copyBtn.textContent = 'Copied!'
+          setTimeout(() => {
+            if (copyBtn) copyBtn.textContent = 'Copy'
+          }, 1500)
+        }
       })
       actions.appendChild(copyBtn)
     }
