@@ -17,7 +17,7 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | Blueprint discovery | ✅ | `src/swarm/core/blueprint_discovery.py` (247 lines); `tests/core/test_blueprint_discovery_behavior.py` and `test_blueprint_discovery_comprehensive.py` pass in full-suite run |
 | Blueprint execution (`BlueprintBase.run`) | ✅ | `src/swarm/core/blueprint_base.py` (772 lines); `tests/core/test_blueprint_execution_comprehensive.py`, `test_blueprint_base.py`, `test_blueprint_model_override.py` all pass |
 | openai-agents SDK integration | ✅ | `blueprint_base.py:39` `from agents import set_default_openai_client`; `:644-648` selects `OpenAIResponsesModel` vs `OpenAIChatCompletionsModel` per `api_mode`; agents created via `make_agent` (`:659-683`) |
-| Test suite health | ✅ | 673 passed / 2 skipped as of `4c7e1b28`. (At audit time: 560/621 with 59 order-dependent failures from the `urls.py:155` import bug — fixed in `f1fa20b1`) |
+| Test suite health | ✅ | Goal is green `main` `Python Tests` (3.10/3.11/3.12). Own-diff triage still applies on a red PR, but a collection `ImportError` on tip of `main` is a must-fix (REQ-134 / #524). Intentional HOLD: `golden-journey` skipped (`visual-regression.yml` `if: false`, REQ-89 #446) until screenshot/tour recapture — not a pytest waiver. |
 | Consolidation deprecation shims | 🗑 removed | `extensions.blueprint`, `extensions.config.config_loader`, `blueprints.common.spinner`, `ux.spinner`, `utils.ansi_box`, `extensions.launchers.swarm_api` deleted. Use `swarm.core.*` / `swarm.ux.ansi_box`. Locked gone by `tests/unit/test_deprecation_shims.py` (ROADMAP §2.1). |
 
 ## 2. CLI — ✅ 4
@@ -33,6 +33,7 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 
 | Feature | Status | Evidence |
 |---|---|---|
+| `/v1/chat/attachments/` (REQ-38) | ✅ | `ChatAttachment` on `swarm.models` + `chat_attachment_upload`; sqlite metadata, bytes on disk (`SWARM_ATTACHMENTS_DIR`). Tests: `tests/views/test_chat_attachments.py`, `tests/core/test_chat_attachments.py`. Restored after tip-of-main `ImportError` (REQ-134 / #524). |
 | `/v1/chat/completions` (non-streaming) | ✅ | `src/swarm/views/chat_views.py:86` `_handle_non_streaming`; route `urls.py:67`; `tests/views/test_chat_views.py` (18 tests) pass in isolation |
 | `/v1/chat/completions` SSE streaming | ✅ | `chat_views.py:128-162` `_handle_streaming` yields `text/event-stream` + `[DONE]`; `test_post_streaming_success` asserts Content-Type `text/event-stream` (`test_chat_views.py:214-241`) |
 | `/v1/models` | ✅ | `urls.py:56-57` → `OpenAIModelsView`; `tests/views/test_api_views.py::TestModelsListView` (5 tests) pass in isolation |
