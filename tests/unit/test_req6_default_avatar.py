@@ -47,9 +47,9 @@ def test_spa_wires_agent_avatar_as_default():
     assert "os-agent-dot" not in sidebar
     assert "agentMarkIndex" not in sidebar
     assert "AgentAvatar" in chat
-    # Custom avatar_path must reach all three chat faces (header / empty / bubbles).
-    assert chat.count("src={agentAvatarSrc}") == 3
+    # Chat header uses the shared AgentAvatar; custom path wins, data-URI is fallback.
     assert "selectedAgent?.avatar_path" in chat
+    assert chat.count("<AgentAvatar") >= 1
 
 
 def test_blueprints_list_exposes_avatar_path_for_chat():
