@@ -212,7 +212,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # land before the close is applied. Refuse unauthenticated receives
         # (do not append to transcript or invoke blueprints / LLM).
         if not getattr(self.user, "is_authenticated", False):
-            if swarm_allow_anonymous(client_ip_from_scope(self.scope)):
+            if swarm_allow_anonymous(client_ip_from_scope(getattr(self, "scope", None))):
                 self.user = await database_sync_to_async(get_or_create_preview_user)()
             else:
                 await self.close(
@@ -238,6 +238,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         if text_data_json.get("type") == "tool_decision":
             await self.resolve_tool_decision(text_data_json)
+            return
+
+        if "edit" in text_data_json:
+            await self.apply_message_edit(text_data_json.get("edit"))
             return
 
         try:
@@ -650,6 +654,37 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await client.close()
         await self.send(text_data=final_message)
+
+    async def apply_message_edit(self, edit):
+        """Replace one transcript turn and persist it (REQ-49)."""
+        from swarm.core.agent_kind import can_edit_agent_messages
+
+        agent = getattr(self, "active_agent", None) or getattr(self, "default_blueprint", None)
+        if not can_edit_agent_messages(agent):
+            logger.info("Ignoring message edit on non-API agent %s", agent)
+            return
+        if not isinstance(edit, dict):
+            logger.warning("Ignoring malformed chat edit frame: %.200r", edit)
+            return
+        index = edit.get("index")
+        content = edit.get("content")
+        if type(index) is not int or not isinstance(content, str):
+            logger.warning("Ignoring malformed chat edit frame: %.200r", edit)
+            return
+        if index < 0 or index >= len(self.messages):
+            logger.warning(
+                "Ignoring chat edit index %s (transcript length %s)",
+                index,
+                len(self.messages),
+            )
+            return
+        current = dict(self.messages[index])
+        current["content"] = content
+        current["edited"] = True
+        self.messages[index] = current
+        conversation_id = getattr(self, "conversation_id", None)
+        if conversation_id:
+            await self.save_conversation(conversation_id, self.messages)
 
     @database_sync_to_async
     def fetch_conversation(self, conversation_id):

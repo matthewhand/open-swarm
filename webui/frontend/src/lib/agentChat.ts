@@ -1,4 +1,5 @@
-import { apiGet, apiPost } from './api'
+import { apiGet, apiPatch, apiPost, ensureCsrfCookie } from './api'
+import { classifyAgentKind, type AgentKind } from './agentKind'
 import {
   isConversationSummary,
   type ConversationSummary,
@@ -93,6 +94,7 @@ export function conversationIdForTask(
 export interface AgentThreadMessage {
   role: 'user' | 'assistant' | 'status'
   content: string
+  edited?: boolean
 }
 
 export interface AgentThread {
@@ -100,6 +102,8 @@ export interface AgentThread {
   conversation_id: string
   messages: AgentThreadMessage[]
   summaries: ConversationSummary[]
+  kind?: AgentKind
+  editable?: boolean
 }
 
 export interface CompactResult {
@@ -110,11 +114,15 @@ export interface CompactResult {
 
 function isThreadMessage(value: unknown): value is AgentThreadMessage {
   if (!value || typeof value !== 'object') return false
-  const row = value as { role?: unknown; content?: unknown }
-  return (
-    (row.role === 'user' || row.role === 'assistant' || row.role === 'status') &&
-    typeof row.content === 'string'
-  )
+  const row = value as { role?: unknown; content?: unknown; edited?: unknown }
+  if (
+    !(row.role === 'user' || row.role === 'assistant' || row.role === 'status') ||
+    typeof row.content !== 'string'
+  ) {
+    return false
+  }
+  if (row.edited !== undefined && row.edited !== true) return false
+  return true
 }
 
 function parseSummaries(value: unknown): ConversationSummary[] {
@@ -136,6 +144,7 @@ export async function fetchAgentThread(
     const messages = Array.isArray(data?.messages)
       ? data.messages.filter(isThreadMessage)
       : []
+    const kind = classifyAgentKind(agent, data?.kind)
     return {
       agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
       conversation_id:
@@ -144,14 +153,53 @@ export async function fetchAgentThread(
           : conversationId,
       messages,
       summaries: parseSummaries(data?.summaries),
+      kind,
+      editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
     }
   } catch {
+    const kind = classifyAgentKind(agent)
     return {
       agent_id: agent,
       conversation_id: conversationId,
       messages: [],
       summaries: [],
+      kind,
+      editable: kind === 'api',
     }
+  }
+}
+
+export interface PatchAgentMessageRequest {
+  index: number
+  content: string
+  conversation_id?: string
+}
+
+/** PATCH /chat/thread/?agent= — persist one edited turn (API agents only). */
+export async function patchAgentMessage(
+  agentId: string,
+  body: PatchAgentMessageRequest,
+): Promise<AgentThread> {
+  const agent = agentIdFromBlueprint(agentId)
+  await ensureCsrfCookie()
+  const data = await apiPatch<AgentThread>(
+    `/chat/thread/?agent=${encodeURIComponent(agent)}`,
+    body,
+  )
+  const messages = Array.isArray(data?.messages)
+    ? data.messages.filter(isThreadMessage)
+    : []
+  const kind = classifyAgentKind(agent, data?.kind)
+  return {
+    agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
+    conversation_id:
+      typeof data?.conversation_id === 'string' && data.conversation_id
+        ? data.conversation_id
+        : conversationIdForAgent(agent),
+    messages,
+    summaries: parseSummaries(data?.summaries),
+    kind,
+    editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
   }
 }
 

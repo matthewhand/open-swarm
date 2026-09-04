@@ -1,4 +1,12 @@
-import { memo, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import {
+  memo,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { Pencil } from 'lucide-react'
 import { Textarea, LoadingDots } from './DaisyUI'
 import { renderSafeMarkdown } from '../lib/markdown'
@@ -14,6 +22,7 @@ export interface ChatMessageBubbleProps {
   onStartEdit: () => void
   onCancelEdit: () => void
   onSaveEdit: (text: string) => void
+  children?: ReactNode
 }
 
 function selectionIsActive(): boolean {
@@ -67,6 +76,7 @@ export function ChatMessageBubble({
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
+  children,
 }: ChatMessageBubbleProps) {
   const [draft, setDraft] = useState(text)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -147,6 +157,7 @@ export function ChatMessageBubble({
           onClick={handleBubbleClick}
         >
           <ChatBubbleBody text={text} streaming={streaming} />
+          {children}
         </div>
       )}
       {canEdit && !streaming && !editing ? (
