@@ -513,23 +513,39 @@ def cli_from_rail_id(agent_id: str | None) -> str | None:
 
 
 def rail_cli_rows() -> list[dict[str, Any]]:
-    """Rows for the Grok conversation rail (id ``grok_agent``, …)."""
-    rows: list[dict[str, Any]] = []
-    for spec in listed_cli_specs():
-        name = str(spec.get("cli") or spec.get("agent_id") or "")
-        if not name:
-            continue
-        meta = CLI_SIDEBAR.get(name) or {}
-        rows.append({
-            "id": rail_cli_agent_id(name),
+    """Named kind rows for the conversation rail: ``cli_agent`` + ``api_agent``.
+
+    Host CLIs (grok/agy/opencode/pi) are picked from the chat CLI dropdown, not
+    as four separate rail ids. ``grok_agent``-style ids still map via
+    :func:`cli_from_rail_id` for old bookmarks.
+    """
+    default_cli = next(
+        (name for name in SIDEBAR_CLIS if name in CATALOG and which_cli(CATALOG[name]["cmd"][0])),
+        SIDEBAR_CLIS[0] if SIDEBAR_CLIS else "grok",
+    )
+    installed = any(
+        name in CATALOG and which_cli(CATALOG[name]["cmd"][0]) for name in SIDEBAR_CLIS
+    )
+    return [
+        {
+            "id": "cli_agent",
             "object": "cli.agent",
-            "name": rail_cli_agent_id(name),
-            "cli": name,
+            "name": "cli_agent",
+            "cli": default_cli,
             "kind": "cli",
-            "description": meta.get("description") or spec.get("description") or f"{name} CLI",
-            "installed": bool(which_cli(CATALOG[name]["cmd"][0])),
-        })
-    return rows
+            "description": "Host CLI — pick grok, agy, opencode, or pi in the header.",
+            "installed": installed,
+        },
+        {
+            "id": "api_agent",
+            "object": "cli.agent",
+            "name": "api_agent",
+            "cli": "",
+            "kind": "api",
+            "description": "LiteLLM — pick a profile (orchestration, auxiliary, …).",
+            "installed": True,
+        },
+    ]
 
 
 def session_policy(name: str) -> dict[str, Any] | None:

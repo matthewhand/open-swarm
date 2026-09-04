@@ -123,8 +123,15 @@ export function parseRemote(raw: unknown): RemoteEntry | null {
   return { id, kind, title, configured, agents }
 }
 
-/** Only remotes the operator added, or that already report agents/bots. */
+/** Always listed on the conversation rail (Hermes + OpenMousBot). */
+export const PINNED_RAIL_REMOTE_IDS = new Set(['hermes', 'omb', 'openmousbot', 'openmausbot'])
+
+/** Pinned remotes, plus any the operator added or that already report agents. */
 export function isRailRemote(remote: RemoteEntry): boolean {
+  const id = String(remote.id || '').trim().toLowerCase()
+  if (PINNED_RAIL_REMOTE_IDS.has(id) || PINNED_RAIL_REMOTE_IDS.has(String(remote.kind || '').toLowerCase())) {
+    return true
+  }
   return remote.configured || remote.agents.length > 0
 }
 

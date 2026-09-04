@@ -105,10 +105,8 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
           native_consensus: {},
           catalog: {},
           rail: [
-            { id: 'grok_agent', object: 'cli.agent', name: 'grok_agent', cli: 'grok', kind: 'cli', description: 'Host grok CLI', installed: true },
-            { id: 'agy_agent', object: 'cli.agent', name: 'agy_agent', cli: 'agy', kind: 'cli', description: 'Host agy CLI', installed: true },
-            { id: 'opencode_agent', object: 'cli.agent', name: 'opencode_agent', cli: 'opencode', kind: 'cli', description: 'Host opencode CLI', installed: true },
-            { id: 'pi_agent', object: 'cli.agent', name: 'pi_agent', cli: 'pi', kind: 'cli', description: 'Host pi CLI', installed: true },
+            { id: 'cli_agent', object: 'cli.agent', name: 'cli_agent', cli: 'grok', kind: 'cli', description: 'Host CLI', installed: true },
+            { id: 'api_agent', object: 'cli.agent', name: 'api_agent', cli: '', kind: 'api', description: 'LiteLLM', installed: true },
           ],
         }),
       } as Response
@@ -233,33 +231,29 @@ describe('AgentSidebar Grok rail', () => {
     )
   })
 
-  it('lists grok_agent, agy_agent, opencode_agent, and pi_agent after Support', async () => {
+  it('lists cli_agent then api_agent after Support', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
-    await within(list).findByRole('link', { name: /grok_agent/ })
+    await within(list).findByRole('link', { name: /cli_agent/ })
     const hrefs = within(list)
       .getAllByRole('link')
       .map((el) => el.getAttribute('href'))
-    expect(hrefs.slice(0, 5)).toEqual([
+    expect(hrefs.slice(0, 3)).toEqual([
       '/chat?blueprint=support',
-      '/chat?blueprint=grok_agent',
-      '/chat?blueprint=agy_agent',
-      '/chat?blueprint=opencode_agent',
-      '/chat?blueprint=pi_agent',
+      '/chat?blueprint=cli_agent',
+      '/chat?blueprint=api_agent',
     ])
   })
 
-  it('keeps CLI rail rows listed even if they were previously hidden', async () => {
+  it('keeps cli_agent and api_agent listed even if they were previously hidden', async () => {
     localStorage.setItem(
       HIDDEN_AGENTS_STORAGE_KEY,
-      JSON.stringify(['grok_agent', 'agy_agent', 'opencode_agent', 'pi_agent', 'codey']),
+      JSON.stringify(['cli_agent', 'api_agent', 'codey']),
     )
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
-    await within(list).findByRole('link', { name: /grok_agent/ })
-    expect(within(list).getByRole('link', { name: /agy_agent/ })).toBeInTheDocument()
-    expect(within(list).getByRole('link', { name: /opencode_agent/ })).toBeInTheDocument()
-    expect(within(list).getByRole('link', { name: /pi_agent/ })).toBeInTheDocument()
+    await within(list).findByRole('link', { name: /cli_agent/ })
+    expect(within(list).getByRole('link', { name: /api_agent/ })).toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
   })
 

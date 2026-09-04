@@ -370,12 +370,23 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                     cli_name = raw_cli.strip()
             if not cli_name:
                 cli_name = cli_from_rail_id(blueprint_id)
-            run_id = "cli_agent" if cli_name else blueprint_id
-            blueprint_instance = await get_blueprint_instance(run_id)
-            if blueprint_instance is not None and cli_name and hasattr(
-                blueprint_instance, "set_params"
-            ):
-                blueprint_instance.set_params({"cli": cli_name})
+            if str(blueprint_id).strip().lower() == "api_agent":
+                run_id = "chatbot"
+                blueprint_instance = await get_blueprint_instance(run_id)
+                profile = None
+                if isinstance(params, dict):
+                    raw_model = params.get("model") or params.get("llm_profile")
+                    if isinstance(raw_model, str) and raw_model.strip() and raw_model.strip() != "default":
+                        profile = raw_model.strip()
+                if blueprint_instance is not None and profile:
+                    blueprint_instance.llm_profile_name = profile
+            else:
+                run_id = "cli_agent" if cli_name else blueprint_id
+                blueprint_instance = await get_blueprint_instance(run_id)
+                if blueprint_instance is not None and cli_name and hasattr(
+                    blueprint_instance, "set_params"
+                ):
+                    blueprint_instance.set_params({"cli": cli_name})
         except Exception:
             logger.error(
                 f"Error loading blueprint '{blueprint_id}'", exc_info=True

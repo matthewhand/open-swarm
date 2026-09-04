@@ -806,7 +806,7 @@ export interface CliRailAgent {
   object: 'cli.agent'
   name: string
   cli: string
-  kind: 'cli'
+  kind: 'cli' | 'api'
   description: string
   installed: boolean
 }

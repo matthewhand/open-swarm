@@ -115,15 +115,18 @@ def test_listed_cli_specs_are_first_class_sidebar_agents():
     assert specs["pi"]["cli"] == "pi"
 
 
-def test_rail_cli_rows_use_star_agent_ids():
+def test_rail_cli_rows_use_named_kind_ids():
     rows = {r["id"]: r for r in cli_catalog.rail_cli_rows()}
-    for name in ("grok", "agy", "opencode", "pi"):
-        row = rows[f"{name}_agent"]
-        assert row["cli"] == name
-        assert row["kind"] == "cli"
-        assert cli_catalog.cli_from_rail_id(row["id"]) == name
+    assert set(rows) == {"cli_agent", "api_agent"}
+    assert rows["cli_agent"]["kind"] == "cli"
+    assert rows["cli_agent"]["name"] == "cli_agent"
+    assert rows["api_agent"]["kind"] == "api"
+    assert rows["api_agent"]["name"] == "api_agent"
+    assert cli_catalog.cli_from_rail_id("grok_agent") == "grok"
+    assert cli_catalog.cli_from_rail_id("agy") == "agy"
     assert cli_catalog.cli_from_rail_id("grok") == "grok"
     assert cli_catalog.cli_from_rail_id("nope") is None
+    assert cli_catalog.cli_from_rail_id("cli_agent") is None
 
 
 def test_which_cli_finds_user_local_bin_when_path_is_stripped(tmp_path, monkeypatch):
@@ -139,7 +142,7 @@ def test_which_cli_finds_user_local_bin_when_path_is_stripped(tmp_path, monkeypa
     monkeypatch.setenv("PATH", str(empty))
     assert cli_catalog.which_cli("grok") == str(grok)
     rows = {r["id"]: r for r in cli_catalog.rail_cli_rows()}
-    assert rows["grok_agent"]["installed"] is True
+    assert rows["cli_agent"]["installed"] is True
     adapter = CliAdapter.from_config("grok", {"cmd": ["grok", "-p", "{prompt}"]})
     assert adapter.is_available()
     assert adapter._resolved_argv(["grok", "-p", "hi"])[0] == str(grok)

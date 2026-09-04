@@ -11,6 +11,7 @@ import {
 describe('restoreKindForAgent (REQ-161)', () => {
   it('classifies CLI, API, remote, and team ids', () => {
     expect(restoreKindForAgent('cli_agent')).toBe('cli')
+    expect(restoreKindForAgent('api_agent')).toBe('api')
     expect(restoreKindForAgent('grok_agent')).toBe('cli')
     expect(restoreKindForAgent('agy_agent')).toBe('cli')
     expect(restoreKindForAgent('opencode_agent')).toBe('cli')

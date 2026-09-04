@@ -164,24 +164,30 @@ function sidebarHref(agent: { id: string; kind?: string }): string {
 }
 
 function toSidebarCli(row: CliRailAgent): SidebarAgent {
+  const kind = row.kind === 'api' ? 'api' : 'cli'
   return {
     id: row.id,
     object: 'blueprint',
     name: row.name,
-    description: row.installed ? row.description : `${row.description} (not on PATH)`,
+    description:
+      kind === 'cli' && !row.installed ? `${row.description} (not on PATH)` : row.description,
     abbreviation: null,
     required_mcp_servers: [],
-    tags: ['cli'],
+    tags: [kind],
     installed: row.installed,
     compiled: true,
-    kind: 'cli',
+    kind,
     cli: row.cli,
   }
 }
 
-/** Host CLI verify rows (grok_agent, agy_agent, …) stay on the rail. */
+/** Named kind rows (cli_agent, api_agent) stay on the rail. */
 function isCliRailAgent(agent: { id?: string; kind?: string }): boolean {
   return agent.kind === 'cli'
+}
+
+function isApiRailAgent(agent: { id?: string; kind?: string }): boolean {
+  return agent.kind === 'api' || agent.id === 'api_agent'
 }
 
 function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
@@ -403,18 +409,19 @@ export default function AgentSidebar({
       }
     }
     const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
-    const clis = (cliQuery.data?.rail ?? []).map(toSidebarCli)
-    const cliIds = new Set(clis.map((a) => a.id))
-    const fromBlueprintsNoCli = fromBlueprints.filter((a) => !cliIds.has(a.id))
+    const named = (cliQuery.data?.rail ?? []).map(toSidebarCli)
+    const namedIds = new Set(named.map((a) => a.id))
+    const fromBlueprintsNoCli = fromBlueprints.filter((a) => !namedIds.has(a.id) && a.id !== 'api_agent')
     const list = [...fromRosters, ...fromBlueprintsNoCli, ...herdr]
     const support = list.filter((a) => isSupportAgent(a))
-    const rest = list.filter((a) => !isSupportAgent(a))
-    const merged = [...support, ...clis, ...rest]
+    const rest = list.filter((a) => !isSupportAgent(a) && !isApiRailAgent(a))
+    const merged = [...support, ...named, ...rest]
     const railRank = (a: SidebarAgent) => {
       if (isSupportAgent(a)) return 0
-      if (a.kind === 'cli') return 1
-      if (isChiefOfStaff(roleFromAgent(a))) return 2
-      return 3
+      if (isCliRailAgent(a)) return 1
+      if (isApiRailAgent(a)) return 2
+      if (isChiefOfStaff(roleFromAgent(a))) return 3
+      return 4
     }
     return merged.sort((a, b) => railRank(a) - railRank(b))
   }, [catalog, cliQuery.data, herdrQuery.data, teams])
@@ -449,14 +456,18 @@ export default function AgentSidebar({
   const visibleAgents = useMemo(
     () =>
       agents.filter(
-        (agent) => isCliRailAgent(agent) || !resolvedHiddenIds.includes(agent.id),
+        (agent) =>
+          isCliRailAgent(agent) || isApiRailAgent(agent) || !resolvedHiddenIds.includes(agent.id),
       ),
     [agents, resolvedHiddenIds],
   )
   const hiddenAgents = useMemo(
     () =>
       agents.filter(
-        (agent) => !isCliRailAgent(agent) && resolvedHiddenIds.includes(agent.id),
+        (agent) =>
+          !isCliRailAgent(agent) &&
+          !isApiRailAgent(agent) &&
+          resolvedHiddenIds.includes(agent.id),
       ),
     [agents, resolvedHiddenIds],
   )
@@ -485,9 +496,10 @@ export default function AgentSidebar({
   const loadingList = blueprintsQuery.isPending && teamsQuery.isPending
   const loadFailed = blueprintsQuery.isError && teamsQuery.isError && visibleCount === 0
   const supportAgents = visibleAgents.filter((agent) => isSupportAgent(agent))
-  const cliAgents = visibleAgents.filter((agent) => agent.kind === 'cli')
+  const cliAgents = visibleAgents.filter((agent) => isCliRailAgent(agent))
+  const apiAgents = visibleAgents.filter((agent) => isApiRailAgent(agent))
   const otherAgents = visibleAgents.filter(
-    (agent) => !isSupportAgent(agent) && agent.kind !== 'cli',
+    (agent) => !isSupportAgent(agent) && !isCliRailAgent(agent) && !isApiRailAgent(agent),
   )
   const catalogRows = useMemo<RailRow[]>(() => {
     const supportRows: RailRow[] = supportAgents.map((agent) => ({
@@ -496,6 +508,11 @@ export default function AgentSidebar({
       agent,
     }))
     const cliRows: RailRow[] = cliAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    const apiRows: RailRow[] = apiAgents.map((agent) => ({
       kind: 'agent',
       id: agent.id,
       agent,
@@ -516,10 +533,10 @@ export default function AgentSidebar({
       agent,
     }))
     return excludePinnedFromList(
-      [...supportRows, ...cliRows, ...teamRows, ...remoteRows, ...otherRows],
+      [...supportRows, ...cliRows, ...apiRows, ...teamRows, ...remoteRows, ...otherRows],
       pins,
     )
-  }, [supportAgents, cliAgents, visibleRootTeams, visibleRemotes, otherAgents, pins])
+  }, [supportAgents, cliAgents, apiAgents, visibleRootTeams, visibleRemotes, otherAgents, pins])
   const orderedRows = useMemo(
     () => applyRailOrder(catalogRows, railOrder),
     [catalogRows, railOrder],
@@ -696,7 +713,12 @@ export default function AgentSidebar({
    */
   const hideFromRail = (id: string) => {
     if (!id) return
-    if (agents.some((agent) => agent.id === id && isCliRailAgent(agent))) return
+    if (
+      agents.some(
+        (agent) => agent.id === id && (isCliRailAgent(agent) || isApiRailAgent(agent)),
+      )
+    )
+      return
     setHiddenIds((current) => hideAgentId(id, current ?? resolvedHiddenIds))
   }
 
