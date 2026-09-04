@@ -184,6 +184,7 @@ the `cli_agents` config block. Adding a CLI never touches a blueprint.
 - [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) — sequence diagrams for every pattern
 - [CLI_FUSION.md](./CLI_FUSION.md) — the CLI-fusion blueprints in depth
 - [ADR-001](./ADR-001-primary-ui.md) — Django operator UI canonical; SPA `/` + `/chat` only
+- [ADR-003](./adr/003-desktop-packaging.md) — Windows desktop = loopback `swarm-api` + pywebview (planned; no installer yet)
 - [AUTH.md](./AUTH.md) — Bearer vs session, WS 4401, Explorer bridge, workdir / blueprint trust
 - [ROADMAP.md](../ROADMAP.md) · [FEATURE_STATUS.md](../FEATURE_STATUS.md) — granular status
 - [docs/archive/](./archive/) — superseded architectures, kept for the record

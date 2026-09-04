@@ -3,7 +3,7 @@
 - **Status:** Proposed (look-only; no runtime change in this PR)
 - **Date:** 2026-09-04
 - **Issue:** [#541](https://github.com/matthewhand/open-swarm/issues/541) (REQ-145)
-- **Related:** [#540](https://github.com/matthewhand/open-swarm/issues/540) (REQ-144 prefs), [#508](https://github.com/matthewhand/open-swarm/issues/508) (REQ-123 Postgres compose), [CONFIGURATION.md](../../CONFIGURATION.md)
+- **Related:** [#540](https://github.com/matthewhand/open-swarm/issues/540) (REQ-144 prefs), [#508](https://github.com/matthewhand/open-swarm/issues/508) (REQ-123 Postgres compose), [#554](https://github.com/matthewhand/open-swarm/issues/554) / [ADR-003](./003-desktop-packaging.md) (desktop profile paths), [CONFIGURATION.md](../../CONFIGURATION.md)
 - **Supersedes:** none. Complements [ADR-001](../ADR-001-primary-ui.md) (UI chrome), not config SoT.
 
 **Decision:** **hybrid** (not pure A, not pure B). Secrets stay env-only.

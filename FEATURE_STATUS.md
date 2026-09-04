@@ -207,6 +207,12 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
 | Remotes kind + CLI `--remote` (REQ-64) | ✅ | `remotes.herdr` persist; Settings + Add; `HerdrClient.from_remote_config()`; stub HTTP health/list in `tests/core/test_herdr_remote.py` |
 
+## 14. Desktop package (REQ-151) — 📋 planned
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Windows desktop zip (local server + window) | 📋 | [ADR-003](docs/adr/003-desktop-packaging.md) (Phase 0). **Pick:** OpenMausBot *shape* (loopback ASGI + owned window); **pywebview + PyInstaller onedir**, not Electron. No installer in the ADR PR. Pinokio/Docker stays the container path. Native `grok`/`agy`/… stay on the host. Fixes #554 when the ADR merges; Phase 1–2 are split Issues. |
+
 ## Regeneration
 
 Before treating a questionable row as authoritative, re-verify and update this file:

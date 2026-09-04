@@ -2,7 +2,8 @@
 
 Short definitions that match the code and APIs. Prefer these names in docs and UI copy.
 
-Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.md).
+Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.md);
+[ADR-003 — Desktop packaging](./adr/003-desktop-packaging.md) (planned Windows pane of glass).
 
 ## Blueprint
 
