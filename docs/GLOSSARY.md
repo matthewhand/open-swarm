@@ -4,6 +4,7 @@ Short definitions that match the code and APIs. Prefer these names in docs and U
 
 Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.md);
 [ADR-003 — Desktop packaging](./adr/003-desktop-packaging.md) (planned Windows pane of glass).
+Chat list windowing: [ADR-004](./adr/004-virtualized-chat-history.md) (REQ-163).
 
 ## Blueprint
 
@@ -74,4 +75,4 @@ A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swa
 | Surface | Role (v1) |
 |---------|-----------|
 | **Operator UI** | Canonical Django/HTMx trailing-slash chrome: `/teams/launch/`, `/teams/`, `/blueprint-library/`, `/agent-creator/`, `/settings/`, `/sessions/`, … ([ADR-001](./ADR-001-primary-ui.md)). |
-| **SPA Chat** | React SPA retains `/` (dashboard) and `/chat` (websocket chat) only. Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` redirect to Django. Do not remount Builder / AgentCreator SPA pages. |
+| **SPA Chat** | React SPA retains `/` (dashboard) and `/chat` (websocket chat) only. Bare `/teams`, `/blueprints`, `/settings`, `/agent-creator` redirect to Django. Do not remount Builder / AgentCreator SPA pages. Large transcripts: planned virtualizer is `@tanstack/react-virtual` ([ADR-004](./adr/004-virtualized-chat-history.md)); not shipped. |

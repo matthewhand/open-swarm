@@ -1,5 +1,7 @@
 # Websocket chat (ASGI / Django Channels)
 
+SPA transcript virtualization (look-only) is [ADR-004](./adr/004-virtualized-chat-history.md) (REQ-163). This page is the ASGI/WS contract, not the list window.
+
 The chat UI (Django `templates/chat.html` and the SPA ChatPage) streams over a
 websocket at:
 
