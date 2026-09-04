@@ -446,7 +446,7 @@
       if (hiddenWrap) {
         hiddenWrap.hidden = hiddenTotal === 0;
       }
-      if (hiddenCount) hiddenCount.textContent = "(" + hiddenTotal + ")";
+      if (hiddenCount) hiddenCount.textContent = String(hiddenTotal);
       hiddenListEl.hidden = !hiddenOpen;
       if (hiddenToggle) hiddenToggle.setAttribute("aria-expanded", hiddenOpen ? "true" : "false");
 

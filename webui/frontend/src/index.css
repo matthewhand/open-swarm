@@ -593,6 +593,42 @@ button.os-agent-row {
   color: var(--color-base-content);
 }
 
+.os-hide-drop--has-hidden:not([data-drag-over]):not(.os-hide-drop--active) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.os-hidden-bots-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.os-hidden-bots-row:hover {
+  background: color-mix(in srgb, var(--color-base-content) 7%, transparent);
+  color: var(--color-base-content);
+}
+
+.os-hidden-bots-label {
+  font-weight: 500;
+}
+
+.os-hidden-bots-tail {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 .os-rail-hostname-row {
   display: flex;
   align-items: center;
