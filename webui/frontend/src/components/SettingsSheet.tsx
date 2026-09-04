@@ -20,6 +20,7 @@ import {
 } from '../lib/api'
 import { formatStoreSize } from '../lib/localStore'
 import { RemoteSelect } from './RemoteSelect'
+import { RemoteOperatePane } from './RemotesSettings'
 import {
   configuredRemotes,
   remoteKindLabel,
@@ -515,6 +516,7 @@ function RemotesCatalogPane() {
   const [kind, setKind] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
+  const [apiKeyEnv, setApiKeyEnv] = useState('')
   const [selectedId, setSelectedId] = useState('')
 
   const remotesQuery = useQuery({
@@ -531,11 +533,16 @@ function RemotesCatalogPane() {
     if (!kind && unused[0]) setKind(unused[0].id)
   }, [kind, unused])
 
+  useEffect(() => {
+    if (!selectedId && configured[0]) setSelectedId(configured[0].id)
+  }, [selectedId, configured])
+
   const addMutation = useMutation({
     mutationFn: () =>
       createRemote({
         kind,
         ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+        ...(apiKeyEnv.trim() ? { api_key_env: apiKeyEnv.trim() } : {}),
         ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
       }),
     onSuccess: (created) => {
@@ -550,6 +557,7 @@ function RemotesCatalogPane() {
       setAdding(false)
       setBaseUrl('')
       setApiKey('')
+      setApiKeyEnv('')
       setKind('')
       setSelectedId(created.id)
       success('Remote added', `${remoteKindLabel(created.kind || created.id, kinds)} is now configured.`)
@@ -583,6 +591,8 @@ function RemotesCatalogPane() {
     if (!kind) return
     addMutation.mutate()
   }
+
+  const selected = configured.find((remote) => remote.id === selectedId)
 
   return (
     <div className="space-y-4">
@@ -637,6 +647,8 @@ function RemotesCatalogPane() {
         </ul>
       )}
 
+      {selected ? <RemoteOperatePane remote={selected} /> : null}
+
       {adding ? (
         <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>
           <Select
@@ -673,6 +685,15 @@ function RemotesCatalogPane() {
               instance as its own remote.
             </p>
           ) : null}
+          <Input
+            label="API key env (optional)"
+            name="remote-api-key-env"
+            value={apiKeyEnv}
+            onChange={(event) => setApiKeyEnv(event.target.value)}
+            placeholder="OMB_API_KEY"
+            autoComplete="off"
+            spellCheck={false}
+          />
           <Input
             label="API key"
             name="remote-api-key"

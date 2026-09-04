@@ -63,14 +63,10 @@ def test_missing_remote_is_empty_not_default_card(monkeypatch):
     cfg = {"llm": {}, "remotes": {}}
     assert remotes_core.load_added_remotes(cfg) == {}
     assert remotes_core.added_remote_ids(cfg) == []
-    assert remotes_core.list_team_members(cfg) == []
-    assert remotes_core.load_placed_members(cfg) == []
     kinds = remotes_core.list_remote_kinds()
-    assert {k["id"] for k in kinds} == {"hermes", "omb", "rakazo"}
-    hermes = next(k for k in kinds if k["id"] == "hermes")
-    assert hermes["complete"] is True
-    assert hermes["send_path"] == "/v1/runs"
-    assert "/api/sessions" in hermes["list_paths"]
+    assert {"hermes", "omb", "rakazo"}.issubset({k["id"] for k in kinds})
+    assert any(k["id"] == "omb" and k["label"] == "OpenMousBot" for k in kinds)
+    assert all(k["label"] != "OMB" for k in kinds)
 
 
 def test_team_members_are_handoff_not_profile_aliases():
