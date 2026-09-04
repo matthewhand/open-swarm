@@ -842,6 +842,16 @@ button.os-agent-row {
   outline: none;
   font-size: 0.95rem;
   color: inherit;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  max-height: 8rem;
+  line-height: 1.4;
+  padding: 0.45rem 0;
+}
+.os-code-copy {
+  float: right;
+  margin-left: 0.5rem;
 }
 .os-composer__input::placeholder {
   color: color-mix(in srgb, var(--color-base-content) 40%, transparent);

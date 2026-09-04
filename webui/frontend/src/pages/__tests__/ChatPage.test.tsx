@@ -958,6 +958,7 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
 
     expect(await screen.findByText('prior question')).toBeInTheDocument()
     expect(screen.getByText('prior answer')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-status')).toHaveTextContent('Restored session')
     expect(screen.queryByText(/Move to trash/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Empty trash/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Disk used/i)).not.toBeInTheDocument()
@@ -1002,13 +1003,15 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const notice = await screen.findByTestId('chat-status')
-    expect(notice).toHaveTextContent('Started a new grok session.')
-    expect(notice).toHaveAttribute('data-role', 'status')
-    expect(notice).toHaveClass('os-chat-status')
-    expect(notice.className).not.toMatch(/chat-start|chat-end/)
-    expect(notice.querySelector('.chat-bubble')).toBeNull()
-    expect(notice.querySelector('span')).toHaveTextContent('Started a new grok session.')
+    const notices = await screen.findAllByTestId('chat-status')
+    expect(notices[0]).toHaveTextContent('Resumed CLI session')
+    const started = notices.find((n) => n.textContent?.includes('Started a new grok session.'))
+    expect(started).toBeTruthy()
+    expect(started).toHaveAttribute('data-role', 'status')
+    expect(started).toHaveClass('os-chat-status')
+    expect(started!.className).not.toMatch(/chat-start|chat-end/)
+    expect(started!.querySelector('.chat-bubble')).toBeNull()
+    expect(started!.querySelector('span')).toHaveTextContent('Started a new grok session.')
     expect(screen.getByText('hello').closest('.chat-end')).toBeTruthy()
     expect(screen.getByText('hi').closest('.chat-start')).toBeTruthy()
   })
@@ -1053,9 +1056,10 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     })
 
     const lines = await screen.findAllByTestId('chat-status')
-    expect(lines).toHaveLength(2)
-    expect(lines[0]).toHaveTextContent('Connecting…')
-    expect(lines[1]).toHaveTextContent('Session ready.')
+    expect(lines).toHaveLength(3)
+    expect(lines[0]).toHaveTextContent('Resumed CLI session')
+    expect(lines[1]).toHaveTextContent('Connecting…')
+    expect(lines[2]).toHaveTextContent('Session ready.')
     for (const line of lines) {
       expect(line).toHaveClass('os-chat-status')
       expect(line.className).not.toMatch(/chat-start|chat-end/)
@@ -1063,6 +1067,96 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     }
     expect(screen.getByText('ping').closest('.chat-end')).toBeTruthy()
     expect(screen.getByText('pong').closest('.chat-start')).toBeTruthy()
+  })
+
+  it('REQ-161: restores API / CLI / remote / team threads with a quiet status line', async () => {
+    const fixtures: Array<{ entry: string; agent: string; status: string }> = [
+      { entry: '/chat?blueprint=codey', agent: 'codey', status: 'Restored session' },
+      { entry: '/chat?blueprint=grok_agent', agent: 'grok_agent', status: 'Resumed CLI session' },
+      { entry: '/chat?remote=omb', agent: 'remote:omb', status: 'Reconnected remote' },
+      { entry: '/chat?team=demo-team', agent: 'team-demo-team', status: 'Restored session' },
+    ]
+    for (const fixture of fixtures) {
+      MockWebSocket.instances = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (input: RequestInfo) => {
+          const url = String(input)
+          if (url.includes('/chat/thread/')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: fixture.agent,
+                conversation_id: `c-${fixture.agent}`,
+                messages: [
+                  { role: 'user', content: `prior ${fixture.agent}` },
+                  { role: 'assistant', content: 'ok' },
+                ],
+              }),
+            } as Response
+          }
+          if (url.includes('team_rosters')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => [{ id: 'demo-team', name: 'Demo Team', members: [] }],
+            } as Response
+          }
+          return { ok: true, status: 200, json: async () => ({ data: [] }) } as Response
+        }),
+      )
+      const view = renderChat(fixture.entry)
+      await act(async () => {
+        MockWebSocket.instances[0]?.open()
+      })
+      expect(await screen.findByTestId('chat-status')).toHaveTextContent(fixture.status)
+      expect(screen.getByText(`prior ${fixture.agent}`)).toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it('REQ-127: composer textarea keeps fenced newlines and user bubbles render pre/code', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'codey',
+              conversation_id: 'c-codey',
+              messages: [
+                {
+                  role: 'user',
+                  content: '```python\ndef hello():\n    return 1\n```',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return { ok: true, status: 200, json: async () => ({ data: [] }) } as Response
+      }),
+    )
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const fence = await screen.findByTestId('chat-md')
+    expect(fence.querySelector('pre')).toBeTruthy()
+    expect(fence.querySelector('code')).toBeTruthy()
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    expect(composer.tagName).toBe('TEXTAREA')
+    fireEvent.change(composer, {
+      target: { value: '```python\nprint(1)\nprint(2)\n```' },
+    })
+    expect((composer as HTMLTextAreaElement).value).toContain('\n')
+    expect((composer as HTMLTextAreaElement).value.split('\n')).toHaveLength(4)
   })
 })
 

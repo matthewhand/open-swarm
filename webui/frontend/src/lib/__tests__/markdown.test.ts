@@ -25,4 +25,13 @@ describe('renderSafeMarkdown', () => {
     expect(view).toContain('def')
     expect(view).toContain('os-py-str')
   })
+
+  it('REQ-127: user-bubble fences render as pre/code with newlines kept in source', () => {
+    const source = '```python\nprint("hi")\nprint("there")\n```'
+    const view = renderSafeMarkdown(source)
+    expect(view).toContain('<pre')
+    expect(view).toContain('<code')
+    expect(view).toContain('language-python')
+    expect(source).toContain('\n')
+  })
 })

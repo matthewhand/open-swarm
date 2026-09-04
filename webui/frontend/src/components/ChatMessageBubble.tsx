@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { Pencil } from 'lucide-react'
 import { Textarea, LoadingDots } from './DaisyUI'
+import { copyTextToClipboard } from '../lib/clipboard'
 import { renderSafeMarkdown } from '../lib/markdown'
 
 export interface ChatMessageBubbleProps {
@@ -47,6 +48,29 @@ export const ChatBubbleBody = memo(
     text: string
     streaming: boolean
   }) {
+    const mdRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+      const root = mdRef.current
+      if (!root) return
+      root.querySelectorAll('pre').forEach((pre) => {
+        if (pre.querySelector('[data-testid="code-copy"]')) return
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'btn btn-ghost btn-xs os-code-copy'
+        btn.dataset.testid = 'code-copy'
+        btn.setAttribute('aria-label', 'Copy code')
+        btn.textContent = 'Copy'
+        btn.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          const code = pre.querySelector('code')
+          void copyTextToClipboard(code?.textContent ?? pre.textContent ?? '')
+        })
+        pre.insertBefore(btn, pre.firstChild)
+      })
+    }, [text])
+
     if (text.length === 0) {
       return streaming ? (
         <LoadingDots size="sm" />
@@ -56,6 +80,7 @@ export const ChatBubbleBody = memo(
     }
     return (
       <div
+        ref={mdRef}
         data-testid="chat-md"
         className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
         dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
