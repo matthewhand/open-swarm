@@ -29,7 +29,6 @@ import {
   roleCssClass,
   roleFromAgent,
 } from '../lib/agentRoles'
-import { openAgentEditor } from '../lib/agentSettings'
 import {
   hasHiddenAgentsStorage,
   hideAgentId,
