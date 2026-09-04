@@ -75,6 +75,7 @@ import {
   type AgentSession,
 } from '../lib/scaleOutSessions'
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
+import { AGENT_CHAT_SESSIONS_EVENT } from '../lib/agentChatSessions'
 import { formatRailTimestamp, getRowLastMessage } from '../lib/chatTime'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
@@ -334,9 +335,13 @@ export default function AgentSidebar({
   useEffect(() => {
     const onChange = () => setSessionTick((n) => n + 1)
     window.addEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
+    window.addEventListener(AGENT_CHAT_SESSIONS_EVENT, onChange)
+    window.addEventListener(GENERATION_COMPLETE_EVENT, onChange)
     window.addEventListener('storage', onChange)
     return () => {
       window.removeEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
+      window.removeEventListener(AGENT_CHAT_SESSIONS_EVENT, onChange)
+      window.removeEventListener(GENERATION_COMPLETE_EVENT, onChange)
       window.removeEventListener('storage', onChange)
     }
   }, [])

@@ -63,20 +63,37 @@ export function loadAgentChatSessions(): AgentChatSessionMap {
   }
 }
 
-export function saveAgentChatSessions(sessions: AgentChatSessionMap): void {
+export const AGENT_CHAT_SESSIONS_EVENT = 'swarm:agent-chat-sessions'
+
+export function emitAgentChatSessionsChanged(agentId?: string): void {
+  try {
+    window.dispatchEvent(
+      new CustomEvent(AGENT_CHAT_SESSIONS_EVENT, { detail: { agentId } }),
+    )
+  } catch {
+    /* jsdom / SSR */
+  }
+}
+
+export function saveAgentChatSessions(sessions: AgentChatSessionMap, agentId?: string): void {
   try {
     localStorage.setItem(AGENT_CHAT_SESSIONS_KEY, JSON.stringify(sessions))
   } catch {
     /* persistence is best-effort */
   }
+  emitAgentChatSessionsChanged(agentId)
 }
 
 export function persistableMessages(
-  messages: Array<{ key: string; role: 'user' | 'assistant'; text: string; streaming?: boolean }>,
+  messages: Array<{ key: string; role: string; text: string; streaming?: boolean }>,
 ): PersistedChatMessage[] {
   return messages
-    .filter((row) => row.text.length > 0 || !row.streaming)
-    .map((row) => ({ key: row.key, role: row.role, text: row.text }))
+    .filter(
+      (row) =>
+        (row.role === 'user' || row.role === 'assistant') &&
+        (row.text.length > 0 || !row.streaming),
+    )
+    .map((row) => ({ key: row.key, role: row.role as 'user' | 'assistant', text: row.text }))
 }
 
 export function getOrCreateAgentChatSession(agentId: string | null | undefined): AgentChatSession {
@@ -89,7 +106,7 @@ export function getOrCreateAgentChatSession(agentId: string | null | undefined):
     messages: [],
   }
   all[key] = created
-  saveAgentChatSessions(all)
+  saveAgentChatSessions(all, key)
   return created
 }
 
@@ -103,5 +120,5 @@ export function putAgentChatSession(
     conversationId: session.conversationId,
     messages: persistableMessages(session.messages),
   }
-  saveAgentChatSessions(all)
+  saveAgentChatSessions(all, key)
 }
