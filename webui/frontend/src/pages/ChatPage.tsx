@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
 } from 'react'
@@ -24,7 +25,15 @@ import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
-import { fetchBlueprints, fetchCliAgents, fetchCliModels, fetchModels, fetchRemotes } from '../lib/api'
+import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
+import {
+  type SlashItem,
+  buildSlashCatalog,
+  filterSlashItems,
+  getRecentSlashIds,
+  recordRecentSlashId,
+} from '../lib/slashMenu'
+import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchModels, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   appendAgentMessage,
@@ -170,6 +179,10 @@ const ChatPage = () => {
     Record<string, ConversationSummary[]>
   >({})
   const [input, setInput] = useState('')
+  const [slashDismissed, setSlashDismissed] = useState(false)
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
+  const [recentSlashIds, setRecentSlashIds] = useState<string[]>(() => getRecentSlashIds())
+  const [dynamicSkills, setDynamicSkills] = useState<{ name: string; description?: string }[]>([])
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
@@ -227,6 +240,7 @@ const ChatPage = () => {
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
   const plusRef = useRef<HTMLDivElement | null>(null)
+  const composerWrapRef = useRef<HTMLDivElement | null>(null)
   /** Monotonic counter for collision-free user-echo keys. */
   const userKeyCounterRef = useRef(0)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
@@ -939,11 +953,59 @@ const ChatPage = () => {
     setInput('')
   }
 
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape' && input.length > 0) {
-      event.preventDefault()
-      setInput('')
+  // Dynamic skills loading for slash catalog (REQ-169)
+  useEffect(() => {
+    let unmounted = false
+    void fetchConfigOptions()
+      .then((opts) => {
+        if (!unmounted && opts?.skills) {
+          setDynamicSkills(
+            opts.skills.map((s) => ({ name: s.name, description: s.description })),
+          )
+        }
+      })
+      .catch(() => {
+        // Silently ignore if config options endpoint is unavailable
+      })
+    return () => {
+      unmounted = true
     }
+  }, [])
+
+  const slashCatalog = useMemo(() => buildSlashCatalog(dynamicSkills), [dynamicSkills])
+  const isSlashOpen = input.startsWith('/') && !slashDismissed
+  const slashQuery = input.startsWith('/') ? input.slice(1) : ''
+  const filteredSlashItems = useMemo(
+    () => filterSlashItems(slashCatalog, slashQuery, recentSlashIds),
+    [slashCatalog, slashQuery, recentSlashIds],
+  )
+
+  useEffect(() => {
+    setSlashSelectedIndex(0)
+  }, [slashQuery])
+
+  useEffect(() => {
+    if (!isSlashOpen) return
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (composerWrapRef.current && !composerWrapRef.current.contains(event.target as Node)) {
+        setSlashDismissed(true)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+    }
+  }, [isSlashOpen])
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    if (val.startsWith('/') && !input.startsWith('/')) {
+      setSlashDismissed(false)
+      setSlashSelectedIndex(0)
+    }
+    setInput(val)
   }
 
   const handleMic = () => {
@@ -1037,6 +1099,66 @@ const ChatPage = () => {
       })
     }
   }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
+
+  const handleSelectSlashItem = useCallback(
+    (item: SlashItem) => {
+      recordRecentSlashId(item.id)
+      setRecentSlashIds(getRecentSlashIds())
+      setSlashDismissed(true)
+
+      if (item.id === 'compact') {
+        void handleCompact()
+        setInput('')
+      } else {
+        setInput(`${item.command} `)
+      }
+      setTimeout(() => {
+        composerRef.current?.focus()
+      }, 0)
+    },
+    [handleCompact],
+  )
+
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (isSlashOpen) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSlashSelectedIndex((prev) =>
+          filteredSlashItems.length > 0 ? (prev + 1) % filteredSlashItems.length : 0,
+        )
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSlashSelectedIndex((prev) =>
+          filteredSlashItems.length > 0
+            ? (prev - 1 + filteredSlashItems.length) % filteredSlashItems.length
+            : 0,
+        )
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        if (filteredSlashItems.length > 0) {
+          event.preventDefault()
+          const selected = filteredSlashItems[slashSelectedIndex] || filteredSlashItems[0]
+          if (selected) {
+            handleSelectSlashItem(selected)
+            return
+          }
+        }
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setSlashDismissed(true)
+        return
+      }
+    }
+
+    if (event.key === 'Escape' && input.length > 0) {
+      event.preventDefault()
+      setInput('')
+    }
+  }
 
   const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
   const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
@@ -1434,59 +1556,73 @@ const ChatPage = () => {
       </div>
 
       <form onSubmit={handleSend} className="os-composer-wrap">
-        <div className="os-composer">
-          <div className="relative" ref={plusRef}>
+        <div className="relative" ref={composerWrapRef}>
+          <ComposerSlashPopup
+            open={isSlashOpen}
+            query={slashQuery}
+            items={filteredSlashItems}
+            selectedIndex={slashSelectedIndex}
+            onSelectIndex={setSlashSelectedIndex}
+            onSelectItem={handleSelectSlashItem}
+            recentIds={recentSlashIds}
+          />
+          <div className="os-composer">
+            <div className="relative" ref={plusRef}>
+              <button
+                type="button"
+                className="os-composer__icon"
+                aria-label="Add"
+                aria-haspopup="menu"
+                aria-expanded={plusOpen}
+                onClick={() => setPlusOpen((value) => !value)}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </button>
+              {plusOpen && (
+                <ul
+                  role="menu"
+                  aria-label="Chat actions"
+                  className="os-plus-menu"
+                >
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="os-plus-menu__item"
+                      onClick={() => {
+                        void handleCompact()
+                      }}
+                    >
+                      <Layers className="h-4 w-4" aria-hidden="true" />
+                      Compact
+                    </button>
+                  </li>
+                </ul>
+              )}
+            </div>
+            <input
+              ref={composerRef}
+              type="text"
+              className="os-composer__input"
+              placeholder={composerPlaceholder}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleComposerKeyDown}
+              disabled={status !== 'open'}
+              aria-label="Chat message"
+              aria-haspopup="listbox"
+              aria-expanded={isSlashOpen}
+              aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
+            />
             <button
               type="button"
               className="os-composer__icon"
-              aria-label="Add"
-              aria-haspopup="menu"
-              aria-expanded={plusOpen}
-              onClick={() => setPlusOpen((value) => !value)}
+              aria-label="Voice input"
+              onClick={handleMic}
             >
-              <Plus className="h-4 w-4" aria-hidden="true" />
+              <Mic className="h-4 w-4" aria-hidden="true" />
             </button>
-            {plusOpen && (
-              <ul
-                role="menu"
-                aria-label="Chat actions"
-                className="os-plus-menu"
-              >
-                <li role="none">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="os-plus-menu__item"
-                    onClick={() => {
-                      void handleCompact()
-                    }}
-                  >
-                    <Layers className="h-4 w-4" aria-hidden="true" />
-                    Compact
-                  </button>
-                </li>
-              </ul>
-            )}
           </div>
-          <input
-            ref={composerRef}
-            type="text"
-            className="os-composer__input"
-            placeholder={composerPlaceholder}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleComposerKeyDown}
-            disabled={status !== 'open'}
-            aria-label="Chat message"
-          />
-          <button
-            type="button"
-            className="os-composer__icon"
-            aria-label="Voice input"
-            onClick={handleMic}
-          >
-            <Mic className="h-4 w-4" aria-hidden="true" />
-          </button>
         </div>
         <button type="submit" className="sr-only" disabled={!canSend}>
           Send
