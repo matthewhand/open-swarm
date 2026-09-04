@@ -28,7 +28,6 @@ import {
   roleBadgeLabel,
   roleCssClass,
   roleFromAgent,
-  showsBlueprintEdit,
 } from '../lib/agentRoles'
 import { openAgentEditor } from '../lib/agentSettings'
 import {
@@ -890,7 +889,6 @@ export default function AgentSidebar({
     const scaleOut = !herdr && shouldOpenSessionPicker(sessions)
     const active = !herdr && selectedId === agent.id
     const role = agentRole(agent)
-    const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
     const dropping = dropTargetId === agent.id
     const badge = roleBadgeLabel(role)
@@ -1036,27 +1034,6 @@ export default function AgentSidebar({
           >
             {body}
           </button>
-          {showEdit ? (
-            <button
-              type="button"
-              className="os-agent-edit"
-              aria-label={`Edit ${name} blueprint`}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                openBlueprintEditor(agent)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  openBlueprintEditor(agent)
-                }
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          ) : null}
         </div>
       )
     }
@@ -1078,27 +1055,6 @@ export default function AgentSidebar({
         >
           {body}
         </Link>
-        {showEdit ? (
-          <button
-            type="button"
-            className="os-agent-edit"
-            aria-label={`Edit ${name}`}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              openEditor(agent)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                event.stopPropagation()
-                openEditor(agent)
-              }
-            }}
-          >
-            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        ) : null}
       </div>
     )
   }
