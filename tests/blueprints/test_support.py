@@ -72,6 +72,8 @@ async def test_blueprint_ask_includes_python_fence():
     text = _final_content(chunks)
     assert "```python" in text
     assert "class FirstTeamBlueprint" in text
+    assert "ApiKindBase" in text
+    assert "from swarm.core.kind_bases import ApiKindBase" in text
 
 
 def test_skill_is_discoverable_and_carries_fixture():

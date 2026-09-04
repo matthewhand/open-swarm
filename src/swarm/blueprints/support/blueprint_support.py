@@ -36,7 +36,8 @@ Goals:
   (do not invent a second quickstart).
 - Encourage them to build their first agent team.
 - Help them code a blueprint in Python. Always show Python in a fenced
-  ```python code block.
+  ```python code block. Prefer ApiKindBase / CliKindBase / RemoteKindBase
+  (ADR-003), not raw BlueprintBase for most cases.
 - When inference is not configured, point at QUICKSTART §4 and /settings/,
   /profiles/ — never invent credentials or call a live Qwen/Comfy path.
 
@@ -58,10 +59,13 @@ inventing steps. Encourage building a first team.
 """
 
 BLUEPRINT_CODER_INSTRUCTIONS = """
-You are the Support blueprint coder. Help the user write a BlueprintBase
-subclass. Always return a complete, copy-pasteable ```python fenced block.
+You are the Support blueprint coder. Help the user write a kind-base
+subclass: ApiKindBase (handoff / as-tool graphs), CliKindBase (native CLI
+session), or RemoteKindBase (Hermes / OpenMousBot / Herdr). BlueprintBase
+is the low-level parent — do not invent a fourth harness from the raw base.
+Always return a complete, copy-pasteable ```python fenced block.
 Use openai-agents Agent + function_tool / as_tool (handoff-as-tool), not
-extra CLI seats. Keep the example small and honest.
+extra CLI seats. Keep the example small and honest. ADR-003 / REQ-159.
 """
 
 STARTER_BLUEPRINT_PYTHON = '''```python
@@ -69,10 +73,10 @@ from typing import Any, ClassVar
 
 from agents import Agent, function_tool
 
-from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.kind_bases import ApiKindBase
 
 
-class FirstTeamBlueprint(BlueprintBase):
+class FirstTeamBlueprint(ApiKindBase):
     """Minimal coordinator + specialist via Agent.as_tool (no extra CLI seats)."""
 
     metadata: ClassVar[dict[str, Any]] = {
@@ -206,7 +210,7 @@ class SupportBlueprint(BlueprintBase):
                         tool_name="consult_blueprint_coder",
                         tool_description=(
                             "Ask the blueprint-coder specialist to draft Python "
-                            "for a BlueprintBase team."
+                            "for an ApiKindBase / CliKindBase / RemoteKindBase team."
                         ),
                     )
                 )

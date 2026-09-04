@@ -13,6 +13,7 @@ def test_readme_has_forced_circular_and_harness_diagrams():
     assert "cannot inject" in text.lower() or "stay native" in text.lower()
     assert "docs/examples/openai-agents-handoff-graphs" in text
     assert "#564" in text or "REQ-156" in text
+    assert "docs/adr/003-kind-bases.md" in text
 
 
 def test_example_readme_documents_8001_seed_without_secrets():

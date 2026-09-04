@@ -93,6 +93,26 @@ Worked configs, Mode A/B demo names, tests that lock the edges, and
 (REQ-156 / #564). Peer mailbox tools (`list_agents` / `send_message`) are
 a different surface ([#561](https://github.com/matthewhand/open-swarm/issues/561)).
 
+**Kind bases (REQ-159 / #570):** Support and new blueprints should subclass
+`ApiKindBase` / `CliKindBase` / `RemoteKindBase` from
+`swarm.core.kind_bases` — not raw `BlueprintBase` for most cases.
+`BlueprintBase` stays the low-level parent. Today vs target + diagram:
+[ADR-003](docs/adr/003-kind-bases.md).
+
+```mermaid
+flowchart TB
+  BB[BlueprintBase]
+  API[ApiKindBase]
+  CLI[CliKindBase]
+  REM[RemoteKindBase]
+  BB --> API
+  BB --> CLI
+  BB --> REM
+  API --> Graph2[openai-agents graph]
+  CLI --> NativeCLI2[native CLI session]
+  REM --> NativeRemote2[native remote harness]
+```
+
 ---
 
 ## Quickstart (CLI)
@@ -430,6 +450,7 @@ Documentation map:
 
 * [docs/GLOSSARY.md](./docs/GLOSSARY.md) — v1 product vocabulary (Blueprint vs Team alias, MoA/Persona, harness types, Operator UI vs SPA Chat).
 * [docs/examples/openai-agents-handoff-graphs/](./docs/examples/openai-agents-handoff-graphs/README.md) — why openai-agents (forced / circular graphs), three harness types, `:8001` seed (REQ-156).
+* [docs/adr/003-kind-bases.md](./docs/adr/003-kind-bases.md) — API / CLI / remote kind bases Support should subclass (REQ-159).
 * [USERGUIDE.md](./USERGUIDE.md) — task-oriented `swarm-cli` reference.
 * [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — runbook for deploying a CLI-wrapping OpenAI-compatible server (pull → configure → prove).
 * [docs/AUTH.md](./docs/AUTH.md) — auth & trust model (Bearer vs session, WS 4401, Explorer bridge, workdir, blueprint sandbox, CSRF/prod CSP).

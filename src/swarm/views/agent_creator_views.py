@@ -15,6 +15,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
 from swarm.core import paths
+from swarm.core.kind_bases import ALLOWED_BLUEPRINT_BASE_NAMES
 
 # Shared ban list for creator write paths (agent + team swarm saves).
 _BANNED_CODE_SNIPPETS = ("__import__", "subprocess", "os.system", "eval(", "exec(")
@@ -74,11 +75,9 @@ class BlueprintCodeValidator:
     """Validates generated blueprint code using Python AST parsing and linting"""
 
     def __init__(self):
-        # Match swarm.core.blueprint_spec.BLUEPRINT_INTERFACE: BlueprintBase
-        # plus async run(). Typing imports (AsyncGenerator, Any) are optional.
-        self.required_imports = [
-            'BlueprintBase',
-        ]
+        # Kind bases (ADR-003) or low-level BlueprintBase, plus async run().
+        # Typing imports (AsyncGenerator, Any) are optional.
+        self.required_imports = list(ALLOWED_BLUEPRINT_BASE_NAMES)
         self.required_methods = ['run']
         self.required_attributes = ['metadata']
 
@@ -111,22 +110,31 @@ class BlueprintCodeValidator:
                     for alias in node.names:
                         imports_found.append(alias.name)
 
-            for required_import in self.required_imports:
-                if not any(required_import in found for found in imports_found):
-                    errors.append(f"Missing required import: {required_import}")
+            if not any(
+                required in found
+                for required in self.required_imports
+                for found in imports_found
+            ):
+                errors.append(
+                    "Missing required import: ApiKindBase, CliKindBase, "
+                    "RemoteKindBase, or BlueprintBase"
+                )
 
             # Check for blueprint class
             blueprint_class = None
+            allowed = set(self.required_imports)
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
-                    # Check if it inherits from BlueprintBase
                     for base in node.bases:
-                        if isinstance(base, ast.Name) and base.id == 'BlueprintBase':
+                        if isinstance(base, ast.Name) and base.id in allowed:
                             blueprint_class = node
                             break
 
             if not blueprint_class:
-                errors.append("No class found that inherits from BlueprintBase")
+                errors.append(
+                    "No class found that inherits from a kind base "
+                    "(ApiKindBase / CliKindBase / RemoteKindBase) or BlueprintBase"
+                )
                 return False, errors
 
             # Check for required methods

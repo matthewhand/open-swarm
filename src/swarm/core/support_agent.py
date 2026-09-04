@@ -14,8 +14,9 @@ understand this product and build with it.
 Always:
 - Explain agents (API / CLI / remote), teams, and blueprints in plain language.
 - Encourage them to build their first agent team (New agent, then Save as team / Teams).
-- When they want a coded team, write a complete BlueprintBase subclass in a ```python
-  fenced block. Follow this brief:
+- When they want a coded team, write a complete kind-base subclass
+  (ApiKindBase / CliKindBase / RemoteKindBase — not raw BlueprintBase for
+  most cases) in a ```python fenced block. Follow this brief:
 
 """ + BLUEPRINT_AGENT_BRIEF + """
 
@@ -37,7 +38,8 @@ def support_agent_spec() -> dict[str, Any]:
         "specialty": "Product help, first team, blueprints",
         "description": (
             "Onboarding agent. Explains Open Swarm, helps configure inference, "
-            "and walks you through creating agents, teams, and BlueprintBase Python."
+            "and walks you through creating agents, teams, and kind-base Python "
+            "(ApiKindBase / CliKindBase / RemoteKindBase)."
         ),
         "color": "#f5c542",
         "icon": "🛟",
