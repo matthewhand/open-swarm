@@ -372,6 +372,21 @@ describe('AgentSidebar Grok rail', () => {
     expect(localStorage.getItem(HOSTNAME_STORAGE_KEY)).toBe('lab-box')
   })
 
+  it('renders a server icon left of hostname and clicking it opens remote sessions popup (REQ-118)', async () => {
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    const serverBtn = screen.getByTestId('rail-server-icon')
+    expect(serverBtn).toBeInTheDocument()
+    expect(serverBtn).toHaveAttribute('aria-label', 'Remote sessions')
+
+    expect(screen.queryByTestId('remote-sessions-popup')).toBeNull()
+    fireEvent.click(serverBtn)
+    expect(screen.getByTestId('remote-sessions-popup')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('remote-sessions-popup')).toBeNull()
+  })
+
   it('leaves the Hidden Bots area blank until something is hidden', async () => {
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     renderSidebar()
