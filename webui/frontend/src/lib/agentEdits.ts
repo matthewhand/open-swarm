@@ -28,6 +28,8 @@ export interface AgentEdit {
   llmOverride?: string
   folder?: string
   command?: string
+  cliOverride?: string
+  profileOverride?: string
 }
 
 export type AgentEditMap = Record<string, AgentEdit>
@@ -106,6 +108,16 @@ export function saveAgentEdit(agentId: string, patch: AgentEdit): AgentEdit {
     const command = patch.command.trim()
     if (command) next.command = command
     else delete next.command
+  }
+  if (patch.cliOverride !== undefined) {
+    const cli = patch.cliOverride.trim()
+    if (cli) next.cliOverride = cli
+    else delete next.cliOverride
+  }
+  if (patch.profileOverride !== undefined) {
+    const profile = patch.profileOverride.trim()
+    if (profile) next.profileOverride = profile
+    else delete next.profileOverride
   }
 
   if (Object.keys(next).length === 0) delete map[agentId]
