@@ -117,10 +117,26 @@ class TestConnect:
             mock_fetch.return_value = []
 
             with patch.object(consumer, 'accept', new_callable=AsyncMock) as mock_accept:
+                order = []
+                mock_accept.side_effect = lambda *a, **k: order.append("accept")
+                mock_fetch.side_effect = lambda *a, **k: order.append("fetch") or []
                 await consumer.connect()
 
                 mock_accept.assert_called_once()
                 mock_fetch.assert_called_once_with("test-conv-123")
+                assert order == ["accept", "fetch"]
+
+    @pytest.mark.asyncio
+    async def test_connect_accepts_even_if_fetch_raises(self, consumer):
+        """DB/thread-pool failure must not leave the handshake hanging."""
+        with patch.object(consumer, 'fetch_conversation', new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.side_effect = RuntimeError("CurrentThreadExecutor already quit or is broken")
+            with patch.object(consumer, 'accept', new_callable=AsyncMock) as mock_accept:
+                with patch.object(consumer, 'close', new_callable=AsyncMock) as mock_close:
+                    await consumer.connect()
+                    mock_accept.assert_called_once()
+                    mock_close.assert_not_called()
+                    assert consumer.messages == []
 
     @pytest.mark.asyncio
     async def test_connect_authenticated_fetches_conversation(self, consumer):
@@ -152,6 +168,84 @@ class TestConnect:
                     code=WS_AUTH_REQUIRED_CODE,
                     reason="authentication required",
                 )
+
+    @pytest.mark.asyncio
+    async def test_connect_passes_client_ip_to_anonymous_gate(
+        self, mock_scope_unauthenticated
+    ):
+        mock_scope_unauthenticated["client"] = ("10.0.0.199", 51234)
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+        preview = MagicMock()
+        preview.is_authenticated = True
+        preview.pk = 7
+
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=True) as allow:
+            with patch(
+                "swarm.consumers.database_sync_to_async",
+                side_effect=lambda fn: AsyncMock(return_value=preview),
+            ):
+                with patch.object(
+                    consumer, "fetch_conversation", new_callable=AsyncMock, return_value=[]
+                ):
+                    with patch.object(consumer, "accept", new_callable=AsyncMock):
+                        with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                            await consumer.connect()
+        allow.assert_called_with("10.0.0.199")
+        mock_close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_connect_anonymous_preview_does_not_close_4401(
+        self, mock_scope_unauthenticated
+    ):
+        """SWARM_ALLOW_ANONYMOUS preview user: accept and keep the socket."""
+        preview = MagicMock()
+        preview.is_authenticated = True
+        preview.pk = 99
+
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=True):
+            with patch(
+                "swarm.consumers.database_sync_to_async",
+                side_effect=lambda fn: AsyncMock(return_value=preview),
+            ):
+                with patch.object(
+                    consumer, "fetch_conversation", new_callable=AsyncMock
+                ) as mock_fetch:
+                    mock_fetch.return_value = []
+                    with patch.object(consumer, "accept", new_callable=AsyncMock) as mock_accept:
+                        with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                            await consumer.connect()
+
+        mock_accept.assert_called_once()
+        mock_close.assert_not_called()
+        mock_fetch.assert_called_once()
+        assert consumer.user is preview
+
+    @pytest.mark.asyncio
+    async def test_connect_anonymous_preview_mint_failure_keeps_socket(
+        self, mock_scope_unauthenticated
+    ):
+        """If the preview user cannot be minted, do not 4401 — socket stays open."""
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=True):
+            with patch(
+                "swarm.consumers.database_sync_to_async",
+                side_effect=lambda fn: AsyncMock(
+                    side_effect=RuntimeError("CurrentThreadExecutor already quit")
+                ),
+            ):
+                with patch.object(consumer, "accept", new_callable=AsyncMock) as mock_accept:
+                    with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                        await consumer.connect()
+
+        mock_accept.assert_called_once()
+        mock_close.assert_not_called()
+        assert consumer.messages == []
 
     @pytest.mark.asyncio
     async def test_connect_sets_conversation_id(self, consumer, mock_scope):
@@ -304,6 +398,20 @@ class TestReceive:
                     consumers_module.os = original_os
 
     @pytest.mark.asyncio
+    async def test_receive_new_session_clears_prior_transcript(self, consumer):
+        """REQ-65: params.new_session starts an empty task session."""
+        consumer.messages = [{"role": "user", "content": "old"}, {"role": "assistant", "content": "prior"}]
+        text_data = json.dumps({"message": "fresh task", "params": {"new_session": True}})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div>user message</div>"):
+            with patch.object(consumer, 'respond_with_default_model', new_callable=AsyncMock):
+                with patch.object(consumer, 'send', new_callable=AsyncMock):
+                    await consumer.receive(text_data)
+
+        assert consumer.messages[0]["content"] == "fresh task"
+        assert all(m.get("content") != "old" for m in consumer.messages)
+
+    @pytest.mark.asyncio
     async def test_receive_empty_message_returns_early(self, consumer):
         """Empty message should be ignored."""
         consumer.messages = []
@@ -339,6 +447,20 @@ class TestReceive:
         await consumer.receive(text_data)
 
         assert len(consumer.messages) == 0
+
+    @pytest.mark.asyncio
+    async def test_receive_tool_decision_resolves_pending_and_skips_chat(self, consumer):
+        """Safety Allow/Deny frames are not treated as chat messages."""
+        import asyncio
+
+        future = asyncio.get_running_loop().create_future()
+        consumer.messages = []
+        consumer._pending_tool_decisions = {"appr-1": future}
+        await consumer.receive(
+            json.dumps({"type": "tool_decision", "id": "appr-1", "decision": "allow"})
+        )
+        assert future.result() == "allow"
+        assert consumer.messages == []
 
 
 # =============================================================================
@@ -473,6 +595,24 @@ class TestBlueprintSelection:
         assert consumer.messages[-1]["role"] == "assistant"
 
     @pytest.mark.asyncio
+    async def test_team_stub_echoes_remote_member_target(self, consumer):
+        """PR #318 / REQ-23: target may be a kind=remote member id (no live LAN)."""
+        consumer.messages = [{"role": "user", "content": "ping hermes"}]
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_team_stub(
+                    {"team": "harness-team", "target": "hermes"},
+                    "ping hermes",
+                    "message-response-remote",
+                )
+        sent = "".join(
+            call.kwargs.get("text_data") or call.args[0]
+            for call in mock_send.await_args_list
+        )
+        assert "team:harness-team" in sent
+        assert "target:hermes" in sent
+
+    @pytest.mark.asyncio
     async def test_unknown_blueprint_sends_error_partial(self, consumer):
         """Unknown blueprint -> error partial; no assistant message recorded."""
         consumer.messages = [{"role": "user", "content": "Hello"}]
@@ -524,6 +664,76 @@ class TestBlueprintSelection:
                     "role": "assistant",
                     "content": "BP reply",
                 }
+
+    @pytest.mark.asyncio
+    async def test_blueprint_session_notice_is_bubbleless_status(self, consumer, monkeypatch):
+        """REQ-52: CLI session notice is a status line, not an assistant bubble."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+
+        async def fake_run(messages, **kwargs):
+            yield {
+                "type": "cli_session_notice",
+                "content": "Started a new echo session.",
+                "resumed": False,
+            }
+            yield {"messages": [{"role": "assistant", "content": "ok"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+        instance._params = {}
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("cli_agent", "message-response-cli")
+
+                frames = [
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                ]
+                assert any("chat-status-line" in frame for frame in frames)
+                assert any("Started a new echo session." in frame for frame in frames)
+                assert "Restored" not in "".join(frames)
+                assert {"role": "status", "content": "Started a new echo session."} in consumer.messages
+                instance.set_params.assert_called()
+                passed = instance.set_params.call_args[0][0]
+                assert passed.get("agent") == "cli_agent"
+
+    @pytest.mark.asyncio
+    async def test_blueprint_run_uses_compacted_context(self, consumer, monkeypatch):
+        """REQ-37: blueprint.run sees the summary tree, not covered raw turns."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.conversation_id = "ws-compact-conv"
+        consumer.messages = [
+            {"role": "user", "content": "secret raw turn"},
+            {"role": "assistant", "content": "secret raw reply"},
+        ]
+        seen = {}
+
+        async def fake_run(messages, **kwargs):
+            seen["messages"] = messages
+            yield {"messages": [{"role": "assistant", "content": "ok"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+
+        async def fake_context(conversation_id, messages):
+            assert conversation_id == "ws-compact-conv"
+            assert messages[0]["content"] == "secret raw turn"
+            return [{"role": "system", "content": "[Conversation summary]\ndigest only"}]
+
+        with patch("swarm.consumers._compacted_context", side_effect=fake_context):
+            with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+                mock_get.return_value = instance
+                with patch.object(consumer, "send", new_callable=AsyncMock):
+                    await consumer.respond_with_blueprint("jeeves", "message-response-compact")
+
+        contents = " ".join(m["content"] for m in seen["messages"])
+        assert "[Conversation summary]" in contents
+        assert "digest only" in contents
+        assert "secret raw turn" not in contents
+        assert consumer.messages[0]["content"] == "secret raw turn"
 
     @pytest.mark.asyncio
     async def test_blueprint_reply_escapes_html_in_oob_chunk(self, consumer, monkeypatch):
@@ -1149,6 +1359,41 @@ class TestRespondWithDefaultModelLiteLLM:
         )
         create_kwargs = mock_client.chat.completions.create.await_args.kwargs
         assert create_kwargs["model"] == "orchestration"
+
+    @pytest.mark.asyncio
+    async def test_uses_settings_default_when_env_unset(self, consumer, monkeypatch):
+        for key in ("LITELLM_MODEL", "OPENAI_MODEL", "DEFAULT_LLM"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("LITELLM_BASE_URL", "http://127.0.0.1:4000/v1")
+        monkeypatch.setenv("LITELLM_API_KEY", "sk-litellm-test")
+
+        consumer.messages = [{"role": "user", "content": "hi"}]
+
+        async def stream():
+            chunk = MagicMock()
+            chunk.choices = [MagicMock()]
+            chunk.choices[0].delta.content = "ok"
+            yield chunk
+
+        mock_client = MagicMock()
+        mock_client.base_url = "http://127.0.0.1:4000/v1"
+        mock_client.chat.completions.create = AsyncMock(return_value=stream())
+        mock_client.close = AsyncMock()
+
+        route = MagicMock()
+        route.profile = "gpt-5.6-terra"
+        route.warning = None
+        with patch("swarm.consumers.AsyncOpenAI", return_value=mock_client):
+            with patch("swarm.core.llm_task_routing.resolve_chat_model", return_value=route):
+                with patch(
+                    "swarm.core.llm_task_routing.model_id_for_profile",
+                    return_value="gpt-5.6-terra",
+                ):
+                    with patch.object(consumer, "send", new_callable=AsyncMock):
+                        await consumer.respond_with_default_model("message-response-settings")
+
+        create_kwargs = mock_client.chat.completions.create.await_args.kwargs
+        assert create_kwargs["model"] == "gpt-5.6-terra"
 
     @pytest.mark.asyncio
     async def test_rejects_openai_com_when_litellm_configured(self, consumer, monkeypatch):

@@ -194,6 +194,37 @@
       If an agent is blocked, submit is rejected. If it is already working,
       <code>--wait</code> may finish the in-flight turn, not a new one.
     </p>
+    <div class="mb-4" id="herdr-remote-kind">
+      <h3 class="h6" id="herdr-remote-kind-heading">Herdr remote (Settings Remotes kind)</h3>
+      <p class="os-meta mb-2">
+        Add kind <code>herdr</code> like Hermes / OpenMousBot / Rakazo.
+        Persist a base URL + api-key-env name. <code>herdr --remote</code> and
+        <code>swarm-cli remotes</code> use that configured base.
+        Localhost omits <code>--remote</code> only when you set a loopback URL.
+        Missing config is a clear error — we will not guess another host.
+      </p>
+      <form id="herdr-remote-form" class="row g-2 align-items-end mb-2">
+        <div class="col-md-5">
+          <label class="form-label" for="herdr-remote-base">Base URL</label>
+          <input class="form-control" id="herdr-remote-base" name="base_url" required
+                 maxlength="500" placeholder="http://127.0.0.1:9" autocomplete="off">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="herdr-remote-key-env">API key env name</label>
+          <input class="form-control" id="herdr-remote-key-env" name="api_key_env"
+                 maxlength="200" placeholder="HERDR_API_KEY" autocomplete="off"
+                 value="HERDR_API_KEY">
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-primary" data-action="add-herdr-remote">
+            Add Herdr remote
+          </button>
+        </div>
+      </form>
+      <div id="herdr-remote-status" class="os-meta" role="status">
+        Not configured — add a base URL to list it under Settings Remotes.
+      </div>
+    </div>
     <form id="herdr-add-form" class="row g-2 align-items-end mb-3">
       {% csrf_token %}
       <div class="col-md-4">

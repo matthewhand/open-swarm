@@ -1,0 +1,112 @@
+/**
+ * Session list for the #394 / #398 search-style picker.
+ *
+ * Pre-filtered to one team, remote, or (later) scale-out agent. Running and
+ * finished rows. Empty copy is “no sessions yet”.
+ */
+
+import { parseStartedAt, type StackFace } from './avatarStack'
+import type { RemoteAgent, RemoteEntry } from './remotesCatalog'
+import type { TeamRoster } from './teamRosters'
+
+export type SessionStatus = 'running' | 'finished'
+export type SessionGroupKind = 'team' | 'remote' | 'agent'
+
+export interface MemberSession {
+  id: string
+  groupId: string
+  groupKind: SessionGroupKind
+  memberId: string
+  title: string
+  snippet: string
+  status: SessionStatus
+  startedAt: number
+  href: string
+  role?: string
+}
+
+export function facesFromSessions(sessions: MemberSession[]): StackFace[] {
+  return sessions.map((session) => ({
+    id: session.memberId || session.id,
+    name: session.title,
+    startedAt: session.startedAt,
+    role: session.role,
+    working: session.status === 'running',
+  }))
+}
+
+export function filterSessions(sessions: MemberSession[], query: string): MemberSession[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return sessions
+  return sessions.filter((session) => {
+    return (
+      session.title.toLowerCase().includes(q) ||
+      session.snippet.toLowerCase().includes(q) ||
+      session.memberId.toLowerCase().includes(q)
+    )
+  })
+}
+
+function memberName(member: { id: string; name?: string }): string {
+  return (member.name && member.name.trim()) || member.id
+}
+
+function memberStatus(member: {
+  working?: boolean
+  status?: string
+}): SessionStatus {
+  if (member.status === 'running' || member.working) return 'running'
+  return 'finished'
+}
+
+export function sessionsForTeam(team: TeamRoster): MemberSession[] {
+  return team.members.map((member, index) => {
+    const memberId = member.team_id && member.kind === 'team' ? member.team_id : member.id
+    const startedAt = parseStartedAt(member.started_at ?? member.startedAt, index)
+    const href =
+      member.kind === 'team'
+        ? `/chat?team=${encodeURIComponent(member.team_id || member.id)}`
+        : `/chat?team=${encodeURIComponent(team.id)}&session=${encodeURIComponent(member.id)}`
+    return {
+      id: `${team.id}:${member.id}`,
+      groupId: team.id,
+      groupKind: 'team',
+      memberId,
+      title: memberName(member),
+      snippet: member.snippet || [member.kind, member.role].filter(Boolean).join(' · '),
+      status: memberStatus(member),
+      startedAt,
+      href,
+      role: member.role,
+    }
+  })
+}
+
+export function sessionsForRemote(remote: RemoteEntry): MemberSession[] {
+  const agents: RemoteAgent[] = remote.agents.length
+    ? remote.agents
+    : [{ id: remote.id, name: remote.title, startedAt: 0 }]
+  return agents.map((agent, index) => {
+    const startedAt = parseStartedAt(agent.startedAt ?? agent.started_at, index)
+    return {
+      id: `${remote.id}:${agent.id}`,
+      groupId: remote.id,
+      groupKind: 'remote',
+      memberId: agent.id,
+      title: agent.name || agent.id,
+      snippet: agent.snippet || [agent.role, agent.status].filter(Boolean).join(' · '),
+      status: memberStatus(agent),
+      startedAt,
+      href: `/chat?remote=${encodeURIComponent(remote.id)}&session=${encodeURIComponent(agent.id)}`,
+      role: agent.role,
+    }
+  })
+}
+
+export function stackFacesForTeam(team: TeamRoster): StackFace[] {
+  return facesFromSessions(sessionsForTeam(team))
+}
+
+export function stackFacesForRemote(remote: RemoteEntry): StackFace[] {
+  return facesFromSessions(sessionsForRemote(remote))
+}

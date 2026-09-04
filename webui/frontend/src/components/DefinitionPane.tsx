@@ -1,0 +1,224 @@
+import { useEffect, useId, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { AlertCircle, FileCode2, RefreshCw } from 'lucide-react'
+import { Alert, Button, Textarea } from './DaisyUI'
+import { updateCustomBlueprint } from '../lib/api'
+import {
+  MISSING_MODEL_HINT,
+  localDefinitionContext,
+  staticExplanation,
+  type DefinitionContext,
+  type DefinitionKind,
+} from '../lib/definitionExplain'
+import { fetchDefinition, summarizeDefinition } from '../lib/definitionApi'
+import { agentRole } from '../lib/agentRoles'
+import { agentLabel } from '../lib/supportAgent'
+
+export interface DefinitionPaneProps {
+  kind: DefinitionKind
+  definitionId: string
+  role?: string | null
+}
+
+export default function DefinitionPane({
+  kind,
+  definitionId,
+  role,
+}: DefinitionPaneProps) {
+  const headingId = useId()
+  const resolvedRole = agentRole({ id: definitionId, name: definitionId, role })
+  const brief = staticExplanation(kind, resolvedRole)
+  const [mode, setMode] = useState<'explain' | 'edit'>('explain')
+  const [draft, setDraft] = useState('')
+  const [savedSource, setSavedSource] = useState<string | null>(null)
+  const [summary, setSummary] = useState<string | null>(null)
+  const [summarizing, setSummarizing] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [needResummarise, setNeedResummarise] = useState(false)
+  const [saveHint, setSaveHint] = useState<string | null>(null)
+
+  useEffect(() => {
+    setMode('explain')
+    setDraft('')
+    setSavedSource(null)
+    setSummary(null)
+    setSummaryError(null)
+    setNeedResummarise(false)
+    setSaveHint(null)
+  }, [kind, definitionId])
+
+  const contextQuery = useQuery({
+    queryKey: ['definition-context', kind, definitionId, role],
+    queryFn: () => fetchDefinition(kind, definitionId, role ? { role } : undefined),
+    enabled: Boolean(definitionId),
+    retry: false,
+  })
+
+  const fallback = localDefinitionContext(kind, definitionId, { role })
+  const ctx: DefinitionContext = contextQuery.data ?? fallback
+  const llmConfigured = Boolean(ctx.default_llm.configured && ctx.default_llm.model)
+  const source = savedSource ?? ctx.source
+  const label = agentLabel({
+    id: definitionId,
+    name: ctx.title || definitionId,
+  })
+
+  const runSummarise = async (nextSource?: string) => {
+    if (!llmConfigured) return
+    setSummarizing(true)
+    setSummaryError(null)
+    try {
+      const result = await summarizeDefinition(kind, definitionId, {
+        source: nextSource ?? source,
+        extra: ctx.injected.extra,
+        role: resolvedRole,
+      })
+      if (!result.configured) {
+        setSummary(null)
+        return
+      }
+      setSummary(result.summary)
+      if (!result.summary) {
+        setSummaryError('Default LLM is configured but returned no summary.')
+      }
+      setNeedResummarise(false)
+    } catch (error) {
+      setSummaryError(error instanceof Error ? error.message : 'Summarise failed')
+    } finally {
+      setSummarizing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!definitionId || !llmConfigured || contextQuery.isPending) return
+    if (savedSource) return
+    void runSummarise(ctx.source)
+    // Auto-summarise once per loaded context.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [definitionId, kind, llmConfigured, contextQuery.dataUpdatedAt])
+
+  const handleSave = async () => {
+    const next = draft
+    setSavedSource(next)
+    setNeedResummarise(true)
+    setMode('explain')
+    try {
+      await updateCustomBlueprint(definitionId, { code: next })
+      setSaveHint('Saved. Re-summarise to refresh the LLM against the new source.')
+    } catch {
+      setSaveHint(
+        'Draft stored for this pane. Re-summarise to refresh the LLM against the new source plus injections.',
+      )
+    }
+  }
+
+  return (
+    <section
+      id="os-definition-pane"
+      data-definition-id={definitionId}
+      data-definition-kind={kind}
+      aria-labelledby={headingId}
+      className="space-y-4"
+    >
+      <div>
+        <h4 id={headingId} className="text-lg font-semibold">
+          {label}
+        </h4>
+        <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-base-content/50">
+          {kind}
+          {resolvedRole !== 'default' ? ` · ${resolvedRole}` : ''}
+        </p>
+      </div>
+
+      <div data-testid="definition-explanation" className="space-y-2">
+        <h5 className="text-sm font-semibold">How it works</h5>
+        <p className="text-sm leading-relaxed text-base-content/80">{brief}</p>
+      </div>
+
+      <div data-testid="definition-summary" className="space-y-2">
+        <h5 className="text-sm font-semibold">Source summary</h5>
+        {llmConfigured ? (
+          summarizing ? (
+            <p className="text-sm text-base-content/60">Summarising with {ctx.default_llm.model}…</p>
+          ) : summary ? (
+            <p className="text-sm leading-relaxed">{summary}</p>
+          ) : (
+            <p className="text-sm text-base-content/60">
+              Default LLM ({ctx.default_llm.model}) is ready. Summary will appear here.
+            </p>
+          )
+        ) : (
+          <Alert type="info" icon={<AlertCircle className="h-5 w-5" />}>
+            <span className="text-sm" data-testid="missing-model-hint">
+              {MISSING_MODEL_HINT}
+            </span>
+          </Alert>
+        )}
+        {summaryError ? (
+          <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+            <span className="text-sm">{summaryError}</span>
+          </Alert>
+        ) : null}
+      </div>
+
+      {mode === 'edit' ? (
+        <div className="space-y-3">
+          <Textarea
+            label="Definition source"
+            aria-label="Definition source"
+            className="min-h-56 font-mono text-xs"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            spellCheck={false}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="primary" size="sm" onClick={() => void handleSave()}>
+              Save
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setMode('explain')}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDraft(source)
+              setMode('edit')
+            }}
+          >
+            <FileCode2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            Edit code
+          </Button>
+          {llmConfigured ? (
+            <Button
+              type="button"
+              variant={needResummarise ? 'primary' : 'ghost'}
+              size="sm"
+              disabled={summarizing}
+              onClick={() => void runSummarise()}
+            >
+              <RefreshCw className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+              Re-summarise
+            </Button>
+          ) : (
+            <Button type="button" variant="ghost" size="sm" disabled>
+              Re-summarise
+            </Button>
+          )}
+        </div>
+      )}
+
+      {saveHint ? <p className="text-xs text-base-content/60">{saveHint}</p> : null}
+      {needResummarise && llmConfigured && mode === 'explain' ? (
+        <p className="text-xs text-base-content/60">
+          Source changed. Re-summarise / analyse to refresh against the new source and injections.
+        </p>
+      ) : null}
+    </section>
+  )
+}

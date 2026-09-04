@@ -90,6 +90,15 @@ describe('labels and ids', () => {
     )
     expect(memberOptionLabel({ id: 'x', name: 'X', role: 'ops' })).toBe('X (ops)')
     expect(memberOptionLabel({ id: 'y', name: 'Y' })).toBe('Y')
+    expect(memberOptionLabel({ id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' })).toBe(
+      'Hermes (remote/default)',
+    )
+    expect(memberOptionLabel({ id: 'omb', name: 'OMB', kind: 'remote', role: 'default' })).toBe(
+      'OMB (remote/default)',
+    )
+    expect(memberOptionLabel({ id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' })).toBe(
+      'Rakazo (remote/default)',
+    )
   })
 
   it('namespaces hide ids so a team cannot collide with an agent slug', () => {

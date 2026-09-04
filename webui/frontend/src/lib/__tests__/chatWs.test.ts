@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildChatWsUrl,
   buildChatWsFrame,
-  buildChatStatusFrame,
+  buildToolDecisionFrame,
   parseChatWsMessage,
 } from '../chatWs'
 
@@ -47,11 +47,11 @@ describe('buildChatWsFrame', () => {
     ).toEqual({ message: 'hi', params: { team: 'demo-team', target: 'codey' } })
   })
 
-  it('builds a status frame that does not look like a user turn', () => {
-    expect(JSON.parse(buildChatStatusFrame('CLI: antigravity → grok', 'cli_agent'))).toEqual({
-      type: 'status',
-      text: 'CLI: antigravity → grok',
-      agent: 'cli_agent',
+  it('builds a tool_decision frame for Safety Allow / Deny', () => {
+    expect(JSON.parse(buildToolDecisionFrame('ap1', 'always'))).toEqual({
+      type: 'tool_decision',
+      id: 'ap1',
+      decision: 'always',
     })
   })
 
@@ -67,6 +67,15 @@ describe('parseChatWsMessage', () => {
     const raw =
       '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message foo"> hi there </div></div>'
     expect(parseChatWsMessage(raw)).toEqual({ kind: 'user_echo', text: 'hi there' })
+  })
+
+  it('parses a bubble-less status line', () => {
+    const raw =
+      '<div id="message-list" hx-swap-oob="beforeend"><div class="chat-status-line os-chat-status">Started a new grok session.</div></div>'
+    expect(parseChatWsMessage(raw)).toEqual({
+      kind: 'status',
+      text: 'Started a new grok session.',
+    })
   })
 
   it('parses an assistant-start append', () => {
@@ -101,5 +110,18 @@ describe('parseChatWsMessage', () => {
     expect(parseChatWsMessage('')).toEqual({ kind: 'unknown', raw: '' })
     const weird = '<div id="something-else" hx-swap-oob="beforeend"><span>x</span></div>'
     expect(parseChatWsMessage(weird)).toEqual({ kind: 'unknown', raw: weird })
+  })
+
+  it('parses JSON tool_status and tool_approval frames', () => {
+    expect(
+      parseChatWsMessage(
+        JSON.stringify({ type: 'tool_status', id: 't1', name: 'write_file', status: 'running' }),
+      ),
+    ).toEqual({ kind: 'tool_status', id: 't1', name: 'write_file', status: 'running' })
+    expect(
+      parseChatWsMessage(
+        JSON.stringify({ type: 'tool_approval', id: 't2', name: 'wipe', agent_id: 'codey' }),
+      ),
+    ).toEqual({ kind: 'tool_approval', id: 't2', name: 'wipe', agentId: 'codey' })
   })
 })

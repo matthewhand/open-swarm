@@ -25,6 +25,16 @@ jobs:
       - name: Confirm dist/index.html
         run: test -f webui/frontend/dist/index.html
 
+      - name: Install Playwright Chromium
+        working-directory: webui/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright chat-send mock inference (REQ-13)
+        working-directory: webui/frontend
+        run: npx playwright test e2e/chat-send.spec.ts
+        env:
+          CI: true
+
   test:
     runs-on: ubuntu-latest
     strategy:
