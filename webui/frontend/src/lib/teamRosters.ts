@@ -27,6 +27,10 @@ export interface TeamMember {
   working?: boolean
   status?: 'running' | 'finished'
   snippet?: string
+  avatar?: string
+  avatar_path?: string
+  avatarSrc?: string
+  src?: string
 }
 
 export interface TeamRoster {

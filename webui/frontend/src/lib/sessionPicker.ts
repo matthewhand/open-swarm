@@ -23,6 +23,7 @@ export interface MemberSession {
   startedAt: number
   href: string
   role?: string
+  avatarSrc?: string | null
 }
 
 export function facesFromSessions(sessions: MemberSession[]): StackFace[] {
@@ -32,6 +33,7 @@ export function facesFromSessions(sessions: MemberSession[]): StackFace[] {
     startedAt: session.startedAt,
     role: session.role,
     working: session.status === 'running',
+    avatarSrc: session.avatarSrc,
   }))
 }
 
@@ -78,6 +80,7 @@ export function sessionsForTeam(team: TeamRoster): MemberSession[] {
       startedAt,
       href,
       role: member.role,
+      avatarSrc: member.avatarSrc || member.avatar_path || member.avatar || member.src || null,
     }
   })
 }
@@ -99,6 +102,7 @@ export function sessionsForRemote(remote: RemoteEntry): MemberSession[] {
       startedAt,
       href: `/chat?remote=${encodeURIComponent(remote.id)}&session=${encodeURIComponent(agent.id)}`,
       role: agent.role,
+      avatarSrc: (agent as any).avatarSrc || (agent as any).avatar_path || (agent as any).avatar || (agent as any).src || null,
     }
   })
 }

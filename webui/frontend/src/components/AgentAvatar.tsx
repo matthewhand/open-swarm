@@ -16,7 +16,7 @@ export const DEFAULT_AGENT_AVATAR_SRC =
     </svg>`,
   )
 
-export type AgentAvatarSize = 'sm' | 'md' | 'lg' | 'xl'
+export type AgentAvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
 export interface AgentAvatarProps {
   /** Custom face URL. Blank / missing / broken uses the themed default (or bland if selected in settings). */
@@ -26,6 +26,7 @@ export interface AgentAvatarProps {
   className?: string
   agentId?: string | null
   active?: boolean
+  style?: React.CSSProperties
 }
 
 export function resolveAgentAvatarSrc(src?: string | null): string {
@@ -50,6 +51,7 @@ export default function AgentAvatar({
   className = '',
   agentId,
   active = false,
+  style,
 }: AgentAvatarProps) {
   const [broken, setBroken] = useState(false)
   const theme = useAvatarTheme()
@@ -67,14 +69,19 @@ export default function AgentAvatar({
         className={`avatar ${className}`.trim()}
         data-agent-avatar="custom"
         aria-hidden={alt ? undefined : true}
+        style={style}
       >
-        <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
+        <div
+          className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}
+          style={size === 'xs' ? { width: '100%', height: '100%' } : undefined}
+        >
           <img
             src={customSrc}
             alt={alt}
             draggable={false}
             data-agent-avatar="custom"
             onError={() => setBroken(true)}
+            style={size === 'xs' ? { width: '100%', height: '100%', objectFit: 'cover' } : undefined}
           />
         </div>
       </div>
@@ -90,12 +97,14 @@ export default function AgentAvatar({
         data-avatar-theme="blobs"
         data-eye-state={active ? 'active' : 'idle'}
         aria-hidden={alt ? undefined : true}
+        style={style}
       >
         <BlobAvatar
           agentId={agentId || 'agent'}
           active={active}
           size={size}
           className=""
+          style={size === 'xs' ? { width: '100%', height: '100%' } : undefined}
         />
       </div>
     )
@@ -107,13 +116,18 @@ export default function AgentAvatar({
       className={`avatar ${className}`.trim()}
       data-agent-avatar="default"
       aria-hidden={alt ? undefined : true}
+      style={style}
     >
-      <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
+      <div
+        className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}
+        style={size === 'xs' ? { width: '100%', height: '100%' } : undefined}
+      >
         <img
           src={DEFAULT_AGENT_AVATAR_SRC}
           alt={alt}
           draggable={false}
           data-agent-avatar="default"
+          style={size === 'xs' ? { width: '100%', height: '100%', objectFit: 'cover' } : undefined}
         />
       </div>
     </div>

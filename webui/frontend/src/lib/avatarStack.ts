@@ -24,6 +24,9 @@ export interface StackFace {
   /** Color-hash key; defaults to `id`. */
   markId?: string
   role?: string
+  working?: boolean
+  avatarSrc?: string | null
+  src?: string | null
 }
 
 export interface StackSelection<T extends StackFace = StackFace> {
