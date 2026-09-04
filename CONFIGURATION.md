@@ -1,5 +1,10 @@
 # Swarm Configuration Guide
 
+Ownership of `.env` vs XDG `swarm_config.json` vs Django (what is live SoT
+after boot, what WebUI writes, Docker volumes) is decided in
+**[ADR-002](docs/adr/002-config-ownership.md)** (REQ-145 / #541). This page
+remains the schema and environment-variable reference.
+
 ## Quickstart: Configuring Swarm
 
 Swarm supports both interactive and manual configuration. The recommended way to set up and manage your config is via the `swarm-cli`, which provides commands to initialize, edit, and validate your configuration interactively. However, you can also hand-edit the config JSON if you prefer full control or need to automate deployment.

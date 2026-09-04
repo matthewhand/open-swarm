@@ -1,0 +1,6 @@
+# Architecture decision records
+
+| ADR | Title |
+|-----|--------|
+| [ADR-001](../ADR-001-primary-ui.md) | Primary UI is Django; SPA Chat only |
+| [ADR-002](./002-config-ownership.md) | Config ownership — `.env` vs XDG `swarm_config.json` vs Django DB |
