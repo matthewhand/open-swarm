@@ -136,7 +136,7 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
         id: 'action-llm',
         tab: 'Actions',
         name: 'Show LLM profiles',
-        description: 'Open LLM profiles in Settings',
+        description: 'Open the connected models pane',
         action: () => openSettingsSheet({ section: 'llm-profiles' }),
       },
     ]

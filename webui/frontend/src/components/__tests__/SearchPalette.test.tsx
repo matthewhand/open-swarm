@@ -107,6 +107,7 @@ describe('SearchPalette', () => {
     expect(screen.getByRole('option', { name: /Blueprints/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Teams/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Settings/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Show LLM profiles/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Hermes/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Rakazo/ })).not.toBeInTheDocument()
 
@@ -229,13 +230,14 @@ describe('SearchPalette choose + actions (REQ-5c #322)', () => {
     expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
   })
 
-  it('Actions Django rows hard-navigate via location.assign', async () => {
+  it('Actions Blueprints stays on chat (overlay, not a Django eject)', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
     const { onClose } = renderRoutedPalette()
     fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
     fireEvent.click(await screen.findByRole('option', { name: /^Blueprints/i }))
     expect(onClose).toHaveBeenCalled()
-    expect(assign).toHaveBeenCalledWith('/blueprint-library/')
+    expect(assign).not.toHaveBeenCalled()
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
   })
 })
