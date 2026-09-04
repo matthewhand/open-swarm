@@ -72,6 +72,7 @@ import {
   type AgentSession,
 } from '../lib/scaleOutSessions'
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
+import { formatRailTimestamp, getRowLastMessage } from '../lib/chatTime'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
 import { selectStackedFaces } from '../lib/avatarStack'
@@ -746,6 +747,8 @@ export default function AgentSidebar({
     const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
       dragging ? 'os-agent-row--dragging' : ''
     } ${dropping ? 'os-agent-row--drop' : ''}`
+    const { snippet, timestamp } = getRowLastMessage(agent.id, sessions, agent as any)
+    const timestampLabel = formatRailTimestamp(timestamp)
     const mark = (
       scaleOut ? (
         // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
@@ -762,11 +765,24 @@ export default function AgentSidebar({
       <>
         {mark}
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
+          <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {timestampLabel ? (
+              <span
+                className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
+                data-testid="rail-row-timestamp"
+              >
+                {timestampLabel}
+              </span>
+            ) : null}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
+            <span className="block truncate min-w-0 flex-1">
+              {snippet || agent.description}
+            </span>
             {badge ? (
               <span
-                className={`os-agent-role-badge ${roleCssClass(role)}`}
+                className={`os-agent-role-badge shrink-0 ${roleCssClass(role)}`}
                 data-role={role}
                 data-definition-id={agent.id}
                 role="button"
@@ -790,7 +806,7 @@ export default function AgentSidebar({
             ) : null}
             {taskCount > 1 ? (
               <span
-                className="badge badge-sm badge-outline"
+                className="badge badge-sm badge-outline shrink-0"
                 data-task-sessions={taskCount}
                 title={`${taskCount} running chats`}
               >
@@ -798,11 +814,6 @@ export default function AgentSidebar({
               </span>
             ) : null}
           </span>
-          {agent.description ? (
-            <span className="mt-0.5 block truncate text-xs text-base-content/45">
-              {agent.description}
-            </span>
-          ) : null}
         </span>
       </>
     )
@@ -931,6 +942,12 @@ export default function AgentSidebar({
     const stacked = selectStackedFaces(stackFacesForTeam(team))
     const dragging = draggingId === hideId
     const dropping = dropTargetId === hideId
+    const { snippet: teamSnippet, timestamp: teamTime } = getRowLastMessage(
+      teamHideId(team.id),
+      sessions as any,
+      team as any,
+    )
+    const teamTimestampLabel = formatRailTimestamp(teamTime)
     return (
       <Link
         to={`/chat?team=${encodeURIComponent(team.id)}`}
@@ -972,8 +989,21 @@ export default function AgentSidebar({
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {teamTimestampLabel ? (
+              <span
+                className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
+                data-testid="rail-row-timestamp"
+              >
+                {teamTimestampLabel}
+              </span>
+            ) : null}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
+            <span className="block truncate min-w-0 flex-1">
+              {teamSnippet || team.description}
+            </span>
             <span
               className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
               data-kind="team"
@@ -997,11 +1027,6 @@ export default function AgentSidebar({
               Team
             </span>
           </span>
-          {team.description ? (
-            <span className="mt-0.5 block truncate text-xs text-base-content/45">
-              {team.description}
-            </span>
-          ) : null}
         </span>
       </Link>
     )
@@ -1014,6 +1039,12 @@ export default function AgentSidebar({
     const dragging = draggingId === hideId
     const sessions = sessionsForRemote(remote)
     const stacked = selectStackedFaces(stackFacesForRemote(remote))
+    const { snippet: remoteSnippet, timestamp: remoteTime } = getRowLastMessage(
+      hideId,
+      sessions as any,
+      remote as any,
+    )
+    const remoteTimestampLabel = formatRailTimestamp(remoteTime)
     return (
       <Link
         to={`/chat?remote=${encodeURIComponent(remote.id)}`}
@@ -1056,8 +1087,21 @@ export default function AgentSidebar({
           label={`${name} members`}
         />
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {remoteTimestampLabel ? (
+              <span
+                className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
+                data-testid="rail-row-timestamp"
+              >
+                {remoteTimestampLabel}
+              </span>
+            ) : null}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
+            <span className="block truncate min-w-0 flex-1">
+              {remoteSnippet || (remote as any).description || 'Remote team'}
+            </span>
             <span
               className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
               data-kind="remote"

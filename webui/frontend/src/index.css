@@ -435,6 +435,12 @@ button.os-agent-row {
   background: color-mix(in srgb, var(--color-base-300) 70%, transparent);
   color: var(--color-base-content);
 }
+.os-rail-timestamp {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+  white-space: nowrap;
+}
 .os-agent-row-wrap {
   display: flex;
   align-items: flex-start;
