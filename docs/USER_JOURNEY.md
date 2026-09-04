@@ -185,8 +185,8 @@ serves a **lightweight SPA dashboard** (DaisyUI / Tailwind). Live
 teams/blueprints/models counts come from `/v1/teams`, `/v1/blueprints`, and
 `/v1/models` (this capture: **0 / 45 / 45** — matches `landing.png`; **not**
 the 31 CLI dirs or the library’s 38 discoverable keys; see the bridge table in
-§2). Top nav is **Home · Chat · Blueprints · Teams · Sessions · Settings**
-(matches `landing.png` / `App.tsx`). Quick Actions: **Launch Team**,
+§2). Top nav is **Agents** + **More** (**Chat · Blueprints · Teams · Sessions · Settings**)
+(matches `App.tsx`). Quick Actions: **Launch Team**,
 **Browse Blueprints**, **Manage Teams**, **Settings** (recaptured after
 `npm run build` on **2026-08-19**). Bare `/teams`, `/blueprints`,
 `/settings`, and `/agent-creator` **redirect** to Django (`/teams/launch/`,

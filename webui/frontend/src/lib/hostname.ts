@@ -1,0 +1,38 @@
+/**
+ * Editable rail hostname. Default is the browser host; an override persists.
+ */
+
+export const HOSTNAME_STORAGE_KEY = 'swarm_hostname'
+
+export function defaultHostname(): string {
+  try {
+    return window.location.hostname || 'localhost'
+  } catch {
+    return 'localhost'
+  }
+}
+
+export function loadHostname(): string {
+  try {
+    const stored = localStorage.getItem(HOSTNAME_STORAGE_KEY)
+    if (stored && stored.trim().length > 0) return stored.trim()
+  } catch {
+    /* storage unavailable */
+  }
+  return defaultHostname()
+}
+
+export function saveHostname(value: string): string {
+  const trimmed = value.trim()
+  const next = trimmed.length > 0 ? trimmed : defaultHostname()
+  try {
+    if (next === defaultHostname()) {
+      localStorage.removeItem(HOSTNAME_STORAGE_KEY)
+    } else {
+      localStorage.setItem(HOSTNAME_STORAGE_KEY, next)
+    }
+  } catch {
+    /* persistence is best-effort */
+  }
+  return next
+}

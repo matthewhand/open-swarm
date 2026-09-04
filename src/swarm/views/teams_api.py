@@ -8,8 +8,14 @@ swarm.views.utils (load_dynamic_registry / register_dynamic_team /
 deregister_dynamic_team).
 
 Honesty: a "team" here is a named **LLM-profile alias** (id + description +
-llm_profile), not a multi-agent team builder. Entries appear in /v1/models and
-can be selected as OpenAI-compatible model ids.
+llm_profile), not a multi-agent Team. REQ-11 Team = API/CLI/remote members that
+see and talk via openai-agents handoff/as_tool (see ``/v1/remotes/`` +
+``/v1/agent-team/``). Prefer **Profiles** for this alias registry. Entries
+appear in /v1/models and can be selected as OpenAI-compatible model ids.
+
+Composition rosters (members + handoff/as_tool wires) live in a separate store
+and API: team_rosters.json + /v1/team-rosters/. This module must not write that
+file or change the teams.json alias schema. See docs/TEAM_ROSTERS.md.
 
 Endpoints:
     GET    /v1/teams/          -> {"object": "list", "data": [team, ...]}
@@ -73,9 +79,11 @@ class TeamsAPIView(APIView):
         operation_id="v1_teams_list",
         summary="List dynamic teams (LLM-profile aliases)",
         description=(
-            "List saved dynamic teams from teams.json. Each entry is an "
-            "OpenAI-compatible model id alias over an `llm_profile` "
-            "(id, description, llm_profile) — not a multi-agent team graph."
+            "List saved dynamic teams from teams.json. Prefer calling these "
+            "**Profiles**: each entry is an OpenAI-compatible model id alias "
+            "over an `llm_profile` (id, description, llm_profile). This is not "
+            "a multi-agent Team. REQ-11 Team (API/CLI/remote handoff members) "
+            "is GET /v1/agent-team/."
         ),
         responses={200: OpenApiTypes.OBJECT, 500: OpenApiTypes.OBJECT},
     )
@@ -95,9 +103,9 @@ class TeamsAPIView(APIView):
         operation_id="v1_teams_create",
         summary="Register a dynamic team (LLM-profile alias)",
         description=(
-            "Register a named dynamic team (a saved alias over an `llm_profile`). "
-            "`name` is **required**; it is slugified into the team id. "
-            "This is not a multi-agent team builder."
+            "Register a named Profile alias (saved `llm_profile` on /v1/teams/). "
+            "`name` is **required**; it is slugified into the id. "
+            "This is not a multi-agent Team — place remotes via /v1/agent-team/."
         ),
         request=inline_serializer(
             name="TeamCreateRequest",

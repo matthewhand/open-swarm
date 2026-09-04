@@ -465,3 +465,48 @@ class TestCsrfProtectionRestored:
             REPO_ROOT / "src" / "swarm" / "templates" / "teams_admin.html"
         ).read_text(encoding="utf-8")
         assert template.count("{% csrf_token %}") >= template.count("<form")
+
+    def test_operator_chrome_exposes_csrf_token(self):
+        base = (REPO_ROOT / "src" / "swarm" / "templates" / "base.html").read_text(
+            encoding="utf-8"
+        )
+        assert 'name="csrf-token"' in base
+        assert "{% csrf_token %}" in base
+
+    def test_team_launcher_js_sends_csrf_header(self):
+        js = (REPO_ROOT / "src" / "swarm" / "static" / "js" / "teams_launch.js").read_text(
+            encoding="utf-8"
+        )
+        assert "X-CSRFToken" in js
+        assert "getCSRFToken" in js
+        assert "credentials: 'same-origin'" in js
+
+    def test_my_blueprints_runner_sends_csrf_header(self):
+        js = (REPO_ROOT / "src" / "swarm" / "static" / "js" / "my_blueprints.js").read_text(
+            encoding="utf-8"
+        )
+        assert "X-CSRFToken" in js
+        assert "/v1/chat/completions" in js
+
+    @pytest.mark.django_db
+    def test_session_chat_completions_rejects_missing_csrf(self):
+        """Logged-in launcher POSTs still 403 without X-CSRFToken (DRF session CSRF)."""
+        import json
+
+        from django.contrib.auth.models import User
+        from django.test import Client
+
+        client = Client(enforce_csrf_checks=True)
+        User.objects.create_user(username="csrf-launch", password="csrf-pass")
+        assert client.login(username="csrf-launch", password="csrf-pass")
+        response = client.post(
+            "/v1/chat/completions",
+            data=json.dumps({
+                "model": "hybrid_team",
+                "messages": [{"role": "user", "content": "ping"}],
+                "stream": True,
+            }),
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+        assert b"CSRF" in response.content
