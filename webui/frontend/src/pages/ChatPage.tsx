@@ -146,6 +146,15 @@ const ChatPage = () => {
             ),
           }),
   )
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : remoteFromUrl
+      ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+      : sessionFromUrl
+        ? `${selectedBlueprint}::${sessionFromUrl}`
+        : newChatPerTask
+          ? conversationId
+          : selectedBlueprint
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
   const summaries = useMemo(
