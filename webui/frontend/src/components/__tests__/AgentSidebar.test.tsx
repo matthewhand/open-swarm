@@ -512,10 +512,11 @@ describe('AgentSidebar Grok rail', () => {
     renderSidebar()
     const listAfter = await screen.findByRole('navigation', { name: 'Agent list' })
     const gridAfter = screen.getByLabelText('Pinned agents')
+    const unhideTrigger = await screen.findByRole('button', { name: 'Hidden Bots 3' })
     expect(within(gridAfter).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
     expect(within(listAfter).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
-    fireEvent.click(hiddenBotsButton(3))
+    fireEvent.click(unhideTrigger)
     const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
     fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
     await waitFor(() => {
