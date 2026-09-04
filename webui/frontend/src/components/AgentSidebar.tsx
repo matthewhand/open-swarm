@@ -915,13 +915,51 @@ export default function AgentSidebar({
           src={agent.avatar_path}
           agentId={agent.id}
           size="sm"
-          className="mt-1.5"
         />
       )
     )
+    const roleBadgeNode = badge ? (
+      <span
+        className={`os-agent-role-badge ${roleCssClass(role)}`}
+        data-role={role}
+        data-definition-id={agent.id}
+        data-avatar-overlay="true"
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${role} settings`}
+        style={{
+          position: 'absolute',
+          bottom: '-0.2rem',
+          right: '-0.25rem',
+          zIndex: 10,
+          fontSize: '0.55rem',
+          padding: '0 0.25rem',
+          lineHeight: '1.2',
+          height: '0.9rem',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+        }}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          openDefinition('role', agent.id, { blueprintId: agent.id })
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            event.stopPropagation()
+            openDefinition('role', agent.id, { blueprintId: agent.id })
+          }
+        }}
+      >
+        {badge}
+      </span>
+    ) : null
     const body = (
       <>
-        {mark}
+        <span className="relative inline-flex shrink-0 mt-1.5">
+          {mark}
+          {roleBadgeNode}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
@@ -949,30 +987,6 @@ export default function AgentSidebar({
             <span className="block truncate min-w-0 flex-1">
               {snippet || agent.description}
             </span>
-            {badge ? (
-              <span
-                className={`os-agent-role-badge ${roleCssClass(role)}`}
-                data-role={role}
-                data-definition-id={agent.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ${role} settings`}
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  openDefinition('role', agent.id, { blueprintId: agent.id })
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    openDefinition('role', agent.id, { blueprintId: agent.id })
-                  }
-                }}
-              >
-                {badge}
-              </span>
-            ) : null}
             {taskCount > 1 ? (
               <span
                 className="badge badge-sm badge-outline shrink-0"
@@ -1110,21 +1124,57 @@ export default function AgentSidebar({
         }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'team', sessions)}
       >
-        {stacked.faces.length > 0 ? (
-          <AvatarStack
-            faces={stacked.faces}
-            remainder={stacked.remainder}
-            animate
-            label={`${name} members`}
-          />
-        ) : (
+        <span className="relative inline-flex shrink-0 mt-0.5">
+          {stacked.faces.length > 0 ? (
+            <AvatarStack
+              faces={stacked.faces}
+              remainder={stacked.remainder}
+              animate
+              label={`${name} members`}
+            />
+          ) : (
+            <span
+              className="os-team-mark os-agent-team-icon flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
+              aria-hidden="true"
+            >
+              <Users className="h-3.5 w-3.5" />
+            </span>
+          )}
           <span
-            className="os-team-mark os-agent-team-icon mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
-            aria-hidden="true"
+            className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
+            data-kind="team"
+            data-avatar-overlay="true"
+            role="button"
+            tabIndex={0}
+            aria-label={`Open ${name} team settings`}
+            data-definition-id={team.id}
+            style={{
+              position: 'absolute',
+              bottom: '-0.25rem',
+              right: '-0.25rem',
+              zIndex: 10,
+              fontSize: '0.55rem',
+              padding: '0 0.25rem',
+              lineHeight: '1.2',
+              height: '0.9rem',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+            }}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openDefinition('team', team.id, { teamId: team.id })
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                event.stopPropagation()
+                openDefinition('team', team.id, { teamId: team.id })
+              }
+            }}
           >
-            <Users className="h-3.5 w-3.5" />
+            Team
           </span>
-        )}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
@@ -1151,28 +1201,6 @@ export default function AgentSidebar({
           <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
             <span className="block truncate min-w-0 flex-1">
               {teamSnippet || team.description}
-            </span>
-            <span
-              className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
-              data-kind="team"
-              role="button"
-              tabIndex={0}
-              aria-label={`Open ${name} team settings`}
-              data-definition-id={team.id}
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                openDefinition('team', team.id, { teamId: team.id })
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  openDefinition('team', team.id, { teamId: team.id })
-                }
-              }}
-            >
-              Team
             </span>
           </span>
         </span>
@@ -1235,12 +1263,32 @@ export default function AgentSidebar({
         }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'remote', sessions)}
       >
-        <AvatarStack
-          faces={stacked.faces}
-          remainder={stacked.remainder}
-          animate
-          label={`${name} members`}
-        />
+        <span className="relative inline-flex shrink-0 mt-0.5">
+          <AvatarStack
+            faces={stacked.faces}
+            remainder={stacked.remainder}
+            animate
+            label={`${name} members`}
+          />
+          <span
+            className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
+            data-kind="remote"
+            data-avatar-overlay="true"
+            style={{
+              position: 'absolute',
+              bottom: '-0.25rem',
+              right: '-0.25rem',
+              zIndex: 10,
+              fontSize: '0.55rem',
+              padding: '0 0.25rem',
+              lineHeight: '1.2',
+              height: '0.9rem',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+            }}
+          >
+            Remote
+          </span>
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
@@ -1268,12 +1316,6 @@ export default function AgentSidebar({
             <span className="block truncate min-w-0 flex-1">
               {remoteSnippet || (remote as any).description || 'Remote team'}
             </span>
-            <span
-              className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
-              data-kind="remote"
-            >
-              Remote
-            </span>
           </span>
         </span>
       </Link>
@@ -1295,18 +1337,27 @@ export default function AgentSidebar({
               return (
                 <li key={`team-slot-${m.id}`}>
                   <span className="os-agent-row os-agent-row--team os-agent-row--nested">
-                    <Users className="os-agent-team-icon mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold leading-5">
-                        {m.team_id || m.id}
-                      </span>
+                    <span className="relative inline-flex shrink-0 mt-0.5">
+                      <Users className="os-agent-team-icon h-4 w-4 shrink-0" aria-hidden="true" />
                       <span
                         className="os-agent-role-badge"
                         data-kind="team"
+                        data-avatar-overlay="true"
                         data-definition-id={m.team_id || m.id}
                         role="button"
                         tabIndex={0}
                         aria-label={`Open ${m.team_id || m.id} team settings`}
+                        style={{
+                          position: 'absolute',
+                          bottom: '-0.25rem',
+                          right: '-0.25rem',
+                          zIndex: 10,
+                          fontSize: '0.55rem',
+                          padding: '0 0.25rem',
+                          lineHeight: '1.2',
+                          height: '0.9rem',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                        }}
                         onClick={(event) => {
                           event.preventDefault()
                           event.stopPropagation()
@@ -1323,6 +1374,11 @@ export default function AgentSidebar({
                         }}
                       >
                         Team
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold leading-5">
+                        {m.team_id || m.id}
                       </span>
                     </span>
                   </span>
