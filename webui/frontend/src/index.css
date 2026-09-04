@@ -861,9 +861,55 @@ button.os-agent-row {
   line-height: 1.4;
   padding: 0.45rem 0;
 }
-.os-code-copy {
-  float: right;
-  margin-left: 0.5rem;
+/* REQ-117: Fenced code block actions & collapse */
+.os-code {
+  position: relative;
+}
+.os-code-actions {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  z-index: 2;
+}
+.os-code-copy,
+.os-code-expand {
+  font-size: 0.75rem;
+  height: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0 0.45rem;
+}
+.os-code--collapsible.os-code--collapsed {
+  max-height: 12rem;
+  overflow: hidden !important;
+}
+.os-code--collapsible.os-code--collapsed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3.5rem;
+  background: linear-gradient(to bottom, transparent, rgba(20, 20, 20, 0.85));
+  pointer-events: none;
+}
+html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
+  background: linear-gradient(to bottom, transparent, rgba(240, 240, 240, 0.9));
+}
+.os-code--collapsible.os-code--collapsed .os-code-expand {
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+.os-code--collapsible.os-code--collapsed:hover .os-code-expand,
+.os-code--collapsible.os-code--collapsed:focus-within .os-code-expand {
+  opacity: 1;
+}
+@media (hover: none) {
+  .os-code--collapsible.os-code--collapsed .os-code-expand {
+    opacity: 1;
+  }
 }
 .os-composer__input::placeholder {
   color: color-mix(in srgb, var(--color-base-content) 40%, transparent);
