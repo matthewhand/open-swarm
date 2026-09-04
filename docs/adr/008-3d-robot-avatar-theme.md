@@ -1,4 +1,4 @@
-# ADR-003: Optional 3D robot avatar theme family (Reachy-inspired)
+# ADR-008: Optional 3D robot avatar theme family (Reachy-inspired)
 
 - **Status:** Proposed (look-only; no WebGL / no runtime change in this PR)
 - **Date:** 2026-09-04
@@ -343,7 +343,7 @@ Do not implement in this PR.
 2. **REQ-194 Phase 2: robot3d catalog — ≥2 bodies × ≥2 heads on one rig**
 3. **REQ-194 Phase 3: map chat/WS status to robot3d clips (idle/listen/working/error)**
 4. **[#662](https://github.com/matthewhand/open-swarm/issues/662) one avatar-theme store** — include `robot3d` in that single key; fold or destage `/agents` SVG packs
-5. **Amend ADR-003 after Reachy audit** — fill §4 bone names, units, LICENSE, extract file list
+5. **Amend ADR-008 after Reachy audit** — fill §4 bone names, units, LICENSE, extract file list
 6. **[#540](https://github.com/matthewhand/open-swarm/issues/540) prefs** — migrate `swarm_avatar_theme` (+ combo sub-key) with other UI prefs; localStorage seed-once
 
 ---
