@@ -1132,3 +1132,91 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
     expect(screen.queryByRole('dialog', { name: 'Scale Out sessions' })).not.toBeInTheDocument()
   })
 })
+
+describe('AgentSidebar special roles', () => {
+  const roster = [
+    {
+      id: 'codey',
+      object: 'blueprint' as const,
+      name: 'Codey',
+      description: 'Code',
+      abbreviation: null,
+      required_mcp_servers: [],
+      tags: [],
+      installed: true,
+      compiled: true,
+      role: null,
+    },
+    {
+      id: 'skeptic',
+      object: 'blueprint' as const,
+      name: 'Skeptic',
+      description: 'Retry stub',
+      abbreviation: null,
+      required_mcp_servers: [],
+      tags: [],
+      installed: true,
+      compiled: true,
+      role: 'skeptic',
+    },
+    {
+      id: 'gate',
+      object: 'blueprint' as const,
+      name: 'Gate',
+      description: 'Approve stub',
+      abbreviation: null,
+      required_mcp_servers: [],
+      tags: [],
+      installed: true,
+      compiled: true,
+      role: 'gate',
+    },
+    {
+      id: 'support',
+      object: 'blueprint' as const,
+      name: 'Support',
+      description: 'Onboarding. First team.',
+      abbreviation: null,
+      required_mcp_servers: [],
+      tags: [],
+      installed: true,
+      compiled: true,
+      role: 'support',
+    },
+  ]
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: roster }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('lists Support first with a role=support look, not a diamond', async () => {
+    renderSidebar('/chat?blueprint=support')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    await waitFor(() => {
+      expect(within(list).getAllByRole('link').length).toBeGreaterThan(0)
+    })
+    const links = within(list).getAllByRole('link')
+    expect(links[0]).toHaveTextContent('Support')
+    expect(links[0]).toHaveAttribute('data-role', 'support')
+    expect(links[0].querySelector('.os-agent-dot')).toBeNull()
+    expect(links[0].querySelector('.os-role-pill--support')).not.toBeNull()
+    expect(within(list).getByRole('link', { name: /Gate/ })).toHaveAttribute('data-role', 'gate')
+    expect(within(list).getByRole('link', { name: /Skeptic/ })).toHaveAttribute(
+      'data-role',
+      'skeptic',
+    )
+  })
+})
