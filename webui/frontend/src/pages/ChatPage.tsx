@@ -86,7 +86,9 @@ import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdit
 import {
   agentLabel,
   defaultBlueprintId,
+  isSupportAgent,
   SUPPORT_AGENT_ID,
+  supportTurnExtras,
 } from '../lib/supportAgent'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
@@ -646,15 +648,23 @@ const ChatPage = () => {
         )
         return
       }
+      const supportParams = isSupportAgent({
+        id: runtimeBlueprint || selectedBlueprint || SUPPORT_AGENT_ID,
+      })
+        ? supportTurnExtras()
+        : undefined
+      const cliParams = selectedCli
+        ? { cli: selectedCli.cli }
+        : newChatPerTask
+          ? { new_session: messages.length === 0 }
+          : undefined
       ws.send(
         buildChatWsFrame(
           trimmed,
           runtimeBlueprint || selectedBlueprint || undefined,
-          selectedCli
-            ? { cli: selectedCli.cli }
-            : newChatPerTask
-              ? { new_session: messages.length === 0 }
-              : undefined,
+          supportParams || cliParams
+            ? { ...cliParams, ...supportParams }
+            : undefined,
         ),
       )
     },
