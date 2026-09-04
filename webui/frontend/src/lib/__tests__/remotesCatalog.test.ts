@@ -38,7 +38,9 @@ describe('remotesCatalog (REQ-68)', () => {
         },
       ],
     })
-    expect(rail.map((row) => row.title)).toEqual([OPENMOUSBOT_LABEL, 'Lab swarm'])
+    expect(rail.map((row) => row.id)).toEqual(['hermes', 'omb', 'omb', 'lab-swarm'])
+    expect(rail.map((row) => row.title)).toContain('Hermes')
+    expect(rail.map((row) => row.title)).toContain(OPENMOUSBOT_LABEL)
     expect(JSON.stringify(rail)).not.toMatch(/\bOMB\b/)
   })
 

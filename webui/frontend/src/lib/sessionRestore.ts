@@ -27,7 +27,8 @@ export function restoreKindForAgent(agentId: string): RestoreKind {
   ) {
     return 'remote'
   }
-  if (isCliBlueprintId(id) || /_agent$/.test(id)) return 'cli'
+  if (id === 'api_agent') return 'api'
+  if (isCliBlueprintId(id) || id === 'cli_agent' || /_agent$/.test(id)) return 'cli'
   return classifyAgentKind(id)
 }
 

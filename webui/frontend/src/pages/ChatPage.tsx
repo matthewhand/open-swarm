@@ -33,7 +33,8 @@ import {
   getRecentSlashIds,
   recordRecentSlashId,
 } from '../lib/slashMenu'
-import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchModels, fetchRemotes } from '../lib/api'
+import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchLlmProfiles, fetchModels, fetchRemotes } from '../lib/api'
+import { profileIds } from '../lib/llmProfiles'
 import {
   agentIdFromBlueprint,
   appendAgentMessage,
@@ -288,7 +289,9 @@ const ChatPage = () => {
     ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
     : remoteFromUrl
       ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
-      : selectedCli
+      : selectedBlueprint === 'api_agent'
+        ? 'api_agent'
+        : selectedCli
         ? selectedCli.name
         : selectedAgent
           ? agentLabel(selectedAgent)
@@ -341,6 +344,7 @@ const ChatPage = () => {
         })),
   )
 
+  const isNamedApiAgent = selectedBlueprint === 'api_agent'
   const isApiAgent = Boolean(
     !teamFromUrl &&
       !remoteFromUrl &&
@@ -348,6 +352,13 @@ const ChatPage = () => {
       !isRemoteAgent &&
       !isCliAgent,
   )
+
+  const llmProfilesQuery = useQuery({
+    queryKey: ['llm-profiles'],
+    queryFn: fetchLlmProfiles,
+    enabled: Boolean(isNamedApiAgent || isApiAgent),
+    retry: 1,
+  })
 
   const discoveredClis = useMemo(
     () => discoverChatClis(cliQuery.data, searchParams.get('cli') || selectedCli?.cli),
@@ -382,9 +393,15 @@ const ChatPage = () => {
     [blueprints],
   )
   const availableApiModels = useMemo(() => {
+    if (isNamedApiAgent) {
+      const ids = profileIds(llmProfilesQuery.data)
+      const fallback = llmProfilesQuery.data?.default_llm_profile
+      const list = ids.length ? ids : fallback ? [fallback] : []
+      return list.length ? list : ['default']
+    }
     const list = modelsQuery.data?.data?.map((m) => m.id) ?? []
     return list.length ? list : ['default']
-  }, [modelsQuery.data])
+  }, [isNamedApiAgent, llmProfilesQuery.data, modelsQuery.data])
 
   const currentApiModel = useMemo(() => {
     const fromParam = (searchParams.get('model') ?? '').trim()
@@ -1427,7 +1444,33 @@ const ChatPage = () => {
               </select>
             </>
           ) : null}
-          {isApiAgent ? (
+          {isNamedApiAgent ? (
+            <select
+              className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+              value={currentApiModel}
+              aria-label="API"
+              data-testid="api-select"
+              onChange={(e) => {
+                const nextModel = e.target.value
+                const prev = currentApiModel
+                setSearchParams(
+                  (prevParams) => {
+                    const nextParams = new URLSearchParams(prevParams)
+                    nextParams.set('model', nextModel)
+                    return nextParams
+                  },
+                  { replace: true },
+                )
+                recordDropdownChange('api', prev, nextModel)
+              }}
+            >
+              {availableApiModels.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          ) : isApiAgent ? (
             <>
               <select
                 className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
