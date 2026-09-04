@@ -3,6 +3,7 @@ import {
   PINNED_AGENTS_STORAGE_KEY,
   excludePinnedFromList,
   loadPinnedAgents,
+  movePinnedAgent,
   pinAgent,
   unpinAgent,
 } from '../pinnedAgents'
@@ -24,6 +25,15 @@ describe('pinnedAgents persistence', () => {
     const pinned = pinAgent({ id: 'stewie', name: 'Stewie' }, [{ id: 'codey', name: 'Codey' }])
     expect(unpinAgent('codey', pinned)).toEqual([{ id: 'stewie', name: 'Stewie' }])
     expect(loadPinnedAgents()).toEqual([{ id: 'stewie', name: 'Stewie' }])
+  })
+
+  it('reorders favourites and persists the new order', () => {
+    const pinned = pinAgent({ id: 'stewie', name: 'Stewie' }, [{ id: 'codey', name: 'Codey' }])
+    const next = movePinnedAgent('stewie', 'codey', pinned)
+    expect(next.map((pin) => pin.id)).toEqual(['stewie', 'codey'])
+    expect(loadPinnedAgents().map((pin) => pin.id)).toEqual(['stewie', 'codey'])
+    expect(movePinnedAgent('stewie', 'stewie', next)).toEqual(next)
+    expect(movePinnedAgent('missing', 'codey', next)).toEqual(next)
   })
 
   it('drops favourited ids from the rail list (move, not copy)', () => {

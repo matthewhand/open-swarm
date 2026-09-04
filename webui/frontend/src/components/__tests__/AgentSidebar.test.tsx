@@ -975,6 +975,72 @@ describe('AgentSidebar favourites grid (REQ-94)', () => {
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
   })
+
+  it('unfavourites when a tile is dropped onto the agents list (no duplicate)', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+
+    const tile = await within(grid).findByRole('link', { name: 'Codey' })
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+
+    const drop = screen.getByTestId('agent-list-drop')
+    dragTo(tile, drop)
+
+    await waitFor(() => {
+      expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    })
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    expect(within(list).getAllByRole('link', { name: /Codey/ })).toHaveLength(1)
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
+  })
+
+  it('unfavourites when a tile is dropped onto a list row', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+    const tile = await within(grid).findByRole('link', { name: 'Codey' })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    dragTo(tile, stewie)
+
+    await waitFor(() => {
+      expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    })
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
+  })
+
+  it('reorders favourite tiles within the grid and persists', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+    dragTo(stewie, grid)
+
+    let tiles = within(grid).getAllByRole('link')
+    expect(tiles.map((link) => link.getAttribute('aria-label'))).toEqual(['Codey', 'Stewie'])
+
+    dragTo(tiles[1], tiles[0])
+    await waitFor(() => {
+      expect(
+        within(grid)
+          .getAllByRole('link')
+          .map((link) => link.getAttribute('aria-label')),
+      ).toEqual(['Stewie', 'Codey'])
+    })
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'stewie', name: 'Stewie' },
+      { id: 'codey', name: 'Codey' },
+    ])
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
+  })
 })
 
 describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {

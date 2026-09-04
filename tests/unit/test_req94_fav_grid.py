@@ -31,6 +31,10 @@ def test_spa_pin_is_a_move_out_of_the_rail_list():
     assert "excludePinnedFromList" in sidebar
     assert "move, not a copy" in pins
     assert "swarm_pinned_agents" in pins
+    assert "movePinnedAgent" in pins
+    assert "dropUnfavourite" in sidebar
+    assert "dropPinReorder" in sidebar
+    assert "agent-list-drop" in sidebar
     assert 'dropEffect = \'move\'' in sidebar or 'dropEffect = "move"' in sidebar
 
 

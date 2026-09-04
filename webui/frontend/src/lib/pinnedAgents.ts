@@ -98,6 +98,23 @@ export function unpinAgent(id: string, current: PinnedAgent[]): PinnedAgent[] {
   return next
 }
 
+/** Move an existing favourite so it sits immediately before `beforeId`. */
+export function movePinnedAgent(
+  fromId: string,
+  beforeId: string,
+  current: PinnedAgent[],
+): PinnedAgent[] {
+  if (!fromId || !beforeId || fromId === beforeId) return current
+  const from = current.find((item) => item.id === fromId)
+  if (!from) return current
+  const without = current.filter((item) => item.id !== fromId)
+  const index = without.findIndex((item) => item.id === beforeId)
+  if (index < 0) return current
+  without.splice(index, 0, from)
+  savePinnedAgents(without)
+  return without
+}
+
 /** Ids currently sitting in the favourite grid (hidden pins stay in storage). */
 export function pinnedAgentIds(pins: PinnedAgent[]): Set<string> {
   return new Set(pins.map((pin) => pin.id))

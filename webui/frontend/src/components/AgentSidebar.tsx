@@ -57,6 +57,7 @@ import {
   endAgentDrag,
   excludePinnedFromList,
   loadPinnedAgents,
+  movePinnedAgent,
   parseAgentDragPayload,
   pinAgent,
   type PinnedAgent,
@@ -213,6 +214,7 @@ export default function AgentSidebar({
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [settingsTick, setSettingsTick] = useState(0)
   const [dropActive, setDropActive] = useState(false)
+  const [listDropActive, setListDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [picker, setPicker] = useState<PickerState | null>(null)
@@ -514,9 +516,13 @@ export default function AgentSidebar({
     setDraggingId(null)
     setDropTargetId(null)
     setDropActive(false)
+    setListDropActive(false)
     setHideDropActive(false)
     hideDropDepth.current = 0
   }
+
+  const isPinnedId = (id: string | null | undefined) =>
+    Boolean(id && pins.some((pin) => pin.id === id))
 
   /**
    * Hide wins: the id leaves the conversation list and the favourite pin grid.
@@ -559,7 +565,46 @@ export default function AgentSidebar({
     setDropActive(false)
     finishDrag()
     if (!payload) return
-    setPins((current) => pinAgent(payload, current))
+    // Already-pinned drops on empty grid space are a no-op; tile drops reorder.
+    setPins((current) =>
+      current.some((pin) => pin.id === payload.id) ? current : pinAgent(payload, current),
+    )
+  }
+
+  const dropPinReorder = (event: ReactDragEvent, beforeId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const payload = parseAgentDragPayload(event.dataTransfer)
+    finishDrag()
+    if (!payload?.id || payload.id === beforeId) return
+    setPins((current) => {
+      if (current.some((pin) => pin.id === payload.id)) {
+        return movePinnedAgent(payload.id, beforeId, current)
+      }
+      return pinAgent(payload, current)
+    })
+  }
+
+  const dropUnfavourite = (event: ReactDragEvent) => {
+    event.preventDefault()
+    const payload = parseAgentDragPayload(event.dataTransfer)
+    finishDrag()
+    if (!payload?.id) return
+    setPins((current) =>
+      current.some((pin) => pin.id === payload.id) ? unpinAgent(payload.id, current) : current,
+    )
+  }
+
+  const allowListUnfavourite = (event: ReactDragEvent) => {
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (!isPinnedId(fromId)) return
+    event.preventDefault()
+    try {
+      event.dataTransfer.dropEffect = 'move'
+    } catch {
+      /* synthetic events may omit dataTransfer */
+    }
+    setListDropActive(true)
   }
 
   const dropHide = (event: ReactDragEvent) => {
@@ -596,7 +641,11 @@ export default function AgentSidebar({
     event.stopPropagation()
     const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
     if (fromId && fromId !== targetId) {
-      reorderBefore(fromId, targetId)
+      if (isPinnedId(fromId)) {
+        setPins((current) => unpinAgent(fromId, current))
+      } else {
+        reorderBefore(fromId, targetId)
+      }
     }
     finishDrag()
   }
@@ -604,6 +653,10 @@ export default function AgentSidebar({
   const dropOnSelf = (event: ReactDragEvent) => {
     event.preventDefault()
     event.stopPropagation()
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (isPinnedId(fromId)) {
+      setPins((current) => unpinAgent(fromId!, current))
+    }
     finishDrag()
   }
 
@@ -947,6 +1000,11 @@ export default function AgentSidebar({
         onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
         onDragEnd={finishDrag}
         onDragOver={(event) => {
+          const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+          if (isPinnedId(fromId)) {
+            allowRowDrop(event, hideId)
+            return
+          }
           try {
             event.dataTransfer.dropEffect = 'none'
           } catch {
@@ -1109,7 +1167,9 @@ export default function AgentSidebar({
           {visiblePins.map((pin) => {
             const live = agents.find((agent) => agent.id === pin.id)
             const pinName = live ? agentLabel(live) : pin.name || pin.id
-            const pinClass = `os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`
+            const pinClass = `os-fav-tile ${
+              draggingId === pin.id ? 'os-fav-tile--dragging' : ''
+            } ${dropTargetId === pin.id ? 'os-fav-tile--drop' : ''}`
             const pinFace = (
               <>
                 <AgentAvatar
@@ -1124,6 +1184,8 @@ export default function AgentSidebar({
               draggable: true as const,
               onDragStart: (event: ReactDragEvent) => beginRowDrag(event, pin),
               onDragEnd: finishDrag,
+              onDragOver: (event: ReactDragEvent) => allowRowDrop(event, pin.id),
+              onDrop: (event: ReactDragEvent) => dropPinReorder(event, pin.id),
               onClick: pickOrClose,
               onContextMenu: (event: ReactMouseEvent) => {
                 event.preventDefault()
@@ -1169,25 +1231,40 @@ export default function AgentSidebar({
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
-          {loadingList ? (
-            <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
-          ) : loadFailed ? (
-            <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
-          ) : visibleCount === 0 ? (
-            <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
-          ) : (
-            <ul className="space-y-0.5">
-              {orderedRows.map((row, index) => (
-                <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
-                  {row.kind === 'team'
-                    ? renderTeamRow(row.team)
-                    : row.kind === 'remote'
-                      ? renderRemoteRow(row.remote, false)
-                      : renderAgentRow(row.agent, false)}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div
+            className={`os-agent-list ${listDropActive ? 'os-agent-list--unfav' : ''}`}
+            data-testid="agent-list-drop"
+            data-unfavourite-target="true"
+            onDragOver={allowListUnfavourite}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                setListDropActive(false)
+              }
+            }}
+            onDrop={dropUnfavourite}
+          >
+            {loadingList ? (
+              <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
+            ) : loadFailed ? (
+              <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
+            ) : visibleCount === 0 ? (
+              <p className="px-2 py-3 text-sm text-base-content/45">
+                {isPinnedId(draggingId) ? 'drop here to unfavourite' : 'No agents yet.'}
+              </p>
+            ) : (
+              <ul className="space-y-0.5">
+                {orderedRows.map((row, index) => (
+                  <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
+                    {row.kind === 'team'
+                      ? renderTeamRow(row.team)
+                      : row.kind === 'remote'
+                        ? renderRemoteRow(row.remote, false)
+                        : renderAgentRow(row.agent, false)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div
             className={`os-hide-drop os-drop-target ${hideDropActive ? 'os-hide-drop--active' : ''}`}

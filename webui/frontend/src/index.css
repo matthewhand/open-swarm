@@ -394,6 +394,18 @@ button.os-agent-row {
 .os-fav-tile--dragging {
   opacity: 0.4;
 }
+.os-fav-tile--drop {
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+.os-agent-list {
+  min-height: 3rem;
+  border-radius: 0.65rem;
+}
+.os-agent-list--unfav {
+  outline: 2px dashed color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
+  outline-offset: 2px;
+  background: color-mix(in srgb, var(--color-base-300) 40%, transparent);
+}
 .os-agent-row--drop {
   box-shadow: inset 0 2px 0 color-mix(in srgb, var(--color-primary) 70%, transparent);
 }
