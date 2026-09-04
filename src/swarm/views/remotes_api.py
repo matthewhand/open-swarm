@@ -65,6 +65,7 @@ class RemotesListView(APIView):
                 "api_key_env": serializers.CharField(required=False, allow_blank=True),
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
+                "session_cookie_env": serializers.CharField(required=False, allow_blank=True),
             },
         ),
         responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
@@ -78,7 +79,7 @@ class RemotesListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie"):
+        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie", "session_cookie_env"):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
         try:
@@ -123,6 +124,7 @@ class RemoteDetailView(APIView):
                 "api_key_env": serializers.CharField(required=False, allow_blank=True),
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
+                "session_cookie_env": serializers.CharField(required=False, allow_blank=True),
             },
         ),
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
@@ -130,18 +132,18 @@ class RemoteDetailView(APIView):
     def patch(self, request, remote_id: str, *_args, **_kwargs):
         body = request.data if isinstance(request.data, dict) else {}
         kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie"):
+        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie", "session_cookie_env"):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
         if not kwargs:
             return Response(
-                {"error": "Provide at least one of base_url, api_key, api_key_env, ui_url, cookie."},
+                {"error": "Provide at least one of base_url, api_key, api_key_env, ui_url, cookie, session_cookie_env."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             spec, path = remotes_core.persist_remote(remote_id, **kwargs)
         except remotes_core.RemoteError as exc:
-            code = status.HTTP_404_NOT_FOUND if "Unknown remote" in str(exc) else status.HTTP_400_BAD_REQUEST
+            code = status.HTTP_404_NOT_FOUND if "not configured" in str(exc) or "Unknown remote" in str(exc) else status.HTTP_400_BAD_REQUEST
             return Response({"error": str(exc)}, status=code)
         except OSError as exc:
             logger.exception("Failed to persist remotes.%s", remote_id)

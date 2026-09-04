@@ -1,4 +1,4 @@
-"""Remote agent-harness connectivity: Hermes, OpenMousBot (id omb), Rakazo, nested swarm.
+"""Remote agent-harness connectivity: Hermes, OpenMousBot (id omb), Rakazo, Herdr, nested swarm.
 
 Open Swarm is a harness *for* other harnesses. This module is the single
 source of truth for:
@@ -42,9 +42,11 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 # Operate / health adapters (PR 318 + REQ-57). Extra kinds are addable in
-# Settings (REQ-59) but do not gain list/send here — that is REQ-61+.
-REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo", "swarm")
+# Settings (REQ-59). Herdr is opt-in (REQ-64): no baked LAN default.
+REMOTE_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo", "herdr", "swarm")
 REMOTE_KIND_IDS: tuple[str, ...] = ("hermes", "omb", "rakazo", "herdr", "swarm")
+# Kinds that never appear until the user (or env) adds them.
+OPT_IN_REMOTE_IDS: frozenset[str] = frozenset({"herdr"})
 REMOTE_KIND_LABELS: dict[str, str] = {
     "hermes": "Hermes",
     "omb": "OpenMousBot",
@@ -72,7 +74,7 @@ _DEFAULT_PLACED: tuple[str, ...] = ("hermes", "omb", "rakazo")
 TEAM_VOCABULARY: dict[str, str] = {
     "team": (
         "A Team wires API agents, CLI agents, and remote agents "
-        "(Hermes / OpenMousBot / Rakazo / nested open-swarm) so they can see and "
+        "(Hermes / OpenMousBot / Rakazo / Herdr / nested open-swarm) so they can see and "
         "talk to each other via openai-agents handoff or as_tool."
     ),
     "not_teams_page": (
@@ -85,6 +87,7 @@ _TOOL_NAMES: dict[str, str] = {
     "hermes": "consult_hermes",
     "omb": "consult_omb",
     "rakazo": "consult_rakazo",
+    "herdr": "consult_herdr",
     "swarm": "consult_swarm",
 }
 
@@ -141,12 +144,14 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "host_label": "",
         "base_url": "",
         "ui_url": "",
-        "api_key": "",
-        "health_path": "",
-        "version_path": "",
+        "api_key": "${HERDR_API_KEY}",
+        "health_path": "/health",
+        "version_path": "/health",
         "notes": (
-            "Herdr pane. Empty URL means localhost (no herdr --remote). "
-            "List/send for this kind lands in a later REQ."
+            "Opt-in Herdr remote. No baked LAN host. Add via Settings or "
+            "swarm-cli remotes set herdr --base-url <url> --api-key-env "
+            "HERDR_API_KEY. GET /health, GET /agents. herdr --remote uses "
+            "the configured base; localhost omits the flag. No baked LAN."
         ),
     },
     "swarm": {
@@ -174,12 +179,14 @@ _ENV_BASE = {
     "hermes": "HERMES_BASE_URL",
     "omb": "OMB_BASE_URL",
     "rakazo": "RAKAZO_BASE_URL",
+    "herdr": "HERDR_BASE_URL",
     "swarm": "SWARM_REMOTE_BASE_URL",
 }
 _ENV_KEY = {
     "hermes": "HERMES_API_KEY",
     "omb": "OMB_API_KEY",
     "rakazo": "RAKAZO_API_KEY",
+    "herdr": "HERDR_API_KEY",
     "swarm": "SWARM_REMOTE_API_KEY",
 }
 _ENV_UI = {"rakazo": "RAKAZO_UI_URL", "hermes": "HERMES_UI_URL"}
@@ -213,6 +220,7 @@ class RemoteSpec:
     notes: str = ""
     source: str = "default"
     api_key_env: str = ""
+    session_cookie_env: str = ""
 
     def origin(self) -> tuple[str, int]:
         parsed = urlparse(self.base_url)
@@ -237,6 +245,7 @@ class RemoteSpec:
             "label": kind_label(self.id),
             "source": self.source,
             "api_key_env": self.api_key_env,
+            "session_cookie_env": self.session_cookie_env,
             "added": self.source in ("config", "env"),
             "member": {
                 "kind": "remote",
@@ -391,6 +400,11 @@ def list_remote_kinds() -> list[dict[str, str]]:
     return [{"id": kid, "label": REMOTE_KIND_LABELS[kid]} for kid in REMOTE_KIND_IDS]
 
 
+def remote_kind_catalog() -> list[dict[str, str]]:
+    """Alias for ``list_remote_kinds`` (REQ-64 / Settings kind picker)."""
+    return list_remote_kinds()
+
+
 def kind_catalog() -> list[dict[str, str]]:
     """Alias of ``list_remote_kinds`` (REQ-62)."""
     return list_remote_kinds()
@@ -403,6 +417,20 @@ def _placeholder_env_name(value: str) -> str:
         if inner and all(ch.isalnum() or ch == "_" for ch in inner):
             return inner
     return ""
+
+
+def _as_env_name(value: str) -> str:
+    raw = (value or "").strip()
+    derived = _placeholder_env_name(raw)
+    return derived or raw
+
+
+def _opt_in_not_configured_message(remote_id: str) -> str:
+    if remote_id == "herdr":
+        from swarm.herdr.remote import not_configured_message
+
+        return not_configured_message()
+    return f"Remote '{remote_id}' is not configured"
 
 
 def default_spec(remote_id: str) -> RemoteSpec:
@@ -455,8 +483,10 @@ def load_raw_config(config_path: str | Path | None = None) -> tuple[dict[str, An
 def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteSpec:
     """Defaults ← swarm_config.json remotes ← env (env wins)."""
     rid = _require_kind_id(remote_id)
-    spec = default_spec(rid)
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
+    if rid in OPT_IN_REMOTE_IDS and not is_configured(rid, cfg):
+        raise RemoteError(_opt_in_not_configured_message(rid))
+    spec = default_spec(rid)
     remotes_block = cfg.get("remotes") if isinstance(cfg.get("remotes"), dict) else {}
     block = remotes_block.get(rid)
     if not isinstance(block, dict) and rid == "swarm":
@@ -474,6 +504,7 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
             "version_path",
             "notes",
             "api_key_env",
+            "session_cookie_env",
         ):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
@@ -493,12 +524,14 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
     if env_cookie and os.environ.get(env_cookie, "").strip():
         spec.cookie = os.environ[env_cookie].strip()
 
+    if not spec.api_key_env:
+        spec.api_key_env = _placeholder_env_name(str(spec.api_key or ""))
+    if not spec.session_cookie_env:
+        spec.session_cookie_env = _placeholder_env_name(str(spec.cookie or ""))
     spec.base_url = _normalize_base_url(_expand(spec.base_url))
     spec.ui_url = _normalize_base_url(_expand(spec.ui_url)) if spec.ui_url else ""
     spec.api_key = str(_expand(spec.api_key) or "")
     spec.cookie = str(_expand(spec.cookie) or "")
-    if not spec.api_key_env:
-        spec.api_key_env = _placeholder_env_name(spec.api_key)
     spec.health_path = spec.health_path or "/health"
     spec.version_path = spec.version_path or spec.health_path
     if not spec.health_path.startswith("/"):
@@ -510,7 +543,12 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
 
 def load_all_remotes(config: dict[str, Any] | None = None) -> dict[str, RemoteSpec]:
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
-    return {rid: load_remote(rid, cfg) for rid in REMOTE_IDS}
+    out: dict[str, RemoteSpec] = {}
+    for rid in REMOTE_IDS:
+        if rid in OPT_IN_REMOTE_IDS and not is_configured(rid, cfg):
+            continue
+        out[rid] = load_remote(rid, cfg)
+    return out
 
 
 def configured_remote_ids(config: dict[str, Any] | None = None) -> list[str]:
@@ -730,10 +768,18 @@ def persist_remote(
     if ui_url is not None:
         entry["ui_url"] = _normalize_base_url(ui_url) if ui_url else ""
     if session_cookie_env is not None:
-        env_name = _placeholder_env_name(session_cookie_env) or session_cookie_env.strip()
-        entry["cookie"] = f"${{{env_name}}}" if env_name else ""
+        env_name = _as_env_name(session_cookie_env)
+        if env_name:
+            entry["session_cookie_env"] = env_name
+            entry["cookie"] = f"${{{env_name}}}"
+        else:
+            entry["session_cookie_env"] = ""
+            entry["cookie"] = ""
     elif cookie is not None:
         entry["cookie"] = cookie
+        derived = _placeholder_env_name(str(cookie))
+        if derived:
+            entry["session_cookie_env"] = derived
     remotes[rid] = entry
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
@@ -1393,6 +1439,60 @@ def _swarm_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> O
     )
 
 
+def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
+    from swarm.herdr.remote import LIST_PATH, members_from_http_list
+
+    result = http_json(
+        "GET",
+        f"{spec.base_url}{LIST_PATH}",
+        headers=_auth_headers(spec),
+        timeout=timeout,
+    )
+    if result.status in _UP:
+        members = members_from_http_list(result.body or {}, remote=spec.base_url)
+        return OperateResult(
+            remote="herdr",
+            op="list",
+            ok=True,
+            detail=f"Herdr listed {len(members)} member(s) via GET {LIST_PATH}",
+            http_status=result.status,
+            data={"members": members, "raw": result.body},
+        )
+    if result.status in _AUTH:
+        return OperateResult(
+            remote="herdr",
+            op="list",
+            ok=False,
+            detail="Herdr GET /agents requires auth. Set remotes.herdr.api_key or HERDR_API_KEY.",
+            http_status=result.status,
+            data=result.body,
+        )
+    return OperateResult(
+        remote="herdr",
+        op="list",
+        ok=False,
+        detail=result.error or f"Herdr list failed (http {result.status})",
+        http_status=result.status,
+        data=result.body or result.text,
+    )
+
+
+def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:
+    if not prompt.strip():
+        return OperateResult(remote="herdr", op="send", ok=False, detail="prompt is required")
+    return OperateResult(
+        remote="herdr",
+        op="send",
+        ok=False,
+        detail=(
+            "Herdr send uses HerdrClient (herdr agent prompt), not this HTTP "
+            "operate path. Configure remotes.herdr then call the CLI wrapper."
+        ),
+        data={"target": target, "base_url": spec.base_url},
+        gap="herdr_send_via_cli",
+    )
+
+
 def operate(
     remote_id: str,
     op: str,
@@ -1440,6 +1540,8 @@ def operate(
             return _rakazo_list(spec, timeout) if action == "list" else _rakazo_send(spec, prompt, target, timeout)
         if rid == "swarm":
             return _swarm_list(spec, timeout) if action == "list" else _swarm_send(spec, prompt, target, timeout)
+        if rid == "herdr":
+            return _herdr_list(spec, timeout) if action == "list" else _herdr_send(spec, prompt, target, timeout)
         return OperateResult(
             remote=rid,
             op=action,
