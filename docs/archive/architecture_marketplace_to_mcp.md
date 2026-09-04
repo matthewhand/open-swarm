@@ -1,3 +1,6 @@
+> **Historical (archived).** Marketplace → MCP distribution design from before
+> CLI-fusion. Not current guidance. See [VISION.md](../VISION.md).
+
 End‑to‑End Flow: Marketplace → Local Config → Secure MCP → Clients
 ================================================================
 
