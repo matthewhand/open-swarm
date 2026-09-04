@@ -28,6 +28,7 @@ import {
   roleFromAgent,
   showsBlueprintEdit,
 } from '../lib/agentRoles'
+import { openAgentEditor } from '../lib/agentSettings'
 import {
   hasHiddenAgentsStorage,
   hideAgentId,
@@ -77,6 +78,8 @@ import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRoster
 import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
 import { selectStackedFaces } from '../lib/avatarStack'
 import {
+  defaultSessionForRemote,
+  defaultSessionForTeam,
   sessionsForRemote,
   sessionsForTeam,
   stackFacesForRemote,
@@ -115,6 +118,8 @@ interface ContextMenuState {
   pinned: boolean
   x: number
   y: number
+  kind?: 'agent' | 'team' | 'remote'
+  sessions?: MemberSession[]
 }
 
 interface SessionPickerState {
@@ -526,11 +531,18 @@ export default function AgentSidebar({
     return () => window.removeEventListener('keydown', onAltDigit)
   }, [visiblePins, navigate, onClose])
 
-  const openMenu = (event: ReactMouseEvent, hideId: string, label: string, hidden: boolean) => {
+  const openMenu = (
+    event: ReactMouseEvent,
+    hideId: string,
+    label: string,
+    hidden: boolean,
+    kind?: 'agent' | 'team' | 'remote',
+    sessions?: MemberSession[],
+  ) => {
     event.preventDefault()
     const pad = 8
     const width = 200
-    const height = 88
+    const height = 120
     const x = Math.min(event.clientX, window.innerWidth - width - pad)
     const y = Math.min(event.clientY, window.innerHeight - height - pad)
     setMenu({
@@ -540,6 +552,8 @@ export default function AgentSidebar({
       pinned: pins.some((pin) => pin.id === hideId),
       x: Math.max(pad, x),
       y: Math.max(pad, y),
+      kind,
+      sessions,
     })
   }
 
@@ -969,9 +983,15 @@ export default function AgentSidebar({
         onDrop={(event) => dropReorder(event, hideId)}
         onClick={(event) => {
           event.preventDefault()
-          openGroupPicker(name, sessions)
+          const def = defaultSessionForTeam(team)
+          if (def) {
+            navigate(def.href)
+            onClose?.()
+          } else {
+            openGroupPicker(name, sessions)
+          }
         }}
-        onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
+        onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'team', sessions)}
       >
         {stacked.faces.length > 0 ? (
           <AvatarStack
@@ -1076,9 +1096,15 @@ export default function AgentSidebar({
         onDrop={dropOnSelf}
         onClick={(event) => {
           event.preventDefault()
-          openGroupPicker(name, sessions)
+          const def = defaultSessionForRemote(remote)
+          if (def) {
+            navigate(def.href)
+            onClose?.()
+          } else {
+            openGroupPicker(name, sessions)
+          }
         }}
-        onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
+        onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'remote', sessions)}
       >
         <AvatarStack
           faces={stacked.faces}
@@ -1651,6 +1677,22 @@ export default function AgentSidebar({
           className="fixed z-50 min-w-[12.5rem] rounded-lg border border-base-300 bg-neutral py-1 text-sm shadow-xl"
           style={{ left: menu.x, top: menu.y }}
         >
+          {menu.sessions && menu.sessions.length > 0 && (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+              onClick={() => {
+                const s = menu.sessions!
+                const title = menu.agentName
+                closeMenu()
+                openGroupPicker(title, s)
+              }}
+            >
+              <Users className="h-4 w-4" aria-hidden="true" />
+              Select Agent
+            </button>
+          )}
           {menu.hidden ? (
             <button
               type="button"

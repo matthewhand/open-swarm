@@ -89,4 +89,34 @@ describe('SessionPicker', () => {
     )
     expect(screen.getByText('no sessions yet')).toBeInTheDocument()
   })
+
+  it('renders a Manage Team footer link when sessions are for a team', () => {
+    const onClose = vi.fn()
+    render(
+      <SessionPicker
+        open
+        title="Core Team"
+        sessions={[
+          {
+            id: 'core-team:alice',
+            groupId: 'core-team',
+            groupKind: 'team',
+            memberId: 'alice',
+            title: 'Alice',
+            snippet: 'coder',
+            status: 'running',
+            startedAt: 1000,
+            href: '/chat?team=core-team&session=alice',
+          },
+        ]}
+        onClose={onClose}
+        onSelect={() => undefined}
+      />,
+    )
+    const link = screen.getByRole('link', { name: /Manage Team/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/teams/#core-team')
+    fireEvent.click(link)
+    expect(onClose).toHaveBeenCalled()
+  })
 })

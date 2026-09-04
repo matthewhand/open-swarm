@@ -1454,7 +1454,7 @@ describe('ChatPage team member dropdown', () => {
       'All members',
       'Codey (agent/coder)',
       'Stewie (agent/ops)',
-      'Manage Teams',
+      'Manage Team',
     ])
     expect(select).toHaveValue('all')
     expect(screen.queryByText('Blueprint')).not.toBeInTheDocument()
@@ -1498,7 +1498,7 @@ describe('ChatPage team member dropdown', () => {
     })
   })
 
-  it('keeps Manage Teams last and does not send when that item is chosen', async () => {
+  it('keeps Manage Team last with separator and does not send when that item is chosen', async () => {
     renderChat('/chat?team=demo-team')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -1507,12 +1507,14 @@ describe('ChatPage team member dropdown', () => {
     const select = await screen.findByRole('combobox', { name: 'Team members' })
     const options = within(select).getAllByRole('option')
     expect(options[options.length - 1]).toHaveValue('__manage__')
-    expect(options[options.length - 1]).toHaveTextContent('Manage Teams')
+    expect(options[options.length - 1]).toHaveTextContent('Manage Team')
+    const allOptions = Array.from(select.querySelectorAll('option'))
+    expect(allOptions[allOptions.length - 2]).toBeDisabled()
     expect(select).toHaveValue('all')
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
 
-  it('REQ-23 #331: Manage Teams navigates to /teams/ and does not WS-send', async () => {
+  it('REQ-23 #331 & REQ-152: Manage Team navigates to /teams/#team_id and does not WS-send', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
 
@@ -1524,7 +1526,7 @@ describe('ChatPage team member dropdown', () => {
     fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
       target: { value: '__manage__' },
     })
-    expect(assign).toHaveBeenCalledWith('/teams/')
+    expect(assign).toHaveBeenCalledWith('/teams/#demo-team')
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
 })

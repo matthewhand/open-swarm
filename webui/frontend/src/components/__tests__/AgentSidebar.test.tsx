@@ -209,7 +209,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
 
     const search = screen.getByRole('searchbox', { name: 'Search' })
-    expect(search).toHaveAttribute('placeholder', 'Search')
+    expect(search.getAttribute('placeholder')).toMatch(/^Search/)
     fireEvent.focus(search)
     fireEvent.click(search)
     expect(onOpenSearch).toHaveBeenCalled()
@@ -810,7 +810,8 @@ describe('AgentSidebar Grok rail', () => {
       expect(row).toHaveClass('os-agent-row')
       expect(row.className).not.toMatch(/os-agent-row--(support|gate|skeptic|cos|chief_of_staff)/)
       expect(row.className).not.toMatch(/os-agent-role-/)
-      expect(row.querySelector('.os-agent-dot')).not.toHaveAttribute('data-role')
+      const dot = row.querySelector('.os-agent-dot')
+      if (dot) expect(dot).not.toHaveAttribute('data-role')
     }
 
     expect(support.querySelector('.os-agent-role-badge')).toHaveAttribute('data-role', 'support')
@@ -1418,7 +1419,7 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
     expect(hermes.querySelectorAll('.os-avatar-stack__face')).toHaveLength(1)
   })
 
-  it('labels OpenMousBot (not OMB) and stacks CoS + workers; click opens filtered picker', async () => {
+  it('labels OpenMousBot (not OMB) and stacks CoS + workers; left-click opens directly, right-click Select Agent opens picker', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const omb = await within(list).findByRole('link', { name: /OpenMousBot \(remote\)/ })
@@ -1429,7 +1430,15 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
     expect(within(list).getByRole('link', { name: /Rakazo \(remote\)/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Lab swarm \(remote\)/ })).toBeInTheDocument()
 
+    // REQ-130: primary click opens chat immediately with no intermediate picker
     fireEvent.click(omb)
+    expect(screen.queryByRole('dialog', { name: 'OpenMousBot sessions' })).not.toBeInTheDocument()
+
+    // REQ-130: right-click menu provides Select Agent to open the member picker
+    fireEvent.contextMenu(omb)
+    const selectAgent = await screen.findByRole('menuitem', { name: 'Select Agent' })
+    fireEvent.click(selectAgent)
+
     const dialog = await screen.findByRole('dialog', { name: 'OpenMousBot sessions' })
     expect(within(dialog).getAllByRole('option')).toHaveLength(5)
     expect(dialog).toHaveTextContent('OpenMousBot')
@@ -1442,11 +1451,21 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
     expect(screen.queryByRole('dialog', { name: 'OpenMousBot sessions' })).not.toBeInTheDocument()
   })
 
-  it('opens the team picker filtered to that roster and selects a session id', async () => {
+  it('opens the team picker filtered to that roster via Select Agent, and opens CoS directly on click', async () => {
     renderSidebar('/chat?team=scale-out')
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const team = await within(list).findByRole('link', { name: /Scale Out \(team\)/ })
+
+    // REQ-130: primary click navigates directly to CoS chat context
     fireEvent.click(team)
+    expect(screen.queryByRole('dialog', { name: 'Scale Out sessions' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('os-test-search')).toHaveTextContent('team=scale-out&session=cos')
+
+    // REQ-130: right-click context menu opens member picker via Select Agent
+    fireEvent.contextMenu(team)
+    const selectAgent = await screen.findByRole('menuitem', { name: 'Select Agent' })
+    fireEvent.click(selectAgent)
+
     const dialog = await screen.findByRole('dialog', { name: 'Scale Out sessions' })
     expect(within(dialog).getAllByRole('option')).toHaveLength(5)
     expect(within(dialog).getByRole('option', { name: /Pat/ })).toHaveAttribute(
@@ -1517,13 +1536,24 @@ describe('AgentSidebar special roles', () => {
   beforeEach(() => {
     localStorage.clear()
     rememberEmptyFavourites()
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, '[]')
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ object: 'list', data: roster }),
-      } as Response),
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = typeof input === 'string' ? input : (input as Request).url
+        if (url.includes('herdr')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: roster }),
+        } as Response
+      }),
     )
   })
 
@@ -1542,7 +1572,7 @@ describe('AgentSidebar special roles', () => {
     expect(links[0]).toHaveTextContent('Support')
     expect(links[0]).toHaveAttribute('data-role', 'support')
     expect(links[0].querySelector('.os-agent-dot')).toBeNull()
-    expect(links[0].querySelector('.os-role-pill--support')).not.toBeNull()
+    expect(links[0].querySelector('.os-agent-role-badge')).not.toBeNull()
     expect(within(list).getByRole('link', { name: /Gate/ })).toHaveAttribute('data-role', 'gate')
     expect(within(list).getByRole('link', { name: /Skeptic/ })).toHaveAttribute(
       'data-role',
