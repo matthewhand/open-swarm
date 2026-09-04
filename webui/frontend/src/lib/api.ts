@@ -157,20 +157,6 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method: 'PATCH',
-    headers: buildHeaders(true),
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    await throwApiError(path, response)
-  }
-
-  return (await response.json()) as T
-}
-
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -485,13 +471,11 @@ export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult>
 
 export function operateRemote(
   remoteId: string,
-  op: 'list' | 'send',
-  prompt = '',
-  target = '',
+  body: { op: 'list' | 'send'; prompt?: string; target?: string },
 ): Promise<RemoteOperateResult> {
   return apiPost<RemoteOperateResult>(
     `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
-    { op, prompt, target },
+    body,
   )
 }
 
@@ -589,10 +573,6 @@ export interface CreateRemoteRequest {
   api_key?: string
   ui_url?: string
   cookie?: string
-}
-
-export function fetchRemotes(): Promise<RemotesListResponse> {
-  return apiGet<RemotesListResponse>('/v1/remotes/')
 }
 
 export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
@@ -907,27 +887,6 @@ export interface RemoteOperateResult {
   http_status?: number | null
   data?: unknown
   gap?: string
-}
-
-export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
-  return apiPost<RemoteConnection>('/v1/remotes/', body)
-}
-
-export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
-  return apiPost<RemoteHealthResult>(
-    `/v1/remotes/${encodeURIComponent(remoteId)}/health/`,
-    {},
-  )
-}
-
-export function operateRemote(
-  remoteId: string,
-  body: { op: 'list' | 'send'; prompt?: string; target?: string },
-): Promise<RemoteOperateResult> {
-  return apiPost<RemoteOperateResult>(
-    `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
-    body,
-  )
 }
 
 /** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements
