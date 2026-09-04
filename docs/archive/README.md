@@ -15,17 +15,15 @@ Nothing here describes the current system — for that, start at
 | [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) | 2026-06 | Snapshot of the FOSS-cleanup implementation wave | [ROADMAP.md](../../ROADMAP.md), [FEATURE_STATUS.md](../../FEATURE_STATUS.md) |
 | [FEATURE_STATUS_2026-06-10.md](./FEATURE_STATUS_2026-06-10.md) | 2026-06-10 | Point-in-time feature evidence audit during the cleanup wave | [FEATURE_STATUS.md](../../FEATURE_STATUS.md) (live board) |
 | [2026-06-cleanup-commit-log.txt](./2026-06-cleanup-commit-log.txt) | 2026-06 | Raw commit log of the cleanup wave (PRs #80–#85) | git history |
+| [BASELINE_REPORT.md](./BASELINE_REPORT.md) | 2025-08-03 | Milestone 0 uv/README check | [README.md](../../README.md), [QUICKSTART.md](../QUICKSTART.md) |
+| [architecture_marketplace_to_mcp.md](./architecture_marketplace_to_mcp.md) | pre-CLI-fusion | Marketplace → local config → MCP clients | [../VISION.md](../VISION.md), `swarm.core.tool_capabilities` |
+| [requirements/](./requirements/) | 2026-08/09 | Full REQ transcripts (parallel SoT) | [GitHub Issues](https://github.com/matthewhand/open-swarm/issues) + [../requirements/](../requirements/) pointers |
 
 ## Related historical documents kept in place
 
 These still live under `docs/` for their inbound links, but describe earlier
 architectures rather than the current one:
 
-- [../architecture_marketplace_to_mcp.md](../architecture_marketplace_to_mcp.md)
-  — the marketplace → local config → secure MCP → clients flow. A blueprint
-  *distribution* design that predates the CLI-fusion direction. The MCP-provider
-  resolution idea survives in `swarm.core.tool_capabilities`; the marketplace
-  framing does not.
 - [../TODO.md](../TODO.md) — the original phase-based "make it run as in the
   README" milestone plan. Superseded as the source of truth by
   [ROADMAP.md](../../ROADMAP.md); retained as history.

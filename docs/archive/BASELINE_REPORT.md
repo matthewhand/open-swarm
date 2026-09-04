@@ -1,4 +1,7 @@
 # Baseline Verification Report — Milestone 0
+
+> **Historical (archived).** Not current guidance. See [README.md](../../README.md)
+> and [QUICKSTART.md](../QUICKSTART.md).
 Goal: Verify README Quickstart paths are runnable using uv. Capture exact commands, observed results, and gaps to fix.
 
 Generated: UTC 2025-08-03
