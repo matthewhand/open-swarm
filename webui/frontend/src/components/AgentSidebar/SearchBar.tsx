@@ -19,7 +19,7 @@ export const SearchBar = memo(function SearchBar({ value, onChange, onOpen }: Se
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => onOpen?.()}
           onClick={() => onOpen?.()}
-          placeholder="Search…"
+          placeholder="Search"
           className="input input-sm input-bordered w-full pl-8 pr-8"
         />
         {value ? (
