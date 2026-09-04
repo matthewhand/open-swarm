@@ -34,6 +34,7 @@ import {
   isExampleRole,
   runtimeModulesFor,
 } from '../lib/agentRoles'
+import { roleDisplayName } from '../lib/safety'
 import type { DefinitionKind } from '../lib/definitionExplain'
 import { PYTHON_CODE_CLASS, highlightPython } from '../lib/highlightPython'
 import {
@@ -377,7 +378,11 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
   const fromLive = Boolean(live?.content)
   const modules = runtimeModulesFor(role)
   const highlighted = highlightPython(content)
-  const label = blueprintId ? agentLabel({ id: blueprintId, name: titleCase(blueprintId) }) : 'Blueprint'
+  const label = blueprintId
+    ? role === 'gate'
+      ? roleDisplayName(role)
+      : agentLabel({ id: blueprintId, name: titleCase(blueprintId) })
+    : 'Blueprint'
 
   return (
     <section id="os-blueprint-editor" aria-labelledby={headingId} className="space-y-3">

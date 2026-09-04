@@ -26,11 +26,26 @@
  * The server must run under ASGI with Channels for the /ws/ route to exist.
  */
 
+export type ToolStatus = 'running' | 'allowed' | 'done' | 'denied' | 'error'
+
 export type ChatWsEvent =
   | { kind: 'user_echo'; text: string }
   | { kind: 'assistant_start'; id: string }
   | { kind: 'assistant_chunk'; id: string; text: string }
   | { kind: 'assistant_final'; id: string; text: string }
+  | {
+      kind: 'tool_status'
+      id: string
+      name: string
+      status: ToolStatus
+      agentId?: string
+    }
+  | {
+      kind: 'tool_approval'
+      id: string
+      name: string
+      agentId?: string
+    }
   | { kind: 'status'; text: string }
   | { kind: 'unknown'; raw: string }
 
@@ -63,6 +78,13 @@ export function buildChatWsFrame(
   return JSON.stringify(frame)
 }
 
+export function buildToolDecisionFrame(
+  id: string,
+  decision: 'allow' | 'always' | 'deny',
+): string {
+  return JSON.stringify({ type: 'tool_decision', id, decision })
+}
+
 export function newConversationId(): string {
   try {
     return crypto.randomUUID()
@@ -71,8 +93,46 @@ export function newConversationId(): string {
   }
 }
 
-/** Parse one HTMx HTML partial frame into a typed event. */
+const TOOL_STATUSES = new Set<ToolStatus>(['running', 'allowed', 'done', 'denied', 'error'])
+
+function parseToolJsonFrame(raw: string): ChatWsEvent | null {
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('{')) return null
+  try {
+    const payload = JSON.parse(trimmed) as Record<string, unknown>
+    const type = String(payload.type || '')
+    const id = String(payload.id || '')
+    const name = String(payload.name || '')
+    if (type === 'tool_status' && id && name) {
+      const status = String(payload.status || '') as ToolStatus
+      if (!TOOL_STATUSES.has(status)) return { kind: 'unknown', raw }
+      return {
+        kind: 'tool_status',
+        id,
+        name,
+        status,
+        agentId: payload.agent_id ? String(payload.agent_id) : undefined,
+      }
+    }
+    if (type === 'tool_approval' && id && name) {
+      return {
+        kind: 'tool_approval',
+        id,
+        name,
+        agentId: payload.agent_id ? String(payload.agent_id) : undefined,
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/** Parse one HTMx HTML partial frame (or JSON tool event) into a typed event. */
 export function parseChatWsMessage(raw: string): ChatWsEvent {
+  const jsonEvent = parseToolJsonFrame(raw)
+  if (jsonEvent) return jsonEvent
+
   let root: Element | null = null
   try {
     const doc = new DOMParser().parseFromString(raw, 'text/html')

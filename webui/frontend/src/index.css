@@ -391,6 +391,15 @@ button.os-agent-row {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }
+.os-tool-popup {
+  text-align: left;
+}
+.os-tool-badge-running {
+  animation: os-tool-pulse 1s ease-in-out infinite;
+}
+@keyframes os-tool-pulse {
+  50% { opacity: 0.55; }
+}
 .os-agent-edit {
   opacity: 0;
   flex: 0 0 auto;
