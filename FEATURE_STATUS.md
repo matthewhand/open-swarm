@@ -183,6 +183,7 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Nested swarm operate (REQ-57) | ✅ | Catalog id `swarm` (alias `open-swarm`). List `GET /v1/blueprints/`; send `POST /v1/chat/completions/`. Default stub `http://127.0.0.1:9`. `persist_remote` refuses this process listen URL. Not auto-placed. |
 | Agent-as-tool Team members | ✅ | Remotes are Team members (`consult_hermes`/`consult_omb`/`consult_rakazo`/`consult_swarm`) that see/talk via as_tool — **not** `/teams/` LLM-profile aliases. `GET /v1/remotes/` returns `vocabulary` + `team_members` |
 | Place remotes in a Team | ✅ | Persist `agent_team.members`; `swarm-cli remotes team\|place\|unplace`; `GET/PATCH /v1/agent-team/`; `remote_harness` attaches `as_tool` only for **placed** members |
+| Herdr remotes kind (REQ-64) | ✅ | Opt-in `kind=herdr` — add base URL + api-key-env; appears in Settings Remotes after add. No baked LAN host. CLI `--remote` uses configured base (localhost omits flag only when user set loopback). Health `GET /health` + list `GET /agents` stubbed in tests. Missing config is a clear error. |
 
 ---
 
@@ -201,6 +202,7 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | `herdr` CLI wrapper | ✅ | `src/swarm/herdr/client.py` — workspace/agent list, agent read, `agent prompt TARGET TEXT` (one argv), wait-until idle\|working\|blocked\|done. Empty remote omits `--remote`. Tests mock the binary: `tests/herdr/test_herdr_client.py` (includes spaces in TEXT + proven `w3:p1` / `HERDR_PING_OK` → `agent_prompted`) |
 | Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. SQLite default (no DATABASE_URL / Neon) |
 | Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
+| Remotes kind + CLI `--remote` (REQ-64) | ✅ | `remotes.herdr` persist; Settings + Add; `HerdrClient.from_remote_config()`; stub HTTP health/list in `tests/core/test_herdr_remote.py` |
 
 ## Regeneration
 

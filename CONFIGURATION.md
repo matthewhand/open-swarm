@@ -347,6 +347,14 @@ CRUD: `/v1/herdr-agents/`. Discover live panes: `/v1/herdr-agents/discover/`
 `/teams/#herdr-members`. Wrapper: `swarm.herdr.HerdrClient`. Full notes:
 [docs/HERDR.md](docs/HERDR.md) (not Hermes/OMB/Rakazo; cloud CI must mock `herdr`).
 
+**REQ-64 remotes kind:** add `herdr` like Hermes / OpenMousBot / Rakazo
+(`swarm-cli remotes set herdr --base-url … --api-key-env HERDR_API_KEY`, or
+Settings → Remotes → + Add remote). That configured base is what
+`herdr --remote` / `HerdrClient.from_remote_config()` use. Localhost omits the
+flag only when you set a loopback URL. Missing config is a clear error — not a
+silent other-host. Health/list use stub HTTP in tests (`GET /health`,
+`GET /agents`). No tokens in the repo.
+
 ---
 
 For more, see the main [README.md](./README.md) or run `swarm-cli --help`.
