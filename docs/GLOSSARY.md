@@ -2,6 +2,22 @@
 
 Short definitions that match the code and APIs. Prefer these names in docs and UI copy.
 
+Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.md), [ADR-006 — API vs Blueprint kinds](./adr/006-api-vs-blueprint-kinds.md) (REQ-193).
+
+## Harness kind (CLI / API / Blueprint / Remote)
+
+**Today (`main`):** user-facing kinds are **API | CLI | Remote**. Stored `api` is the leftover bucket — coded blueprints, personality/swarm designs, and the Add-agent “API” form (which writes a custom `BlueprintBase`) all classify as API. There is no first-class “wire this OpenAI-compat endpoint” seat.
+
+**Target (ADR-006):** four kinds.
+
+| Kind | Meaning |
+|------|---------|
+| **CLI** | Host executable (grok, agy, …). |
+| **API** | Inference seat: OpenAI-compat base URL / model / key env. Chat completions. Not a graph. |
+| **Blueprint** | Programmatic recipe (`BlueprintBase`: openai-agents handoffs, MoA, custom Python, …). |
+| **Remote** | Another agentic framework (OpenMausBot, Hermes, Herdr, nested swarm, …). |
+
+Until Phase 1/2 land, UI copy and classifiers still say “API” for recipes. Prefer the target names in **new** docs.
 Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.md);
 [ADR-003 — Desktop packaging](./adr/003-desktop-packaging.md) (planned Windows pane of glass).
 Chat list windowing: [ADR-004](./adr/004-virtualized-chat-history.md) (REQ-163).
@@ -36,9 +52,11 @@ This is **not** the #561 peer mailbox (`list_agents` / `send_message`).
 
 A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed). New recipes should subclass a [kind base](#kind-base-apikindbase--clikindbase--remotekindbase) (ADR-005).
 
+A Blueprint **catalog** row is a template. A Blueprint **agent** (ADR-006) is a seat that runs a chosen recipe. Do not list the whole catalog as rail “API agents” ([#595](https://github.com/matthewhand/open-swarm/issues/595)).
+
 ## Team (handoff members — REQ-11)
 
-A **Team** wires API agents, CLI agents, and **remote** agents (Hermes, OpenMausBot, Rakazo, nested open-swarm) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`, `consult_swarm`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`. Nested swarm is a network remote (own process, own DB); do not auto-add this instance as its own remote.
+A **Team** wires **API** (inference), **CLI**, **Blueprint** (programmatic), and **remote** agents (Hermes, OpenMausBot, Rakazo, nested open-swarm) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. On `main` today, “API agents” in this sentence still means the conflated recipe bucket — see [ADR-006](./adr/006-api-vs-blueprint-kinds.md). Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`, `consult_swarm`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`. Nested swarm is a network remote (own process, own DB); do not auto-add this instance as its own remote.
 
 This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 
@@ -51,6 +69,9 @@ This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 A **team roster** (`team_rosters.json`, `/v1/team-rosters/`) is a composition
 of members `{id, kind: api\|cli\|remote\|team\|herdr, role, source}`. This is
 **not** the `/v1/teams` alias. `kind=team` + `team_id` nests a child roster.
+ADR-006 adds `kind=blueprint` and redefines `kind=api` as an inference seat
+(Phase 1/2). Existing `kind=api` roster rows that point at recipes migrate to
+`blueprint`.
 
 **Isolation (REQ-28):** members of Team A cannot `handoff` / `as_tool` to Team B
 unless B is a **direct child** of A or the caller is `chief_of_staff` (`cos`,
