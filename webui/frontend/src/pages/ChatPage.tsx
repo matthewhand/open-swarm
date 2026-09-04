@@ -1,5 +1,4 @@
 import {
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -12,7 +11,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
-import { LoadingDots, useToast } from '../components/DaisyUI'
+import { useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
 import {
@@ -24,6 +23,7 @@ import {
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
+import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
@@ -31,14 +31,17 @@ import {
   conversationIdForAgent,
   conversationIdForTask,
   fetchAgentThread,
+  patchAgentMessage,
   type ConversationSummary,
 } from '../lib/agentChat'
+import { canEditAgentMessages, classifyAgentKind, type AgentKind } from '../lib/agentKind'
 import {
   buildDisplayItems,
   contextTextsForMeter,
   summariesById,
 } from '../lib/chatCompact'
 import {
+  buildChatWsEditFrame,
   buildChatWsFrame,
   buildChatWsUrl,
   buildToolDecisionFrame,
@@ -78,7 +81,6 @@ import {
   formatElapsed,
   formatTokenCount,
 } from '../lib/chatMeter'
-import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
@@ -104,6 +106,7 @@ interface ChatMessage {
   /** True while the assistant message is still streaming. */
   streaming: boolean
   tools?: ToolCallState[]
+  edited?: boolean
 }
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
@@ -147,6 +150,15 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [agentKind, setAgentKind] = useState<AgentKind>(() =>
+    classifyAgentKind(searchParams.get('remote') ? `remote:${searchParams.get('remote')}` : searchParams.get('blueprint')),
+  )
+  const [messagesEditable, setMessagesEditable] = useState(() =>
+    canEditAgentMessages(searchParams.get('blueprint')) &&
+    !searchParams.get('team') &&
+    !searchParams.get('remote'),
+  )
   const [, setEditsTick] = useState(0)
   const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
@@ -293,6 +305,9 @@ const ChatPage = () => {
         lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
       lastHydratedAgentRef.current = key
       setConversationId(key)
+      setEditingKey(null)
+      setAgentKind('api')
+      setMessagesEditable(false)
       userKeyCounterRef.current = 0
       if (switched) {
         setThreads((prev) => ({ ...prev, [key]: [] }))
@@ -306,6 +321,9 @@ const ChatPage = () => {
         lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
       lastHydratedAgentRef.current = key
       setConversationId(key)
+      setEditingKey(null)
+      setAgentKind('remote')
+      setMessagesEditable(false)
       userKeyCounterRef.current = 0
       if (switched) {
         setThreads((prev) => ({ ...prev, [key]: [] }))
@@ -329,6 +347,9 @@ const ChatPage = () => {
       lastHydratedAgentRef.current !== hydrateKey
     lastHydratedAgentRef.current = hydrateKey
     setConversationId(nextId)
+    setEditingKey(null)
+    setAgentKind(classifyAgentKind(selectedBlueprint))
+    setMessagesEditable(canEditAgentMessages(selectedBlueprint) && !selectedCli)
     userKeyCounterRef.current = 0
     if (switched) {
       setThreads((prev) => ({ ...prev, [threadKey]: [] }))
@@ -342,6 +363,12 @@ const ChatPage = () => {
     ;(async () => {
       const thread = await fetchAgentThread(agent, sessionFromUrl || undefined)
       if (cancelled) return
+      setAgentKind(thread.kind ?? classifyAgentKind(selectedBlueprint))
+      setMessagesEditable(
+        !teamFromUrl &&
+          !remoteFromUrl &&
+          (thread.editable ?? canEditAgentMessages(selectedBlueprint, thread.kind)),
+      )
       setSummariesByThread((prev) => ({
         ...prev,
         [threadKey]: thread.summaries,
@@ -354,13 +381,14 @@ const ChatPage = () => {
           role: message.role,
           text: message.content,
           streaming: false,
+          edited: message.edited === true,
         })),
       }))
     })()
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey, selectedCli])
 
   const attachToolToThread = useCallback(
     (tool: ToolCallState) => {
@@ -679,6 +707,41 @@ const ChatPage = () => {
     ],
   )
 
+  const saveEditedMessage = useCallback(
+    async (index: number, nextText: string) => {
+      if (!messagesEditable) return
+      const current = threads[threadKey] ?? []
+      const target = current[index]
+      if (!target || target.streaming) return
+      setThreads((prev) => {
+        const list = prev[threadKey] ?? []
+        if (!list[index]) return prev
+        const next = list.slice()
+        next[index] = { ...next[index], text: nextText, edited: true }
+        return { ...prev, [threadKey]: next }
+      })
+      setEditingKey(null)
+      const ws = wsRef.current
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(buildChatWsEditFrame(index, nextText))
+      }
+      try {
+        await patchAgentMessage(agentIdFromBlueprint(selectedBlueprint), {
+          index,
+          content: nextText,
+          conversation_id: conversationIdRef.current,
+        })
+      } catch {
+        addToast({
+          type: 'error',
+          title: 'Could not save edit',
+          message: 'The message was updated in this view, but persist failed.',
+        })
+      }
+    },
+    [addToast, messagesEditable, selectedBlueprint, threadKey, threads],
+  )
+
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
     sendText(input)
@@ -919,6 +982,8 @@ const ChatPage = () => {
         aria-live="polite"
         role="log"
         aria-label="Conversation"
+        data-agent-kind={remoteFromUrl ? 'remote' : selectedCli ? 'cli' : agentKind}
+        data-messages-editable={messagesEditable && !selectedCli ? 'true' : 'false'}
         tabIndex={0}
         onScroll={(e) => {
           const el = e.currentTarget
@@ -955,22 +1020,28 @@ const ChatPage = () => {
               message.role === 'assistant' &&
               !message.streaming &&
               lastUserTextRef.current.length > 0
+            const messageIndex = messages.findIndex((row) => row.key === message.key)
+            const canEditThis =
+              messagesEditable &&
+              !selectedCli &&
+              !message.streaming &&
+              (message.role === 'user' || message.role === 'assistant')
             return (
-              <div
-                key={message.key}
-                className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
-              >
-                <div className="chat-header text-xs opacity-60">
-                  {message.role === 'user' ? 'You' : selectedAgentName}
-                </div>
-                <div
-                  className={`chat-bubble ${
-                    message.role === 'user'
-                      ? 'bg-neutral text-neutral-content'
-                      : 'bg-base-200 text-base-content'
-                  }`}
+              <div key={message.key}>
+                <ChatMessageBubble
+                  role={message.role}
+                  agentName={selectedAgentName}
+                  text={message.text}
+                  streaming={message.streaming}
+                  edited={message.edited}
+                  canEdit={canEditThis}
+                  editing={editingKey === message.key}
+                  onStartEdit={() => setEditingKey(message.key)}
+                  onCancelEdit={() => setEditingKey(null)}
+                  onSaveEdit={(next) => {
+                    if (messageIndex >= 0) void saveEditedMessage(messageIndex, next)
+                  }}
                 >
-                  <ChatBubbleBody text={message.text} streaming={message.streaming} />
                   {(message.tools ?? []).map((tool) => (
                     <ToolCallPopup
                       key={tool.id}
@@ -992,7 +1063,7 @@ const ChatPage = () => {
                       }}
                     />
                   ))}
-                </div>
+                </ChatMessageBubble>
                 {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
                   <ChatMessageActions
                     text={message.text}
@@ -1122,31 +1193,5 @@ function SummaryBlock({
     </div>
   )
 }
-
-const ChatBubbleBody = memo(
-  function ChatBubbleBody({
-    text,
-    streaming,
-  }: {
-    text: string
-    streaming: boolean
-  }) {
-    if (text.length === 0) {
-      return streaming ? (
-        <LoadingDots size="sm" />
-      ) : (
-        <span className="opacity-60">(empty response)</span>
-      )
-    }
-    return (
-      <div
-        data-testid="chat-md"
-        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
-      />
-    )
-  },
-  (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
-)
 
 export default ChatPage

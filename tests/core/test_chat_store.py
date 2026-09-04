@@ -47,6 +47,19 @@ def test_save_load_roundtrip(tmp_path):
     assert [m["content"] for m in loaded["messages"]] == ["hi", "hello"]
 
 
+def test_save_preserves_edited_flag(tmp_path):
+    chat_store.save(
+        "u1",
+        "jeeves",
+        [{"role": "user", "content": "engineered", "edited": True}],
+        conversation_id="agt-1-jeeves",
+        base_dir=tmp_path,
+    )
+    loaded = chat_store.load("u1", "jeeves", base_dir=tmp_path)
+    assert loaded["messages"][0]["content"] == "engineered"
+    assert loaded["messages"][0]["edited"] is True
+
+
 def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
     path = chat_store.save(
         "u1",

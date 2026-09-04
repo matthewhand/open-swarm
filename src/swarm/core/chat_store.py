@@ -202,10 +202,10 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _normalize_messages(raw: Any) -> list[dict[str, str]]:
+def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
-    out: list[dict[str, str]] = []
+    out: list[dict[str, Any]] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -222,10 +222,12 @@ def _normalize_messages(raw: Any) -> list[dict[str, str]]:
             role_s = "status"
         else:
             role_s = "user"
-        msg = {"role": role_s, "content": content}
+        msg: dict[str, Any] = {"role": role_s, "content": content}
         ts = item.get("ts") or item.get("timestamp")
         if isinstance(ts, str) and ts:
             msg["ts"] = ts
+        if item.get("edited") is True or item.get("edited") == "true":
+            msg["edited"] = True
         out.append(msg)
     return out
 
@@ -252,6 +254,7 @@ def empty_record(
 def save(
     user_key: str,
     agent_id: str,
+    messages: list[dict[str, Any]] | None = None,
     *,
     conversation_id: str = "",
     session_id: str = "",
@@ -282,7 +285,9 @@ def save(
         "session_id": session_id or (existing or {}).get("session_id") or "",
         "created_at": created,
         "updated_at": _iso(),
-        "messages": _normalize_messages(messages),
+        "messages": _normalize_messages(
+            messages if messages is not None else (existing or {}).get("messages")
+        ),
         "cli_sessions": sessions,
     }
     _atomic_write(path, record)
