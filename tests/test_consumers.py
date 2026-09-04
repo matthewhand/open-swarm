@@ -660,10 +660,9 @@ class TestBlueprintSelection:
                 assert 'hx-swap-oob="beforeend:#message-response-abc"' in frames[0]
                 assert "BP reply" in frames[0]
                 assert "BP reply" in frames[1]
-                assert consumer.messages[-1] == {
-                    "role": "assistant",
-                    "content": "BP reply",
-                }
+                assert consumer.messages[-1]["role"] == "assistant"
+                assert consumer.messages[-1]["content"] == "BP reply"
+                assert consumer.messages[-1]["ts"]
 
     @pytest.mark.asyncio
     async def test_blueprint_session_notice_is_bubbleless_status(self, consumer, monkeypatch):
