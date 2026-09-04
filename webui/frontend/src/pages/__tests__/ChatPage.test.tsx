@@ -677,6 +677,77 @@ describe('ChatPage markdown bubbles', () => {
     expect(screen.getByText('hello').tagName).toBe('STRONG')
     expect(screen.getByText('code').tagName).toBe('CODE')
   })
+
+  it('shows the default agent avatar in the header and on assistant bubbles', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const heading = screen.getByRole('heading', { name: /Chat/i })
+    expect(heading.querySelector('img[data-agent-avatar="default"]')).toBeTruthy()
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-avatar1" class="assistant-message">hi</div></div>',
+        }),
+      )
+    })
+
+    const log = screen.getByRole('log', { name: 'Conversation' })
+    expect(log.querySelector('.chat-image img[data-agent-avatar="default"]')).toBeTruthy()
+  })
+
+  it('paints the selected agent custom avatar in header, empty chat, and bubbles', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              id: 'codey',
+              name: 'Codey',
+              description: 'Code assistant',
+              avatar_path: '/avatars/codey_avatar.png',
+            },
+          ],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    await screen.findByRole('option', { name: 'Codey' })
+
+    const heading = screen.getByRole('heading', { name: /Chat/i })
+    const headerImg = heading.querySelector('img')
+    expect(headerImg).toHaveAttribute('data-agent-avatar', 'custom')
+    expect(headerImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+
+    const log = screen.getByRole('log', { name: 'Conversation' })
+    const emptyImg = log.querySelector('img[data-agent-avatar="custom"]')
+    expect(emptyImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-custom-av" class="assistant-message">hi</div></div>',
+        }),
+      )
+    })
+
+    const bubbleImg = log.querySelector('.chat-image img')
+    expect(bubbleImg).toHaveAttribute('data-agent-avatar', 'custom')
+    expect(bubbleImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+  })
 })
 
 describe('ChatPage per-agent persistence (no retention chrome)', () => {
