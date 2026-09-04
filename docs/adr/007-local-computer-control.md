@@ -1,4 +1,4 @@
-# ADR-005: Local computer control — adapt OMB + Rakazo; do not invent a third stack
+# ADR-007: Local computer control — adapt OMB + Rakazo; do not invent a third stack
 
 - **Status:** Proposed (look-only; no runtime change in this PR)
 - **Date:** 2026-09-04

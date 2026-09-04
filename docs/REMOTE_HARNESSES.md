@@ -120,7 +120,7 @@ Blueprint `remote_harness` (chat `model: remote_harness`): grammar `health`, `li
 
 ## Computer control (not operate yet)
 
-`operate` stays **list / send**. OMB Local VM (`/api/local-computer*`) and Rakazo `rpc.computer.*` are unused. How open-swarm should adapt those local stacks (Playwright vs Docker sibling sandbox vs host via a placed remote; SaaS deferred) is [ADR-005](./adr/005-local-computer-control.md) (REQ-189 / #645). Do not treat a placed remote as a computer until a later Issue adds computer operate ops.
+`operate` stays **list / send**. OMB Local VM (`/api/local-computer*`) and Rakazo `rpc.computer.*` are unused. How open-swarm should adapt those local stacks (Playwright vs Docker sibling sandbox vs host via a placed remote; SaaS deferred) is [ADR-007](./adr/007-local-computer-control.md) (REQ-189 / #645). Do not treat a placed remote as a computer until a later Issue adds computer operate ops.
 
 ## Out of scope (this change)
 
