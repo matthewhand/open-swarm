@@ -146,6 +146,11 @@ function SearchProbe() {
   return <span data-testid="os-test-search">{params.toString()}</span>
 }
 
+/** Empty `[]` is a user preference (no re-seed). Missing key = first load. */
+function rememberEmptyFavourites() {
+  localStorage.setItem(PINNED_AGENTS_STORAGE_KEY, '[]')
+}
+
 function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -177,6 +182,7 @@ function railIds(list: HTMLElement): string[] {
 describe('AgentSidebar Grok rail', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal('fetch', mockFetch())
   })
 
@@ -249,7 +255,6 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(list).getByRole('link', { name: /opencode_agent/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /pi_agent/ })).toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
-  })
   })
 
   it('seeds Hidden with gate and skeptic on first load; Support stays visible', async () => {
@@ -778,6 +783,7 @@ describe('AgentSidebar special roles', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -808,6 +814,7 @@ describe('AgentSidebar special roles', () => {
 describe('AgentSidebar teams', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
@@ -923,12 +930,43 @@ describe('AgentSidebar teams', () => {
 describe('AgentSidebar favourites grid (REQ-94)', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal('fetch', mockFetch())
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     localStorage.clear()
+  })
+
+  it('seeds Support as the first-load favourite when prefs are missing', async () => {
+    localStorage.removeItem(PINNED_AGENTS_STORAGE_KEY)
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const grid = screen.getByTestId('agent-fav-grid')
+    const supportTile = await within(grid).findByRole('link', { name: 'Support' })
+    expect(supportTile.querySelector('.os-fav-tile__badge')).toHaveAttribute('data-role', 'support')
+    expect(within(list).queryByRole('link', { name: /Support/ })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'support', name: 'Support' },
+    ])
+  })
+
+  it('keeps an empty favourites grid bare with a quiet + until a drag starts', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    expect(grid).toHaveClass('os-fav-grid--bare')
+    expect(grid).toHaveAttribute('data-fav-empty', 'true')
+    expect(screen.getByTestId('fav-empty-hint')).toHaveTextContent('+')
+    expect(within(grid).queryByRole('link')).not.toBeInTheDocument()
+
+    const dt = mockDataTransfer()
+    fireEvent.dragStart(codey, { dataTransfer: dt })
+    expect(grid).not.toHaveClass('os-fav-grid--bare')
+    expect(screen.getByTestId('fav-empty-hint')).toHaveTextContent('drop')
+    fireEvent.dragEnd(codey, { dataTransfer: dt })
   })
 
   it('drops a row onto the 2-up grid as a named large avatar and removes it from the list', async () => {
@@ -975,11 +1013,117 @@ describe('AgentSidebar favourites grid (REQ-94)', () => {
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
   })
+
+  it('overlays a role badge inside a favourite tile when the agent has a role', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const support = await within(list).findByRole('link', { name: /Support/ })
+    const codey = within(list).getByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(support, grid)
+    dragTo(codey, grid)
+
+    const supportTile = await within(grid).findByRole('link', { name: 'Support' })
+    const badge = supportTile.querySelector('.os-fav-tile__badge')
+    expect(badge).toBeTruthy()
+    expect(badge).toHaveClass('os-agent-role-badge')
+    expect(badge).toHaveAttribute('data-role', 'support')
+    expect(badge).toHaveTextContent('Support')
+    expect(support.contains(badge)).toBe(false)
+
+    const codeyTile = within(grid).getByRole('link', { name: 'Codey' })
+    expect(codeyTile.querySelector('.os-fav-tile__badge')).toBeNull()
+    expect(codeyTile.querySelector('.os-agent-role-badge')).toBeNull()
+  })
+
+  it('keeps favourite tiles ghost until hover or selected', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+    dragTo(stewie, grid)
+
+    const codeyTile = await within(grid).findByRole('link', { name: 'Codey' })
+    const stewieTile = within(grid).getByRole('link', { name: 'Stewie' })
+    expect(codeyTile).toHaveClass('os-fav-tile--active')
+    expect(stewieTile).not.toHaveClass('os-fav-tile--active')
+    expect(stewieTile.className).toMatch(/\bos-fav-tile\b/)
+    expect(getComputedStyle(stewieTile).backgroundColor).toMatch(/rgba?\(0,\s*0,\s*0,\s*0\)|transparent/)
+  })
+
+  it('unfavourites when a tile is dropped onto the agents list (no duplicate)', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+
+    const tile = await within(grid).findByRole('link', { name: 'Codey' })
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+
+    const drop = screen.getByTestId('agent-list-drop')
+    dragTo(tile, drop)
+
+    await waitFor(() => {
+      expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    })
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    expect(within(list).getAllByRole('link', { name: /Codey/ })).toHaveLength(1)
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
+  })
+
+  it('unfavourites when a tile is dropped onto a list row', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+    const tile = await within(grid).findByRole('link', { name: 'Codey' })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    dragTo(tile, stewie)
+
+    await waitFor(() => {
+      expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    })
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
+  })
+
+  it('reorders favourite tiles within the grid and persists', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+    dragTo(stewie, grid)
+
+    let tiles = within(grid).getAllByRole('link')
+    expect(tiles.map((link) => link.getAttribute('aria-label'))).toEqual(['Codey', 'Stewie'])
+
+    dragTo(tiles[1], tiles[0])
+    await waitFor(() => {
+      expect(
+        within(grid)
+          .getAllByRole('link')
+          .map((link) => link.getAttribute('aria-label')),
+      ).toEqual(['Stewie', 'Codey'])
+    })
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'stewie', name: 'Stewie' },
+      { id: 'codey', name: 'Codey' },
+    ])
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
+  })
 })
 
 describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal('fetch', mockFetch())
   })
 
@@ -1073,6 +1217,7 @@ const STACK_REMOTES = {
 describe('AgentSidebar stacked avatars (REQ-68)', () => {
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
@@ -1253,6 +1398,7 @@ describe('AgentSidebar special roles', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    rememberEmptyFavourites()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({

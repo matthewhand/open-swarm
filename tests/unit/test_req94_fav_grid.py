@@ -17,9 +17,20 @@ def test_spa_fav_grid_is_two_up_named_large_avatar():
     assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in css
     assert "repeat(4," not in css.split(".os-fav-grid")[1].split(".os-fav-grid--active")[0]
     assert ".os-fav-tile__name" in css
+    assert ".os-fav-tile__badge" in css
+    tile_block = css.split(".os-fav-tile {")[1].split("}")[0]
+    assert "background: transparent" in tile_block
+    assert ".os-fav-tile--active" in css
+    assert ".os-fav-grid--bare" in css
+    assert ".os-fav-grid__hint" in css
     assert 'data-fav-layout="2-up"' in sidebar
     assert 'size="lg"' in sidebar
     assert "os-fav-tile__name" in sidebar
+    assert "os-fav-tile__badge" in sidebar
+    assert "os-fav-tile--active" in sidebar
+    assert "os-fav-grid--bare" in sidebar
+    assert "fav-empty-hint" in sidebar
+    assert "loadOrSeedPinnedAgents" in sidebar
     assert "Favourites" not in sidebar
     assert "Favorites" not in sidebar
 
@@ -31,6 +42,12 @@ def test_spa_pin_is_a_move_out_of_the_rail_list():
     assert "excludePinnedFromList" in sidebar
     assert "move, not a copy" in pins
     assert "swarm_pinned_agents" in pins
+    assert "movePinnedAgent" in pins
+    assert "loadOrSeedPinnedAgents" in pins
+    assert "DEFAULT_PINNED_SUPPORT" in pins
+    assert "dropUnfavourite" in sidebar
+    assert "dropPinReorder" in sidebar
+    assert "agent-list-drop" in sidebar
     assert 'dropEffect = \'move\'' in sidebar or 'dropEffect = "move"' in sidebar
 
 

@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  DEFAULT_PINNED_SUPPORT,
   PINNED_AGENTS_STORAGE_KEY,
   excludePinnedFromList,
+  loadOrSeedPinnedAgents,
   loadPinnedAgents,
+  movePinnedAgent,
   pinAgent,
   unpinAgent,
 } from '../pinnedAgents'
@@ -10,6 +13,13 @@ import {
 describe('pinnedAgents persistence', () => {
   afterEach(() => {
     localStorage.removeItem(PINNED_AGENTS_STORAGE_KEY)
+  })
+
+  it('seeds Support on first load when prefs are missing, but not when empty []', () => {
+    expect(loadOrSeedPinnedAgents()).toEqual([DEFAULT_PINNED_SUPPORT])
+    expect(loadPinnedAgents()).toEqual([DEFAULT_PINNED_SUPPORT])
+    localStorage.setItem(PINNED_AGENTS_STORAGE_KEY, '[]')
+    expect(loadOrSeedPinnedAgents()).toEqual([])
   })
 
   it('starts empty and pins without duplicates', () => {
@@ -24,6 +34,15 @@ describe('pinnedAgents persistence', () => {
     const pinned = pinAgent({ id: 'stewie', name: 'Stewie' }, [{ id: 'codey', name: 'Codey' }])
     expect(unpinAgent('codey', pinned)).toEqual([{ id: 'stewie', name: 'Stewie' }])
     expect(loadPinnedAgents()).toEqual([{ id: 'stewie', name: 'Stewie' }])
+  })
+
+  it('reorders favourites and persists the new order', () => {
+    const pinned = pinAgent({ id: 'stewie', name: 'Stewie' }, [{ id: 'codey', name: 'Codey' }])
+    const next = movePinnedAgent('stewie', 'codey', pinned)
+    expect(next.map((pin) => pin.id)).toEqual(['stewie', 'codey'])
+    expect(loadPinnedAgents().map((pin) => pin.id)).toEqual(['stewie', 'codey'])
+    expect(movePinnedAgent('stewie', 'stewie', next)).toEqual(next)
+    expect(movePinnedAgent('missing', 'codey', next)).toEqual(next)
   })
 
   it('drops favourited ids from the rail list (move, not copy)', () => {
