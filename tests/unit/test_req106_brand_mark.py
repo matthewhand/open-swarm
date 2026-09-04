@@ -180,14 +180,18 @@ def test_root_icon_urls_are_not_html(client: Client):
     assert body["name"] == "Open Swarm"
 
 
-@pytest.mark.django_db
-def test_django_static_brand_icons_resolve(client: Client):
-    response = client.get("/static/brand/favicon.ico")
-    assert response.status_code == 200
-    assert response.content == (BRAND / "favicon.ico").read_bytes()
-    png = client.get("/static/brand/favicon-16.png")
-    assert png.status_code == 200
-    assert png.content.startswith(b"\x89PNG\r\n\x1a\n")
+def test_django_static_finder_resolves_brand_icons():
+    """Operator {% static 'brand/…' %} is backed by STATICFILES_DIRS prefix.
+
+    The Django test client does not mount staticfiles; collectstatic / runserver
+    do. Finder resolution is the contract.
+    """
+    from django.contrib.staticfiles import finders
+
+    ico = finders.find("brand/favicon.ico")
+    png = finders.find("brand/favicon-16.png")
+    assert ico and Path(ico).read_bytes() == (BRAND / "favicon.ico").read_bytes()
+    assert png and Path(png).read_bytes() == (BRAND / "favicon-16.png").read_bytes()
 
 
 @pytest.mark.django_db
