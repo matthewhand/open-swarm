@@ -254,6 +254,11 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
             autoComplete="off"
             className="os-search-palette__input"
           />
+          <kbd className="os-search-palette__kbd kbd kbd-xs">
+            {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+              ? '⌘K'
+              : 'Ctrl+K'}
+          </kbd>
         </div>
 
         <div className="os-search-palette__tabs" role="tablist" aria-label="Search categories">
@@ -306,6 +311,12 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
             ))
           )}
         </ul>
+
+        <div className="os-search-palette__footer" aria-label="Keyboard tips">
+          <span className="os-search-tip"><kbd className="kbd kbd-xs">↑↓</kbd> Navigate</span>
+          <span className="os-search-tip"><kbd className="kbd kbd-xs">↵</kbd> Select</span>
+          <span className="os-search-tip"><kbd className="kbd kbd-xs">Esc</kbd> Close</span>
+        </div>
       </div>
     </div>
   )
