@@ -23,7 +23,6 @@ from swarm.core.handoff_graph import (
 )
 from swarm.core.team_rosters import normalize_roster
 
-
 PIPELINE_EDGES = frozenset({("ba", "engineer"), ("engineer", "tester")})
 PIPELINE_FORBIDDEN = frozenset(
     {

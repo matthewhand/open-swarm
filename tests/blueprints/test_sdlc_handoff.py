@@ -6,7 +6,11 @@ import pytest
 
 from swarm.blueprints.sdlc_handoff.blueprint_sdlc_handoff import SdlcHandoffBlueprint
 from swarm.core.blueprint_discovery import discover_blueprints
-from swarm.core.handoff_graph import PIPELINE_GRAPH_ID, SKEPTIC_LOOP_GRAPH_ID, live_edges
+from swarm.core.handoff_graph import (
+    PIPELINE_GRAPH_ID,
+    SKEPTIC_LOOP_GRAPH_ID,
+    live_edges,
+)
 
 
 async def _collect(gen):

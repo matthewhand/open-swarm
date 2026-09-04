@@ -149,7 +149,7 @@ class SdlcHandoffBlueprint(BlueprintBase):
         assert_edges_match(graph, agents)
         return format_graph(graph, live=live)
 
-    async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
+    async def run(self, messages: list[dict[str, Any]], **_kwargs) -> Any:
         _action, _text = self._parse(messages)
         test_mode = os.environ.get("SWARM_TEST_MODE", "").lower() in ("1", "true", "yes")
         # This blueprint's job is the graph, not a live Runner conversation.

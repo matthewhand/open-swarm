@@ -1,7 +1,5 @@
 """REQ-156: README sells openai-agents graphs and the three harness types."""
 
-from pathlib import Path
-
 from swarm.core.handoff_graph import repo_root
 
 
