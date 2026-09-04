@@ -257,6 +257,19 @@ class HerdrClient:
         remote = getattr(row, "remote", "") or ""
         return cls(remote=remote, **kwargs)
 
+    @classmethod
+    def from_remote_config(cls, config: Mapping[str, Any] | None = None, **kwargs: Any) -> HerdrClient:
+        """Build from persisted ``remotes.herdr``. Missing config is an error.
+
+        ``herdr --remote`` uses the configured base. A localhost base omits the
+        flag. There is no silent fallback to another host.
+        """
+        from swarm.core import remotes as remotes_core
+        from swarm.herdr.remote import cli_remote_from_base
+
+        spec = remotes_core.load_remote("herdr", config if isinstance(config, dict) else None)
+        return cls(remote=cli_remote_from_base(spec.base_url), **kwargs)
+
     def build_argv(self, *parts: str) -> list[str]:
         """``herdr [--remote VALUE] …parts``. Never shell-splits TEXT."""
         argv = [self.herdr_bin]
