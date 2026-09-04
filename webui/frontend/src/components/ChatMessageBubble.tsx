@@ -54,6 +54,7 @@ export const ChatBubbleBody = memo(
     useEffect(() => {
       const root = mdRef.current
       if (!root) return
+      // Set up code-copy and collapsible code fence controls (REQ-127, REQ-117)
       setupCodeFenceControls(root, expandedIndicesRef.current)
     }, [text])
 
