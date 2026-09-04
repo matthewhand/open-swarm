@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useSearchParams } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
@@ -1705,4 +1705,52 @@ describe('AgentSidebar REQ-116 — Resizable left rail', () => {
     expect(rail).toHaveClass('os-agent-sidebar--avatar-only')
   })
 })
+
+describe('AgentSidebar REQ-172 — Alt hotkey spill into unpinned rows', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    global.fetch = mockFetch()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders spill hotkey badges on unpinned rows when favourites < 10', async () => {
+    rememberEmptyFavourites()
+    renderSidebar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading agents…')).not.toBeInTheDocument()
+    })
+
+    const hotkeyBadges = screen.getAllByTestId('spill-hotkey')
+    expect(hotkeyBadges.length).toBeGreaterThan(0)
+    expect(hotkeyBadges[0].textContent).toMatch(/^(Alt\+|⌥)1$/)
+  })
+
+  it('navigates to unpinned row when pressing Alt+N for a spilled slot', async () => {
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([{ id: 'support', name: 'Support', pinned_at: '2026-09-01T00:00:00Z' }]),
+    )
+    renderSidebar()
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading agents…')).not.toBeInTheDocument()
+    })
+
+    const alt2Event = new KeyboardEvent('keydown', {
+      key: '2',
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => {
+      window.dispatchEvent(alt2Event)
+    })
+    expect(alt2Event.defaultPrevented).toBe(true)
+  })
+})
+
 

@@ -56,6 +56,7 @@ import {
   BUMP_COMPLETED_EVENT,
   loadBumpCompleted,
 } from '../lib/settingsPrefs'
+import { computeRailHotkeyTargets } from '../lib/railHotkeys'
 import {
   endAgentDrag,
   excludePinnedFromList,
@@ -536,6 +537,10 @@ export default function AgentSidebar({
     () => pins.filter((pin) => !resolvedHiddenIds.includes(pin.id)),
     [pins, resolvedHiddenIds],
   )
+  const hotkeyTargets = useMemo(
+    () => computeRailHotkeyTargets({ visiblePins, orderedRows }),
+    [visiblePins, orderedRows],
+  )
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
@@ -636,12 +641,13 @@ export default function AgentSidebar({
       if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && /^[1-9]$/.test(event.key)) {
         const idx = parseInt(event.key, 10) - 1
         const pin = visiblePins[idx]
-        if (pin) {
+        const target = hotkeyTargets[idx]
+        if (target) {
           event.preventDefault()
-          if (isHerdrAgent(pin)) {
+          if (target.isHerdr) {
             window.location.assign('/teams/#herdr-members')
           } else {
-            navigate(`/chat?blueprint=${encodeURIComponent(pin.id)}`)
+            navigate(target.href)
           }
           onClose?.()
         }
@@ -649,7 +655,7 @@ export default function AgentSidebar({
     }
     window.addEventListener('keydown', onAltDigit)
     return () => window.removeEventListener('keydown', onAltDigit)
-  }, [visiblePins, navigate, onClose])
+  }, [visiblePins, hotkeyTargets, navigate, onClose])
 
   const openMenu = (
     event: ReactMouseEvent,
@@ -863,7 +869,7 @@ export default function AgentSidebar({
     onClose?.()
   }
 
-  const renderAgentRow = (agent: SidebarAgent, hidden: boolean) => {
+  const renderAgentRow = (agent: SidebarAgent, hidden: boolean, spillSlot?: number) => {
     const name = agentLabel(agent)
     const herdr = isHerdrAgent(agent)
     const sessions = sessionsByAgent[agent.id] ?? []
@@ -902,14 +908,25 @@ export default function AgentSidebar({
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            {timestampLabel ? (
-              <span
-                className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
-                data-testid="rail-row-timestamp"
-              >
-                {timestampLabel}
-              </span>
-            ) : null}
+            <span className="flex items-center gap-1 shrink-0">
+              {spillSlot ? (
+                <span
+                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70"
+                  aria-label={`Shortcut ${isMac ? '⌥' : 'Alt+'}${spillSlot}`}
+                  data-testid="spill-hotkey"
+                >
+                  {isMac ? `⌥${spillSlot}` : `Alt+${spillSlot}`}
+                </span>
+              ) : null}
+              {timestampLabel ? (
+                <span
+                  className="os-rail-timestamp text-xs text-base-content/40 tabular-nums"
+                  data-testid="rail-row-timestamp"
+                >
+                  {timestampLabel}
+                </span>
+              ) : null}
+            </span>
           </span>
           <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
             <span className="block truncate min-w-0 flex-1">
@@ -959,6 +976,7 @@ export default function AgentSidebar({
           className={className}
           data-agent-id={agent.id}
           data-role={dataRole}
+          data-hotkey={spillSlot}
           draggable={!hidden}
           onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
           onDragEnd={finishDrag}
@@ -992,6 +1010,7 @@ export default function AgentSidebar({
             className={`${className} w-full`}
             data-agent-id={agent.id}
             data-role={dataRole}
+            data-hotkey={spillSlot}
             data-scale-out="true"
             aria-haspopup="dialog"
             aria-current={active ? 'page' : undefined}
@@ -1038,6 +1057,7 @@ export default function AgentSidebar({
           className={className}
           data-agent-id={agent.id}
           data-role={dataRole}
+          data-hotkey={spillSlot}
           aria-current={active ? 'page' : undefined}
           {...dragHandlers}
           onClick={pickOrClose}
@@ -1069,7 +1089,7 @@ export default function AgentSidebar({
     )
   }
 
-  const renderTeamLink = (team: TeamRoster, hidden: boolean, nested = false) => {
+  const renderTeamLink = (team: TeamRoster, hidden: boolean, nested = false, spillSlot?: number) => {
     const name = team.name || team.id
     const hideId = teamHideId(team.id)
     const active = selectedTeamId === team.id
@@ -1095,6 +1115,7 @@ export default function AgentSidebar({
         aria-label={`${name} (team)`}
         data-agent-id={hideId}
         data-kind="team"
+        data-hotkey={spillSlot}
         data-stack-count={String(stacked.faces.length)}
         data-remainder={String(stacked.remainder)}
         draggable={!hidden}
@@ -1132,14 +1153,25 @@ export default function AgentSidebar({
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            {teamTimestampLabel ? (
-              <span
-                className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
-                data-testid="rail-row-timestamp"
-              >
-                {teamTimestampLabel}
-              </span>
-            ) : null}
+            <span className="flex items-center gap-1 shrink-0">
+              {spillSlot ? (
+                <span
+                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70"
+                  aria-label={`Shortcut ${isMac ? '⌥' : 'Alt+'}${spillSlot}`}
+                  data-testid="spill-hotkey"
+                >
+                  {isMac ? `⌥${spillSlot}` : `Alt+${spillSlot}`}
+                </span>
+              ) : null}
+              {teamTimestampLabel ? (
+                <span
+                  className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
+                  data-testid="rail-row-timestamp"
+                >
+                  {teamTimestampLabel}
+                </span>
+              ) : null}
+            </span>
           </span>
           <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
             <span className="block truncate min-w-0 flex-1">
@@ -1173,7 +1205,7 @@ export default function AgentSidebar({
     )
   }
 
-  const renderRemoteRow = (remote: RemoteEntry, hidden: boolean) => {
+  const renderRemoteRow = (remote: RemoteEntry, hidden: boolean, spillSlot?: number) => {
     const name = remote.title
     const hideId = remoteHideId(remote.id)
     const active = selectedRemoteId === remote.id
@@ -1196,6 +1228,7 @@ export default function AgentSidebar({
         aria-label={`${name} (remote)`}
         data-agent-id={hideId}
         data-kind="remote"
+        data-hotkey={spillSlot}
         data-remote-id={remote.id}
         data-stack-count={String(stacked.faces.length)}
         data-remainder={String(stacked.remainder)}
@@ -1236,14 +1269,25 @@ export default function AgentSidebar({
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            {remoteTimestampLabel ? (
-              <span
-                className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
-                data-testid="rail-row-timestamp"
-              >
-                {remoteTimestampLabel}
-              </span>
-            ) : null}
+            <span className="flex items-center gap-1 shrink-0">
+              {spillSlot ? (
+                <span
+                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70"
+                  aria-label={`Shortcut ${isMac ? '⌥' : 'Alt+'}${spillSlot}`}
+                  data-testid="spill-hotkey"
+                >
+                  {isMac ? `⌥${spillSlot}` : `Alt+${spillSlot}`}
+                </span>
+              ) : null}
+              {remoteTimestampLabel ? (
+                <span
+                  className="os-rail-timestamp text-xs text-base-content/40 tabular-nums"
+                  data-testid="rail-row-timestamp"
+                >
+                  {remoteTimestampLabel}
+                </span>
+              ) : null}
+            </span>
           </span>
           <span className="mt-0.5 flex min-w-0 items-center justify-between gap-1.5 text-xs text-base-content/45">
             <span className="block truncate min-w-0 flex-1">
@@ -1261,13 +1305,13 @@ export default function AgentSidebar({
     )
   }
 
-  const renderTeamRow = (team: TeamRoster, nested = false, seen: string[] = []) => {
+  const renderTeamRow = (team: TeamRoster, nested = false, seen: string[] = [], spillSlot?: number) => {
     const hidden = resolvedHiddenIds.includes(teamHideId(team.id))
     if (hidden && !nested) return null
     const childSlots = team.members.filter((m) => m.kind === 'team')
     return (
       <li key={`team-${team.id}`}>
-        {hidden ? null : renderTeamLink(team, false, nested)}
+        {hidden ? null : renderTeamLink(team, false, nested, spillSlot)}
         {childSlots.length > 0 && !seen.includes(team.id) ? (
           <ul className="os-agent-team-nest">
             {childSlots.map((m) => {
@@ -1583,15 +1627,19 @@ export default function AgentSidebar({
               </p>
             ) : (
               <ul className="space-y-0.5">
-                {orderedRows.map((row, index) => (
-                  <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
-                    {row.kind === 'team'
-                      ? renderTeamRow(row.team)
-                      : row.kind === 'remote'
-                        ? renderRemoteRow(row.remote, false)
-                        : renderAgentRow(row.agent, false)}
-                  </li>
-                ))}
+                {orderedRows.map((row, index) => {
+                  const spillSlot =
+                    index < 9 - visiblePins.length ? visiblePins.length + index + 1 : undefined
+                  return (
+                    <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
+                      {row.kind === 'team'
+                        ? renderTeamRow(row.team, false, [], spillSlot)
+                        : row.kind === 'remote'
+                          ? renderRemoteRow(row.remote, false, spillSlot)
+                          : renderAgentRow(row.agent, false, spillSlot)}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
