@@ -9,8 +9,8 @@ import { Monitor } from 'lucide-react'
  * chrome. Real control comes later via OpenMousBot/Rakazo remotes.
  *
  * Success:
- * 1. Chat header top-right icon tools: computer/monitor icon labeled
- *    Computer control.
+ * 1. Chat header top-right icon tools: computer/monitor icon only
+ *    (accessible name “Computer control”; no visible label).
  * 2. Click opens a DaisyUI modal or small pane whose body is clearly WIP
  *    (short copy: computer control will use a placed OpenMousBot or Rakazo remote;
  *    not implemented here).
@@ -61,16 +61,13 @@ export function ComputerControlStub() {
       <div className="tooltip tooltip-bottom" data-tip="Computer control">
         <button
           type="button"
-          className="btn btn-ghost btn-sm gap-1.5 opacity-50"
+          className="btn btn-ghost btn-sm btn-square opacity-50"
           aria-label="Computer control"
           aria-haspopup="dialog"
           aria-expanded={open}
           onClick={() => setOpen(true)}
         >
-          <Monitor className="h-5 w-5" aria-hidden="true" />
-          <span className="hidden sm:inline text-xs font-normal normal-case">
-            Computer control
-          </span>
+          <Monitor className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
       <dialog

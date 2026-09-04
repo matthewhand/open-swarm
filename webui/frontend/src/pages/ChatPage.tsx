@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
+import { Layers, Mic, PanelLeft, Pencil, Plus, Settings } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
 import { useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
@@ -907,18 +907,20 @@ const ChatPage = () => {
             </button>
           </h1>
           {!teamFromUrl && selectedBlueprint ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              aria-label={`Edit ${selectedAgentName}`}
-              onClick={() =>
-                openAgentEditor({
-                  agentId: selectedBlueprint,
-                })
-              }
-            >
-              Edit
-            </button>
+            <div className="tooltip tooltip-bottom" data-tip="Edit agent">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm btn-square"
+                aria-label="Edit agent"
+                onClick={() =>
+                  openAgentEditor({
+                    agentId: selectedBlueprint,
+                  })
+                }
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
