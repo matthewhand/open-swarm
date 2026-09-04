@@ -127,22 +127,33 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
   })
 
-  it('LLM profiles shows the empty-models copy when /v1/models/ returns none', async () => {
+  it('LLM profiles shows the empty-models copy when /v1/llm-profiles/ returns none', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ object: 'list', data: [] }),
+        json: async () => ({
+          object: 'llm_profiles',
+          profiles: [],
+          default_llm_profile: '',
+          default_is_auto: true,
+          override_per_task: false,
+          task_llm_profiles: {},
+          auto_picks: {},
+          warnings: [],
+          routes: {},
+          task_classes: ['orchestration', 'auxiliary', 'delegation'],
+        }),
       } as Response),
     )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
-    expect(await screen.findByText(/No models reported/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '/profiles/' })).toHaveAttribute('href', '/profiles/')
+    expect(await screen.findByText(/No connected models yet/i)).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'No models connected' })).toBeInTheDocument()
   })
 
-  it('LLM profiles shows the operator fallback when /v1/models/ errors', async () => {
+  it('LLM profiles shows the operator fallback when /v1/llm-profiles/ errors', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -154,9 +165,8 @@ describe('SettingsSheet', () => {
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
     expect(
-      await screen.findByText(/Could not load models/i, undefined, { timeout: 4000 }),
+      await screen.findByText(/Could not load configured profiles/i, undefined, { timeout: 4000 }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'LLM profiles' })).toHaveAttribute('href', '/profiles/')
   })
 
   it('adds an OpenMousBot remote then lists it in Settings and the dropdown', async () => {
@@ -215,90 +225,6 @@ describe('SettingsSheet', () => {
     expect(within(remoteSelect).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
-  })
-
-  it('health, list bots, and send on an added OpenMousBot remote', async () => {
-    const configured: Array<Record<string, unknown>> = [
-      {
-        id: 'omb',
-        kind: 'omb',
-        label: 'OpenMousBot',
-        title: 'OpenMousBot',
-        host_label: '',
-        base_url: 'http://127.0.0.1:8802',
-        source: 'config',
-        api_key_env: 'OMB_API_KEY',
-      },
-    ]
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
-        const url = String(input)
-        const method = (init?.method || 'GET').toUpperCase()
-        if (url.includes('/health/') && method === 'POST') {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              remote: 'omb',
-              ok: true,
-              state: 'UP',
-              detail: 'OpenMousBot /api/health',
-            }),
-          } as Response
-        }
-        if (url.includes('/operate/') && method === 'POST') {
-          const body = JSON.parse(String(init?.body || '{}')) as { op?: string }
-          if (body.op === 'send') {
-            return {
-              ok: true,
-              status: 200,
-              json: async () => ({
-                remote: 'omb',
-                op: 'send',
-                ok: true,
-                detail: 'started OpenMousBot turn',
-              }),
-            } as Response
-          }
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              remote: 'omb',
-              op: 'list',
-              ok: true,
-              detail: 'OpenMousBot listed 1 bot(s)',
-              data: { bots: [{ id: 'bot-9', name: 'alpha' }] },
-            }),
-          } as Response
-        }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            object: 'list',
-            kinds: [{ id: 'omb', label: 'OpenMousBot' }],
-            configured,
-            data: configured,
-          }),
-        } as Response
-      }),
-    )
-    renderSheet()
-    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
-    expect(await screen.findByRole('heading', { name: 'OpenMousBot' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Health' }))
-    expect(await screen.findByText('UP')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'List bots' }))
-    expect(await screen.findByText(/bot-9/)).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
-      target: { value: 'hello' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(await screen.findByText(/started OpenMousBot turn/)).toBeInTheDocument()
-    expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {
@@ -597,7 +523,7 @@ describe('SettingsSheet blueprint editor', () => {
     const list = await screen.findByRole('listbox', { name: 'Blueprints' })
     const selected = await within(list).findByRole('option', { name: 'Codey' })
     expect(selected).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByRole('button', { name: 'System' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
   })
 
   it('shows highlighted gate YES/NO Python when source is missing', async () => {

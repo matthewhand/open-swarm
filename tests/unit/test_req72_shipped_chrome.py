@@ -10,7 +10,6 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SPA_APP = REPO / "webui" / "frontend" / "src" / "App.tsx"
 SETTINGS_SHEET = REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx"
-REMOTES_LIB = REPO / "webui" / "frontend" / "src" / "lib" / "remotes.ts"
 SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 SEARCH = REPO / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 DJANGO_SETTINGS = REPO / "src" / "swarm" / "templates" / "settings_dashboard.html"
@@ -29,18 +28,15 @@ def test_spa_mounts_overlays_as_siblings_of_chat_routes():
     assert "Navigate to=\"/settings\"" not in app
 
 
-def test_settings_remotes_panes_are_placeholders_not_live_lan():
-    """REQ-59/62: opt-in OpenMousBot remotes; no placeholder OMB pane, no live LAN."""
+def test_settings_remotes_are_opt_in_not_live_lan():
+    """REQ-59: remotes are opt-in; no default kind cards; no live LAN hosts in the sheet."""
     sheet = SETTINGS_SHEET.read_text(encoding="utf-8")
-    labels = REMOTES_LIB.read_text(encoding="utf-8")
     assert "Add remote" in sheet
-    assert "fetchRemotes" in sheet
-    assert "OpenMousBot" in labels
     assert "placeholder remote" not in sheet
     assert "remotes API has not landed" not in sheet
+    assert "label: 'OMB'" not in sheet
     assert ":8001" not in sheet
     assert "10.0.0.30" not in sheet
-    assert "label: 'OMB'" not in sheet
 
 
 def test_rail_plugins_overlay_is_empty_honest():

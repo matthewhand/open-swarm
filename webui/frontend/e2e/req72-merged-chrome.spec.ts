@@ -204,13 +204,13 @@ test('REQ-5c #322: Search palette choosing a bot navigates to that chat', async 
   await expect(page.getByRole('heading', { name: 'Codey' })).toBeVisible()
 })
 
-test('REQ-5c #322: mobile drawer opens the rail and closes after an agent pick', async ({
+test('REQ-54: mobile header opens the tucked rail and closes after an agent pick', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await stubChromeApis(page)
   await page.goto('/')
-  const open = page.getByRole('button', { name: 'Open agents sidebar' })
+  const open = page.getByRole('button', { name: 'Open agent list' })
   await expect(open).toBeVisible()
   const backdrop = page.locator('button.fixed.inset-0[aria-label="Close agents sidebar"]')
   await expect(backdrop).toBeHidden()
@@ -308,16 +308,19 @@ test('REQ-5c #322: / canonicalizes onto Support; Plugins dialog is empty', async
   await expect(plugins).toHaveCount(0)
 })
 
-test('REQ-59/62: settings remotes are opt-in OpenMousBot, not placeholder OMB', async ({
+test('REQ-59: settings remotes start empty with Add remote (no default kind cards)', async ({
   page,
 }) => {
-  const remotesHits = await stubChromeApis(page)
+  await stubChromeApis(page)
   await page.goto('/chat')
   await page.getByRole('button', { name: 'Open settings' }).click()
   const sheet = page.getByRole('dialog', { name: 'Settings' })
   await expect(sheet).toBeVisible()
   await sheet.getByRole('button', { name: 'Remotes' }).click()
   await expect(sheet.getByRole('button', { name: /Add remote/i })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
   await expect(sheet.getByRole('button', { name: 'OMB' })).toHaveCount(0)
-  expect(remotesHits.length, 'Settings loads /v1/remotes for the opt-in catalog').toBeGreaterThan(0)
+  await expect(sheet.getByRole('button', { name: 'Rakazo' })).toHaveCount(0)
+  await expect(sheet.getByText(/placeholder remote/i)).toHaveCount(0)
+  await expect(sheet.getByText(/\bOMB\b/)).toHaveCount(0)
 })

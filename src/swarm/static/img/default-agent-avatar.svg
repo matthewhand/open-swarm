@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Default agent avatar">
+  <!--
+    Original Open Swarm default agent mark: a friendly cyan pear-blob
+    with two white eyes sitting on the crown. Drawn for 24-40px UI use.
+    Not a copy of any film/TV still.
+  -->
+  <!-- Stubby arms (sit behind the body) -->
+  <ellipse cx="11.5" cy="43" rx="7.2" ry="5.6" fill="#2ad4e0"/>
+  <ellipse cx="52.5" cy="43" rx="7.2" ry="5.6" fill="#2ad4e0"/>
+  <!-- Finger nubs: merge into the arm mass at small sizes -->
+  <ellipse cx="6.6" cy="46.2" rx="2.1" ry="2.3" fill="#2ad4e0"/>
+  <ellipse cx="9.2" cy="49.1" rx="2.1" ry="2.3" fill="#2ad4e0"/>
+  <ellipse cx="12.6" cy="49.4" rx="2" ry="2.2" fill="#2ad4e0"/>
+  <ellipse cx="57.4" cy="46.2" rx="2.1" ry="2.3" fill="#2ad4e0"/>
+  <ellipse cx="54.8" cy="49.1" rx="2.1" ry="2.3" fill="#2ad4e0"/>
+  <ellipse cx="51.4" cy="49.4" rx="2" ry="2.2" fill="#2ad4e0"/>
+
+  <!-- Bottom-heavy pear / teardrop body -->
+  <path
+    fill="#3deef5"
+    d="M32 19
+       C40.2 19 44.4 26.8 43.4 35
+       C54.6 38.2 57.4 50.2 50.2 57.6
+       C43.4 64 20.6 64 13.8 57.6
+       C6.6 50.2 9.4 38.2 20.6 35
+       C19.6 26.8 23.8 19 32 19Z"
+  />
+  <!-- Soft volume highlight so the blob reads as a single clay mass -->
+  <ellipse cx="25.5" cy="40" rx="8" ry="11" fill="#9af7fb" opacity="0.32"/>
+
+  <!-- Two large white eyes sitting on the peak, touching at centre -->
+  <circle cx="23.4" cy="15.2" r="10.4" fill="#ffffff"/>
+  <circle cx="40.6" cy="15.2" r="10.4" fill="#ffffff"/>
+  <!-- Pupils glance up and to the viewer's right -->
+  <circle cx="26.7" cy="12.4" r="2.55" fill="#141414"/>
+  <circle cx="43.9" cy="12.4" r="2.55" fill="#141414"/>
+
+  <!-- Tiny smile just below where the eyes meet -->
+  <path
+    d="M29.6 28.8 Q32 32 34.4 28.8"
+    fill="none"
+    stroke="#141414"
+    stroke-width="1.35"
+    stroke-linecap="round"
+  />
+</svg>

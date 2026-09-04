@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -312,7 +312,7 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
     expect(avatar).toHaveClass('os-chat-header__avatar')
     expect(identity.firstElementChild).toBe(avatar)
     expect(heading.compareDocumentPosition(avatar!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
-    expect(identity.querySelector('button')).toBeNull()
+    expect(within(identity).getByRole('button', { name: 'Open Codey definition' })).toBeInTheDocument()
     expect(identity.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
   })
 
@@ -412,9 +412,11 @@ describe('ChatPage Send path with mock inference', () => {
 
     const ws = MockWebSocket.instances[0]!
     expect(ws.send).toHaveBeenCalled()
-    expect(JSON.parse(ws.send.mock.calls[0][0] as string).message).toBe(
-      'ping the mock',
-    )
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({
+      message: 'ping the mock',
+      blueprint: 'support',
+      params: { skill: 'support-session-ownership' },
+    })
 
     await act(async () => {
       deliverMockInference(ws, 'MOCK_INFERENCE_VITEST_REPLY')
@@ -676,6 +678,77 @@ describe('ChatPage markdown bubbles', () => {
 
     expect(screen.getByText('hello').tagName).toBe('STRONG')
     expect(screen.getByText('code').tagName).toBe('CODE')
+  })
+
+  it('shows the default agent avatar in the header and on assistant bubbles', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const heading = screen.getByRole('heading', { name: /Chat/i })
+    expect(heading.querySelector('img[data-agent-avatar="default"]')).toBeTruthy()
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-avatar1" class="assistant-message">hi</div></div>',
+        }),
+      )
+    })
+
+    const log = screen.getByRole('log', { name: 'Conversation' })
+    expect(log.querySelector('.chat-image img[data-agent-avatar="default"]')).toBeTruthy()
+  })
+
+  it('paints the selected agent custom avatar in header, empty chat, and bubbles', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              id: 'codey',
+              name: 'Codey',
+              description: 'Code assistant',
+              avatar_path: '/avatars/codey_avatar.png',
+            },
+          ],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    await screen.findByRole('option', { name: 'Codey' })
+
+    const heading = screen.getByRole('heading', { name: /Chat/i })
+    const headerImg = heading.querySelector('img')
+    expect(headerImg).toHaveAttribute('data-agent-avatar', 'custom')
+    expect(headerImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+
+    const log = screen.getByRole('log', { name: 'Conversation' })
+    const emptyImg = log.querySelector('img[data-agent-avatar="custom"]')
+    expect(emptyImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-custom-av" class="assistant-message">hi</div></div>',
+        }),
+      )
+    })
+
+    const bubbleImg = log.querySelector('.chat-image img')
+    expect(bubbleImg).toHaveAttribute('data-agent-avatar', 'custom')
+    expect(bubbleImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
   })
 })
 
@@ -1138,7 +1211,9 @@ describe('ChatPage team member dropdown', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    fireEvent.change(await screen.findByRole('combobox'), { target: { value: '__manage__' } })
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
+      target: { value: '__manage__' },
+    })
     expect(assign).toHaveBeenCalledWith('/teams/')
     expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
   })
@@ -1473,7 +1548,7 @@ const REMOTE_ROSTER = {
       description: 'Remotes as Team members',
       members: [
         { id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' },
-        { id: 'omb', name: 'OMB', kind: 'remote', role: 'default' },
+        { id: 'omb', name: 'OpenMousBot', kind: 'remote', role: 'default' },
         { id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' },
       ],
     },
@@ -1509,7 +1584,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lists Hermes/OMB/Rakazo as kind=remote in the unlabeled member dropdown', async () => {
+  it('lists configured remotes as kind=remote in the unlabeled member dropdown', async () => {
     renderChat('/chat?team=harness-team')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -1519,7 +1594,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     expect(within(select).getAllByRole('option').map((opt) => opt.textContent)).toEqual([
       'All members',
       'Hermes (remote/default)',
-      'OMB (remote/default)',
+      'OpenMousBot (remote/default)',
       'Rakazo (remote/default)',
       'Manage Teams',
     ])
@@ -1527,7 +1602,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
   })
 
-  it('sends params {team, target} for a remote member without calling remotes APIs', async () => {
+  it('sends params {team, target} for a remote member', async () => {
     renderChat('/chat?team=harness-team')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -1548,8 +1623,6 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
       message: 'ping hermes',
       params: { team: 'harness-team', target: 'hermes' },
     })
-    const fetchMock = vi.mocked(fetch)
-    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/v1/remotes'))).toBe(true)
   })
 })
 

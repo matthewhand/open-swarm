@@ -29,16 +29,16 @@ async function awaitComposerReady(page: import('@playwright/test').Page) {
   await expect(conversation).toBeVisible()
   const composer = page.getByRole('textbox', { name: 'Chat message' })
   await expect(composer).toBeEnabled()
-  await expect(composer).toHaveAttribute('placeholder', /Type a message/i)
+  await expect(composer).toHaveAttribute('placeholder', /Message …/)
   return { conversation, composer }
 }
 
 async function sendChatMessage(page: import('@playwright/test').Page, text: string) {
   const { composer } = await awaitComposerReady(page)
   await composer.fill(text)
-  const send = page.getByRole('button', { name: /^Send$/i })
-  await expect(send).toBeEnabled()
-  await send.click()
+  // Compact composer: Send is sr-only; Enter submits the form.
+  await expect(page.getByRole('button', { name: /^Send$/i })).toBeEnabled()
+  await composer.press('Enter')
 }
 
 test.describe('REQ-13 chat Send mock inference', () => {

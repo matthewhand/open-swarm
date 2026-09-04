@@ -245,22 +245,18 @@ def test_capture_pages_spa_only_root_and_chat():
 
 
 def test_capture_script_waits_for_connected_or_unavailable():
-    """spa-chat must wait for a terminal WS badge (not Connecting…)."""
+    """spa-chat must wait for a terminal WS state (not Connecting…)."""
     src = CAPTURE_SCRIPT.read_text()
-    assert 'aria-label="Connection status"' in src
-    assert "Connected" in src and "Unavailable" in src
-    # Word boundaries avoid matching Connecting… as Connected (JS \\b in source).
-    assert r"\b(Connected|Unavailable|Disconnected)\b" in src or (
-        r"\\b(Connected|Unavailable|Disconnected)\\b" in src
-    )
+    assert 'aria-label="Chat message"' in src
+    assert "Websocket not connected" in src
     assert "SPA_CHAT_STATUS_TIMEOUT_MS" in src
     assert "20_000" in src or "20000" in src
     assert "connection_status" in src
-    # Hard-fail Connecting… unless --allow-connecting (docs must not claim Connected).
+    # Hard-fail Connecting… unless --allow-connecting (docs must not claim ready).
     assert "_spa_chat_status_is_terminal" in src
     assert "--allow-connecting" in src
     assert "allow_connecting" in src
-    assert "spa-chat badge not terminal" in src
+    assert "spa-chat not terminal" in src
 
 
 def test_capture_script_seeds_session_detail_after_sessions_list():

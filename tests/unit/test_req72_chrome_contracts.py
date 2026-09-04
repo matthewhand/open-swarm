@@ -9,7 +9,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SETTINGS_SHEET = REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx"
-REMOTES_LIB = REPO / "webui" / "frontend" / "src" / "lib" / "remotes.ts"
 SEARCH_PALETTE = REPO / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 CHAT_PAGE = REPO / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
@@ -19,19 +18,15 @@ SETTINGS_PREFS = REPO / "webui" / "frontend" / "src" / "lib" / "settingsPrefs.ts
 TEAM_ROSTERS = REPO / "webui" / "frontend" / "src" / "lib" / "teamRosters.ts"
 
 
-def test_settings_remotes_panes_are_placeholders_not_live_api():
-    """REQ-59/62: Settings remotes are opt-in; label is OpenMousBot, never OMB."""
+def test_settings_remotes_are_opt_in_not_default_kind_cards():
+    """REQ-59: empty remotes catalog + Add remote; no default Hermes/OMB/Rakazo panes."""
     src = SETTINGS_SHEET.read_text(encoding="utf-8")
-    labels = REMOTES_LIB.read_text(encoding="utf-8")
     assert "Add remote" in src
-    assert "fetchRemotes" in src
-    assert "RemoteOperatePane" in src
     assert "placeholder remote" not in src
     assert "remotes API has not landed" not in src
-    assert ":8001" not in src
-    assert "OpenMousBot" in labels
+    assert "fetchRemotes" in src
     assert "label: 'OMB'" not in src
-    assert '{ id: \'remotes-omb\' as const, label: \'OMB\' }' not in src
+    assert "name: 'OMB'" not in src
 
 
 def test_search_palette_bot_rows_spa_navigate_chat():
@@ -58,15 +53,17 @@ def test_sidebar_team_hide_id_and_plugins_empty_copy():
     assert "teamHideId(team.id)" in src
     assert "No plugins installed." in src
     assert "Unpin" in src
-    assert 'aria-label="Open agents sidebar"' not in src  # hamburger lives in App.tsx
+    assert 'aria-label="Open agents sidebar"' not in src  # REQ-54: hamburger removed
 
 
-def test_app_mobile_drawer_and_settings_event():
-    """#322 mobile drawer; #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
+def test_app_mobile_rail_and_settings_event():
+    """REQ-54 tucked rail + #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
     src = APP.read_text(encoding="utf-8")
-    assert 'aria-label="Open agents sidebar"' in src
     assert "OPEN_SETTINGS_EVENT" in src
-    assert "setSettingsBlueprintId" in src
+    assert "setSettingsDetail" in src
+    assert "useLeftEdgeSwipe" in src
+    assert "SwipeHint" in src
+    assert 'aria-label="Open agents sidebar"' not in src
 
 
 def test_hostname_rail_and_settings_keys_are_distinct():

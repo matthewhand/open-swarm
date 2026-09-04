@@ -54,13 +54,13 @@ describe('SPA settings chrome (REQ-19)', () => {
     )
     const dialog = await screen.findByRole('dialog', { name: 'Settings', hidden: true })
     expect(dialog).toHaveClass('modal-open')
-    expect(screen.getByRole('button', { name: 'Blueprint' })).toHaveClass('menu-active')
-    expect(screen.getByRole('heading', { name: 'Blueprint' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Blueprints' })).toHaveClass('menu-active')
+    expect(screen.getByRole('heading', { name: 'Blueprints' })).toBeInTheDocument()
   })
 
-  it('REQ-5c #322: mobile chrome exposes Open agents sidebar (drawer, not a product dock)', () => {
+  it('REQ-54: mobile chrome has no hamburger and no product dock', () => {
     renderApp()
-    expect(screen.getByRole('button', { name: 'Open agents sidebar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open agents sidebar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Mobile primary' })).not.toBeInTheDocument()
   })
 })

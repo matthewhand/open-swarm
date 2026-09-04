@@ -4,6 +4,8 @@
 <img src="assets/images/openswarm-project-image.jpg" alt="Project Logo" width="70%"/>
 </div>
 
+The bee mark used for the tab favicon and app icons lives under [`assets/brand/`](assets/brand/).
+
 **Open Swarm** is a Python framework for building, running, and deploying multi-agent AI workflows. Agent teams are defined as **Blueprints** — self-contained, discoverable Python modules — and can be used two ways:
 
 1. **As a CLI tool (`swarm-cli`):** run blueprints locally, interactively or one-shot, and optionally compile them into standalone executables.
