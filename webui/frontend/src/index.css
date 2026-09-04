@@ -260,6 +260,14 @@ html[data-theme="light"] #root {
   width: 2.35rem;
   height: 2.35rem;
 }
+.os-blob-avatar--lg {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+.os-blob-avatar--xl {
+  width: 3.5rem;
+  height: 3.5rem;
+}
 .os-blob-eyes {
   transform-box: fill-box;
   transform-origin: 0 0;
@@ -288,6 +296,10 @@ html[data-theme="light"] #root {
   }
 }
 .os-fav-tile .os-agent-avatar--lg {
+  width: 3rem;
+  height: 3rem;
+}
+.os-fav-tile .os-blob-avatar {
   width: 3rem;
   height: 3rem;
 }

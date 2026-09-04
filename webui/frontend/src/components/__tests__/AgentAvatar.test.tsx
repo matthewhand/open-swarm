@@ -1,20 +1,54 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect } from 'vitest'
 import { fireEvent, render } from '@testing-library/react'
 import AgentAvatar, {
   DEFAULT_AGENT_AVATAR_SRC,
   agentAvatarKind,
   resolveAgentAvatarSrc,
 } from '../AgentAvatar'
+import {
+  AVATAR_THEME_STORAGE_KEY,
+  saveAvatarTheme,
+} from '../../lib/avatarTheme'
 
 describe('AgentAvatar', () => {
-  it('uses the bland default when no custom src is set', () => {
-    const { container } = render(<AgentAvatar />)
+  afterEach(() => {
+    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
+  })
+
+  it('uses Blobs-with-eyes by default when no custom src is set', () => {
+    const { container } = render(<AgentAvatar agentId="codey" />)
     const face = container.querySelector('[data-agent-avatar]')
     expect(face).toHaveAttribute('data-agent-avatar', 'default')
-    expect(container.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
-    expect(DEFAULT_AGENT_AVATAR_SRC).toMatch(/^data:image\/svg\+xml/)
+    expect(face).toHaveAttribute('data-avatar-theme', 'blobs')
+    const svg = container.querySelector('svg[data-avatar-theme="blobs"]')
+    expect(svg).toBeInTheDocument()
+    expect(svg).toHaveAttribute('data-agent-id', 'codey')
     expect(agentAvatarKind(null)).toBe('default')
     expect(resolveAgentAvatarSrc('')).toBe(DEFAULT_AGENT_AVATAR_SRC)
+  })
+
+  it('renders distinct deterministic blob shapes for different agentIds', () => {
+    const render1 = render(<AgentAvatar agentId="codey" />)
+    const svg1 = render1.container.querySelector('svg')
+    const shape1 = svg1?.getAttribute('data-blob-shape')
+    render1.unmount()
+
+    const render2 = render(<AgentAvatar agentId="stewie" />)
+    const svg2 = render2.container.querySelector('svg')
+    const shape2 = svg2?.getAttribute('data-blob-shape')
+    render2.unmount()
+
+    expect(shape1).toBeDefined()
+    expect(shape2).toBeDefined()
+  })
+
+  it('uses the bland default static circle when opted in via settings', () => {
+    saveAvatarTheme('bland')
+    const { container } = render(<AgentAvatar agentId="codey" />)
+    const face = container.querySelector('[data-agent-avatar]')
+    expect(face).toHaveAttribute('data-agent-avatar', 'default')
+    expect(face).not.toHaveAttribute('data-avatar-theme', 'blobs')
+    expect(container.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
   })
 
   it('paints a custom src', () => {
@@ -31,16 +65,30 @@ describe('AgentAvatar', () => {
     expect(agentAvatarKind('/avatars/codey_avatar.png')).toBe('custom')
   })
 
-  it('treats blank custom src as the default', () => {
-    const { container } = render(<AgentAvatar src="   " />)
+  it('treats blank custom src as the default (blobs)', () => {
+    const { container } = render(<AgentAvatar src="   " agentId="codey" />)
     expect(container.querySelector('[data-agent-avatar]')).toHaveAttribute(
       'data-agent-avatar',
       'default',
     )
+    expect(container.querySelector('svg[data-avatar-theme="blobs"]')).toBeInTheDocument()
   })
 
-  it('falls back to the default when a custom src errors', () => {
-    const { container } = render(<AgentAvatar src="/avatars/missing.png" />)
+  it('falls back to blobs default when a custom src errors under default theme', () => {
+    const { container } = render(<AgentAvatar src="/avatars/missing.png" agentId="codey" />)
+    const img = container.querySelector('img')!
+    expect(img).toHaveAttribute('src', '/avatars/missing.png')
+    fireEvent.error(img)
+    expect(container.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-agent-avatar',
+      'default',
+    )
+    expect(container.querySelector('svg[data-avatar-theme="blobs"]')).toBeInTheDocument()
+  })
+
+  it('falls back to bland static circle when a custom src errors under bland theme', () => {
+    saveAvatarTheme('bland')
+    const { container } = render(<AgentAvatar src="/avatars/missing.png" agentId="codey" />)
     const img = container.querySelector('img')!
     expect(img).toHaveAttribute('src', '/avatars/missing.png')
     fireEvent.error(img)

@@ -796,6 +796,7 @@ export default function AgentSidebar({
       ) : (
         <AgentAvatar
           src={agent.avatar_path}
+          agentId={agent.id}
           size="sm"
           className="mt-1.5"
         />
@@ -1382,6 +1383,7 @@ export default function AgentSidebar({
                 ) : null}
                 <AgentAvatar
                   src={live?.avatar_path}
+                  agentId={pin.id}
                   size="lg"
                   className="os-fav-tile__avatar"
                 />

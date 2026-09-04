@@ -5,9 +5,10 @@ export interface AvatarThemePickerProps {
   id?: string
 }
 
-/** Settings control: Default (current dots) or Blobs. Persists like hostname. */
+/** Settings control: Blobs (default) or Bland static. Persists like hostname (REQ-155). */
 export default function AvatarThemePicker({ id = 'os-avatar-theme' }: AvatarThemePickerProps) {
   const theme = useAvatarTheme()
+  const selectValue = theme === 'default' ? 'bland' : theme
 
   return (
     <div className="flex w-full flex-col gap-1">
@@ -17,17 +18,17 @@ export default function AvatarThemePicker({ id = 'os-avatar-theme' }: AvatarThem
       <select
         id={id}
         className="select select-bordered select-sm w-full"
-        value={theme}
+        value={selectValue}
         onChange={(event) => {
           saveAvatarTheme(event.target.value)
         }}
       >
-        <option value="default">Default</option>
-        <option value="blobs">Blobs</option>
+        <option value="blobs">Blobs with eyes (default)</option>
+        <option value="bland">Bland static circle</option>
       </select>
       <p className="text-xs text-base-content/55">
-        Default keeps the current marks. Blobs are per-agent shapes with eyes.
-        This does not rewrite blueprints.
+        Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles.
+        Custom uploaded faces always win.
       </p>
     </div>
   )

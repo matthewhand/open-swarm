@@ -138,6 +138,7 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect(sections.getByRole('button', { name: 'Rail' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'System' })).toBeVisible()
 
+  await sections.getByRole('button', { name: 'Retention' }).click()
   await expect(page.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass(/join/)
   await page.getByRole('radio', { name: 'Trash' }).click()
   await page.getByRole('button', { name: 'Save retention' }).click()
@@ -153,6 +154,14 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hostname_override')))
     .toBe('swarm.example.com')
+
+  await page.getByRole('button', { name: 'Rail' }).click()
+  await expect(page.getByLabel('Avatar theme')).toBeVisible()
+  await expect(page.getByLabel('Avatar theme')).toHaveValue('blobs')
+  await page.getByLabel('Avatar theme').selectOption('bland')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_avatar_theme')))
+    .toBe('bland')
 
   await page.getByRole('button', { name: 'System' }).click()
   await expect(page.getByRole('heading', { name: 'System' })).toBeVisible()

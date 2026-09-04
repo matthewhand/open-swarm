@@ -9,17 +9,18 @@
   function readTheme() {
     try {
       var stored = localStorage.getItem(KEY);
-      if (stored === "default" || stored === "blobs") return stored;
+      if (stored === "bland" || stored === "default") return "bland";
+      if (stored === "blobs") return "blobs";
     } catch (err) {
       /* storage unavailable */
     }
-    return "default";
+    return "blobs";
   }
 
   function writeTheme(theme) {
-    var next = theme === "blobs" ? "blobs" : "default";
+    var next = theme === "bland" || theme === "default" ? "bland" : "blobs";
     try {
-      if (next === "default") {
+      if (next === "blobs") {
         localStorage.removeItem(KEY);
       } else {
         localStorage.setItem(KEY, next);

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useAvatarTheme } from '../lib/useAvatarTheme'
+import BlobAvatar from './BlobAvatar'
 
 /**
  * Bland circular fallback — not the Bert-like default owned by REQ-6 (#309).
@@ -17,11 +19,13 @@ export const DEFAULT_AGENT_AVATAR_SRC =
 export type AgentAvatarSize = 'sm' | 'md' | 'lg' | 'xl'
 
 export interface AgentAvatarProps {
-  /** Custom face URL. Blank / missing / broken uses the bland default. */
+  /** Custom face URL. Blank / missing / broken uses the themed default (or bland if selected in settings). */
   src?: string | null
   alt?: string
   size?: AgentAvatarSize
   className?: string
+  agentId?: string | null
+  active?: boolean
 }
 
 export function resolveAgentAvatarSrc(src?: string | null): string {
@@ -34,38 +38,82 @@ export function agentAvatarKind(src?: string | null): 'custom' | 'default' {
 }
 
 /**
- * Shared agent face for the rail tile and the chat header.
- * Display-only: no click handler. Sizes: rail sm, header lg.
+ * Shared agent face for the rail tile, favourites large tiles, and the chat header.
+ * Display-only: no click handler. Sizes: rail sm, header/favs lg.
+ * Unset or broken avatars resolve to Blobs-with-eyes by default (REQ-155),
+ * or bland static circles when opt-in chosen in Settings. Custom faces always win.
  */
 export default function AgentAvatar({
   src,
   alt = '',
   size = 'sm',
   className = '',
+  agentId,
+  active = false,
 }: AgentAvatarProps) {
   const [broken, setBroken] = useState(false)
+  const theme = useAvatarTheme()
 
   useEffect(() => {
     setBroken(false)
   }, [src])
 
-  const resolved = broken ? DEFAULT_AGENT_AVATAR_SRC : resolveAgentAvatarSrc(src)
-  const kind = resolved === DEFAULT_AGENT_AVATAR_SRC ? 'default' : 'custom'
+  const customSrc = typeof src === 'string' ? src.trim() : ''
+  const isCustom = Boolean(customSrc && !broken)
 
+  if (isCustom) {
+    return (
+      <div
+        className={`avatar ${className}`.trim()}
+        data-agent-avatar="custom"
+        aria-hidden={alt ? undefined : true}
+      >
+        <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
+          <img
+            src={customSrc}
+            alt={alt}
+            draggable={false}
+            data-agent-avatar="custom"
+            onError={() => setBroken(true)}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Unset or broken face -> resolve via avatar theme
+  if (theme === 'blobs') {
+    return (
+      <div
+        className={`avatar ${className}`.trim()}
+        data-agent-avatar="default"
+        data-avatar-theme="blobs"
+        data-eye-state={active ? 'active' : 'idle'}
+        aria-hidden={alt ? undefined : true}
+      >
+        <BlobAvatar
+          agentId={agentId || 'agent'}
+          active={active}
+          size={size}
+          className=""
+        />
+      </div>
+    )
+  }
+
+  // Bland static fallback
   return (
     <div
       className={`avatar ${className}`.trim()}
-      data-agent-avatar={kind}
+      data-agent-avatar="default"
       aria-hidden={alt ? undefined : true}
     >
       <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
         <img
-          src={resolved}
+          src={DEFAULT_AGENT_AVATAR_SRC}
           alt={alt}
           draggable={false}
-          onError={() => {
-            if (resolved !== DEFAULT_AGENT_AVATAR_SRC) setBroken(true)
-          }}
+          data-agent-avatar="default"
         />
       </div>
     </div>
