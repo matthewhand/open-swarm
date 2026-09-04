@@ -157,20 +157,6 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method: 'PATCH',
-    headers: buildHeaders(true),
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    await throwApiError(path, response)
-  }
-
-  return (await response.json()) as T
-}
-
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',

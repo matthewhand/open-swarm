@@ -28,6 +28,7 @@ import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
+  conversationIdForAgent,
   conversationIdForTask,
   fetchAgentThread,
   type ConversationSummary,
@@ -117,13 +118,6 @@ const ChatPage = () => {
   const [newChatPerTask, setNewChatPerTask] = useState(() =>
     teamFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
   )
-  const threadKey = teamFromUrl
-    ? teamThreadId(teamFromUrl)
-    : sessionFromUrl
-      ? `${selectedBlueprint}::${sessionFromUrl}`
-      : newChatPerTask
-        ? `${selectedBlueprint}::task`
-        : selectedBlueprint
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [summariesByThread, setSummariesByThread] = useState<
     Record<string, ConversationSummary[]>
@@ -275,6 +269,7 @@ const ChatPage = () => {
       return
     }
 
+    const agent = agentIdFromBlueprint(selectedBlueprint)
     const fresh = !sessionFromUrl && newChatPerTask
     const nextId = fresh
       ? conversationIdForTask(agent, { newChatPerTask: true })
