@@ -28,10 +28,10 @@ def test_apply_model_appends_flag_when_absent():
 
 
 def test_apply_model_noop_for_cli_without_model_flag():
-    # A CLI not in MODEL_FLAG (e.g. grok) is returned unchanged.
-    assert "grok" not in c.MODEL_FLAG
-    entry = c.catalog_entry("grok")
-    out = c.apply_model(entry, "grok", "whatever")
+    # A CLI not in MODEL_FLAG (e.g. codex) is returned unchanged.
+    assert "codex" not in c.MODEL_FLAG
+    entry = c.catalog_entry("codex")
+    out = c.apply_model(entry, "codex", "whatever")
     assert out["cmd"] == entry["cmd"]
 
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -9,14 +10,12 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.template.loader import render_to_string
 from django.utils.html import escape
 
-from swarm.core.chat_attachments import (
-    caption as _attachment_caption,
-    compose_user_content as _compose_attachment_content,
-    excerpt_text,
-    parse_attachment_ids as _parse_attachment_ids,
-    read_bytes,
+from swarm.models import ChatConversation, ChatMessage
+from swarm.middleware import (
+    client_ip_from_scope,
+    get_or_create_preview_user,
+    swarm_allow_anonymous,
 )
-from swarm.models import ChatAttachment, ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -38,25 +37,39 @@ def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
         return
     try:
         from swarm.core import chat_store
+        from swarm.core.agent_settings import is_new_chat_per_task
 
+        session_id = ""
+        if agent_id and is_new_chat_per_task(agent_id) and conversation_id:
+            session_id = conversation_id
         chat_store.save(
             chat_store.user_key_for(user),
             agent_id,
             messages,
             conversation_id=conversation_id,
+            session_id=session_id,
         )
     except Exception:
         logger.exception("Failed to persist agent chat JSON")
 
 
-def _load_agent_json(user, agent_id):
+def _load_agent_json(user, agent_id, *, conversation_id=""):
     """Best-effort load of the per-agent JSON thread."""
     if not getattr(user, "is_authenticated", False):
         return []
     try:
         from swarm.core import chat_store
+        from swarm.core.agent_settings import is_new_chat_per_task
 
-        record = chat_store.load(chat_store.user_key_for(user), agent_id)
+        session_id = ""
+        if agent_id and is_new_chat_per_task(agent_id) and conversation_id:
+            session_id = conversation_id
+        record = chat_store.load(
+            chat_store.user_key_for(user),
+            agent_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+        )
     except Exception:
         logger.exception("Failed to load agent chat JSON")
         return []
@@ -74,6 +87,33 @@ def _conversation_cache_key(user, conversation_id):
     if user_id is None:
         user_id = getattr(user, "id", None)
     return (user_id, conversation_id)
+
+
+async def _compacted_context(conversation_id, messages):
+    """Model context: summary tree replaces covered raw turns (REQ-37).
+
+    Raw ``messages`` stay on the consumer and on disk. Failures fall back
+    to the raw list so tests without a DB and live sessions without
+    summaries keep working.
+    """
+    try:
+        from swarm.core.chat_compact import context_for_conversation
+
+        return await database_sync_to_async(context_for_conversation)(
+            conversation_id, messages
+        )
+    except Exception:
+        logger.debug("compact context unavailable; using raw transcript", exc_info=True)
+        return list(messages or [])
+
+
+def _status_line_html(text: str) -> str:
+    """Bubble-less transcript line (CLI session notice; related to #362)."""
+    return (
+        '<div id="message-list" hx-swap-oob="beforeend">'
+        f'<div class="chat-status-line os-chat-status">{escape(text)}</div>'
+        "</div>"
+    )
 
 
 def _oob_append_html(contents_div_id: str, text: str) -> str:
@@ -102,10 +142,6 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
     Team compose (REQ-23) sends ``params: {team, target: "all"|memberId}``.
     Runtime for that path is stubbed until a real roster executor exists.
 
-    File attach (REQ-38) sends ``attachments: ["<uuid>", ...]`` (also accepted
-    inside ``params``). Owned uploads are resolved from sqlite + local disk
-    and appended to the user turn that the model sees.
-
     Auth is Django **session** only (``AuthMiddlewareStack`` cookie). A
     Settings-page API bearer token does not authenticate this socket.
     """
@@ -116,21 +152,42 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # Optional connection-level default blueprint (?blueprint=<id>).
         query_params = parse_qs(self.scope.get("query_string", b"").decode())
         self.default_blueprint = (query_params.get("blueprint") or [None])[0]
+        self.messages = []
+        # Accept before any DB/thread work. A wedged CurrentThreadExecutor
+        # used to hang handshake (HANDSHAKING, never CONNECT) and loop /chat.
+        await self.accept()
 
-        if self.user.is_authenticated:
-            self.active_agent = self.default_blueprint
-            self.messages = await self.fetch_conversation(self.conversation_id)
-            await self.accept()
-        else:
-            # Accept first so the client sees close code 4401 (not 1006).
-            # Frames may still arrive before the close is processed — receive()
-            # re-checks auth so anonymous clients cannot hit the LLM path.
-            self.messages = []
-            await self.accept()
-            await self.close(
-                code=WS_AUTH_REQUIRED_CODE,
-                reason="authentication required",
-            )
+        try:
+            if (not getattr(self.user, "is_authenticated", False)) and swarm_allow_anonymous(
+                client_ip_from_scope(self.scope)
+            ):
+                try:
+                    self.user = await database_sync_to_async(get_or_create_preview_user)()
+                except Exception:
+                    logger.exception(
+                        "Preview user mint failed for conversation %s; keeping socket open",
+                        self.conversation_id,
+                    )
+                    return
+            if getattr(self.user, "is_authenticated", False):
+                self.active_agent = self.default_blueprint
+                self._pending_tool_decisions = {}
+                try:
+                    self.messages = await self.fetch_conversation(self.conversation_id)
+                except Exception:
+                    logger.exception(
+                        "fetch_conversation failed after accept; continuing with empty transcript"
+                    )
+                    self.messages = []
+            else:
+                # Close after accept so the client sees 4401 (not 1006).
+                # receive() re-checks auth so anonymous clients cannot hit the LLM.
+                await self.close(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
+        except Exception:
+            logger.exception("post-accept websocket setup failed; socket stays open")
 
     async def disconnect(self, close_code):
         if self.user.is_authenticated:
@@ -150,32 +207,43 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # land before the close is applied. Refuse unauthenticated receives
         # (do not append to transcript or invoke blueprints / LLM).
         if not getattr(self.user, "is_authenticated", False):
-            await self.close(
-                code=WS_AUTH_REQUIRED_CODE,
-                reason="authentication required",
-            )
-            return
+            if swarm_allow_anonymous(client_ip_from_scope(self.scope)):
+                self.user = await database_sync_to_async(get_or_create_preview_user)()
+            else:
+                await self.close(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
+                return
+            if not getattr(self.user, "is_authenticated", False):
+                await self.close(
+                    code=WS_AUTH_REQUIRED_CODE,
+                    reason="authentication required",
+                )
+                return
 
         # Tolerate malformed frames without killing the socket: log and drop.
         try:
             text_data_json = json.loads(text_data)
             if not isinstance(text_data_json, dict):
                 raise ValueError("frame must be a JSON object")
-            message_text = text_data_json["message"]
-            if not isinstance(message_text, str):
-                raise ValueError("'message' must be a string")
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
             logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
             return
 
-        params = text_data_json.get("params")
-        if not isinstance(params, dict):
-            params = None
-        raw_ids = text_data_json.get("attachments")
-        if raw_ids is None and params is not None:
-            raw_ids = params.get("attachments")
-        attachment_ids = _parse_attachment_ids(raw_ids)
-        if not message_text.strip() and not attachment_ids:
+        if text_data_json.get("type") == "tool_decision":
+            await self.resolve_tool_decision(text_data_json)
+            return
+
+        try:
+            message_text = text_data_json["message"]
+            if not isinstance(message_text, str):
+                raise ValueError("'message' must be a string")
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.warning("Ignoring malformed chat frame (%s): %.200r", exc, text_data)
+            return
+
+        if not message_text.strip():
             return
 
         # Per-message blueprint selection wins over the connection default.
@@ -183,25 +251,24 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             self, "default_blueprint", None
         )
         self.active_agent = blueprint_id or getattr(self, "active_agent", None)
+        params = text_data_json.get("params")
+        if not isinstance(params, dict):
+            params = None
 
-        resolved = []
-        if attachment_ids:
-            resolved = await self.resolve_attachments(attachment_ids)
-        display_text = message_text.strip() or _attachment_caption(
-            [item["name"] for item in resolved]
-        )
-        context_text = _compose_attachment_content(display_text, resolved)
+        if params and params.get("new_session"):
+            # REQ-65: CoS/user task asked for an empty session on this socket.
+            self.messages = []
 
         self.messages.append(
             {
                 "role": "user",
-                "content": context_text,
+                "content": message_text,
             }
         )
 
         user_message_html = render_to_string(
             "websocket_partials/user_message.html",
-            {"message_text": display_text},
+            {"message_text": message_text},
         )
         await self.send(text_data=user_message_html)
 
@@ -216,7 +283,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if params and params.get("team"):
             await self.respond_with_team_stub(params, message_text, contents_div_id)
         elif blueprint_id:
-            await self.respond_with_blueprint(blueprint_id, contents_div_id)
+            await self.respond_with_blueprint(blueprint_id, contents_div_id, params=params)
         else:
             await self.respond_with_default_model(contents_div_id)
 
@@ -237,7 +304,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=final_html)
 
-    async def respond_with_blueprint(self, blueprint_id, contents_div_id):
+    async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
         # In test mode, skip slow blueprint instantiation and return canned output.
         if os.environ.get("SWARM_TEST_MODE"):
@@ -246,7 +313,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             from django.conf import settings as _settings
             bp_dir = _Path(getattr(_settings, "BLUEPRINT_DIRECTORY", "src/swarm/blueprints"))
             known = {d.name for d in bp_dir.iterdir() if d.is_dir() and not d.name.startswith("_")} if bp_dir.is_dir() else set()
-            if blueprint_id not in known:
+            from swarm.core.cli_catalog import cli_from_rail_id
+            if blueprint_id not in known and not cli_from_rail_id(blueprint_id):
                 await self.send_error_message(
                     contents_div_id,
                     f"Error: blueprint '{blueprint_id}' not found.",
@@ -269,8 +337,22 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
 
         try:
+            from swarm.core.cli_catalog import cli_from_rail_id
             from swarm.views.utils import get_blueprint_instance
-            blueprint_instance = await get_blueprint_instance(blueprint_id)
+
+            cli_name = None
+            if isinstance(params, dict):
+                raw_cli = params.get("cli")
+                if isinstance(raw_cli, str) and raw_cli.strip():
+                    cli_name = raw_cli.strip()
+            if not cli_name:
+                cli_name = cli_from_rail_id(blueprint_id)
+            run_id = "cli_agent" if cli_name else blueprint_id
+            blueprint_instance = await get_blueprint_instance(run_id)
+            if blueprint_instance is not None and cli_name and hasattr(
+                blueprint_instance, "set_params"
+            ):
+                blueprint_instance.set_params({"cli": cli_name})
         except Exception:
             logger.error(
                 f"Error loading blueprint '{blueprint_id}'", exc_info=True
@@ -284,9 +366,62 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
+        thread_params = {
+            "conversation_id": getattr(self, "conversation_id", ""),
+            "agent": blueprint_id,
+            "agent_id": blueprint_id,
+        }
+        if getattr(self.user, "is_authenticated", False):
+            try:
+                from swarm.core import chat_store
+
+                thread_params["user_key"] = chat_store.user_key_for(self.user)
+            except Exception:
+                logger.exception("Could not resolve chat user_key for CLI session")
+        if isinstance(params, dict):
+            thread_params.update(params)
+        if hasattr(blueprint_instance, "set_params") and callable(blueprint_instance.set_params):
+            existing = getattr(blueprint_instance, "_params", None)
+            if not isinstance(existing, dict):
+                existing = {}
+            blueprint_instance.set_params({**existing, **thread_params})
+
         final_message = None
+        token = None
         try:
-            async for chunk in blueprint_instance.run(self.messages):
+            from swarm.core.safety import (
+                SafetySession,
+                channel_for_runtime,
+                install_safety_session,
+                safety_role_assigned,
+            )
+
+            channel = channel_for_runtime(blueprint_id=blueprint_id)
+            metadata = getattr(blueprint_instance, "metadata", None)
+            if not isinstance(metadata, dict):
+                metadata = {}
+            session = SafetySession(
+                agent_id=str(blueprint_id),
+                channel=channel,
+                safety_assigned=safety_role_assigned(
+                    getattr(blueprint_instance, "agents", None),
+                    metadata=metadata,
+                ),
+                elicit_fn=self.elicit_tool_approval,
+                emit_fn=self.emit_tool_event,
+            )
+            token = install_safety_session(session)
+            model_messages = await _compacted_context(
+                getattr(self, "conversation_id", ""),
+                self.messages,
+            )
+            async for chunk in blueprint_instance.run(model_messages):
+                if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
+                    notice = str(chunk.get("content") or "").strip()
+                    if notice:
+                        await self.send(text_data=_status_line_html(notice))
+                        self.messages.append({"role": "status", "content": notice})
+                    continue
                 message = _extract_message_from_chunk(chunk)
                 if message is None:
                     continue
@@ -302,6 +437,11 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 f"Error: blueprint '{blueprint_id}' failed while generating a reply.",
             )
             return
+        finally:
+            if token is not None:
+                from swarm.core.safety import reset_safety_session
+
+                reset_safety_session(token)
 
         if not isinstance(final_message, dict) or final_message.get("content") is None:
             await self.send_error_message(
@@ -310,7 +450,15 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
-        full_message = final_message["content"]
+        from swarm.core.model_text import sanitize_model_text
+
+        full_message = sanitize_model_text(final_message["content"])
+        if not full_message:
+            await self.send_error_message(
+                contents_div_id,
+                "Error: the model returned no usable text (empty or tokenizer leftovers).",
+            )
+            return
         await self.send(text_data=_oob_append_html(contents_div_id, full_message))
 
         self.messages.append(
@@ -328,6 +476,49 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             },
         )
         await self.send(text_data=final_message_html)
+
+    async def emit_tool_event(self, payload: dict) -> None:
+        """JSON tool-status / approval frames for the SPA (not HTMx HTML)."""
+        try:
+            await self.send(text_data=json.dumps(payload))
+        except Exception:
+            logger.debug("tool event send failed", exc_info=True)
+
+    async def elicit_tool_approval(self, tool_name: str, arguments: dict) -> str:
+        """Pause the API-agent run until the chat sends Allow / Always / Deny."""
+        approval_id = uuid.uuid4().hex
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        pending = getattr(self, "_pending_tool_decisions", None)
+        if pending is None:
+            pending = {}
+            self._pending_tool_decisions = pending
+        pending[approval_id] = future
+        await self.emit_tool_event(
+            {
+                "type": "tool_approval",
+                "id": approval_id,
+                "name": tool_name,
+                "agent_id": getattr(self, "active_agent", None) or "",
+                "arguments": arguments or {},
+            }
+        )
+        try:
+            decision = await asyncio.wait_for(future, timeout=300)
+        except TimeoutError:
+            decision = "deny"
+        finally:
+            pending.pop(approval_id, None)
+        return str(decision or "deny")
+
+    async def resolve_tool_decision(self, payload: dict) -> None:
+        approval_id = str(payload.get("id") or "")
+        decision = str(payload.get("decision") or "deny")
+        pending = getattr(self, "_pending_tool_decisions", {}) or {}
+        future = pending.get(approval_id)
+        if future is None or future.done():
+            return
+        future.set_result(decision)
 
     async def send_error_message(self, contents_div_id, error_text):
         """Replace the streaming placeholder with an error partial.
@@ -363,6 +554,13 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             or os.environ.get("OPENAI_MODEL")
             or os.environ.get("DEFAULT_LLM")
         )
+        if not model:
+            from swarm.core.llm_task_routing import model_id_for_profile, resolve_chat_model
+
+            route = resolve_chat_model()
+            model = model_id_for_profile(route.profile)
+            if route.warning:
+                logger.warning("Default chat model: %s", route.warning)
         client = _cls(**client_kwargs)
 
         if base_url:
@@ -390,9 +588,13 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         full_message = ""
         try:
+            model_messages = await _compacted_context(
+                getattr(self, "conversation_id", ""),
+                self.messages,
+            )
             stream = await client.chat.completions.create(
                 model=model,
-                messages=self.messages,
+                messages=model_messages,
                 stream=True,
             )
             async for chunk in stream:
@@ -414,6 +616,16 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
+        from swarm.core.model_text import sanitize_model_text
+
+        full_message = sanitize_model_text(full_message)
+        if not full_message:
+            await self.send_error_message(
+                contents_div_id,
+                "Error: the model returned no usable text (empty or tokenizer leftovers).",
+            )
+            return
+
         self.messages.append(
             {
                 "role": "assistant",
@@ -430,38 +642,6 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await client.close()
         await self.send(text_data=final_message)
-
-    @database_sync_to_async
-    def resolve_attachments(self, attachment_ids):
-        """Load owned attachment metadata + optional text excerpt for context."""
-        if not attachment_ids:
-            return []
-        rows = list(
-            ChatAttachment.objects.filter(owner=self.user, id__in=attachment_ids)
-        )
-        by_id = {str(row.id): row for row in rows}
-        resolved = []
-        for aid in attachment_ids:
-            row = by_id.get(aid)
-            if row is None:
-                continue
-            item = {
-                "id": str(row.id),
-                "name": row.original_name,
-                "content_type": row.content_type,
-                "size": row.size,
-            }
-            try:
-                data = read_bytes(self.user, row.id)
-            except OSError:
-                logger.warning("Missing bytes for chat attachment %s", row.id)
-                resolved.append(item)
-                continue
-            text = excerpt_text(data, row.content_type)
-            if text is not None:
-                item["text"] = text
-            resolved.append(item)
-        return resolved
 
     @database_sync_to_async
     def fetch_conversation(self, conversation_id):
@@ -484,8 +664,24 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
 
+        agent_id = getattr(self, "default_blueprint", None)
+        try:
+            from swarm.core.agent_settings import is_new_chat_per_task
+
+            # REQ-65: on-mode tasks must not inherit the reused agent transcript.
+            if agent_id and is_new_chat_per_task(agent_id):
+                disk = _load_agent_json(
+                    self.user, agent_id, conversation_id=conversation_id
+                )
+                if disk:
+                    IN_MEMORY_CONVERSATIONS[cache_key] = disk
+                    return list(disk)
+                return []
+        except Exception:
+            logger.debug("new-chat-per-task check failed; using reuse fallback", exc_info=True)
+
         # Disk fallback: per-agent JSON (survives a new conversation UUID).
-        disk = _load_agent_json(self.user, getattr(self, "default_blueprint", None))
+        disk = _load_agent_json(self.user, agent_id)
         if disk:
             IN_MEMORY_CONVERSATIONS[cache_key] = disk
             return list(disk)

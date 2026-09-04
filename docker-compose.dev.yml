@@ -60,3 +60,8 @@ services:
       # to PYTHONPATH makes edits the code that actually runs, so uvicorn's
       # reloader picks them up.
       PYTHONPATH: "/app/src"
+      # REQ-45: dev sandbox. HOME is injected and swarm state dirs are mapped
+      # from the host (see base compose). Treat as sandbox-home (warning banner),
+      # not a green isolated box. Override SWARM_RUNTIME_MODE=sandbox-isolated
+      # if you drop those mounts. Map $HOME or SWARM_SANDBOX_ROOT for a full tree.
+      SWARM_RUNTIME_MODE: "${SWARM_RUNTIME_MODE:-sandbox-home}"

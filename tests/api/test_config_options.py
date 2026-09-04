@@ -19,6 +19,8 @@ def test_config_options_exposes_all_decoupling_primitives(client):
     assert {"grok", "claude", "gemini"} <= set(inf["cli_traits"])
     assert "gemini-3-pro-preview" in inf["model_traits"]
     assert inf["model_flags"]["gemini"] == "-m"
+    assert inf["list_models"]["opencode"] == ["opencode", "models"]
+    assert inf["list_models"]["grok"] == ["grok", "models"]
 
     # Tools: capabilities + MCP catalog with auth flags (playwright non-auth).
     tools = data["tools"]

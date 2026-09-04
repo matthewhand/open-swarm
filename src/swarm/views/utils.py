@@ -165,6 +165,16 @@ async def get_blueprint_instance(blueprint_id: str, params: dict = None):
     """
     logger.debug(f"Getting instance for blueprint: {blueprint_id} with params: {params}")
 
+    # Support is a synthetic seat (not a discoverable package dir). Instantiate
+    # the common Support blueprint so every turn can attach the session-ownership skill.
+    if (blueprint_id or "").strip().lower() == "support":
+        from swarm.blueprints.common.support_blueprint import SupportBlueprint
+
+        instance = SupportBlueprint(blueprint_id="support", config={})
+        if hasattr(instance, "set_params") and callable(instance.set_params):
+            instance.set_params(params)
+        return instance
+
     available_blueprint_classes = await get_available_blueprints()
 
     if not isinstance(available_blueprint_classes, dict) or blueprint_id not in available_blueprint_classes:

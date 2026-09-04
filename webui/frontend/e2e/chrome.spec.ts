@@ -43,11 +43,45 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/llm-profiles**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'llm_profiles',
+        profiles: [],
+        default_llm_profile: 'default',
+        default_is_auto: true,
+        override_per_task: false,
+        task_llm_profiles: {},
+        auto_picks: { default: 'default' },
+        warnings: [],
+        routes: {},
+        task_classes: ['orchestration', 'auxiliary', 'delegation'],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ object: 'list', data: [] }),
+    })
+  })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+        ],
+        configured: [],
+        data: [],
+      }),
     })
   })
   await page.route('**/health**', async (route) => {
@@ -68,7 +102,7 @@ test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ pa
   const rail = page.getByRole('navigation', { name: 'Agent list' })
   await expect(rail.getByRole('link', { name: /Support/ })).toBeVisible()
   await expect(rail.getByRole('link', { name: /Codey/ })).toBeVisible()
-  await expect(rail.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(rail.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(rail.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /2 hidden/i })).toBeVisible()
   await expect(page.getByLabel('Pinned agents')).toBeVisible()
@@ -122,14 +156,38 @@ test('left-rail Search opens the command palette overlay, not an in-place filter
   await expect(palette).toHaveCount(0)
 })
 
-test('legacy /agents lands on chat chrome with query', async ({ page }) => {
+test('/agents is Agent Router (not redirected to /chat)', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
-  await page.goto('/agents?blueprint=codey')
-  await expect(page).toHaveURL(/\/chat\/?\?blueprint=codey/)
-  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
+  await page.goto('/agents')
+  await expect(page).toHaveURL(/\/agents\/?$/)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
+
+test('chat header Computer control icon opens a WIP modal (REQ-27b)', async ({ page }) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubAgentApis(page)
+  await page.goto('/chat')
+
+  const tools = page.getByRole('toolbar', { name: 'Chat tools' })
+  const trigger = page.getByRole('button', { name: 'Computer control' })
+  await expect(tools).toBeVisible()
+  await expect(trigger).toBeVisible()
+
+  await trigger.click()
+  const dialog = page.getByRole('dialog', { name: 'Computer control' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('WIP', { exact: true })).toBeVisible()
+  await expect(dialog).toContainText(
+    'Computer control will use a placed OpenMousBot or Rakazo remote; not implemented here.',
+  )
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
+  await expect(dialog.getByRole('switch')).toHaveCount(0)
+
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
@@ -244,7 +302,7 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
 
   const list = page.getByRole('navigation', { name: 'Agent list' })
   await expect(list.getByRole('link', { name: /Support/ })).toBeVisible()
-  await expect(list.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
@@ -253,14 +311,133 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
   await page.getByRole('button', { name: /2 hidden/i }).click()
   const dialog = page.getByRole('dialog', { name: /Hidden agents/i })
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: /Unhide Gate/i }).click()
-  await expect(list.getByRole('link', { name: /Gate/ })).toBeVisible()
+  await dialog.getByRole('button', { name: /Unhide Safety/i }).click()
+  await expect(list.getByRole('link', { name: /Safety/ })).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
     .toBe(JSON.stringify(['skeptic']))
 
   await page.reload()
-  await expect(list.getByRole('link', { name: /Gate/ })).toBeVisible()
+  await expect(list.getByRole('link', { name: /Safety/ })).toBeVisible()
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /1 hidden/i })).toBeVisible()
+})
+
+test('hover-edit opens an agent-scoped editor; Blueprint picker persists; Edit blueprint lands on the list', async ({
+  page,
+}) => {
+  const jsErrors: string[] = []
+  page.on('pageerror', (e) => jsErrors.push(e.message))
+  await stubAgentApis(page)
+  await page.goto('/')
+
+  const list = page.getByRole('navigation', { name: 'Agent list' })
+  const support = list.getByRole('link', { name: /Support/ })
+  await expect(support).toBeVisible()
+  // REQ-26 seeds gate/skeptic as Hidden on first load; Support stays visible.
+  await expect(list.getByRole('link', { name: /Safety/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
+
+  await support.hover()
+  const edit = page.getByRole('button', { name: 'Edit Support' })
+  await expect(edit).toBeVisible()
+  await edit.click()
+
+  const editor = page.getByRole('dialog', { name: /Edit / })
+  await expect(editor).toBeVisible()
+  await expect(editor).toHaveClass(/modal-end/)
+  await expect(editor.getByRole('button', { name: 'Remotes' })).toHaveCount(0)
+  await expect(editor.getByRole('button', { name: 'System' })).toHaveCount(0)
+  await expect(editor.getByRole('navigation', { name: 'Settings sections' })).toHaveCount(0)
+  const picker = editor.getByLabel('Blueprint')
+  await expect(picker).toBeVisible()
+  await picker.selectOption('codey')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_agent_edits')))
+    .toContain('"blueprintId":"codey"')
+
+  await editor.getByRole('button', { name: /Edit blueprint/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'Settings' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Blueprints' })).toHaveClass(/menu-active/)
+  const blueprints = sheet.getByRole('listbox', { name: 'Blueprints' })
+  await expect(blueprints.getByRole('option', { name: 'Codey' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('dialog', { name: /Teams/i })).toHaveCount(0)
+  expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
+})
+
+test('composer + Compact borders nested summaries and keeps leftover operator links out', async ({
+  page,
+}) => {
+  await stubAgentApis(page)
+  await page.route('**/chat/thread/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        agent_id: 'codey',
+        conversation_id: 'c-e2e',
+        messages: [
+          { role: 'user', content: 'prior question' },
+          { role: 'assistant', content: 'prior answer' },
+        ],
+        summaries: [],
+      }),
+    })
+  })
+  await page.route('**/chat/compact/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        summary: {
+          id: 2,
+          conversation_id: 'c-e2e',
+          span: { start: 0, end: 1 },
+          parent_summary_id: 1,
+          body: 'outer digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+        summaries: [
+          {
+            id: 1,
+            conversation_id: 'c-e2e',
+            span: { start: 0, end: 1 },
+            parent_summary_id: null,
+            body: 'inner digest',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 2,
+          },
+          {
+            id: 2,
+            conversation_id: 'c-e2e',
+            span: { start: 0, end: 1 },
+            parent_summary_id: 1,
+            body: 'outer digest',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 2,
+          },
+        ],
+      }),
+    })
+  })
+  await page.goto('/chat?blueprint=codey')
+  await expect(page.getByText('prior question')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Compact' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Blueprints' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Teams' })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: 'Settings' })).toHaveCount(0)
+
+  await page.getByRole('menuitem', { name: 'Compact' }).click()
+  const blocks = page.getByTestId('chat-summary')
+  await expect(blocks).toHaveCount(2)
+  await expect(blocks.first()).toHaveClass(/chat-summary/)
+  await expect(page.locator('.chat-summary--nested')).toBeVisible()
+  await expect(page.getByText('Summary').first()).toBeVisible()
+  await expect(page.getByText('outer digest')).toBeVisible()
+  await expect(page.getByText('inner digest')).toBeVisible()
+  await expect(page.getByText('prior question')).toHaveCount(0)
 })

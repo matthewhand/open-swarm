@@ -7,12 +7,28 @@ import {
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
-import { fetchBlueprints, type Blueprint } from '../lib/api'
+import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
 import {
-  agentMarkIndex,
+  fetchBlueprints,
+  fetchCliAgents,
+  fetchHerdrAgents,
+  type Blueprint,
+  type CliRailAgent,
+  type HerdrAgent,
+} from '../lib/api'
+import AgentAvatar from './AgentAvatar'
+import {
+  agentRole,
+  exampleRoleAgents,
+  isChiefOfStaff,
+  roleBadgeLabel,
+  roleCssClass,
+  roleFromAgent,
+  showsBlueprintEdit,
+} from '../lib/agentRoles'
+import {
   hasHiddenAgentsStorage,
   hideAgentId,
   loadHiddenAgentIds,
@@ -20,6 +36,23 @@ import {
   unhideAgentId,
 } from '../lib/hiddenAgents'
 import { defaultHostname, loadHostname, saveHostname } from '../lib/hostname'
+import {
+  GENERATION_COMPLETE_EVENT,
+  applyRailOrder,
+  beginRailDrag,
+  bumpRailIdToTop,
+  endRailDrag,
+  generationCompleteAgentId,
+  loadRailOrder,
+  mergeRailOrder,
+  moveRailId,
+  peekRailDrag,
+  saveRailOrder,
+} from '../lib/railOrder'
+import {
+  BUMP_COMPLETED_EVENT,
+  loadBumpCompleted,
+} from '../lib/settingsPrefs'
 import {
   endAgentDrag,
   loadPinnedAgents,
@@ -30,20 +63,45 @@ import {
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
 import {
-  agentLabel,
-  defaultBlueprintId,
-  isSupportAgent,
-  supportFirstAgents,
-} from '../lib/supportAgent'
+  loadAllAgentSessions,
+  SCALE_OUT_SESSIONS_EVENT,
+  sessionHref,
+  shouldOpenSessionPicker,
+  type AgentSession,
+} from '../lib/scaleOutSessions'
+import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
+import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
+import { selectStackedFaces } from '../lib/avatarStack'
+import {
+  sessionsForRemote,
+  sessionsForTeam,
+  stackFacesForRemote,
+  stackFacesForTeam,
+  type MemberSession,
+} from '../lib/sessionPicker'
+import {
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+} from '../lib/agentSettings'
+import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'
+import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
+import SessionPicker from './SessionPicker'
+import { openSettingsSheet } from './SettingsSheet'
+import AvatarStack from './AvatarStack'
+import StackedAvatars from './StackedAvatars'
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
 
 export interface AgentSidebarProps {
   /** Mobile drawer open. Desktop (lg+) is always visible. */
   open?: boolean
+  /** Below Tailwind `lg` — drawer + inert when closed. */
+  narrow?: boolean
   onClose?: () => void
+  /** Agent / conversation / team pick — parent may tuck the rail (REQ-54). */
+  onPick?: () => void
   onOpenSearch?: () => void
 }
 
@@ -56,14 +114,93 @@ interface ContextMenuState {
   y: number
 }
 
-export default function AgentSidebar({ open = false, onClose, onOpenSearch }: AgentSidebarProps) {
+interface SessionPickerState {
+  agentId: string
+  agentName: string
+  sessions: AgentSession[]
+}
+
+type SidebarAgent = Blueprint & {
+  kind?: string
+  remote?: string
+  cli?: string
+}
+
+type RailRow =
+  | { kind: 'agent'; id: string; agent: SidebarAgent }
+  | { kind: 'team'; id: string; team: TeamRoster }
+  | { kind: 'remote'; id: string; remote: RemoteEntry }
+
+function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
+  return agent.kind === 'herdr' || String(agent.id).startsWith('herdr:')
+}
+
+function sidebarHref(agent: { id: string; kind?: string }): string {
+  if (isHerdrAgent(agent)) return '/teams/#herdr-members'
+  return `/chat?blueprint=${encodeURIComponent(agent.id)}`
+}
+
+function toSidebarCli(row: CliRailAgent): SidebarAgent {
+  return {
+    id: row.id,
+    object: 'blueprint',
+    name: row.name,
+    description: row.installed ? row.description : `${row.description} (not on PATH)`,
+    abbreviation: null,
+    required_mcp_servers: [],
+    tags: ['cli'],
+    installed: row.installed,
+    compiled: true,
+    kind: 'cli',
+    cli: row.cli,
+  }
+}
+
+/** Host CLI verify rows (grok_agent, agy_agent, …) stay on the rail. */
+function isCliRailAgent(agent: { id?: string; kind?: string }): boolean {
+  return agent.kind === 'cli'
+}
+
+function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
+  return {
+    id: `herdr:${row.name}`,
+    object: 'blueprint',
+    name: row.name,
+    description: row.remote ? `Herdr · ${row.remote}` : 'Herdr · localhost',
+    abbreviation: null,
+    required_mcp_servers: [],
+    tags: [],
+    installed: true,
+    compiled: true,
+    kind: 'herdr',
+    remote: row.remote || '',
+  }
+}
+
+interface PickerState {
+  title: string
+  sessions: MemberSession[]
+}
+
+export default function AgentSidebar({
+  open = false,
+  narrow = false,
+  onClose,
+  onPick,
+  onOpenSearch,
+}: AgentSidebarProps) {
+  const pickOrClose = onPick ?? onClose
+  const drawerHidden = Boolean(narrow && !open)
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const onChat = pathname.startsWith('/chat') || pathname === '/'
   const selectedTeamId = onChat ? (searchParams.get('team') ?? '') : ''
-  const selectedId = selectedTeamId
-    ? ''
-    : defaultBlueprintId(onChat ? searchParams.get('blueprint') : '')
+  const selectedRemoteId = onChat ? (searchParams.get('remote') ?? '') : ''
+  const selectedId =
+    selectedTeamId || selectedRemoteId
+      ? ''
+      : defaultBlueprintId(onChat ? searchParams.get('blueprint') : '')
 
   const [hiddenIds, setHiddenIds] = useState<string[] | null>(() =>
     hasHiddenAgentsStorage() ? loadHiddenAgentIds() : null,
@@ -73,11 +210,36 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [settingsTick, setSettingsTick] = useState(0)
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [picker, setPicker] = useState<PickerState | null>(null)
+  const [, setEditsTick] = useState(0)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+  const [railOrder, setRailOrder] = useState<string[]>(() => loadRailOrder())
+  const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
+  const [sessionTick, setSessionTick] = useState(0)
+  const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const hideDropDepth = useRef(0)
+  const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
+
+  useEffect(() => {
+    const onChange = () => setSessionTick((n) => n + 1)
+    window.addEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+  }, [])
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -89,9 +251,77 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     queryFn: fetchTeamRosters,
     retry: 1,
   })
+  const herdrQuery = useQuery({
+    queryKey: ['herdr-agents'],
+    queryFn: fetchHerdrAgents,
+    retry: 1,
+  })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchConfiguredRemotes,
+    retry: 1,
+  })
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+    retry: 1,
+  })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
-  const agents = useMemo(() => supportFirstAgents(catalog), [catalog])
   const teams = teamsQuery.data ?? []
+  const remotes = remotesQuery.data ?? []
+  const agents = useMemo<SidebarAgent[]>(() => {
+    const fromBlueprints = exampleRoleAgents(catalog)
+    const seen = new Set(fromBlueprints.map((a) => a.id))
+    const fromRosters: SidebarAgent[] = []
+    for (const roster of teams) {
+      for (const member of roster.members) {
+        if (member.kind === 'team' || seen.has(member.id)) continue
+        if (!isChiefOfStaff(member.role) && member.id !== 'cos') continue
+        seen.add(member.id)
+        fromRosters.push({
+          id: member.id,
+          object: 'blueprint',
+          name: member.id === 'cos' ? 'Chief of Staff' : member.id,
+          description: 'Talks to any available team.',
+          abbreviation: 'CoS',
+          required_mcp_servers: [],
+          tags: [],
+          installed: true,
+          compiled: true,
+          role: 'chief_of_staff',
+        })
+      }
+    }
+    const herdr = (herdrQuery.data?.data ?? []).map(toSidebarHerdr)
+    const clis = (cliQuery.data?.rail ?? []).map(toSidebarCli)
+    const cliIds = new Set(clis.map((a) => a.id))
+    const fromBlueprintsNoCli = fromBlueprints.filter((a) => !cliIds.has(a.id))
+    const list = [...fromRosters, ...fromBlueprintsNoCli, ...herdr]
+    const support = list.filter((a) => isSupportAgent(a))
+    const rest = list.filter((a) => !isSupportAgent(a))
+    const merged = [...support, ...clis, ...rest]
+    const railRank = (a: SidebarAgent) => {
+      if (isSupportAgent(a)) return 0
+      if (a.kind === 'cli') return 1
+      if (isChiefOfStaff(roleFromAgent(a))) return 2
+      return 3
+    }
+    return merged.sort((a, b) => railRank(a) - railRank(b))
+  }, [catalog, cliQuery.data, herdrQuery.data, teams])
+  const rosterById = useMemo(() => new Map(teams.map((r) => [r.id, r])), [teams])
+  const childTeamIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const team of teams) {
+      for (const member of team.members) {
+        if (member.kind === 'team') ids.add(member.team_id || member.id)
+      }
+    }
+    return ids
+  }, [teams])
+  const rootTeams = useMemo(
+    () => teams.filter((team) => !childTeamIds.has(team.id)),
+    [teams, childTeamIds],
+  )
   const resolvedHiddenIds =
     hiddenIds ?? (blueprintsQuery.isPending ? [] : loadOrSeedHiddenAgentIds(agents))
 
@@ -100,28 +330,88 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     setHiddenIds(loadOrSeedHiddenAgentIds(agents))
   }, [hiddenIds, blueprintsQuery.isPending, agents])
 
+  useEffect(() => {
+    const onSettings = () => setSettingsTick((n) => n + 1)
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onSettings)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onSettings)
+  }, [])
+
   const visibleAgents = useMemo(
-    () => agents.filter((agent) => !resolvedHiddenIds.includes(agent.id)),
+    () =>
+      agents.filter(
+        (agent) => isCliRailAgent(agent) || !resolvedHiddenIds.includes(agent.id),
+      ),
     [agents, resolvedHiddenIds],
   )
   const hiddenAgents = useMemo(
-    () => agents.filter((agent) => resolvedHiddenIds.includes(agent.id)),
+    () =>
+      agents.filter(
+        (agent) => !isCliRailAgent(agent) && resolvedHiddenIds.includes(agent.id),
+      ),
     [agents, resolvedHiddenIds],
   )
   const visibleTeams = useMemo(
     () => teams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
     [teams, resolvedHiddenIds],
   )
+  const visibleRootTeams = useMemo(
+    () => rootTeams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
+    [rootTeams, resolvedHiddenIds],
+  )
   const hiddenTeams = useMemo(
     () => teams.filter((team) => resolvedHiddenIds.includes(teamHideId(team.id))),
     [teams, resolvedHiddenIds],
   )
-  const hiddenCount = hiddenAgents.length + hiddenTeams.length
-  const visibleCount = visibleAgents.length + visibleTeams.length
+  const visibleRemotes = useMemo(
+    () => remotes.filter((remote) => !resolvedHiddenIds.includes(remoteHideId(remote.id))),
+    [remotes, resolvedHiddenIds],
+  )
+  const hiddenRemotes = useMemo(
+    () => remotes.filter((remote) => resolvedHiddenIds.includes(remoteHideId(remote.id))),
+    [remotes, resolvedHiddenIds],
+  )
+  const hiddenCount = hiddenAgents.length + hiddenTeams.length + hiddenRemotes.length
+  const visibleCount = visibleAgents.length + visibleTeams.length + visibleRemotes.length
   const loadingList = blueprintsQuery.isPending && teamsQuery.isPending
   const loadFailed = blueprintsQuery.isError && teamsQuery.isError && visibleCount === 0
   const supportAgents = visibleAgents.filter((agent) => isSupportAgent(agent))
-  const otherAgents = visibleAgents.filter((agent) => !isSupportAgent(agent))
+  const cliAgents = visibleAgents.filter((agent) => agent.kind === 'cli')
+  const otherAgents = visibleAgents.filter(
+    (agent) => !isSupportAgent(agent) && agent.kind !== 'cli',
+  )
+  const catalogRows = useMemo<RailRow[]>(() => {
+    const supportRows: RailRow[] = supportAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    const cliRows: RailRow[] = cliAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    const teamRows: RailRow[] = visibleRootTeams.map((team) => ({
+      kind: 'team',
+      id: teamHideId(team.id),
+      team,
+    }))
+    const remoteRows: RailRow[] = visibleRemotes.map((remote) => ({
+      kind: 'remote',
+      id: remoteHideId(remote.id),
+      remote,
+    }))
+    const otherRows: RailRow[] = otherAgents.map((agent) => ({
+      kind: 'agent',
+      id: agent.id,
+      agent,
+    }))
+    return [...supportRows, ...cliRows, ...teamRows, ...remoteRows, ...otherRows]
+  }, [supportAgents, cliAgents, visibleRootTeams, visibleRemotes, otherAgents])
+  const orderedRows = useMemo(
+    () => applyRailOrder(catalogRows, railOrder),
+    [catalogRows, railOrder],
+  )
+  const visibleRowIds = useMemo(() => orderedRows.map((row) => row.id), [orderedRows])
   const visiblePins = useMemo(
     () => pins.filter((pin) => !resolvedHiddenIds.includes(pin.id)),
     [pins, resolvedHiddenIds],
@@ -134,6 +424,51 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     openSearchPalette()
   }, [onOpenSearch])
 
+  const openGroupPicker = useCallback((title: string, sessions: MemberSession[]) => {
+    setPicker({ title, sessions })
+  }, [])
+
+  const closePicker = useCallback(() => setPicker(null), [])
+
+  const selectSession = useCallback(
+    (session: MemberSession) => {
+      setPicker(null)
+      navigate(session.href)
+      onClose?.()
+    },
+    [navigate, onClose],
+  )
+
+  const persistVisibleOrder = useCallback((nextVisible: string[]) => {
+    setRailOrder(saveRailOrder(nextVisible))
+  }, [])
+
+  const reorderBefore = useCallback(
+    (fromId: string, beforeId: string) => {
+      if (!fromId || !beforeId || fromId === beforeId) return
+      const base = mergeRailOrder(railOrder, visibleRowIds)
+      persistVisibleOrder(moveRailId(base, fromId, beforeId))
+    },
+    [railOrder, visibleRowIds, persistVisibleOrder],
+  )
+
+  useEffect(() => {
+    const onBump = () => setBumpCompleted(loadBumpCompleted())
+    window.addEventListener(BUMP_COMPLETED_EVENT, onBump)
+    return () => window.removeEventListener(BUMP_COMPLETED_EVENT, onBump)
+  }, [])
+
+  useEffect(() => {
+    const onComplete = (event: Event) => {
+      if (!bumpCompleted) return
+      const agentId = generationCompleteAgentId(event)
+      if (!agentId || !visibleRowIds.includes(agentId)) return
+      const base = mergeRailOrder(railOrder, visibleRowIds)
+      persistVisibleOrder(bumpRailIdToTop(base, agentId))
+    }
+    window.addEventListener(GENERATION_COMPLETE_EVENT, onComplete)
+    return () => window.removeEventListener(GENERATION_COMPLETE_EVENT, onComplete)
+  }, [bumpCompleted, visibleRowIds, railOrder, persistVisibleOrder])
   useEffect(() => {
     if (!menu) return
     const onKey = (event: KeyboardEvent) => {
@@ -171,7 +506,9 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
 
   const finishDrag = () => {
     endAgentDrag()
+    endRailDrag()
     setDraggingId(null)
+    setDropTargetId(null)
     setDropActive(false)
     setHideDropActive(false)
     hideDropDepth.current = 0
@@ -184,6 +521,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
    */
   const hideFromRail = (id: string) => {
     if (!id) return
+    if (agents.some((agent) => agent.id === id && isCliRailAgent(agent))) return
     setHiddenIds((current) => hideAgentId(id, current ?? resolvedHiddenIds))
     setPins((current) => unpinAgent(id, current))
   }
@@ -230,6 +568,35 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     hideFromRail(payload.id)
   }
 
+  const allowRowDrop = (event: ReactDragEvent, targetId: string) => {
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (!fromId || fromId === targetId) {
+      try {
+        event.dataTransfer.dropEffect = 'none'
+      } catch {
+        /* synthetic events may omit dataTransfer */
+      }
+      return
+    }
+    event.preventDefault()
+    try {
+      event.dataTransfer.dropEffect = 'move'
+    } catch {
+      /* synthetic events may omit dataTransfer */
+    }
+    setDropTargetId(targetId)
+  }
+
+  const dropReorder = (event: ReactDragEvent, targetId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (fromId && fromId !== targetId) {
+      reorderBefore(fromId, targetId)
+    }
+    finishDrag()
+  }
+
   const dropOnSelf = (event: ReactDragEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -238,6 +605,7 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
 
   const beginRowDrag = (event: ReactDragEvent, agent: { id: string; name: string }) => {
     writeAgentDragPayload(event.dataTransfer, agent)
+    beginRailDrag(agent.id)
     try {
       event.dataTransfer.effectAllowed = 'copyMove'
     } catch {
@@ -246,90 +614,298 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     setDraggingId(agent.id)
   }
 
-  const renderAgentLink = (agent: Blueprint, hidden: boolean) => {
+  const openEditor = (agent: Blueprint) => {
+    openAgentEditor({ agentId: agent.id })
+    onClose?.()
+  }
+
+  const openDefinition = (
+    kind: 'role' | 'blueprint' | 'team',
+    id: string,
+    extras?: { blueprintId?: string; teamId?: string },
+  ) => {
+    openSettingsSheet({
+      section: 'definition',
+      definitionKind: kind,
+      definitionId: id,
+      blueprintId: extras?.blueprintId,
+      teamId: extras?.teamId,
+    })
+    onClose?.()
+  }
+
+  const openAgentSettings = (agent: { id: string; name: string }) => {
+    openAgentEditor({ agentId: agent.id, agentName: agent.name })
+    closeMenu()
+    onClose?.()
+  }
+
+  const renderAgentRow = (agent: SidebarAgent, hidden: boolean) => {
     const name = agentLabel(agent)
-    const active = selectedId === agent.id
-    const support = isSupportAgent(agent)
+    const herdr = isHerdrAgent(agent)
+    const sessions = sessionsByAgent[agent.id] ?? []
+    const scaleOut = !herdr && shouldOpenSessionPicker(sessions)
+    const active = !herdr && selectedId === agent.id
+    const role = agentRole(agent)
+    const showEdit = !herdr && showsBlueprintEdit(agent)
     const dragging = draggingId === agent.id
-    return (
-      <Link
-        to={`/chat?blueprint=${encodeURIComponent(agent.id)}`}
-        className={`os-agent-row ${active ? 'os-agent-row--active' : ''} ${
-          support ? 'os-agent-row--support' : ''
-        } ${dragging ? 'os-agent-row--dragging' : ''}`}
-        data-agent-id={agent.id}
-        aria-current={active ? 'page' : undefined}
-        draggable={!hidden}
-        onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
-        onDragEnd={finishDrag}
-        onDragOver={(event) => {
-          // Rows are not drop targets; dropping onto the source is a no-op.
-          try {
-            event.dataTransfer.dropEffect = 'none'
-          } catch {
-            /* synthetic events may omit dataTransfer */
-          }
-        }}
-        onDrop={dropOnSelf}
-        onClick={onClose}
-        onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
-      >
-        <span
-          className="os-agent-dot mt-1.5"
-          data-mark={String(agentMarkIndex(agent.id))}
-          data-role={support ? 'support' : undefined}
-          aria-hidden="true"
+    const dropping = dropTargetId === agent.id
+    const badge = roleBadgeLabel(role)
+    const taskCount = settingsTick >= 0 && loadLocalNewChatPerTask(agent.id)
+      ? activeTaskSessionCount(agent.id)
+      : 0
+    const dataRole = role !== 'default' ? role : undefined
+    const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+      dragging ? 'os-agent-row--dragging' : ''
+    } ${dropping ? 'os-agent-row--drop' : ''}`
+    const mark = (
+      scaleOut ? (
+        // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
+        <StackedAvatars sessions={sessions} />
+      ) : (
+        <AgentAvatar
+          src={agent.avatar_path}
+          size="sm"
+          className="mt-1.5"
         />
+      )
+    )
+    const body = (
+      <>
+        {mark}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            {badge ? (
+              <span
+                className={`os-agent-role-badge ${roleCssClass(role)}`}
+                data-role={role}
+                data-definition-id={agent.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${role} settings`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openDefinition('role', agent.id, { blueprintId: agent.id })
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    openDefinition('role', agent.id, { blueprintId: agent.id })
+                  }
+                }}
+              >
+                {badge}
+              </span>
+            ) : null}
+            {taskCount > 1 ? (
+              <span
+                className="badge badge-sm badge-outline"
+                data-task-sessions={taskCount}
+                title={`${taskCount} running chats`}
+              >
+                {taskCount} chats
+              </span>
+            ) : null}
+          </span>
           {agent.description ? (
             <span className="mt-0.5 block truncate text-xs text-base-content/45">
               {agent.description}
             </span>
           ) : null}
         </span>
-      </Link>
+      </>
+    )
+    if (herdr) {
+      return (
+        <a
+          href={sidebarHref(agent)}
+          className={className}
+          data-agent-id={agent.id}
+          data-role={dataRole}
+          draggable={!hidden}
+          onDragStart={(event) => beginRowDrag(event, { id: agent.id, name })}
+          onDragEnd={finishDrag}
+          onDragOver={(event) => allowRowDrop(event, agent.id)}
+          onDrop={(event) => dropReorder(event, agent.id)}
+          onClick={pickOrClose}
+          onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
+        >
+          {body}
+        </a>
+      )
+    }
+    const dragHandlers = {
+      draggable: !hidden,
+      onDragStart: (event: ReactDragEvent) => beginRowDrag(event, { id: agent.id, name }),
+      onDragEnd: finishDrag,
+      onDragOver: (event: ReactDragEvent) => allowRowDrop(event, agent.id),
+      onDrop: (event: ReactDragEvent) => dropReorder(event, agent.id),
+      onContextMenu: (event: ReactMouseEvent) => openMenu(event, agent.id, name, hidden),
+    }
+
+    if (scaleOut) {
+      return (
+        <div
+          className="os-agent-row-wrap"
+          data-role={role}
+          data-scale-out="true"
+        >
+          <button
+            type="button"
+            className={`${className} w-full`}
+            data-agent-id={agent.id}
+            data-role={dataRole}
+            data-scale-out="true"
+            aria-haspopup="dialog"
+            aria-current={active ? 'page' : undefined}
+            aria-label={`${name}, ${sessions.length} sessions`}
+            {...dragHandlers}
+            onClick={() => {
+              setSessionPicker({ agentId: agent.id, agentName: name, sessions })
+            }}
+          >
+            {body}
+          </button>
+          {showEdit ? (
+            <button
+              type="button"
+              className="os-agent-edit"
+              aria-label={`Edit ${name} blueprint`}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                openBlueprintEditor(agent)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openBlueprintEditor(agent)
+                }
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+      )
+    }
+
+    return (
+      <div
+        className="os-agent-row-wrap"
+        data-role={role}
+      >
+        <Link
+          to={sidebarHref(agent)}
+          className={className}
+          data-agent-id={agent.id}
+          data-role={dataRole}
+          aria-current={active ? 'page' : undefined}
+          {...dragHandlers}
+          onClick={pickOrClose}
+        >
+          {body}
+        </Link>
+        {showEdit ? (
+          <button
+            type="button"
+            className="os-agent-edit"
+            aria-label={`Edit ${name}`}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openEditor(agent)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                event.stopPropagation()
+                openEditor(agent)
+              }
+            }}
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
     )
   }
 
-  const renderTeamLink = (team: TeamRoster, hidden: boolean) => {
+  const renderTeamLink = (team: TeamRoster, hidden: boolean, nested = false) => {
     const name = team.name || team.id
     const hideId = teamHideId(team.id)
     const active = selectedTeamId === team.id
+    const sessions = sessionsForTeam(team)
+    const stacked = selectStackedFaces(stackFacesForTeam(team))
     const dragging = draggingId === hideId
+    const dropping = dropTargetId === hideId
     return (
       <Link
         to={`/chat?team=${encodeURIComponent(team.id)}`}
-        className={`os-team-item os-agent-row ${active ? 'os-agent-row--active' : ''} ${
-          dragging ? 'os-agent-row--dragging' : ''
+        className={`os-team-item os-agent-row os-agent-row--team ${
+          active ? 'os-agent-row--active' : ''
+        } ${nested ? 'os-agent-row--nested' : ''} ${dragging ? 'os-agent-row--dragging' : ''} ${
+          dropping ? 'os-agent-row--drop' : ''
         }`}
         aria-current={active ? 'page' : undefined}
         aria-label={`${name} (team)`}
         data-agent-id={hideId}
+        data-kind="team"
+        data-stack-count={String(stacked.faces.length)}
+        data-remainder={String(stacked.remainder)}
         draggable={!hidden}
         onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
         onDragEnd={finishDrag}
-        onDragOver={(event) => {
-          try {
-            event.dataTransfer.dropEffect = 'none'
-          } catch {
-            /* synthetic events may omit dataTransfer */
-          }
+        onDragOver={(event) => allowRowDrop(event, hideId)}
+        onDrop={(event) => dropReorder(event, hideId)}
+        onClick={(event) => {
+          event.preventDefault()
+          openGroupPicker(name, sessions)
         }}
-        onDrop={dropOnSelf}
-        onClick={onClose}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
       >
-        <span
-          className="os-team-mark mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
-          aria-hidden="true"
-        >
-          <Users className="h-3.5 w-3.5" />
-        </span>
+        {stacked.faces.length > 0 ? (
+          <AvatarStack
+            faces={stacked.faces}
+            remainder={stacked.remainder}
+            animate
+            label={`${name} members`}
+          />
+        ) : (
+          <span
+            className="os-team-mark os-agent-team-icon mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
+            aria-hidden="true"
+          >
+            <Users className="h-3.5 w-3.5" />
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            <span className="badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55">
+            <span
+              className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
+              data-kind="team"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${name} team settings`}
+              data-definition-id={team.id}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                openDefinition('team', team.id, { teamId: team.id })
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openDefinition('team', team.id, { teamId: team.id })
+                }
+              }}
+            >
               Team
             </span>
           </span>
@@ -343,11 +919,125 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
     )
   }
 
+  const renderRemoteRow = (remote: RemoteEntry, hidden: boolean) => {
+    const name = remote.title
+    const hideId = remoteHideId(remote.id)
+    const active = selectedRemoteId === remote.id
+    const dragging = draggingId === hideId
+    const sessions = sessionsForRemote(remote)
+    const stacked = selectStackedFaces(stackFacesForRemote(remote))
+    return (
+      <Link
+        to={`/chat?remote=${encodeURIComponent(remote.id)}`}
+        className={`os-remote-item os-agent-row os-agent-row--remote ${
+          active ? 'os-agent-row--active' : ''
+        } ${dragging ? 'os-agent-row--dragging' : ''}`}
+        aria-current={active ? 'page' : undefined}
+        aria-label={`${name} (remote)`}
+        data-agent-id={hideId}
+        data-kind="remote"
+        data-remote-id={remote.id}
+        data-stack-count={String(stacked.faces.length)}
+        data-remainder={String(stacked.remainder)}
+        draggable={!hidden}
+        onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
+        onDragEnd={finishDrag}
+        onDragOver={(event) => {
+          try {
+            event.dataTransfer.dropEffect = 'none'
+          } catch {
+            /* synthetic events may omit dataTransfer */
+          }
+        }}
+        onDrop={dropOnSelf}
+        onClick={(event) => {
+          event.preventDefault()
+          openGroupPicker(name, sessions)
+        }}
+        onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
+      >
+        <AvatarStack
+          faces={stacked.faces}
+          remainder={stacked.remainder}
+          animate
+          label={`${name} members`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            <span
+              className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
+              data-kind="remote"
+            >
+              Remote
+            </span>
+          </span>
+        </span>
+      </Link>
+    )
+  }
+
+  const renderTeamRow = (team: TeamRoster, nested = false, seen: string[] = []) => {
+    const hidden = resolvedHiddenIds.includes(teamHideId(team.id))
+    if (hidden && !nested) return null
+    const childSlots = team.members.filter((m) => m.kind === 'team')
+    return (
+      <li key={`team-${team.id}`}>
+        {hidden ? null : renderTeamLink(team, false, nested)}
+        {childSlots.length > 0 && !seen.includes(team.id) ? (
+          <ul className="os-agent-team-nest">
+            {childSlots.map((m) => {
+              const child = rosterById.get(m.team_id || m.id)
+              if (child) return renderTeamRow(child, true, seen.concat(team.id))
+              return (
+                <li key={`team-slot-${m.id}`}>
+                  <span className="os-agent-row os-agent-row--team os-agent-row--nested">
+                    <Users className="os-agent-team-icon mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold leading-5">
+                        {m.team_id || m.id}
+                      </span>
+                      <span
+                        className="os-agent-role-badge"
+                        data-kind="team"
+                        data-definition-id={m.team_id || m.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open ${m.team_id || m.id} team settings`}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          const teamId = m.team_id || m.id
+                          openDefinition('team', teamId, { teamId })
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            const teamId = m.team_id || m.id
+                            openDefinition('team', teamId, { teamId })
+                          }
+                        }}
+                      >
+                        Team
+                      </span>
+                    </span>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
+
   return (
     <>
       <button
         type="button"
         className={`fixed inset-0 z-30 bg-black/50 lg:hidden ${open ? '' : 'hidden'}`}
+        hidden={!open}
         aria-label="Close agents sidebar"
         onClick={onClose}
       />
@@ -357,6 +1047,10 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Agents"
+        data-testid="os-agent-rail"
+        data-rail-open={open ? 'true' : 'false'}
+        aria-hidden={drawerHidden || undefined}
+        {...(drawerHidden ? { inert: '' } : {})}
       >
         <div className="flex items-center justify-end px-3 pt-3 lg:hidden">
           <button
@@ -406,19 +1100,14 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
           onDragLeave={() => setDropActive(false)}
           onDrop={dropPin}
         >
-          {visiblePins.map((pin) => (
-            <Link
-              key={pin.id}
-              to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
-              className={`os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`}
-              title={pin.name}
-              aria-label={pin.name}
-              data-agent-id={pin.id}
-              draggable
-              onDragStart={(event) => beginRowDrag(event, pin)}
-              onDragEnd={finishDrag}
-              onClick={onClose}
-              onContextMenu={(event) => {
+          {visiblePins.map((pin) => {
+            const pinClass = `os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`
+            const pinHandlers = {
+              draggable: true as const,
+              onDragStart: (event: ReactDragEvent) => beginRowDrag(event, pin),
+              onDragEnd: finishDrag,
+              onClick: pickOrClose,
+              onContextMenu: (event: ReactMouseEvent) => {
                 event.preventDefault()
                 setMenu({
                   agentId: pin.id,
@@ -428,15 +1117,43 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                   x: event.clientX,
                   y: event.clientY,
                 })
-              }}
-            >
-              <span
-                className="os-agent-dot"
-                data-mark={String(agentMarkIndex(pin.id))}
-                aria-hidden="true"
-              />
-            </Link>
-          ))}
+              },
+            }
+            if (isHerdrAgent(pin)) {
+              return (
+                <a
+                  key={pin.id}
+                  href="/teams/#herdr-members"
+                  className={pinClass}
+                  title={pin.name}
+                  aria-label={pin.name}
+                  data-agent-id={pin.id}
+                  {...pinHandlers}
+                >
+                  <AgentAvatar
+                    src={agents.find((agent) => agent.id === pin.id)?.avatar_path}
+                    size="sm"
+                  />
+                </a>
+              )
+            }
+            return (
+              <Link
+                key={pin.id}
+                to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
+                className={pinClass}
+                title={pin.name}
+                aria-label={pin.name}
+                data-agent-id={pin.id}
+                {...pinHandlers}
+              >
+                <AgentAvatar
+                  src={agents.find((agent) => agent.id === pin.id)?.avatar_path}
+                  size="sm"
+                />
+              </Link>
+            )
+          })}
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
@@ -448,14 +1165,14 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
             <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
           ) : (
             <ul className="space-y-0.5">
-              {supportAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
-              ))}
-              {visibleTeams.map((team) => (
-                <li key={teamHideId(team.id)}>{renderTeamLink(team, false)}</li>
-              ))}
-              {otherAgents.map((agent) => (
-                <li key={agent.id}>{renderAgentLink(agent, false)}</li>
+              {orderedRows.map((row, index) => (
+                <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
+                  {row.kind === 'team'
+                    ? renderTeamRow(row.team)
+                    : row.kind === 'remote'
+                      ? renderRemoteRow(row.remote, false)
+                      : renderAgentRow(row.agent, false)}
+                </li>
               ))}
             </ul>
           )}
@@ -581,6 +1298,19 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
                     </button>
                   </li>
                 ))}
+                {hiddenRemotes.map((remote) => (
+                  <li key={remoteHideId(remote.id)} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">{remote.title}</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      aria-label={`Unhide ${remote.title}`}
+                      onClick={() => unhideAgent(remoteHideId(remote.id))}
+                    >
+                      Unhide
+                    </button>
+                  </li>
+                ))}
                 {hiddenAgents.map((agent) => (
                   <li key={agent.id} className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
@@ -632,6 +1362,26 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
         </>
       )}
 
+      <SessionPicker
+        open={Boolean(picker)}
+        title={picker?.title ?? ''}
+        sessions={picker?.sessions ?? []}
+        onClose={closePicker}
+        onSelect={selectSession}
+      />
+
+      <SessionPicker
+        open={sessionPicker !== null}
+        agentName={sessionPicker?.agentName ?? ''}
+        sessions={sessionPicker?.sessions ?? []}
+        onClose={() => setSessionPicker(null)}
+        onSelect={(session) => {
+          const agentId = sessionPicker?.agentId || session.agentId
+          navigate(sessionHref(agentId, session.id))
+          onClose?.()
+        }}
+      />
+
       {menu && (
         <div
           ref={menuRef}
@@ -661,6 +1411,15 @@ export default function AgentSidebar({ open = false, onClose, onOpenSearch }: Ag
               Hide from sidebar
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+            onClick={() => openAgentSettings({ id: menu.agentId, name: menu.agentName })}
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            Edit agent
+          </button>
           <button
             type="button"
             role="menuitem"

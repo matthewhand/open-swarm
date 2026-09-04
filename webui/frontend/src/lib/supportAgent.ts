@@ -1,6 +1,7 @@
 import type { Blueprint } from './api'
+import { editedAgentLabel } from './agentEdits'
 
-/** Default Support seat — first + highlighted in the conversation rail. */
+/** Default Support seat — first in the conversation rail (badge-only role colour). */
 export const SUPPORT_AGENT_ID = 'support'
 /** Catalog ids that ship for the gate seat (`tool_gate` is an alias). */
 export const GATE_AGENT_ID = 'gate'
@@ -10,7 +11,12 @@ export const SKEPTIC_AGENT_ID = 'skeptic'
 const GATE_ID_ALIASES = new Set([GATE_AGENT_ID, TOOL_GATE_AGENT_ID, 'tool-gate', 'toolgate'])
 const SKEPTIC_ID_ALIASES = new Set([SKEPTIC_AGENT_ID, 'reviewer'])
 
-function stubBlueprint(id: string, name: string, description: string): Blueprint {
+function stubBlueprint(
+  id: string,
+  name: string,
+  description: string,
+  role?: Blueprint['role'],
+): Blueprint {
   return {
     id,
     object: 'blueprint',
@@ -21,6 +27,7 @@ function stubBlueprint(id: string, name: string, description: string): Blueprint
     tags: [],
     installed: true,
     compiled: true,
+    role,
   }
 }
 
@@ -28,18 +35,21 @@ export const SYNTHETIC_SUPPORT: Blueprint = stubBlueprint(
   SUPPORT_AGENT_ID,
   'Support',
   'Talk about the other agents.',
+  'support',
 )
 
 export const SYNTHETIC_GATE: Blueprint = stubBlueprint(
   GATE_AGENT_ID,
-  'Gate',
+  'Safety',
   'Dangerous? yes/no. Until wired, all approved.',
+  'gate',
 )
 
 export const SYNTHETIC_SKEPTIC: Blueprint = stubBlueprint(
   SKEPTIC_AGENT_ID,
   'Skeptic',
   'Prompt done? If not, retry.',
+  'skeptic',
 )
 
 function agentId(agent: { id: string }): string {
@@ -56,7 +66,12 @@ export function isSupportAgent(agent: { id: string; name?: string | null }): boo
 
 export function isGateAgent(agent: { id: string; name?: string | null }): boolean {
   const name = agentName(agent)
-  return GATE_ID_ALIASES.has(agentId(agent)) || name === 'gate' || name === 'tool gate'
+  return (
+    GATE_ID_ALIASES.has(agentId(agent)) ||
+    name === 'gate' ||
+    name === 'tool gate' ||
+    name === 'safety'
+  )
 }
 
 export function isSkepticAgent(agent: { id: string; name?: string | null }): boolean {
@@ -90,6 +105,11 @@ export function defaultBlueprintId(fromUrl: string | null | undefined): string {
   return trimmed.length > 0 ? trimmed : SUPPORT_AGENT_ID
 }
 
-export function agentLabel(agent: { id: string; name?: string | null }): string {
+/** Catalog / Settings → Blueprints list label (no per-agent rename). */
+export function catalogLabel(agent: { id: string; name?: string | null }): string {
   return agent.name || agent.id
+}
+
+export function agentLabel(agent: { id: string; name?: string | null }): string {
+  return editedAgentLabel(agent)
 }

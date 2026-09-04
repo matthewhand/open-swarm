@@ -1,5 +1,3 @@
-import uuid
-
 from django.db import models
 
 
@@ -38,34 +36,39 @@ class ChatMessage(models.Model):
         return self.content[:50]
 
 
-class ChatAttachment(models.Model):
-    """Uploaded file attached to the next chat send (REQ-38).
+class ConversationSummary(models.Model):
+    """Nested compact of a conversation span (REQ-37).
 
-    Bytes live under ``SWARM_USER_DATA_DIR/attachments`` (or
-    ``SWARM_ATTACHMENTS_DIR``), keyed by owner + id. SQLite holds metadata
-    only — no Neon, no secrets in fixtures.
+    Raw turns stay in ``ChatMessage`` / JSON on disk. This row is the
+    summarised equivalent used as model context going forward.
+    ``span`` is inclusive raw-transcript offsets: ``{"start": int, "end": int}``.
+    ``parent_summary`` points at an earlier summary nested inside this one.
     """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    owner = models.ForeignKey(
-        "auth.User",
+    conversation = models.ForeignKey(
+        ChatConversation,
+        related_name="summaries",
         on_delete=models.CASCADE,
-        related_name="chat_attachments",
     )
-    conversation_id = models.CharField(max_length=255, blank=True, default="")
-    original_name = models.CharField(max_length=512)
-    content_type = models.CharField(max_length=255, blank=True, default="")
-    size = models.PositiveIntegerField()
+    span = models.JSONField(default=dict)
+    parent_summary = models.ForeignKey(
+        "self",
+        related_name="child_summaries",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+    )
+    body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         app_label = "swarm"
-        verbose_name = "Chat Attachment"
-        verbose_name_plural = "Chat Attachments"
-        ordering = ["created_at"]
+        ordering = ["created_at", "id"]
+        verbose_name = "Conversation Summary"
+        verbose_name_plural = "Conversation Summaries"
 
     def __str__(self):
-        return f"ChatAttachment({self.original_name})"
+        return f"ConversationSummary({self.pk}, {self.conversation_id})"
 
 
 # Marketplace models live in a submodule; import them here so they are always
@@ -77,13 +80,15 @@ from swarm.models.core_models import (  # noqa: E402
     MarketplaceIndex,
     MCPConfig,
 )
+from swarm.models.herdr import HerdrAgent  # noqa: E402
 
 __all__ = [
     "ChatConversation",
     "ChatMessage",
-    "ChatAttachment",
+    "ConversationSummary",
     "Blueprint",
     "MCPConfig",
     "MarketplaceIndex",
+    "HerdrAgent",
 ]
 
