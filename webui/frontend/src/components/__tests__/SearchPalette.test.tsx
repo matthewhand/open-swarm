@@ -56,6 +56,10 @@ describe('SearchPalette', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Search' })
     expect(dialog).toBeInTheDocument()
+    expect(dialog).toHaveClass('os-search-palette--centered')
+    expect(dialog).toHaveClass('os-search-palette--large')
+    const overlay = screen.getByTestId('os-search-overlay')
+    expect(overlay).toHaveClass('os-search-overlay--centered')
     const input = screen.getByRole('combobox', { name: 'Search' })
     expect(input).toHaveAttribute('placeholder', 'Search')
 

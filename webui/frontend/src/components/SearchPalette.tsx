@@ -221,7 +221,8 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
 
   return (
     <div
-      className="os-search-overlay"
+      className="os-search-overlay os-search-overlay--centered"
+      data-testid="os-search-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -231,7 +232,9 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="os-search-palette"
+        data-testid="os-search-palette"
+        data-centered="true"
+        className="os-search-palette os-search-palette--centered os-search-palette--large"
       >
         <div className="os-search-palette__field">
           <Search className="h-4 w-4 shrink-0 text-base-content/45" aria-hidden="true" />
