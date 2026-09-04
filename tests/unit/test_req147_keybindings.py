@@ -10,6 +10,7 @@ SIDEBAR_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSi
 SEARCH_PALETTE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 CHAT_PAGE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 KEYBINDING_TIPS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "keybindingTips.ts"
+INDEX_CSS = REPO_ROOT / "webui" / "frontend" / "src" / "index.css"
 
 
 def test_app_binds_global_cmd_k_search():
@@ -64,6 +65,7 @@ def test_in_field_unfocused_hints_replace_overlay():
     chat = CHAT_PAGE_TSX.read_text(encoding="utf-8")
     labels = KEYBINDING_TIPS_TS.read_text(encoding="utf-8")
     palette = SEARCH_PALETTE_TSX.read_text(encoding="utf-8")
+    css = INDEX_CSS.read_text(encoding="utf-8")
 
     assert "composer-send-hint" in chat
     assert "composer-clear-hint" in chat
@@ -72,3 +74,8 @@ def test_in_field_unfocused_hints_replace_overlay():
     assert "searchShortcutLabel" in labels
     assert "!query.trim()" in palette
     assert "os-search-palette__kbd" in palette
+    assert ".os-rail-search:hover .os-rail-search__kbd" in css
+    assert ".os-rail-search:focus-within .os-rail-search__kbd" in css
+    assert ".os-composer:hover .os-composer__hint" in css
+    assert ".os-composer:focus-within .os-composer__hint" in css
+    assert ".os-search-palette__field:hover .os-search-palette__kbd" in css

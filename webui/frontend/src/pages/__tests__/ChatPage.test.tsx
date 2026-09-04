@@ -1202,28 +1202,25 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).toBeInTheDocument()
   })
 
-  it('shows in-field composer hints only while unfocused', async () => {
+  it('ghosts composer shortcut chips until hover or focus, swapping Enter/Esc by draft', async () => {
     renderChat()
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
 
     const composer = screen.getByRole('textbox', { name: 'Chat message' })
-    expect(composer).not.toHaveFocus()
     expect(screen.queryByTestId('first-load-tips')).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
+    const sendHint = screen.getByTestId('composer-send-hint')
+    expect(sendHint).toHaveClass('os-composer__hint')
+    expect(composer.closest('.os-composer')).toContainElement(sendHint)
 
     fireEvent.focus(composer)
-    expect(screen.queryByTestId('composer-send-hint')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
     fireEvent.change(composer, { target: { value: 'draft' } })
-    fireEvent.blur(composer)
     expect(screen.queryByTestId('composer-send-hint')).not.toBeInTheDocument()
     expect(screen.getByTestId('composer-clear-hint')).toBeInTheDocument()
 
-    fireEvent.focus(composer)
-    expect(screen.queryByTestId('composer-clear-hint')).not.toBeInTheDocument()
     fireEvent.change(composer, { target: { value: '' } })
-    fireEvent.blur(composer)
     expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
   })
 

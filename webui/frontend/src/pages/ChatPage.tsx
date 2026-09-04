@@ -192,7 +192,6 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
-  const [composerFocused, setComposerFocused] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [agentKind, setAgentKind] = useState<AgentKind>(() =>
     classifyAgentKind(searchParams.get('remote') ? `remote:${searchParams.get('remote')}` : searchParams.get('blueprint')),
@@ -1688,15 +1687,13 @@ const ChatPage = () => {
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleComposerKeyDown}
-              onFocus={() => setComposerFocused(true)}
-              onBlur={() => setComposerFocused(false)}
               disabled={status !== 'open'}
               aria-label="Chat message"
               aria-haspopup="listbox"
               aria-expanded={isSlashOpen}
               aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
             />
-            {!composerFocused && !input ? (
+            {!input ? (
               <kbd
                 className="os-composer__hint kbd kbd-xs"
                 data-testid="composer-send-hint"
@@ -1704,8 +1701,7 @@ const ChatPage = () => {
               >
                 ↵
               </kbd>
-            ) : null}
-            {!composerFocused && input ? (
+            ) : (
               <kbd
                 className="os-composer__hint kbd kbd-xs"
                 data-testid="composer-clear-hint"
@@ -1713,7 +1709,7 @@ const ChatPage = () => {
               >
                 Esc
               </kbd>
-            ) : null}
+            )}
             <button
               type="button"
               className="os-composer__icon"
