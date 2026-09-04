@@ -326,18 +326,7 @@ html[data-theme="light"] #root {
   flex-shrink: 0;
 }
 
-.os-fav-section {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin: 0 0.75rem 0.5rem;
-}
-.os-fav-section .os-fav-grid {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-}
-.os-fav-add-btn {
+.os-search-add-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -346,15 +335,15 @@ html[data-theme="light"] #root {
   width: 44px;
   height: 44px;
   flex-shrink: 0;
-  border-radius: 0.75rem;
-  border: 1px dashed color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
   color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
-  background: transparent;
+  background: color-mix(in srgb, var(--color-base-100) 40%, transparent);
   transition: all 0.15s ease-in-out;
   cursor: pointer;
 }
-.os-fav-add-btn:hover,
-.os-fav-add-btn:focus-visible {
+.os-search-add-btn:hover,
+.os-search-add-btn:focus-visible {
   border-color: color-mix(in srgb, var(--color-primary) 65%, transparent);
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);

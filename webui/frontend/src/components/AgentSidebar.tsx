@@ -1266,11 +1266,11 @@ export default function AgentSidebar({
           </div>
         )}
 
-        <div className="px-3 pb-2 pt-3">
+        <div className="os-rail-search-row flex items-center gap-1.5 px-3 pb-2 pt-3">
           <label className="sr-only" htmlFor="os-rail-search">
             Search
           </label>
-          <div className="os-rail-search">
+          <div className="os-rail-search min-w-0 flex-1">
             <Search className="h-3.5 w-3.5 shrink-0 text-base-content/40" aria-hidden="true" />
             <input
               id="os-rail-search"
@@ -1287,17 +1287,26 @@ export default function AgentSidebar({
             />
             <kbd className="os-rail-search__kbd kbd kbd-xs">{searchShortcutLabel}</kbd>
           </div>
+          <button
+            type="button"
+            className="os-search-add-btn"
+            aria-label="Add agent"
+            title="Add agent"
+            data-testid="add-agent-button"
+            onClick={() => setAddWizardOpen(true)}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
 
-        <div className="os-fav-section" data-testid="fav-section">
-          <div
-            className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''} ${
-              visiblePins.length === 0 &&
-              !dropActive &&
-              !(draggingId && !isPinnedId(draggingId))
-                ? 'os-fav-grid--bare'
-                : ''
-            } ${visiblePins.length === 0 ? 'os-fav-grid--empty' : ''}`}
+        <div
+          className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''} ${
+            visiblePins.length === 0 &&
+            !dropActive &&
+            !(draggingId && !isPinnedId(draggingId))
+              ? 'os-fav-grid--bare'
+              : ''
+          } ${visiblePins.length === 0 ? 'os-fav-grid--empty' : ''}`}
             aria-label="Pinned agents"
             data-fav-layout="2-up"
             data-testid="agent-fav-grid"
@@ -1316,9 +1325,8 @@ export default function AgentSidebar({
           >
             {visiblePins.length === 0 ? (
               <div
-                className="os-fav-grid__hint cursor-pointer"
+                className="os-fav-grid__hint"
                 data-testid="fav-empty-hint"
-                onClick={() => setAddWizardOpen(true)}
               >
                 {dropActive || (draggingId && !isPinnedId(draggingId)) ? 'drop' : '+'}
               </div>
@@ -1425,17 +1433,7 @@ export default function AgentSidebar({
             )
           })}
           </div>
-          <button
-            type="button"
-            className="os-fav-add-btn"
-            aria-label="Add agent"
-            title="Add agent"
-            data-testid="add-agent-button"
-            onClick={() => setAddWizardOpen(true)}
-          >
-            <Plus className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
           <div
