@@ -7,8 +7,9 @@ export interface BlobAvatarProps {
   agentId: string
   /** Selected conversation and/or streaming — eyes wander slowly. */
   active?: boolean
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   className?: string
+  style?: React.CSSProperties
 }
 
 function BlobShapePath({ shape, color }: { shape: BlobShape; color: string }) {
@@ -71,6 +72,7 @@ export default function BlobAvatar({
   active = false,
   size = 'sm',
   className = '',
+  style,
 }: BlobAvatarProps) {
   const spec = useMemo(() => blobSpecForAgent(agentId), [agentId])
   const eyeState: BlobEyeState = active ? 'active' : 'idle'
@@ -86,6 +88,10 @@ export default function BlobAvatar({
       data-blob-shape={spec.shape}
       data-eye-state={eyeState}
       data-agent-id={agentId}
+      style={{
+        ...(size === 'xs' ? { width: '100%', height: '100%' } : {}),
+        ...style,
+      }}
     >
       <BlobShapePath shape={spec.shape} color={spec.color} />
       <g

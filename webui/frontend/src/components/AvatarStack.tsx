@@ -1,4 +1,5 @@
 import { agentMarkColor, agentMarkIndex } from '../lib/hiddenAgents'
+import AgentAvatar from './AgentAvatar'
 import {
   STACK_FACE_LIMIT,
   earliestStartedAt,
@@ -66,7 +67,7 @@ export default function AvatarStack({
       {shown.map((face) => (
         <span
           key={face.id}
-          className={`os-stacked-avatar os-avatar-stack__face os-stacked-avatar--stacked${
+          className={`os-stacked-avatar os-avatar-stack__face os-stacked-avatar--stacked overflow-hidden flex items-center justify-center${
             animate ? ' os-stacked-avatar--pulse' : ''
           }${face.working ? ' os-avatar-stack__face--working' : ''}`}
           data-testid="os-stacked-avatar"
@@ -78,11 +79,20 @@ export default function AvatarStack({
           title={face.name}
           style={{
             backgroundColor: agentMarkColor(face.markId || face.id),
+            overflow: 'hidden',
             ...(animate
               ? { animationDelay: `${stackAnimationDelayMs(face.startedAt, origin)}ms` }
               : {}),
           }}
-        />
+        >
+          <AgentAvatar
+            agentId={face.id}
+            src={face.avatarSrc || face.src}
+            alt={face.name || face.id}
+            size="xs"
+            className="w-full h-full flex items-center justify-center pointer-events-none"
+          />
+        </span>
       ))}
       {extra > 0 ? (
         <span
