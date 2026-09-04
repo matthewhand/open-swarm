@@ -287,9 +287,9 @@ html[data-theme="light"] #root {
     animation: none;
   }
 }
-.os-fav-tile .os-blob-avatar--sm {
-  width: 1.85rem;
-  height: 1.85rem;
+.os-fav-tile .os-agent-avatar--lg {
+  width: 3rem;
+  height: 3rem;
 }
 .os-agent-row .os-blob-avatar {
   margin-top: 0;
@@ -319,11 +319,11 @@ html[data-theme="light"] #root {
 
 .os-fav-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.4rem;
-  min-height: 2.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  min-height: 4.75rem;
   margin: 0 0.75rem 0.5rem;
-  padding: 0.35rem;
+  padding: 0.4rem;
   border-radius: 0.75rem;
   border: 1px dashed color-mix(in srgb, var(--color-base-content) 12%, transparent);
 }
@@ -333,14 +333,28 @@ html[data-theme="light"] #root {
 }
 .os-fav-tile {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 2.15rem;
+  gap: 0.3rem;
+  min-height: 4.5rem;
+  height: auto;
+  padding: 0.45rem 0.3rem 0.4rem;
   border-radius: 0.65rem;
   background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
 }
 .os-fav-tile:hover {
   background: color-mix(in srgb, var(--color-base-content) 12%, transparent);
+}
+.os-fav-tile__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .os-agent-row {

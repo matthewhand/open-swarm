@@ -18,13 +18,11 @@ def test_base_shell_has_unlabeled_pin_grid_not_favourites_heading():
     assert "Favorites" not in html
 
 
-def test_sidebar_rows_are_html5_draggable_copy_not_move():
+def test_sidebar_excludes_pinned_ids_from_the_list():
     js = SIDEBAR_JS.read_text(encoding="utf-8")
-    assert "draggable" in js
-    assert "application/x-swarm-agent" in js
-    assert "effectAllowed" in js
-    assert "copy" in js
-    assert "__osAgentDrag" in js
+    assert "swarm_pinned_agents" in js
+    assert "pinnedIds" in js
+    assert "loadPinnedIds" in js
 
 
 def test_pin_grid_js_persists_and_can_remove_one():

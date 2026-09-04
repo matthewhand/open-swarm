@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   PINNED_AGENTS_STORAGE_KEY,
+  excludePinnedFromList,
   loadPinnedAgents,
   pinAgent,
   unpinAgent,
@@ -23,5 +24,16 @@ describe('pinnedAgents persistence', () => {
     const pinned = pinAgent({ id: 'stewie', name: 'Stewie' }, [{ id: 'codey', name: 'Codey' }])
     expect(unpinAgent('codey', pinned)).toEqual([{ id: 'stewie', name: 'Stewie' }])
     expect(loadPinnedAgents()).toEqual([{ id: 'stewie', name: 'Stewie' }])
+  })
+
+  it('drops favourited ids from the rail list (move, not copy)', () => {
+    const rows = [{ id: 'codey' }, { id: 'stewie' }, { id: 'support' }]
+    const pins = pinAgent({ id: 'codey', name: 'Codey' }, [])
+    expect(excludePinnedFromList(rows, pins).map((row) => row.id)).toEqual(['stewie', 'support'])
+    expect(excludePinnedFromList(rows, unpinAgent('codey', pins)).map((row) => row.id)).toEqual([
+      'codey',
+      'stewie',
+      'support',
+    ])
   })
 })
