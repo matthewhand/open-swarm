@@ -41,6 +41,16 @@ describe('copyTextToClipboard', () => {
     expect(writeText).toHaveBeenCalledWith('full **markdown**')
   })
 
+  it('REQ-127: keeps real newlines in a fenced Python block', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    const fenced = '```python\ndef hello():\n    return 1\n```'
+    await expect(copyTextToClipboard(fenced)).resolves.toBe('copied')
+    expect(writeText).toHaveBeenCalledWith(fenced)
+    expect(writeText.mock.calls[0][0]).toContain('\n')
+    expect(writeText.mock.calls[0][0]).not.toBe(fenced.replace(/\n/g, ' '))
+  })
+
   it('returns empty without touching the clipboard', async () => {
     const writeText = vi.fn()
     Object.assign(navigator, { clipboard: { writeText } })

@@ -110,6 +110,7 @@ import {
   shouldRecordDropdownChange,
   type DropdownKind,
 } from '../lib/chatStatus'
+import { restoreKindForAgent, restoredSessionNotice } from '../lib/sessionRestore'
 import {
   discoverChatClis,
   isCliAgentContext,
@@ -175,6 +176,7 @@ const ChatPage = () => {
   )
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
   const [summariesByThread, setSummariesByThread] = useState<
     Record<string, ConversationSummary[]>
   >({})
@@ -238,7 +240,7 @@ const ChatPage = () => {
   conversationIdRef.current = conversationId
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
-  const composerRef = useRef<HTMLInputElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const plusRef = useRef<HTMLDivElement | null>(null)
   const composerWrapRef = useRef<HTMLDivElement | null>(null)
   /** Monotonic counter for collision-free user-echo keys. */
@@ -483,7 +485,11 @@ const ChatPage = () => {
           ...prev,
           [key]: thread.summaries,
         }))
-        if (thread.messages.length === 0) return
+        if (thread.messages.length === 0) {
+          setRestoreNotice(null)
+          return
+        }
+        setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
         setThreads((prev) => ({
           ...prev,
           [key]: thread.messages.map((message, index) => ({
@@ -513,7 +519,33 @@ const ChatPage = () => {
         setThreads((prev) => ({ ...prev, [key]: [] }))
         setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
       }
-      return
+      let cancelled = false
+      ;(async () => {
+        const thread = await fetchAgentThread(`remote:${remoteFromUrl}`, key)
+        if (cancelled) return
+        setSummariesByThread((prev) => ({
+          ...prev,
+          [key]: thread.summaries,
+        }))
+        if (thread.messages.length === 0) {
+          setRestoreNotice(null)
+          return
+        }
+        setRestoreNotice(restoredSessionNotice(thread.messages, 'remote'))
+        setThreads((prev) => ({
+          ...prev,
+          [key]: thread.messages.map((message, index) => ({
+            key: `hist-${index}-${message.role}`,
+            role: asTranscriptRole(message.role),
+            text: message.content,
+            streaming: false,
+            edited: message.edited === true,
+          })),
+        }))
+      })()
+      return () => {
+        cancelled = true
+      }
     }
 
     const agent = agentIdFromBlueprint(selectedBlueprint)
@@ -541,6 +573,7 @@ const ChatPage = () => {
     }
     if (fresh) {
       // New empty session — do not restore a prior transcript.
+      setRestoreNotice(null)
       return
     }
     let cancelled = false
@@ -557,7 +590,11 @@ const ChatPage = () => {
         ...prev,
         [threadKey]: thread.summaries,
       }))
-      if (thread.messages.length === 0) return
+      if (thread.messages.length === 0) {
+        setRestoreNotice(null)
+        return
+      }
+      setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
       setThreads((prev) => ({
         ...prev,
         [threadKey]: thread.messages.map((message, index) => ({
@@ -999,7 +1036,7 @@ const ChatPage = () => {
     }
   }, [isSlashOpen])
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     if (val.startsWith('/') && !input.startsWith('/')) {
       setSlashDismissed(false)
@@ -1119,7 +1156,7 @@ const ChatPage = () => {
     [handleCompact],
   )
 
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (isSlashOpen) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
@@ -1157,6 +1194,14 @@ const ChatPage = () => {
     if (event.key === 'Escape' && input.length > 0) {
       event.preventDefault()
       setInput('')
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      if (status === 'open') {
+        sendText(input)
+        setInput('')
+      }
     }
   }
 
@@ -1462,7 +1507,13 @@ const ChatPage = () => {
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
-          displayItems.map((item, idx) => {
+          <>
+          {restoreNotice ? (
+            <p className="os-chat-status" data-role="status" data-testid="chat-status">
+              <span>{restoreNotice}</span>
+            </p>
+          ) : null}
+          {displayItems.map((item, idx) => {
             if (item.kind === 'summary') {
               return (
                 <SummaryBlock
@@ -1550,7 +1601,8 @@ const ChatPage = () => {
                 )}
               </div>
             )
-          })
+          })}
+          </>
         )}
         <div ref={listEndRef} />
       </div>
@@ -1600,9 +1652,9 @@ const ChatPage = () => {
                 </ul>
               )}
             </div>
-            <input
+            <textarea
               ref={composerRef}
-              type="text"
+              rows={1}
               className="os-composer__input"
               placeholder={composerPlaceholder}
               value={input}
