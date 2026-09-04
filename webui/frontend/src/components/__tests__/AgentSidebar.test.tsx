@@ -718,11 +718,16 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedRailOrder()).not.toContain('codey')
   })
 
-  it('REQ-109: displays + button beside favourites and opens Add agent wizard', async () => {
+  it('REQ-164 / REQ-109: displays + button beside Search input (not in favourites grid) and opens Add agent wizard', async () => {
     renderSidebar()
     const addBtn = await screen.findByRole('button', { name: 'Add agent' })
     expect(addBtn).toBeInTheDocument()
     expect(addBtn).toHaveAttribute('data-testid', 'add-agent-button')
+    expect(addBtn.closest('.os-rail-search-row')).toBeInTheDocument()
+
+    // Favourites row/grid must not contain the add button
+    const favGrid = screen.getByTestId('agent-fav-grid')
+    expect(within(favGrid).queryByTestId('add-agent-button')).toBeNull()
 
     // Click + button to open wizard
     fireEvent.click(addBtn)

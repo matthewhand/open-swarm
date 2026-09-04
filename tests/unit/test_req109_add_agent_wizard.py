@@ -18,10 +18,8 @@ WIZARD_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AddAgent
 INDEX_CSS = REPO_ROOT / "webui" / "frontend" / "src" / "index.css"
 
 
-def test_sidebar_has_add_button_beside_favourites():
+def test_sidebar_has_add_button():
     content = SIDEBAR_TSX.read_text(encoding="utf-8")
-    assert "os-fav-section" in content
-    assert "os-fav-add-btn" in content
     assert 'aria-label="Add agent"' in content
     assert 'data-testid="add-agent-button"' in content
     assert "AddAgentWizard" in content
@@ -52,9 +50,8 @@ def test_add_agent_wizard_implements_three_kinds_and_openmousbot_copy():
     assert "createRemote" in content
 
 
-def test_css_tap_target_and_flex_layout():
+def test_css_tap_target_and_search_button():
     css = INDEX_CSS.read_text(encoding="utf-8")
-    assert ".os-fav-section {" in css
-    assert ".os-fav-add-btn {" in css
+    assert ".os-search-add-btn {" in css
     assert "min-width: 44px;" in css
     assert "min-height: 44px;" in css
