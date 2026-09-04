@@ -1309,7 +1309,7 @@ const ChatPage = () => {
             <AgentAvatar
               src={selectedAgent?.avatar_path}
               agentId={agentIdFromBlueprint(selectedBlueprint)}
-              active={Boolean(streamingMessage || status === 'open')}
+              active={Boolean(streamingMessage)}
               size="lg"
               className="os-chat-header__avatar"
             />
@@ -1761,8 +1761,17 @@ const ChatPage = () => {
           <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
         </button>
         {streamingMessage ? (
-          <span className="min-w-0 truncate">
-            {selectedAgentName} · {streamElapsed ?? '0s'}
+          <span className="flex items-center gap-1.5 min-w-0 truncate" data-testid="composer-working-indicator">
+            <AgentAvatar
+              src={selectedAgent?.avatar_path}
+              agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
+              active={true}
+              size="xs"
+              className="shrink-0"
+            />
+            <span className="truncate">
+              {selectedAgentName} · {streamElapsed ?? '0s'}
+            </span>
           </span>
         ) : null}
       </footer>
