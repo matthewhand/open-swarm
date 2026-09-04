@@ -171,13 +171,14 @@ deferred to the release PR.
 
 ## 11b. Remote harnesses (Hermes / OMB / Rakazo / swarm) — ✅ config+health · 🟡 operate
 
-Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone.
+Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone. Catalog is **opt-in** (REQ-59/61): Settings shows no kind cards until + Add remote.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `PATCH /v1/remotes/<id>/`; Settings group **Remote Harnesses** |
-| Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops |
-| Hermes operate | ✅ | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`, `POST /v1/runs` (Bearer `API_SERVER_KEY`) |
+| Opt-in catalog | ✅ | `load_added_remotes`; `GET /v1/remotes/` `data: []` until add; Settings empty + **Add remote**; unused kinds are not default cards |
+| Persist base URL + api-key-env name | ✅ | `add_remote` / `persist_remote`; `POST /v1/remotes/`; `swarm-cli remotes set --api-key-env`; never persist a live token |
+| Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops; missing remote is 404 / not probed |
+| Hermes kind complete (REQ-61) | ✅ | After add, Settings health / list / send. List: `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`. Send: `POST /v1/runs` `{"input":…}` |
 | OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OMB source clone) |
 | Rakazo operate | 🟡 | `GET /health` public; `POST /rpc/bots/list` + `/rpc/threads/send` need Better Auth session — honest 401 + gap flag |
 | Nested swarm operate (REQ-57) | ✅ | Catalog id `swarm` (alias `open-swarm`). List `GET /v1/blueprints/`; send `POST /v1/chat/completions/`. Default stub `http://127.0.0.1:9`. `persist_remote` refuses this process listen URL. Not auto-placed. |
