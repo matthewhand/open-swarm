@@ -82,9 +82,106 @@ def test_chat_thread_backfills_from_django_db(client, user):
 
 
 @pytest.mark.django_db
+def test_chat_thread_isolates_two_agents_after_switch(client, user):
+    """REQ-14 #319: GET /chat/thread/?agent= returns that agent's messages only."""
+    _seed_thread(user, "codey", "prior question A")
+    _seed_thread(user, "stewie", "prior question B")
+
+    codey = client.get("/chat/thread/?agent=codey")
+    stewie = client.get("/chat/thread/?agent=stewie")
+    assert codey.status_code == 200
+    assert stewie.status_code == 200
+    assert codey.json()["agent_id"] == "codey"
+    assert stewie.json()["agent_id"] == "stewie"
+    assert codey.json()["messages"][0]["content"] == "prior question A"
+    assert stewie.json()["messages"][0]["content"] == "prior question B"
+    assert codey.json()["conversation_id"] != stewie.json()["conversation_id"]
+    assert all(row["content"] != "prior question B" for row in codey.json()["messages"])
+    assert all(row["content"] != "prior question A" for row in stewie.json()["messages"])
+
+
+@pytest.mark.django_db
 def test_chat_thread_requires_login():
     resp = Client().get("/chat/thread/?agent=jeeves")
     assert resp.status_code == 302
+
+
+@pytest.mark.django_db
+def test_chat_thread_get_marks_api_editable(client, user):
+    _seed_thread(user, "jeeves", "hello")
+    resp = client.get("/chat/thread/?agent=jeeves")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["kind"] == "api"
+    assert body["editable"] is True
+
+
+@pytest.mark.django_db
+def test_patch_api_message_persists_and_marks_edited(client, user):
+    _seed_thread(user, "jeeves", "hello")
+    resp = client.patch(
+        "/chat/thread/?agent=jeeves",
+        data=json.dumps({"index": 0, "content": "engineered context"}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["messages"][0]["content"] == "engineered context"
+    assert body["messages"][0]["edited"] is True
+    assert body["messages"][1]["content"] == "ok"
+    loaded = chat_store.load(chat_store.user_key_for(user), "jeeves")
+    assert loaded["messages"][0]["content"] == "engineered context"
+    assert loaded["messages"][0]["edited"] is True
+
+    again = client.get("/chat/thread/?agent=jeeves")
+    assert again.json()["messages"][0]["content"] == "engineered context"
+
+
+@pytest.mark.django_db
+def test_patch_cli_and_remote_threads_are_forbidden(client, user):
+    _seed_thread(user, "cli-grok", "cli-owned")
+    _seed_thread(user, "remote-acp", "remote-owned")
+    cli = client.patch(
+        "/chat/thread/?agent=cli:grok",
+        data=json.dumps({"index": 0, "content": "nope"}),
+        content_type="application/json",
+    )
+    assert cli.status_code == 403
+    cli_get = client.get("/chat/thread/?agent=cli:grok")
+    assert cli_get.status_code == 200
+    assert cli_get.json()["kind"] == "cli"
+    assert cli_get.json()["editable"] is False
+    remote = client.patch(
+        "/chat/thread/?agent=remote:acp",
+        data=json.dumps({"index": 0, "content": "nope"}),
+        content_type="application/json",
+    )
+    assert remote.status_code == 403
+    remote_get = client.get("/chat/thread/?agent=remote:acp")
+    assert remote_get.json()["kind"] == "remote"
+    assert remote_get.json()["editable"] is False
+    assert chat_store.load(chat_store.user_key_for(user), "cli-grok")["messages"][0]["content"] == "cli-owned"
+    assert chat_store.load(chat_store.user_key_for(user), "remote-acp")["messages"][0]["content"] == "remote-owned"
+
+
+@pytest.mark.django_db
+def test_patch_rejects_bad_index_and_unauthenticated():
+    assert Client().patch(
+        "/chat/thread/?agent=jeeves",
+        data=json.dumps({"index": 0, "content": "x"}),
+        content_type="application/json",
+    ).status_code == 302
+
+
+@pytest.mark.django_db
+def test_patch_index_out_of_range(client, user):
+    _seed_thread(user, "jeeves")
+    resp = client.patch(
+        "/chat/thread/?agent=jeeves",
+        data=json.dumps({"index": 9, "content": "x"}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 404
 
 
 @pytest.mark.django_db

@@ -85,7 +85,6 @@ class TestIndexView:
         mock_discover.assert_called_once()
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content    # real template header
         assert "Launch Team" in content
         assert "Browse Blueprints" in content
         assert "Manage Teams" in content
@@ -101,7 +100,6 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
         assert "Launch Team" in content
         assert "Browse Blueprints" in content
         assert "Manage Teams" in content
@@ -117,7 +115,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
+        assert "Launch Team" in content
         assert "No blueprints available" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
@@ -130,7 +128,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
+        assert "Launch Team" in content
         assert "No blueprints available" in content
 
 
@@ -281,6 +279,7 @@ class TestTeamLauncherView:
         assert "Team Launcher" in content
         assert "Output" in content
         assert "teams_launch.js" in content
+        assert 'name="csrfmiddlewaretoken"' in content or "csrf-token" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_launcher_disabled(self, mock_enabled, client):
@@ -320,6 +319,8 @@ class TestTeamAdminView:
         content = response.content.decode()
         assert "Create Team" in content
         assert "teams_admin.js" in content
+        assert "Profiles, not a Team" in content
+        assert "/v1/agent-team/" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_admin_disabled(self, mock_enabled, test_user):
@@ -457,3 +458,30 @@ class TestTeamsExportView:
 
         assert response.status_code in (301, 302)
         assert "/login" in response.url
+
+
+class TestTeamRostersJson:
+    """REQ-23 roster file — not the Django LLM-alias /v1/teams/ admin."""
+
+    def test_team_rosters_json_is_a_roster_list(self, client):
+        response = client.get("/team_rosters.json")
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        assert data.get("object") == "list"
+        assert isinstance(data.get("data"), list)
+        assert data["data"]
+        first = data["data"][0]
+        assert first.get("id")
+        assert "members" in first
+        assert "llm_profile" not in first
+
+    def test_v1_team_rosters_is_composition_list(self, client):
+        """REQ-28 composition API. Static sidepane file stays /team_rosters.json."""
+        api_res = client.get("/v1/team-rosters/")
+        assert api_res.status_code == 200
+        data = json.loads(api_res.content)
+        assert data.get("object") == "list"
+        assert isinstance(data.get("data"), list)
+        for row in data["data"]:
+            assert row.get("object") == "team_roster"
+            assert "llm_profile" not in row

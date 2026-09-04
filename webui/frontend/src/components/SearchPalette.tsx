@@ -15,7 +15,8 @@ import {
 import { fetchBlueprints } from '../lib/api'
 import { openChromeOverlay, type ChromeOverlay } from '../lib/chromeOverlay'
 import { agentMarkIndex } from '../lib/hiddenAgents'
-import { agentLabel, supportFirstAgents } from '../lib/supportAgent'
+import { exampleRoleAgents } from '../lib/agentRoles'
+import { agentLabel } from '../lib/supportAgent'
 import { dispatchToggleTheme } from '../lib/theme'
 
 export const SEARCH_PALETTE_TABS = [
@@ -70,7 +71,7 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
     enabled: open,
     retry: 1,
   })
-  const agents = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const agents = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
 
   const rows = useMemo<PaletteRow[]>(() => {
     const botRows: PaletteRow[] = agents.map((agent) => ({
