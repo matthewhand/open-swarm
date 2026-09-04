@@ -7,7 +7,7 @@
 <div class="ac-wrap">
   <div class="ac-head">
     <h1 class="h3">Agent Creator</h1>
-    <div class="os-meta">Create custom AI agent personas with Python code validation</div>
+    <div class="os-meta">{{ blueprint_one_liner|default:"Create a BlueprintBase Python class." }} Generate uses the default LLM against the published interface spec, then validates; invalid drafts keep the streaming template.</div>
   </div>
 
   <div class="ac-grid">
@@ -93,6 +93,13 @@
                 </div>
               </div>
             </div>
+
+            {% if blueprint_interface %}
+            <details class="mb-3">
+              <summary class="form-label mb-2" style="cursor:pointer">Blueprint interface spec</summary>
+              <pre class="bg-dark text-light p-3 rounded small mb-0" tabindex="0"><code class="language-python">{{ blueprint_interface }}</code></pre>
+            </details>
+            {% endif %}
 
             <div class="d-grid gap-2">
               <button type="button" class="btn btn-primary" data-action="generate-agent">

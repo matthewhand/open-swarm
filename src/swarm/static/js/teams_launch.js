@@ -95,6 +95,15 @@
 
   function appendLine(text) { append(text + '\n'); }
 
+  function getCSRFToken() {
+    const input = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (input && input.value) return input.value;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.content) return meta.content;
+    const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
   async function launch() {
     const model = bpSelect.value;
     const task = instruction.value.trim();
@@ -115,6 +124,8 @@
     };
 
     const headers = { 'Content-Type': 'application/json' };
+    const csrf = getCSRFToken();
+    if (csrf) headers['X-CSRFToken'] = csrf;
     // Optional bearer token
     let token = '';
     try { token = (tokenInput && tokenInput.value) || localStorage.getItem('swarm_api_token') || ''; } catch {}
@@ -125,6 +136,7 @@
       res = await fetch('/v1/chat/completions', {
         method: 'POST',
         headers,
+        credentials: 'same-origin',
         body: JSON.stringify(body),
       });
     } catch (e) {

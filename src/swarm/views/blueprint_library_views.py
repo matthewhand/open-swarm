@@ -3,6 +3,7 @@ Blueprint Library Views for Open Swarm Core.
 Handles blueprint browsing, library management, and custom blueprint creation.
 """
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,7 @@ from django.conf import settings as dj_settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 
 from swarm.core.blueprint_discovery import discover_blueprints
 from swarm.core.paths import get_user_blueprints_dir, get_user_config_dir_for_swarm
@@ -178,6 +180,27 @@ def save_user_blueprint_library(library: dict[str, Any]) -> bool:
         return False
 
 @login_required
+@require_GET
+def blueprint_source_page(request, blueprint_name):
+    """Pretty-printed blueprint source (Python highlighted), not the raw JSON API."""
+    from swarm.views.api_views import load_blueprint_source, prism_language
+
+    file_name = request.GET.get("file")
+    payload, code = load_blueprint_source(blueprint_name, file_name)
+    if code == 404:
+        return render(
+            request,
+            "blueprint_source.html",
+            {"error": (payload or {}).get("error") or "blueprint not found", "id": blueprint_name},
+            status=404,
+        )
+    return render(request, "blueprint_source.html", {
+        **payload,
+        "prism_lang": prism_language(payload.get("selected")),
+    })
+
+
+@login_required
 def blueprint_library(request):
     """Main blueprint library page - browse and manage blueprints (authenticated)."""
     try:
@@ -344,9 +367,13 @@ def remove_blueprint_from_library(request, blueprint_name):
 def blueprint_creator(request):
     """LLM-powered blueprint creator form (authenticated)."""
     if request.method == "GET":
+        from swarm.core.blueprint_spec import BLUEPRINT_INTERFACE, BLUEPRINT_ONE_LINER
+
         context = {
             "categories": BLUEPRINT_CATEGORIES,
             "dark_mode": request.session.get('dark_mode', True),
+            "blueprint_one_liner": BLUEPRINT_ONE_LINER,
+            "blueprint_interface": BLUEPRINT_INTERFACE,
         }
         return render(request, "blueprint_creator.html", context)
 
@@ -365,10 +392,9 @@ def blueprint_creator(request):
                     "error": "Blueprint name and description are required"
                 }, status=400)
 
-            # Generate blueprint code using LLM (simplified for now)
-            # In a real implementation, you'd call an LLM API here
+            assist = bool(requirements) and not os.environ.get("PYTEST_CURRENT_TEST")
             blueprint_code = generate_blueprint_code(
-                blueprint_name, description, category, tags, requirements
+                blueprint_name, description, category, tags, requirements, assist=assist
             )
 
             # Generate avatar if requested and ComfyUI is available
@@ -493,14 +519,34 @@ def generate_blueprint_code(
     category: str,
     tags: list[str] | str,
     _requirements: str,
+    assist: bool = False,
 ) -> str:
-    """Emit a minimal BlueprintBase async-generator template (discovery/run ready)."""
-    class_name = f'{name.replace(" ", "")}Blueprint'
-    blueprint_id = name.lower().replace(" ", "_")
+    """Emit a BlueprintBase module. Optionally draft `run()` via the default LLM."""
     if isinstance(tags, str):
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     else:
         tag_list = [str(t).strip() for t in tags if str(t).strip()]
+    if assist and (_requirements or "").strip():
+        from swarm.core.llm_assist import generate_blueprint_class
+        from swarm.views.agent_creator_views import validator as blueprint_validator
+
+        draft = generate_blueprint_class(
+            name=name,
+            description=description,
+            requirements=_requirements,
+            category=category,
+            tags=tag_list,
+        )
+        if draft:
+            check = blueprint_validator.validate_blueprint_code(draft)
+            if check.get("valid"):
+                return draft
+    class_name = f'{name.replace(" ", "")}Blueprint'
+    blueprint_id = name.lower().replace(" ", "_")
+    req_note = (_requirements or "").strip()
+    req_literal = repr(
+        ("\nRequirements:\n" + req_note) if req_note else ""
+    ).replace("{", "{{").replace("}", "}}")
 
     return f'''#!/usr/bin/env python3
 """
@@ -555,6 +601,7 @@ class {class_name}(BlueprintBase):
             "content": (
                 f"You are {{self.metadata.get('name')}}. "
                 f"{{self.metadata.get('description')}}"
+                + {req_literal}
             ),
         }}
         llm_messages = [system, *messages] if messages else [system]

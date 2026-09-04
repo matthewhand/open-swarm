@@ -80,6 +80,56 @@
     return agent.name || agent.id;
   }
 
+  function normalizeRole(value) {
+    var key = String(value || "").trim().toLowerCase().replace(/\s+/g, "_");
+    if (key === "cos" || key === "chief" || key === "chief-of-staff" || key === "chiefofstaff") {
+      return "chief_of_staff";
+    }
+    if (key === "tool_gate" || key === "tool-gate" || key === "toolgate") return "gate";
+    if (key === "helper") return "support";
+    if (key === "reviewer") return "skeptic";
+    if (key === "support" || key === "gate" || key === "skeptic" || key === "chief_of_staff") {
+      return key;
+    }
+    return "default";
+  }
+
+  function roleOf(agent) {
+    var role = normalizeRole(agent && agent.role);
+    if (role !== "default") return role;
+    var id = String((agent && agent.id) || "").toLowerCase();
+    if (id === "support" || id === "gate" || id === "skeptic") return id;
+    if (id === "cos" || id === "chief" || id === "chief_of_staff") return "chief_of_staff";
+    return "default";
+  }
+
+  function isSupport(agent) {
+    return roleOf(agent) === "support";
+  }
+
+  function roleRank(agent) {
+    var role = roleOf(agent);
+    if (role === "support") return 0;
+    if (role === "chief_of_staff") return 1;
+    if (role === "gate") return 2;
+    if (role === "skeptic") return 3;
+    return 10;
+  }
+
+  function sortRoles(list) {
+    return list.slice().sort(function (a, b) {
+      return roleRank(a) - roleRank(b);
+    });
+  }
+
+  function badgeLabel(role) {
+    if (role === "chief_of_staff") return "CoS";
+    if (role === "support") return "Support";
+    if (role === "gate") return "Gate";
+    if (role === "skeptic") return "Skeptic";
+    return "";
+  }
+
   function matchesFilter(agent, query) {
     if (!query) return true;
     var hay = (agentLabel(agent) + " " + (agent.id || "") + " " + (agent.description || "") + " " + (agent.kind || "") + " " + (agent.remote || "")).toLowerCase();
@@ -129,20 +179,32 @@
     }
 
     function loadTeams(done) {
-      fetch("/team_rosters.json")
-        .then(function (res) {
-          if (!res.ok) throw new Error("status " + res.status);
-          return res.json();
-        })
-        .then(function (payload) {
-          var parsed = parseRosters(payload);
-          teams = parsed.length ? parsed : [DEMO_TEAM];
-          done();
-        })
-        .catch(function () {
+      var urls = ["/team_rosters.json", "/v1/team-rosters/"];
+      function tryNext(i) {
+        if (i >= urls.length) {
           teams = [DEMO_TEAM];
           done();
-        });
+          return;
+        }
+        fetch(urls[i])
+          .then(function (res) {
+            if (!res.ok) throw new Error("status " + res.status);
+            return res.json();
+          })
+          .then(function (payload) {
+            var parsed = parseRosters(payload);
+            if (parsed.length) {
+              teams = parsed;
+              done();
+              return;
+            }
+            tryNext(i + 1);
+          })
+          .catch(function () {
+            tryNext(i + 1);
+          });
+      }
+      tryNext(0);
     }
 
     function closeMenu() {
@@ -174,10 +236,14 @@
 
     function makeLink(agent, hidden) {
       var link = document.createElement("a");
+      var role = roleOf(agent);
       link.href = agentHref(agent);
-      link.className = "os-agent-item";
+      link.className = "os-agent-item" + (role !== "default" ? " os-agent-item--" + role : "");
       var name = agentLabel(agent);
       link.setAttribute("aria-label", name);
+      if (role !== "default") {
+        link.setAttribute("data-role", role);
+      }
 
       var dot = document.createElement("span");
       dot.className = "os-agent-dot";
@@ -186,17 +252,28 @@
 
       var text = document.createElement("span");
       text.className = "os-agent-item__text";
+      var titleRow = document.createElement("span");
+      titleRow.className = "os-agent-item__name-row";
       var title = document.createElement("span");
       title.className = "os-agent-item__name";
       title.textContent = name;
-      text.appendChild(title);
-      if (agent.kind === "herdr") {
+      titleRow.appendChild(title);
+      var chip = badgeLabel(role);
+      if (chip) {
         var badge = document.createElement("span");
-        badge.className = "os-agent-item__desc";
-        badge.textContent = agent.remote
+        badge.className = "os-agent-role-badge";
+        badge.setAttribute("data-role", role);
+        badge.textContent = chip;
+        titleRow.appendChild(badge);
+      }
+      text.appendChild(titleRow);
+      if (agent.kind === "herdr") {
+        var herdrBadge = document.createElement("span");
+        herdrBadge.className = "os-agent-item__desc";
+        herdrBadge.textContent = agent.remote
           ? "Herdr · " + agent.remote
           : "Herdr · localhost";
-        text.appendChild(badge);
+        text.appendChild(herdrBadge);
       } else if (agent.description) {
         var desc = document.createElement("span");
         desc.className = "os-agent-item__desc";
@@ -204,19 +281,21 @@
         text.appendChild(desc);
       }
 
-      link.appendChild(dot);
+      link.appendChild(mark);
       link.appendChild(text);
       link.addEventListener("contextmenu", function (event) {
+        if (isSupport(agent)) return;
         event.preventDefault();
         openMenu(event, agent.id, hidden);
       });
       return link;
     }
 
-    function makeTeamLink(team, hidden) {
+    function makeTeamLink(team, hidden, nested) {
       var link = document.createElement("a");
       link.href = "/chat?team=" + encodeURIComponent(team.id);
-      link.className = "os-agent-item os-team-item";
+      link.className = "os-agent-item os-team-item" + (nested ? " os-agent-item--nested" : "");
+      link.setAttribute("data-kind", "team");
       var name = team.name || team.id;
       link.setAttribute("aria-label", name + " (team)");
 
@@ -235,7 +314,8 @@
       title.className = "os-agent-item__name";
       title.textContent = name;
       var badge = document.createElement("span");
-      badge.className = "os-team-badge";
+      badge.className = "os-team-badge os-agent-role-badge";
+      badge.setAttribute("data-kind", "team");
       badge.textContent = "Team";
       titleRow.appendChild(title);
       titleRow.appendChild(badge);
@@ -287,12 +367,12 @@
       var hiddenTeams = teams.filter(function (team) {
         return hiddenIds.indexOf(teamHideId(team.id)) !== -1 && matchesFilter(team, q);
       });
-      var visible = agents.filter(function (agent) {
+      var visible = sortRoles(agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
-      });
-      var hidden = agents.filter(function (agent) {
+      }));
+      var hidden = sortRoles(agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);
-      });
+      }));
       var hiddenTotal = hidden.length + hiddenTeams.length;
 
       listEl.replaceChildren();
@@ -310,10 +390,32 @@
         empty.textContent = "No matching agents.";
         listEl.appendChild(empty);
       } else {
+        var nestedIds = {};
+        teams.forEach(function (roster) {
+          (roster.members || []).forEach(function (member) {
+            if (member.kind === "team") nestedIds[member.team_id || member.id] = true;
+          });
+        });
         visibleTeams.forEach(function (team) {
+          if (nestedIds[team.id]) return;
           var tli = document.createElement("li");
-          tli.appendChild(makeTeamLink(team, false));
+          tli.appendChild(makeTeamLink(team, false, false));
           listEl.appendChild(tli);
+          var nest = document.createElement("ul");
+          nest.className = "os-agent-team-nest";
+          var nestedAny = false;
+          (team.members || []).forEach(function (member) {
+            if (member.kind !== "team") return;
+            var childId = member.team_id || member.id;
+            if (hiddenIds.indexOf(teamHideId(childId)) !== -1) return;
+            var child = null;
+            teams.forEach(function (r) { if (r.id === childId) child = r; });
+            var nestLi = document.createElement("li");
+            nestLi.appendChild(makeTeamLink(child || { id: childId, name: childId }, false, true));
+            nest.appendChild(nestLi);
+            nestedAny = true;
+          });
+          if (nestedAny) listEl.appendChild(nest);
         });
         visible.forEach(function (agent) {
           var li = document.createElement("li");
