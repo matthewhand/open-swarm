@@ -42,9 +42,9 @@ def test_landing_page_is_styled(page, live_server_url):
         "the built CSS is not applying"
     )
 
-    # `/` is ChatPage. SettingsSheet keeps a hidden `.btn-primary`
-    # ("Save retention"), so `.btn-primary`.first is never visible.
-    # Use a visible DaisyUI `.btn` plus the themed composer fill.
+    # `/` is ChatPage (`/?blueprint=support`). SettingsSheet keeps a hidden
+    # `.btn-primary` ("Save retention"), so `.btn-primary`.first is never
+    # visible. Use a visible DaisyUI `.btn` plus the themed composer fill.
     btn = page.locator("button.btn").locator("visible=true").first
     btn.wait_for(state="visible", timeout=10_000)
     pad = _computed(page, btn, "paddingLeft")
@@ -93,7 +93,7 @@ def test_login_with_throwaway_superuser(browser, live_server_url, auth_state):
 
 
 def test_chat_websocket_connects(page, live_server_url):
-    """Composer enables only after ws.onopen (healthy WS is silent;
+    """Composer enables only after ws.onopen (REQ-8: healthy WS is silent;
     do not wait on a standing Connected badge)."""
     page.goto(live_server_url + "/chat", wait_until="domcontentloaded")
     page.get_by_label("Connection status").wait_for(state="attached", timeout=20_000)

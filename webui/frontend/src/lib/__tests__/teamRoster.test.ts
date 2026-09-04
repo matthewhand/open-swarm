@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { childTeamIds, nestRosters, parseTeamRoster, parseTeamRosterList } from '../teamRoster'
 
 describe('teamRoster (REQ-28)', () => {
+  it('parses kind=remote Hermes/OMB/Rakazo members (PR #318 / REQ-28)', () => {
+    const roster = parseTeamRoster({
+      id: 'harness',
+      object: 'team_roster',
+      name: 'Harness',
+      members: [
+        { id: 'hermes', kind: 'remote', role: 'default', source: 'placeholder:remote:hermes' },
+        { id: 'omb', kind: 'remote', role: 'default', source: 'placeholder:remote:omb' },
+        { id: 'rakazo', kind: 'remote', role: 'default', source: 'placeholder:remote:rakazo' },
+      ],
+    })
+    expect(roster?.members.map((m) => [m.id, m.kind])).toEqual([
+      ['hermes', 'remote'],
+      ['omb', 'remote'],
+      ['rakazo', 'remote'],
+    ])
+    expect(parseTeamRoster({ id: 'alias', object: 'team', llm_profile: 'gpt' })).toBeNull()
+  })
+
   it('parses kind=team with team_id and ignores blueprint-shaped rows', () => {
     const roster = parseTeamRoster({
       id: 'office',

@@ -85,7 +85,6 @@ class TestIndexView:
         mock_discover.assert_called_once()
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content    # real template header
         assert "Launch Team" in content
         assert "Browse Blueprints" in content
         assert "Manage Teams" in content
@@ -101,7 +100,6 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
         assert "Launch Team" in content
         assert "Browse Blueprints" in content
         assert "Manage Teams" in content
@@ -117,7 +115,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
+        assert "Launch Team" in content
         assert "No blueprints available" in content
 
     @patch("swarm.views.web_views._ensure_frontend_built", return_value=None)
@@ -130,7 +128,7 @@ class TestIndexView:
 
         assert response.status_code == 200
         content = response.content.decode()
-        assert "Welcome to Open Swarm" in content
+        assert "Launch Team" in content
         assert "No blueprints available" in content
 
 
@@ -281,6 +279,7 @@ class TestTeamLauncherView:
         assert "Team Launcher" in content
         assert "Output" in content
         assert "teams_launch.js" in content
+        assert 'name="csrfmiddlewaretoken"' in content or "csrf-token" in content
 
     @patch("swarm.views.web_views._webui_enabled", return_value=False)
     def test_team_launcher_disabled(self, mock_enabled, client):

@@ -1,26 +1,80 @@
 import { describe, expect, it } from 'vitest'
-import { botsFromOperate, looksLikeSecret, remoteLabel } from '../remotes'
+import {
+  configuredRemotes,
+  remoteKindLabel,
+  remoteKinds,
+  unusedRemoteKinds,
+} from '../remotes'
 
-describe('remotes helpers', () => {
-  it('parses Rakazo oRPC bot lists', () => {
-    expect(botsFromOperate({ json: [{ id: 'bot-9', name: 'alpha' }] })).toEqual([
-      { id: 'bot-9', name: 'alpha' },
+describe('remotes catalog (REQ-59)', () => {
+  it('labels omb as OpenMousBot and never OMB', () => {
+    expect(remoteKindLabel('omb')).toBe('OpenMousBot')
+    expect(remoteKindLabel('openmousbot')).toBe('OpenMousBot')
+    expect(remoteKindLabel('hermes')).toBe('Hermes')
+    expect(remoteKindLabel('open-swarm')).toBe('open-swarm')
+    expect(remoteKindLabel('omb')).not.toMatch(/\bOMB\b/)
+  })
+
+  it('treats an empty catalog as no configured remotes', () => {
+    const empty = {
+      object: 'list' as const,
+      kinds: [
+        { id: 'hermes', label: 'Hermes' },
+        { id: 'omb', label: 'OpenMousBot' },
+        { id: 'rakazo', label: 'Rakazo' },
+      ],
+      configured: [],
+      data: [],
+    }
+    expect(configuredRemotes(empty)).toEqual([])
+    expect(unusedRemoteKinds(empty).map((kind) => kind.id)).toEqual([
+      'hermes',
+      'omb',
+      'rakazo',
     ])
-    expect(botsFromOperate([{ botId: 'b1' }])).toEqual([{ id: 'b1' }])
-    expect(botsFromOperate(null)).toEqual([])
+    expect(remoteKinds(empty).find((kind) => kind.id === 'omb')?.label).toBe('OpenMousBot')
   })
 
-  it('treats only env-var names as non-secrets', () => {
-    expect(looksLikeSecret('RAKAZO_API_KEY')).toBe(false)
-    expect(looksLikeSecret('${RAKAZO_SESSION_COOKIE}')).toBe(false)
-    expect(looksLikeSecret('')).toBe(false)
-    expect(looksLikeSecret('sid=abc')).toBe(true)
-    expect(looksLikeSecret('rkz-live-token')).toBe(true)
+  it('lists only configured remotes after add', () => {
+    const listed = {
+      object: 'list' as const,
+      kinds: [
+        { id: 'hermes', label: 'Hermes' },
+        { id: 'omb', label: 'OpenMousBot' },
+        { id: 'rakazo', label: 'Rakazo' },
+      ],
+      configured: [
+        {
+          id: 'omb',
+          kind: 'omb',
+          label: 'OpenMousBot',
+          title: 'OpenMousBot',
+          host_label: '',
+          base_url: 'http://127.0.0.1:8802',
+          source: 'config',
+        },
+      ],
+    }
+    const rows = configuredRemotes(listed)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('omb')
+    expect(remoteKindLabel(rows[0].id, listed.kinds)).toBe('OpenMousBot')
+    expect(unusedRemoteKinds(listed).map((kind) => kind.id)).toEqual(['hermes', 'rakazo'])
   })
 
-  it('prefers the kind label over a raw id', () => {
-    expect(remoteLabel({ id: 'rakazo', kind: 'rakazo', title: 'Rakazo (Windows2)', label: 'Rakazo' })).toBe(
-      'Rakazo',
-    )
+  it('ignores default data rows when configured is omitted', () => {
+    const listed = {
+      object: 'list' as const,
+      data: [
+        {
+          id: 'hermes',
+          title: 'Hermes',
+          host_label: '',
+          base_url: 'http://10.0.0.36:8642',
+          source: 'default',
+        },
+      ],
+    }
+    expect(configuredRemotes(listed)).toEqual([])
   })
 })

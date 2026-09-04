@@ -79,16 +79,31 @@ def _summaries_for(*conversation_ids: str) -> tuple[str, list[dict]]:
 @require_http_methods(["GET"])
 def chat_thread(request):
     """Return the persisted transcript for one agent (JSON store, DB fallback)."""
+    from swarm.core.agent_settings import is_new_chat_per_task
+    from swarm.core.session_policy import list_active_task_sessions
+
     agent = chat_store.normalize_agent_id(request.GET.get("agent"))
     user_key = _user_key(request.user)
     conversation_id = chat_store.conversation_id_for(request.user, agent)
     requested_cid = (request.GET.get("conversation_id") or "").strip()
-    record = chat_store.load(user_key, agent)
+    fresh_task = is_new_chat_per_task(agent)
+    if fresh_task:
+        record = chat_store.load(
+            user_key,
+            agent,
+            conversation_id=requested_cid,
+            session_id=requested_cid,
+        ) if requested_cid else None
+    else:
+        record = chat_store.load(user_key, agent)
     messages = (record or {}).get("messages") if record else None
-    if not messages:
+    if fresh_task and not requested_cid:
+        # New task: do not hydrate the reused agent transcript.
+        messages = []
+    if not messages and not (fresh_task and not requested_cid):
         db_id = requested_cid or (record or {}).get("conversation_id") or conversation_id
         messages = _messages_from_db(request.user, db_id)
-        if messages and record is None:
+        if messages and record is None and not fresh_task:
             # Upgrade path: mirror an existing Django row onto disk.
             try:
                 chat_store.save(
@@ -101,7 +116,7 @@ def chat_thread(request):
                 logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
     if requested_cid:
         conversation_id = requested_cid
-    elif record and record.get("conversation_id"):
+    elif record and record.get("conversation_id") and not fresh_task:
         conversation_id = record["conversation_id"]
     conversation_id, summaries = _summaries_for(
         requested_cid,
@@ -112,15 +127,18 @@ def chat_thread(request):
         conversation_id = requested_cid or (record or {}).get("conversation_id") or chat_store.conversation_id_for(
             request.user, agent
         )
+    sessions = list_active_task_sessions(user_key, agent) if fresh_task else []
     return JsonResponse(
         {
             "agent_id": agent,
             "conversation_id": conversation_id,
+            "new_chat_per_task": fresh_task,
+            "active_sessions": sessions,
             "messages": [
                 {"role": m.get("role", "user"), "content": m.get("content", "")}
                 for m in (messages or [])
             ],
-            "summaries": summaries,
+            "summaries": summaries if not (fresh_task and not requested_cid) else [],
         }
     )
 

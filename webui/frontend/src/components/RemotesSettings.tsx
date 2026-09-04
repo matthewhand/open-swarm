@@ -1,167 +1,87 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Select, Textarea, useToast } from './DaisyUI'
 import {
   addRemote,
-  botsFromOperate,
-  fetchRemotes,
-  kindById,
-  looksLikeSecret,
   operateRemote,
   probeRemoteHealth,
-  remoteLabel,
   type RemoteConnection,
-  type RemoteHealth,
+  type RemoteHealthResult,
   type RemoteKind,
-  type RemoteOperate,
-} from '../lib/remotes'
+  type RemoteOperateResult,
+} from '../lib/api'
+import { isOpenMousBotKind, OPENMOUSBOT_LABEL, remoteKindLabel } from '../lib/remoteKinds'
 
 export const REMOTES_QUERY_KEY = ['settings-remotes'] as const
 
-export function isRemoteSection(section: string): boolean {
-  return section === 'remotes' || section.startsWith('remotes-')
+export function configuredRemoteSection(id: string): `remotes-${string}` {
+  return `remotes-${id}`
 }
 
-export function remoteIdFromSection(section: string): string | null {
-  if (!section.startsWith('remotes-')) return null
-  return section.slice('remotes-'.length) || null
-}
-
-export function useRemotesCatalog(enabled: boolean) {
-  return useQuery({
-    queryKey: REMOTES_QUERY_KEY,
-    queryFn: fetchRemotes,
-    enabled,
-    retry: false,
-  })
-}
-
-export function RemotesNavItems({
-  remotes,
-  section,
-  onSelect,
-}: {
-  remotes: RemoteConnection[]
-  section: string
-  onSelect: (section: string) => void
-}) {
+export function EmptyRemotesPane({ onAdd }: { onAdd: () => void }) {
   return (
-    <>
-      <li>
-        <button
-          type="button"
-          className={section === 'remotes' ? 'menu-active' : undefined}
-          aria-current={section === 'remotes' ? 'page' : undefined}
-          onClick={() => onSelect('remotes')}
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          Add remote
-        </button>
-      </li>
-      {remotes.map((remote) => {
-        const id = `remotes-${remote.id}`
-        return (
-          <li key={remote.id}>
-            <button
-              type="button"
-              className={section === id ? 'menu-active' : undefined}
-              aria-current={section === id ? 'page' : undefined}
-              onClick={() => onSelect(id)}
-            >
-              {remoteLabel(remote)}
-            </button>
-          </li>
-        )
-      })}
-    </>
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Remotes</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          No remotes configured. Add a kind to health-check it, list its bots,
+          and send a message. Unused kinds stay out of this list.
+        </p>
+      </div>
+      <Button type="button" variant="primary" size="sm" onClick={onAdd}>
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Add remote
+      </Button>
+    </div>
   )
 }
 
-export function RemotesPane({
-  section,
-  remotes,
+export function AddRemoteForm({
   kinds,
   onAdded,
 }: {
-  section: string
-  remotes: RemoteConnection[]
   kinds: RemoteKind[]
-  onAdded: (remote: RemoteConnection) => void
-}) {
-  const remoteId = remoteIdFromSection(section)
-  const selected = remotes.find((item) => item.id === remoteId)
-  if (selected) {
-    return <ConfiguredRemotePane remote={selected} kinds={kinds} />
-  }
-  return <AddRemotePane kinds={kinds} remotes={remotes} onAdded={onAdded} />
-}
-
-function AddRemotePane({
-  kinds,
-  remotes,
-  onAdded,
-}: {
-  kinds: RemoteKind[]
-  remotes: RemoteConnection[]
   onAdded: (remote: RemoteConnection) => void
 }) {
   const { success, error } = useToast()
   const queryClient = useQueryClient()
-  const catalog = kinds.length
+  const options = kinds.length
     ? kinds
     : [
-        {
-          id: 'rakazo',
-          label: 'Rakazo',
-          fields: ['base_url', 'ui_url', 'api_key_env', 'session_cookie_env'],
-          ops: ['health', 'list', 'send'],
-        },
+        { id: 'hermes', label: 'Hermes' },
+        { id: 'omb', label: OPENMOUSBOT_LABEL },
+        { id: 'rakazo', label: 'Rakazo' },
       ]
-  const rakazo = catalog.find((item) => item.id === 'rakazo')
-  const [kind, setKind] = useState(rakazo?.id || catalog[0]?.id || 'rakazo')
+  const [kind, setKind] = useState(options[0]?.id ?? 'omb')
   const [baseUrl, setBaseUrl] = useState('')
-  const [uiUrl, setUiUrl] = useState('')
   const [apiKeyEnv, setApiKeyEnv] = useState('')
-  const [sessionCookieEnv, setSessionCookieEnv] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [formError, setFormError] = useState('')
 
-  const selectedKind = kindById(catalog, kind)
-  const fields = selectedKind?.fields || ['base_url', 'api_key_env']
-  const showUi = fields.includes('ui_url')
-  const showCookieEnv = fields.includes('session_cookie_env')
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    setFormError('')
-    if (looksLikeSecret(apiKeyEnv) || looksLikeSecret(sessionCookieEnv)) {
-      setFormError('Auth fields are env-var names only. Do not paste a token or cookie.')
-      return
-    }
-    if (!baseUrl.trim()) {
-      setFormError('API base URL is required.')
-      return
-    }
-    setBusy(true)
-    try {
-      const created = await addRemote({
+  const addMutation = useMutation({
+    mutationFn: () =>
+      addRemote({
         kind,
         base_url: baseUrl.trim(),
-        ui_url: showUi ? uiUrl.trim() : undefined,
         api_key_env: apiKeyEnv.trim() || undefined,
-        session_cookie_env: showCookieEnv ? sessionCookieEnv.trim() || undefined : undefined,
+      }),
+    onSuccess: (remote) => {
+      queryClient.setQueryData(REMOTES_QUERY_KEY, (prev: { object?: string; kinds?: RemoteKind[]; data?: RemoteConnection[] } | undefined) => {
+        const kinds = prev?.kinds ?? []
+        const data = [...(prev?.data ?? []).filter((row) => row.id !== remote.id), remote]
+        return { object: 'list' as const, kinds, data }
       })
-      success('Remote added', `${remoteLabel(created)} is ready to health, list, and send.`)
-      await queryClient.invalidateQueries({ queryKey: REMOTES_QUERY_KEY })
-      onAdded(created)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not add remote'
-      setFormError(message)
-      error('Add remote failed', message)
-    } finally {
-      setBusy(false)
-    }
+      queryClient.invalidateQueries({ queryKey: REMOTES_QUERY_KEY })
+      success('Remote added', remoteKindLabel(remote.id, remote.label))
+      onAdded(remote)
+    },
+    onError: (err: Error) => {
+      error('Could not add remote', err.message)
+    },
+  })
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    addMutation.mutate()
   }
 
   return (
@@ -169,266 +89,207 @@ function AddRemotePane({
       <div>
         <h4 className="text-lg font-semibold">Add remote</h4>
         <p className="mt-1 text-sm text-base-content/70">
-          Remotes stay empty until you add one. Pick a kind, then enter the API
-          base URL and env-var names for auth — never paste a cookie or token.
+          Pick a kind, then enter a base URL and an optional api-key-env name
+          (placeholder only — never paste a token).
         </p>
       </div>
-      {remotes.length === 0 && (
-        <Alert type="info" icon={<Server className="h-5 w-5" />}>
-          <span className="text-sm">No remotes configured yet.</span>
-        </Alert>
-      )}
       <Select
         label="Kind"
         name="remote-kind"
         value={kind}
         onChange={(event) => setKind(event.target.value)}
+        required
       >
-        {catalog.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.label}
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {remoteKindLabel(option.id, option.label)}
           </option>
         ))}
       </Select>
       <Input
-        label="API base URL"
+        label="Base URL"
         name="remote-base-url"
         value={baseUrl}
         onChange={(event) => setBaseUrl(event.target.value)}
-        placeholder="http://127.0.0.1:3100"
+        placeholder="http://127.0.0.1:9"
         autoComplete="off"
         spellCheck={false}
+        required
       />
-      {showUi && (
-        <Input
-          label="UI URL (optional)"
-          name="remote-ui-url"
-          value={uiUrl}
-          onChange={(event) => setUiUrl(event.target.value)}
-          placeholder="http://127.0.0.1:5173"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      )}
       <Input
-        label="API key env"
+        label="API key env (optional)"
         name="remote-api-key-env"
         value={apiKeyEnv}
         onChange={(event) => setApiKeyEnv(event.target.value)}
-        placeholder={kind === 'rakazo' ? 'RAKAZO_API_KEY' : 'API_KEY'}
+        placeholder="OMB_API_KEY"
         autoComplete="off"
         spellCheck={false}
       />
-      {showCookieEnv && (
-        <Input
-          label="Session cookie env"
-          name="remote-session-cookie-env"
-          value={sessionCookieEnv}
-          onChange={(event) => setSessionCookieEnv(event.target.value)}
-          placeholder="RAKAZO_SESSION_COOKIE"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      )}
-      {formError && (
-        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
-          <span className="text-sm">{formError}</span>
-        </Alert>
-      )}
-      <Button type="submit" variant="primary" size="sm" disabled={busy}>
-        {busy ? 'Adding…' : 'Save remote'}
+      <Button type="submit" variant="primary" size="sm" loading={addMutation.isPending}>
+        Add remote
       </Button>
     </form>
   )
 }
 
-function ConfiguredRemotePane({
-  remote,
-  kinds,
-}: {
-  remote: RemoteConnection
-  kinds: RemoteKind[]
-}) {
+function botsFromOperate(result: RemoteOperateResult | undefined): Array<{ id: string; name?: string }> {
+  if (!result?.data) return []
+  const raw = result.data
+  let list: unknown = raw
+  if (raw && typeof raw === 'object' && 'bots' in raw) {
+    list = (raw as { bots: unknown }).bots
+  }
+  if (!Array.isArray(list)) return []
+  return list
+    .map((item) => {
+      if (typeof item === 'string') return { id: item }
+      if (item && typeof item === 'object' && 'id' in item) {
+        const rec = item as { id: unknown; name?: unknown }
+        return { id: String(rec.id), name: rec.name != null ? String(rec.name) : undefined }
+      }
+      return null
+    })
+    .filter((item): item is { id: string; name?: string } => Boolean(item?.id))
+}
+
+export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
   const { error } = useToast()
-  const [health, setHealth] = useState<RemoteHealth | null>(null)
-  const [listed, setListed] = useState<RemoteOperate | null>(null)
-  const [sent, setSent] = useState<RemoteOperate | null>(null)
-  const [target, setTarget] = useState('')
+  const label = remoteKindLabel(remote.id, remote.label || remote.title)
+  const isOmb = isOpenMousBotKind(remote.id)
+  const [health, setHealth] = useState<RemoteHealthResult | null>(null)
+  const [listed, setListed] = useState<RemoteOperateResult | null>(null)
+  const [sent, setSent] = useState<RemoteOperateResult | null>(null)
+  const [botId, setBotId] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [busy, setBusy] = useState<'health' | 'list' | 'send' | null>(null)
 
-  const kind = kindById(kinds, remote.kind || remote.id)
-  const bots = useMemo(() => botsFromOperate(listed?.data), [listed])
-  const label = remoteLabel(remote)
-
-  const runHealth = async () => {
-    setBusy('health')
-    try {
-      setHealth(await probeRemoteHealth(remote.id))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Health failed'
+  const healthMutation = useMutation({
+    mutationFn: () => probeRemoteHealth(remote.id),
+    onSuccess: (result) => setHealth(result),
+    onError: (err: Error) => {
       setHealth({
         remote: remote.id,
         ok: false,
-        state: 'UNKNOWN',
-        detail: message,
+        state: 'DOWN',
+        detail: err.message || 'health probe failed',
       })
-      error('Health failed', message)
-    } finally {
-      setBusy(null)
-    }
-  }
+    },
+  })
 
-  const runList = async () => {
-    setBusy('list')
-    try {
-      const result = await operateRemote(remote.id, 'list')
+  const listMutation = useMutation({
+    mutationFn: () => operateRemote(remote.id, { op: 'list' }),
+    onSuccess: (result) => {
       setListed(result)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'List failed'
+      const bots = botsFromOperate(result)
+      if (!botId && bots[0]?.id) setBotId(bots[0].id)
+    },
+    onError: (err: Error) => {
       setListed({
         remote: remote.id,
         op: 'list',
         ok: false,
-        detail: message,
-        gap: '',
+        detail: err.message || 'list failed',
       })
-      error('List failed', message)
-    } finally {
-      setBusy(null)
-    }
-  }
+    },
+  })
 
-  const runSend = async (event: FormEvent) => {
-    event.preventDefault()
-    setBusy('send')
-    try {
-      const result = await operateRemote(remote.id, 'send', {
-        prompt,
-        target,
-      })
-      setSent(result)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Send failed'
+  const sendMutation = useMutation({
+    mutationFn: () =>
+      operateRemote(remote.id, { op: 'send', prompt: prompt.trim(), target: botId.trim() }),
+    onSuccess: (result) => setSent(result),
+    onError: (err: Error) => {
+      error('Send failed', err.message)
       setSent({
         remote: remote.id,
         op: 'send',
         ok: false,
-        detail: message,
-        gap: '',
+        detail: err.message || 'send failed',
       })
-      error('Send failed', message)
-    } finally {
-      setBusy(null)
-    }
-  }
+    },
+  })
+
+  const bots = useMemo(() => botsFromOperate(listed ?? undefined), [listed])
+  const healthTone =
+    health?.state === 'UP' ? 'success' : health?.state === 'DOWN' ? 'warning' : health ? 'info' : undefined
 
   return (
     <div className="space-y-4">
       <div>
         <h4 className="text-lg font-semibold">{label}</h4>
         <p className="mt-1 text-sm text-base-content/70">
-          {kind?.notes || remote.notes || 'Health, list, and send through this remote’s API.'}
+          {remote.base_url || 'No base URL'}
+          {remote.api_key_env ? ` · env ${remote.api_key_env}` : ''}
         </p>
       </div>
-      <dl className="space-y-1 text-sm">
-        <div>
-          <dt className="text-base-content/60">API base URL</dt>
-          <dd className="font-mono">{remote.base_url || '—'}</dd>
-        </div>
-        {remote.ui_url ? (
-          <div>
-            <dt className="text-base-content/60">UI URL</dt>
-            <dd className="font-mono">{remote.ui_url}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt className="text-base-content/60">API key env</dt>
-          <dd className="font-mono">{remote.api_key_env || '—'}</dd>
-        </div>
-        {remote.session_cookie_env || (remote.kind || remote.id) === 'rakazo' ? (
-          <div>
-            <dt className="text-base-content/60">Session cookie env</dt>
-            <dd className="font-mono">{remote.session_cookie_env || '—'}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt className="text-base-content/60">Auth resolved</dt>
-          <dd>
-            {remote.api_key_set || remote.cookie_set ? 'redacted (env present)' : 'not set in this process'}
-          </dd>
-        </div>
-      </dl>
 
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          variant="primary"
+          variant="outline"
           size="sm"
-          disabled={busy !== null}
-          onClick={runHealth}
+          loading={healthMutation.isPending}
+          onClick={() => healthMutation.mutate()}
         >
-          {busy === 'health' ? 'Checking…' : 'Check health'}
+          Health
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={busy !== null}
-          onClick={runList}
+          loading={listMutation.isPending}
+          onClick={() => listMutation.mutate()}
         >
-          {busy === 'list' ? 'Listing…' : 'List bots'}
+          {isOmb ? 'List bots' : 'List'}
         </Button>
       </div>
 
       {health && (
         <Alert
-          type={health.ok ? 'success' : 'warning'}
-          icon={<AlertCircle className="h-5 w-5" />}
+          type={healthTone === 'success' ? 'success' : healthTone === 'warning' ? 'warning' : 'info'}
+          icon={<Server className="h-5 w-5" />}
         >
-          <div className="text-sm">
-            <p className="font-medium">Health {health.state}</p>
-            <p>{health.detail}</p>
+          <div className="space-y-1 text-sm">
+            <p>
+              <span className="font-medium">{health.state}</span>
+              {health.ok ? '' : ' — report, not a crash'}
+            </p>
+            <p className="text-base-content/70">{health.detail}</p>
           </div>
         </Alert>
       )}
 
       {listed && (
-        <Alert
-          type={listed.ok ? 'success' : listed.gap ? 'info' : 'warning'}
-          icon={<AlertCircle className="h-5 w-5" />}
-        >
-          <div className="space-y-1 text-sm">
-            <p className="font-medium">{listed.ok ? 'Bots' : 'List'}</p>
-            <p>{listed.detail}</p>
-            {listed.gap ? <p className="font-mono text-xs">{listed.gap}</p> : null}
-            {bots.length > 0 && (
-              <ul className="mt-1 list-disc pl-4">
-                {bots.map((bot) => (
-                  <li key={bot.id}>
-                    <button
-                      type="button"
-                      className="link font-mono"
-                      onClick={() => setTarget(bot.id)}
-                    >
-                      {bot.name ? `${bot.name} (${bot.id})` : bot.id}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Alert>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{isOmb ? 'Bots' : 'List'}</p>
+          {listed.ok && bots.length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {bots.map((bot) => (
+                <li key={bot.id} className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2 font-mono">
+                  {bot.id}
+                  {bot.name ? ` · ${bot.name}` : ''}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Alert type={listed.ok ? 'info' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
+              <span className="text-sm">{listed.detail}</span>
+            </Alert>
+          )}
+        </div>
       )}
 
-      <form className="space-y-3" onSubmit={runSend}>
-        <h5 className="font-medium">Send</h5>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          sendMutation.mutate()
+        }}
+      >
         <Input
-          label="Bot id"
-          name="remote-send-target"
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          placeholder="bot id"
+          label={isOmb ? 'Bot id' : 'Target'}
+          name="remote-bot-id"
+          value={botId}
+          onChange={(event) => setBotId(event.target.value)}
+          placeholder={isOmb ? 'bot id' : 'optional target'}
           autoComplete="off"
           spellCheck={false}
         />
@@ -439,22 +300,16 @@ function ConfiguredRemotePane({
           onChange={(event) => setPrompt(event.target.value)}
           placeholder="Message to send"
           rows={3}
+          required
         />
-        <Button type="submit" variant="primary" size="sm" disabled={busy !== null}>
-          {busy === 'send' ? 'Sending…' : 'Send'}
+        <Button type="submit" variant="primary" size="sm" loading={sendMutation.isPending}>
+          Send
         </Button>
       </form>
 
       {sent && (
-        <Alert
-          type={sent.ok ? 'success' : sent.gap ? 'info' : 'warning'}
-          icon={<AlertCircle className="h-5 w-5" />}
-        >
-          <div className="text-sm">
-            <p className="font-medium">{sent.ok ? 'Sent' : 'Send'}</p>
-            <p>{sent.detail}</p>
-            {sent.gap ? <p className="font-mono text-xs">{sent.gap}</p> : null}
-          </div>
+        <Alert type={sent.ok ? 'success' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">{sent.detail}</span>
         </Alert>
       )}
     </div>

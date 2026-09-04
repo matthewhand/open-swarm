@@ -1,156 +1,70 @@
 /**
- * Remote harness Settings client (REQ-63 Rakazo kind complete).
+ * Opt-in remotes catalog (REQ-59).
  *
- * Auth is env-var names only. Never send or display cookies/tokens.
+ * Settings and remote dropdowns list only configured remotes. Kind labels
+ * use OpenMousBot for the ``omb`` id — never the letters OMB in UI copy.
  */
-import { apiGet, apiPatch, apiPost } from './api'
 
-export interface RemoteKind {
-  id: string
-  label: string
-  fields: string[]
-  ops: string[]
-  notes?: string
-}
+import type { RemoteConnection, RemoteKind, RemotesListResponse } from './api'
 
-export interface RemoteConnection {
-  id: string
-  kind: string
-  title: string
-  label?: string
-  host_label: string
-  base_url: string
-  ui_url: string
-  api_key_env: string
-  session_cookie_env: string
-  api_key_set: boolean
-  cookie_set: boolean
-  configured: boolean
-  notes: string
-  source: string
-}
+export const ADD_REMOTE_VALUE = '__add_remote__'
 
-export interface RemotesIndex {
-  object: 'list'
-  data: RemoteConnection[]
-  kinds: RemoteKind[]
-  vocabulary?: Record<string, string>
-  team_members?: Array<Record<string, unknown>>
-}
+export const FALLBACK_REMOTE_KINDS: RemoteKind[] = [
+  { id: 'hermes', label: 'Hermes' },
+  { id: 'omb', label: 'OpenMousBot' },
+  { id: 'rakazo', label: 'Rakazo' },
+  { id: 'herdr', label: 'Herdr' },
+  { id: 'open-swarm', label: 'open-swarm' },
+]
 
-export interface AddRemoteRequest {
-  kind: string
-  base_url: string
-  ui_url?: string
-  api_key_env?: string
-  session_cookie_env?: string
-}
+const FALLBACK_LABELS: Record<string, string> = Object.fromEntries(
+  FALLBACK_REMOTE_KINDS.map((kind) => [kind.id, kind.label]),
+)
 
-export interface RemoteHealth {
-  remote: string
-  ok: boolean
-  state: string
-  detail: string
-  http_status?: number | null
-  version?: unknown
-  latency_ms?: number | null
-  url?: string
-}
-
-export interface RemoteOperate {
-  remote: string
-  op: string
-  ok: boolean
-  detail: string
-  http_status?: number | null
-  data?: unknown
-  gap?: string
-}
-
-export interface RemoteBot {
-  id: string
-  name?: string
-}
-
-export function fetchRemotes(): Promise<RemotesIndex> {
-  return apiGet<RemotesIndex>('/v1/remotes/').then((payload) => {
-    const rows = Array.isArray(payload?.data) ? payload.data : []
-    const data = rows.filter((item) => {
-      if (!item || typeof item !== 'object') return false
-      return Boolean(item.kind || item.configured || item.base_url || item.api_key_env)
-    })
-    return {
-      object: 'list',
-      data,
-      kinds: Array.isArray(payload?.kinds) ? payload.kinds : [],
-      vocabulary: payload?.vocabulary,
-      team_members: payload?.team_members,
-    }
-  })
-}
-
-export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
-  return apiPost<RemoteConnection>('/v1/remotes/', body)
-}
-
-export function patchRemote(
-  remoteId: string,
-  body: Partial<AddRemoteRequest>,
-): Promise<RemoteConnection> {
-  return apiPatch<RemoteConnection>(`/v1/remotes/${encodeURIComponent(remoteId)}/`, body)
-}
-
-export function probeRemoteHealth(remoteId: string): Promise<RemoteHealth> {
-  return apiPost<RemoteHealth>(`/v1/remotes/${encodeURIComponent(remoteId)}/health/`, {})
-}
-
-export function operateRemote(
-  remoteId: string,
-  op: 'list' | 'send',
-  opts: { prompt?: string; target?: string } = {},
-): Promise<RemoteOperate> {
-  return apiPost<RemoteOperate>(`/v1/remotes/${encodeURIComponent(remoteId)}/operate/`, {
-    op,
-    prompt: opts.prompt || '',
-    target: opts.target || '',
-  })
-}
-
-export function remoteLabel(remote: Pick<RemoteConnection, 'label' | 'title' | 'kind' | 'id'>): string {
-  return remote.label || remote.title || remote.kind || remote.id
-}
-
-export function kindById(kinds: RemoteKind[] | undefined, kindId: string): RemoteKind | undefined {
-  return (kinds || []).find((item) => item.id === kindId)
-}
-
-export function botsFromOperate(data: unknown): RemoteBot[] {
-  const root =
-    data && typeof data === 'object' && data !== null && 'json' in data
-      ? (data as { json: unknown }).json
-      : data
-  if (!Array.isArray(root)) return []
-  const bots: RemoteBot[] = []
-  for (const item of root) {
-    if (typeof item === 'string' && item.trim()) {
-      bots.push({ id: item.trim() })
-      continue
-    }
-    if (item && typeof item === 'object') {
-      const rec = item as Record<string, unknown>
-      const id = String(rec.id || rec.botId || rec.bot_id || '').trim()
-      if (!id) continue
-      const name = rec.name != null ? String(rec.name) : undefined
-      bots.push({ id, name })
-    }
+export function remoteKindLabel(id: string, kinds: RemoteKind[] = FALLBACK_REMOTE_KINDS): string {
+  const rid = (id || '').trim().toLowerCase()
+  const aliases: Record<string, string> = {
+    openmausbot: 'omb',
+    openmaus: 'omb',
+    openmousbot: 'omb',
+    openswarm: 'open-swarm',
+    open_swarm: 'open-swarm',
   }
-  return bots
+  const resolved = aliases[rid] || rid
+  const fromKinds = kinds.find((kind) => kind.id === resolved)?.label
+  if (fromKinds) return fromKinds
+  return FALLBACK_LABELS[resolved] || resolved
 }
 
-export function looksLikeSecret(value: string): boolean {
-  const raw = value.trim()
-  if (!raw) return false
-  if (/^\$\{[A-Z][A-Z0-9_]*\}$/.test(raw)) return false
-  if (/^[A-Z][A-Z0-9_]*$/.test(raw)) return false
-  return true
+export function remoteKinds(response?: RemotesListResponse | null): RemoteKind[] {
+  const listed = response?.kinds
+  if (Array.isArray(listed) && listed.length > 0) {
+    return listed.map((kind) => ({
+      id: kind.id,
+      label: kind.label || remoteKindLabel(kind.id),
+    }))
+  }
+  return FALLBACK_REMOTE_KINDS
+}
+
+/**
+ * Only remotes the user (or env) has added. Defaults / unused kinds stay out.
+ */
+export function configuredRemotes(response?: RemotesListResponse | null): RemoteConnection[] {
+  if (!response) return []
+  if (Array.isArray(response.configured)) {
+    return response.configured
+  }
+  return (response.data ?? []).filter((remote) => remote.source && remote.source !== 'default')
+}
+
+export function unusedRemoteKinds(
+  response?: RemotesListResponse | null,
+): RemoteKind[] {
+  const used = new Set(configuredRemotes(response).map((remote) => remote.id))
+  return remoteKinds(response).filter((kind) => !used.has(kind.id))
+}
+
+export function remoteOptionLabel(remote: RemoteConnection, kinds?: RemoteKind[]): string {
+  return remote.label || remoteKindLabel(remote.kind || remote.id, kinds)
 }

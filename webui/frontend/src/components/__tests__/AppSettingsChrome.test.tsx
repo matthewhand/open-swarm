@@ -41,5 +41,26 @@ describe('SPA settings chrome (REQ-19)', () => {
     expect(dialog).toHaveClass('modal-end')
     expect(dialog).toHaveClass('modal-open')
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument()
+    // REQ-48: Settings is a sheet over chat, not a route that unmounts the composer.
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+
+  it('REQ-19 #334: swarm:open-settings with a blueprintId opens the Blueprint pane', async () => {
+    renderApp()
+    window.dispatchEvent(
+      new CustomEvent('swarm:open-settings', {
+        detail: { section: 'blueprint', blueprintId: 'support' },
+      }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Settings', hidden: true })
+    expect(dialog).toHaveClass('modal-open')
+    expect(screen.getByRole('button', { name: 'Blueprint' })).toHaveClass('menu-active')
+    expect(screen.getByRole('heading', { name: 'Blueprint' })).toBeInTheDocument()
+  })
+
+  it('REQ-5c #322: mobile chrome exposes Open agents sidebar (drawer, not a product dock)', () => {
+    renderApp()
+    expect(screen.getByRole('button', { name: 'Open agents sidebar' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Mobile primary' })).not.toBeInTheDocument()
   })
 })

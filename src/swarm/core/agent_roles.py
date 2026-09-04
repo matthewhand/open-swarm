@@ -3,20 +3,20 @@
 Canonical roles:
 
 * ``default`` — ordinary worker
-* ``support`` — Support seat (REQ-7). Teal rail.
-* ``gate`` — tool-call classifier (alias ``tool_gate``). Amber rail.
-* ``skeptic`` — post-run reviewer. Violet rail.
-* ``chief_of_staff`` — talks to any team (aliases ``cos``, ``chief``). Ice-steel rail.
+* ``support`` — Support seat (REQ-7). Teal badge.
+* ``gate`` — tool-call classifier (alias ``tool_gate``). Amber badge.
+* ``skeptic`` — post-run reviewer. Violet badge.
+* ``chief_of_staff`` — talks to any team (aliases ``cos``, ``chief``). Ice-steel badge.
 
 Sidepane class names (reuse these; do not invent a parallel set):
 
-* ``os-agent-role-<role>`` on the row
-* ``data-role="<role>"`` on the row and the accent dot
-* ``os-agent-role-badge`` for the optional label chip
+* ``os-agent-role-badge`` is the only role colour (chip + ``os-agent-role-<role>``)
+* ``data-role="<role>"`` may appear on the row for identification
+* Rows have no role fill, left-border accent, or outline (REQ-67)
 
-REQ-28: Chief of Staff is a distinct rail look — not support / gate / skeptic colors.
-Hover-edit (REQ-25) can later target this role's blueprint; this module at least
-names the badge contract.
+REQ-28: Chief of Staff keeps a distinct **badge** colour — not support / gate /
+skeptic. REQ-67 removed role row chrome. Hover-edit (REQ-25) can later target
+this role's blueprint; this module at least names the badge contract.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ ROLE_BADGE_LABELS: dict[str, str] = {
     ROLE_CHIEF_OF_STAFF: "CoS",
 }
 
-# CSS contract for the AGENTS sidepane (Django + SPA).
+# CSS contract for the AGENTS sidepane badge (Django + SPA). REQ-67: not on the row.
 ROLE_CSS_CLASS_PREFIX = "os-agent-role-"
 ROLE_CSS_CLASSES: dict[str, str] = {
     role: f"{ROLE_CSS_CLASS_PREFIX}{role}" for role in CANONICAL_ROLES

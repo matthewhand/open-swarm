@@ -33,7 +33,7 @@ def test_unknown_role_is_default_not_cos():
     assert not is_chief_of_staff("Writer")
 
 
-def test_cos_rail_contract_is_not_support_gate_or_skeptic():
+def test_cos_badge_contract_is_not_support_gate_or_skeptic():
     css = role_css_class("cos")
     assert css == "os-agent-role-chief_of_staff"
     assert css != role_css_class("support")
