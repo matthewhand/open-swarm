@@ -49,9 +49,11 @@ describe('Modal Accessibility and Focus Restoration', () => {
       </Modal>
     );
 
-    const backdropButton = screen.getByRole('button', { name: 'Close modal' });
+    const backdropButton = screen.getByRole('button', { name: 'Close modal', hidden: true });
     expect(backdropButton).toBeInTheDocument();
     expect(backdropButton).toHaveAttribute('tabIndex', '-1');
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(backdropButton.closest('form')).toHaveAttribute('aria-hidden', 'true');
 
     backdropButton.click();
     expect(onClose).toHaveBeenCalledTimes(1);

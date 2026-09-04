@@ -157,6 +157,22 @@ html[data-theme="light"] #root {
   background: var(--os-chrome-sidebar);
   border-right: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
 }
+.os-agent-avatar {
+  display: block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+}
+.os-agent-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.os-agent-avatar--sm { width: 1.75rem; height: 1.75rem; }
+.os-agent-avatar--md { width: 2rem; height: 2rem; }
+.os-agent-avatar--lg { width: 2.5rem; height: 2.5rem; }
+.os-agent-avatar--xl { width: 4rem; height: 4rem; }
+
 .os-agent-dot {
   width: 0.7rem;
   height: 0.7rem;
@@ -170,9 +186,66 @@ html[data-theme="light"] #root {
 .os-agent-dot[data-mark="3"] { background: #4a7a9b; }
 .os-agent-dot[data-mark="4"] { background: #7a6b9b; }
 .os-agent-dot[data-mark="5"] { background: #8a6a5a; }
-.os-agent-dot[data-role="support"] { background: #3d8f8a; }
-.os-agent-dot[data-role="gate"] { background: #c47a3a; }
-.os-agent-dot[data-role="skeptic"] { background: #7a6b9b; }
+
+/* REQ-66 scale-out stack — same overlapping faces as inter-bot hops */
+.os-stacked-avatars {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  min-height: 1.15rem;
+}
+.os-stacked-avatar {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-base-100);
+  flex: 0 0 auto;
+  position: relative;
+}
+.os-stacked-avatar--stacked {
+  margin-inline-start: -0.42rem;
+}
+.os-stacked-avatar--stacked:first-child {
+  margin-inline-start: 0;
+}
+.os-stacked-avatars .os-stacked-avatar--stacked:nth-child(1) { z-index: 1; }
+.os-stacked-avatars .os-stacked-avatar--stacked:nth-child(2) { z-index: 2; }
+.os-stacked-avatars .os-stacked-avatar--stacked:nth-child(3) { z-index: 3; }
+.os-stacked-avatars .os-stacked-avatar--stacked:nth-child(4) { z-index: 4; }
+.os-stacked-avatars .os-stacked-avatar--stacked:nth-child(5) { z-index: 5; }
+.os-stacked-avatars .os-stacked-avatar--stacked:nth-child(n+6) { z-index: 6; }
+.os-stacked-avatar--pulse {
+  animation: os-scale-out-pulse 1.4s ease-out infinite;
+}
+@keyframes os-scale-out-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-base-content) 45%, transparent); }
+  70%  { box-shadow: 0 0 0 0.4rem transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.os-stacked-remainder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  margin-inline-start: 0.15rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  color: color-mix(in srgb, var(--color-base-content) 72%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 10%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-stacked-avatar--pulse {
+    animation: none;
+  }
+}
 
 .os-rail-search {
   display: flex;
@@ -234,6 +307,13 @@ html[data-theme="light"] #root {
   color: color-mix(in srgb, var(--color-base-content) 90%, transparent);
   transition: background-color 0.15s ease;
 }
+button.os-agent-row {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
 .os-agent-row:hover {
   background: color-mix(in srgb, var(--color-base-300) 40%, transparent);
 }
@@ -247,18 +327,27 @@ html[data-theme="light"] #root {
   gap: 0.15rem;
   position: relative;
 }
-.os-agent-row--support {
-  box-shadow: inset 2px 0 0 #3d8f8a;
-}
-.os-agent-row--gate {
-  box-shadow: inset 2px 0 0 #c47a3a;
-}
-.os-agent-row--skeptic {
-  box-shadow: inset 2px 0 0 #7a6b9b;
-}
+/* REQ-67: role colour lives on .os-agent-role-badge only — no row fill/border. */
 .os-agent-row--dragging,
 .os-fav-tile--dragging {
   opacity: 0.4;
+}
+.os-agent-row--drop {
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+.os-agent-row--team {
+  box-shadow: inset 2px 0 0 #6b7c8a;
+}
+.os-agent-row--nested {
+  margin-left: 0.85rem;
+}
+.os-agent-team-nest {
+  margin: 0.15rem 0 0.25rem;
+  padding: 0;
+  list-style: none;
+}
+.os-agent-team-icon {
+  color: #6b7c8a;
 }
 .os-agent-role-badge {
   display: inline-flex;
@@ -272,10 +361,45 @@ html[data-theme="light"] #root {
   line-height: 1.3;
   color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
   background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  cursor: pointer;
+}
+.os-agent-role-badge:hover,
+.os-agent-role-badge:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
 }
 .os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
 .os-agent-role-badge[data-role="gate"] { color: #c47a3a; }
 .os-agent-role-badge[data-role="skeptic"] { color: #7a6b9b; }
+.os-agent-role-badge[data-role="chief_of_staff"] {
+  color: #4f8ec9;
+  text-transform: none;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.os-agent-role-badge[data-kind="team"] { color: #6b7c8a; }
+.os-identity-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.os-identity-btn:hover,
+.os-identity-btn:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.os-tool-popup {
+  text-align: left;
+}
+.os-tool-badge-running {
+  animation: os-tool-pulse 1s ease-in-out infinite;
+}
+@keyframes os-tool-pulse {
+  50% { opacity: 0.55; }
+}
 .os-agent-edit {
   opacity: 0;
   flex: 0 0 auto;
@@ -369,15 +493,31 @@ html[data-theme="light"] #root {
   color: var(--color-base-content);
 }
 
-.os-rail-hostname {
+.os-rail-hostname-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.35rem;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+.os-rail-hostname-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+.os-rail-hostname-icon.text-error,
+.os-rail-hostname-icon[data-tone="error"] {
+  color: #d46a6a;
+}
+.os-rail-hostname {
+  min-width: 0;
+  flex: 1;
   width: 100%;
   background: transparent;
   border: 0;
   border-radius: 0.35rem;
   padding: 0.25rem 0.25rem;
   font-size: 0.75rem;
-  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+  color: inherit;
   outline: none;
 }
 .os-rail-hostname:focus {
@@ -393,6 +533,15 @@ html[data-theme="light"] #root {
   min-height: 3rem;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
+}
+.os-chat-header__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+.os-chat-header__avatar {
+  pointer-events: none;
 }
 
 .os-runtime-banner-wrap {
@@ -507,12 +656,58 @@ html[data-theme="light"] #root {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  border: 0;
   border-radius: 0.45rem;
   padding: 0.45rem 0.6rem;
+  background: transparent;
+  color: inherit;
   font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
 }
 .os-plus-menu__item:hover {
   background: color-mix(in srgb, var(--color-base-300) 55%, transparent);
+}
+
+.os-chat-status {
+  display: block;
+  margin: 0.45rem auto;
+  max-width: 36rem;
+  padding: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+}
+
+.chat-summary {
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 28%, transparent);
+  border-left-width: 3px;
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--color-base-200) 70%, transparent);
+  margin: 0.35rem 0;
+}
+.chat-summary--nested {
+  margin-top: 0.55rem;
+  margin-left: 0.65rem;
+  border-style: dashed;
+}
+.chat-summary__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 0.35rem;
+}
+.chat-summary__body {
+  font-size: 0.875rem;
+}
+.chat-summary__meta {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  opacity: 0.5;
 }
 
 .os-chat-footer {
@@ -522,6 +717,31 @@ html[data-theme="light"] #root {
   padding: 0.35rem 1.1rem 0.7rem;
   font-size: 0.7rem;
   color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+}
+
+/* REQ-46: Grok-Bot centred status chrome — not a chat-start / chat-end bubble. */
+.os-chat-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0.45rem 0;
+  padding: 0.15rem 0.75rem;
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--color-base-content) 48%, transparent);
+}
+.os-chat-status::before,
+.os-chat-status::after {
+  content: "";
+  flex: 1 1 2rem;
+  max-width: 4rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+}
+.os-chat-status span {
+  min-width: 0;
+  max-width: 28rem;
 }
 
 .os-search-overlay {
@@ -642,6 +862,104 @@ html[data-theme="light"] #root {
   font-size: 0.875rem;
   color: color-mix(in srgb, currentColor 50%, transparent);
 }
+
+.os-swipe-hint {
+  position: fixed;
+  top: 4.25rem;
+  left: 0.75rem;
+  z-index: 45;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  max-width: min(18rem, calc(100vw - 1.5rem));
+  padding: 0.65rem 0.55rem 0.65rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
+  background: var(--color-base-100);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+.os-swipe-hint__text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--color-base-content);
+}
 .os-team-mark {
   color: color-mix(in srgb, var(--color-base-content) 80%, var(--color-primary));
 }
+
+/* REQ-68 / REQ-66: shared stacked avatars (max 3 + remainder). */
+.os-avatar-stack {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+.os-avatar-stack__face {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-base-100);
+  flex: 0 0 auto;
+  position: relative;
+}
+.os-avatar-stack--stacked .os-avatar-stack__face + .os-avatar-stack__face {
+  margin-inline-start: -0.42rem;
+}
+.os-avatar-stack--stacked .os-avatar-stack__remainder {
+  margin-inline-start: 0.2rem;
+}
+.os-avatar-stack--stacked .os-avatar-stack__face:nth-child(1) { z-index: 3; }
+.os-avatar-stack--stacked .os-avatar-stack__face:nth-child(2) { z-index: 2; }
+.os-avatar-stack--stacked .os-avatar-stack__face:nth-child(3) { z-index: 1; }
+.os-avatar-stack__face--working {
+  animation: os-working-pulse 1.35s ease-in-out infinite;
+}
+.os-avatar-stack__remainder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-base-100);
+  background: color-mix(in srgb, var(--color-base-content) 14%, var(--color-base-200));
+  color: color-mix(in srgb, var(--color-base-content) 78%, transparent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  z-index: 4;
+}
+@keyframes os-working-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.82; }
+}
+.os-session-picker__sub {
+  margin: 0;
+  padding: 0 1.1rem 0.45rem;
+  font-size: 0.75rem;
+  color: color-mix(in srgb, currentColor 52%, transparent);
+}
+.os-agent-row--remote {
+  box-shadow: inset 2px 0 0 #5a7a6a;
+}
+.os-agent-role-badge[data-kind="remote"] { color: #5a7a6a; }
+
+.os-code-python {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.os-py-kw { color: #7eb8ff; font-weight: 650; }
+.os-py-str { color: #9ad4a0; }
+.os-py-com { color: #8b93a7; font-style: italic; }
+.os-py-num { color: #e0b36a; }
+.os-py-dec { color: #d7a1ff; }
+.os-py-bi { color: #7fd4d0; }
+[data-theme="light"] .os-py-kw { color: #1d4f91; }
+[data-theme="light"] .os-py-str { color: #2d6a38; }
+[data-theme="light"] .os-py-com { color: #667085; }
+[data-theme="light"] .os-py-num { color: #9a5b10; }
+[data-theme="light"] .os-py-dec { color: #7a3ea8; }
+[data-theme="light"] .os-py-bi { color: #0e6e6a; }
