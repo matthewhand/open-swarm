@@ -1,13 +1,13 @@
-"""REST surface for remote agent harnesses (Hermes, OMB, Rakazo).
+"""REST surface for remote agent harnesses (Hermes, OpenMousBot, Rakazo, nested swarm).
 
-GET    /v1/remotes/                 added remotes only + kinds (secrets redacted)
-POST   /v1/remotes/                 add a kind (base_url + api_key_env name)
-GET    /v1/remotes/<id>/            one added remote
-PATCH  /v1/remotes/<id>/            persist base_url + api-key-env name
+GET    /v1/remotes/                 kinds + configured remotes (secrets redacted)
+POST   /v1/remotes/                 add a remote (kind + URL / auth)
+GET    /v1/remotes/<id>/            one remote
+PATCH  /v1/remotes/<id>/            persist base_url + auth
+DELETE /v1/remotes/<id>/            remove a configured remote
 POST   /v1/remotes/<id>/health/     connectivity check (honest fail)
 POST   /v1/remotes/<id>/operate/    list or send a job via the real API
 
-Missing remotes are empty / 404 — never a default Hermes card.
 Permissions follow ``api_permission_classes()`` — never ``SWARM_ALLOW_ANONYMOUS``.
 """
 
@@ -37,65 +37,62 @@ class RemotesListView(APIView):
         responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, _request, *_args, **_kwargs):
-        specs = remotes_core.load_added_remotes()
+        specs = remotes_core.load_all_remotes()
+        configured = remotes_core.list_configured_remotes()
         return Response(
             {
                 "object": "list",
-                "vocabulary": remotes_core.TEAM_VOCABULARY,
-                "data": [spec.public_dict() for spec in specs.values()],
                 "kinds": remotes_core.list_remote_kinds(),
+                "vocabulary": remotes_core.TEAM_VOCABULARY,
+                # ``data`` stays the operate trio (defaults included) for REQ-11 clients.
+                "data": [spec.public_dict() for spec in specs.values()],
+                # Settings / dropdowns use ``configured`` — empty until the user adds one.
+                "configured": [spec.public_dict() for spec in configured],
                 "team_members": remotes_core.list_team_members(),
             }
         )
 
     @extend_schema(
-        operation_id="v1_remotes_add",
-        summary="Add a remote harness (opt-in). Kind + base URL + api-key-env name.",
+        operation_id="v1_remotes_create",
+        summary="Add a remote harness (opt-in catalog)",
         request=inline_serializer(
-            name="RemoteAddRequest",
+            name="RemoteCreateRequest",
             fields={
-                "kind": serializers.CharField(required=False, help_text="hermes | omb | rakazo"),
-                "id": serializers.CharField(required=False, help_text="Alias of kind"),
-                "base_url": serializers.CharField(),
-                "api_key_env": serializers.CharField(required=False, allow_blank=True),
+                "kind": serializers.CharField(required=False, help_text="hermes, omb, rakazo, herdr, swarm"),
+                "id": serializers.CharField(required=False),
+                "base_url": serializers.CharField(required=False, allow_blank=True),
+                "api_key": serializers.CharField(required=False, allow_blank=True),
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
             },
         ),
-        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
     )
     def post(self, request, *_args, **_kwargs):
         body = request.data if isinstance(request.data, dict) else {}
-        kind = str(body.get("kind") or body.get("id") or "").strip()
+        kind = body.get("kind") or body.get("id") or body.get("remote_id")
         if not kind:
             return Response(
-                {"error": "Provide kind (hermes, omb, or rakazo)."},
+                {"error": "Provide kind (hermes, omb, rakazo, herdr, or swarm)."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        kwargs: dict[str, str] = {}
+        for field in ("base_url", "api_key", "ui_url", "cookie"):
+            if field in body:
+                kwargs[field] = "" if body[field] is None else str(body[field])
         try:
-            spec, path = remotes_core.add_remote(
-                kind,
-                base_url=str(body.get("base_url") or ""),
-                api_key_env=str(body.get("api_key_env") or ""),
-                ui_url=None if "ui_url" not in body else str(body.get("ui_url") or ""),
-                cookie=None if "cookie" not in body else str(body.get("cookie") or ""),
-            )
+            spec, path = remotes_core.persist_remote(str(kind), **kwargs)
         except remotes_core.RemoteError as exc:
-            code = (
-                status.HTTP_404_NOT_FOUND
-                if "Unknown remote" in str(exc)
-                else status.HTTP_400_BAD_REQUEST
-            )
-            return Response({"error": str(exc)}, status=code)
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except OSError as exc:
-            logger.exception("Failed to add remotes.%s", kind)
+            logger.exception("Failed to persist remotes.%s", kind)
             return Response(
                 {"error": f"failed to persist: {exc}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         payload = spec.public_dict()
         payload["persisted_to"] = str(path)
-        return Response(payload, status=status.HTTP_200_OK)
+        return Response(payload, status=status.HTTP_201_CREATED)
 
 
 class RemoteDetailView(APIView):
@@ -108,15 +105,6 @@ class RemoteDetailView(APIView):
         responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
     )
     def get(self, _request, remote_id: str, *_args, **_kwargs):
-        try:
-            remotes_core._require_id(remote_id)
-        except remotes_core.RemoteError as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
-        if not remotes_core.is_remote_added(remote_id):
-            return Response(
-                {"error": f"Remote '{remote_id}' is not added."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         try:
             spec = remotes_core.load_remote(remote_id)
         except remotes_core.RemoteError as exc:
@@ -131,7 +119,6 @@ class RemoteDetailView(APIView):
             fields={
                 "base_url": serializers.CharField(required=False, allow_blank=True),
                 "api_key": serializers.CharField(required=False, allow_blank=True),
-                "api_key_env": serializers.CharField(required=False, allow_blank=True),
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
             },
@@ -141,12 +128,12 @@ class RemoteDetailView(APIView):
     def patch(self, request, remote_id: str, *_args, **_kwargs):
         body = request.data if isinstance(request.data, dict) else {}
         kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie"):
+        for field in ("base_url", "api_key", "ui_url", "cookie"):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
         if not kwargs:
             return Response(
-                {"error": "Provide at least one of base_url, api_key, api_key_env, ui_url, cookie."},
+                {"error": "Provide at least one of base_url, api_key, ui_url, cookie."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
@@ -160,6 +147,22 @@ class RemoteDetailView(APIView):
         payload = spec.public_dict()
         payload["persisted_to"] = str(path)
         return Response(payload)
+
+    @extend_schema(
+        operation_id="v1_remotes_delete",
+        summary="Remove a configured remote from the opt-in catalog",
+        responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def delete(self, _request, remote_id: str, *_args, **_kwargs):
+        try:
+            rid, path = remotes_core.delete_remote(remote_id)
+        except remotes_core.RemoteError as exc:
+            code = status.HTTP_404_NOT_FOUND if "not configured" in str(exc) or "Unknown remote" in str(exc) else status.HTTP_400_BAD_REQUEST
+            return Response({"error": str(exc)}, status=code)
+        except OSError as exc:
+            logger.exception("Failed to delete remotes.%s", remote_id)
+            return Response({"error": f"failed to delete: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"id": rid, "deleted": True, "persisted_to": str(path)})
 
 
 class RemoteHealthView(APIView):
@@ -176,11 +179,6 @@ class RemoteHealthView(APIView):
             remotes_core._require_id(remote_id)
         except remotes_core.RemoteError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
-        if not remotes_core.is_remote_added(remote_id):
-            return Response(
-                {"error": f"Remote '{remote_id}' is not added."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         result = remotes_core.check_health(remote_id)
         # 200 even when DOWN — this is a probe report, not a crash.
         return Response(result.as_dict(), status=status.HTTP_200_OK)
@@ -211,11 +209,6 @@ class RemoteOperateView(APIView):
             remotes_core._require_id(remote_id)
         except remotes_core.RemoteError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
-        if not remotes_core.is_remote_added(remote_id):
-            return Response(
-                {"error": f"Remote '{remote_id}' is not added."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         body = request.data if isinstance(request.data, dict) else {}
         result = remotes_core.operate(
             remote_id,

@@ -195,7 +195,26 @@ def create_default_config(config_path: Path):
         "settings": {
             "default_markdown_output": True
         },
-        "remotes": {},
+        "remotes": {
+            "hermes": {
+                "base_url": "http://10.0.0.36:8642",
+                "api_key": "${HERMES_API_KEY}",
+            },
+            "omb": {
+                "base_url": "http://10.0.0.32:8802",
+                "api_key": "${OMB_API_KEY}",
+            },
+            "rakazo": {
+                "base_url": "http://10.0.0.32:3100",
+                "ui_url": "http://10.0.0.32:5173",
+                "api_key": "${RAKAZO_API_KEY}",
+                "cookie": "${RAKAZO_SESSION_COOKIE}",
+            },
+            "swarm": {
+                "base_url": "http://127.0.0.1:9",
+                "api_key": "${SWARM_REMOTE_API_KEY}",
+            },
+        },
     }
     logger.info(f"Creating default configuration file at {config_path}")
     try:
@@ -505,7 +524,19 @@ def create_default_config(config_path: Path):
             }
         },
         "settings": {"default_markdown_output": True},
-        "remotes": {},
+        "remotes": {
+            "hermes": {"base_url": "http://10.0.0.36:8642", "api_key": "${HERMES_API_KEY}"},
+            "omb": {"base_url": "http://10.0.0.32:8802", "api_key": "${OMB_API_KEY}"},
+            "rakazo": {
+                "base_url": "http://10.0.0.32:3100",
+                "ui_url": "http://10.0.0.32:5173",
+                "api_key": "${RAKAZO_API_KEY}",
+            },
+            "swarm": {
+                "base_url": "http://127.0.0.1:9",
+                "api_key": "${SWARM_REMOTE_API_KEY}",
+            },
+        },
     }
     save_config(default, config_path)
     logger.warning(_hint("Set OPENAI_API_KEY or run config add for profiles."))

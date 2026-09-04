@@ -1,10 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Plus, Server } from 'lucide-react'
-import { Alert, Button, Input, Select, Textarea } from './DaisyUI'
+import { Alert, Button, Input, Select, Textarea, useToast } from './DaisyUI'
 import {
   addRemote,
-  fetchRemotes,
   operateRemote,
   probeRemoteHealth,
   type RemoteConnection,
@@ -12,148 +11,98 @@ import {
   type RemoteKind,
   type RemoteOperateResult,
 } from '../lib/api'
+import { isOpenMousBotKind, OPENMOUSBOT_LABEL, remoteKindLabel } from '../lib/remoteKinds'
 
-const REMOTES_QUERY_KEY = ['settings-remotes'] as const
+export const REMOTES_QUERY_KEY = ['settings-remotes'] as const
 
-export default function RemotesSettings() {
-  const queryClient = useQueryClient()
-  const [adding, setAdding] = useState(false)
-
-  const remotesQuery = useQuery({
-    queryKey: REMOTES_QUERY_KEY,
-    queryFn: fetchRemotes,
-    retry: false,
-  })
-
-  const remotes = remotesQuery.data?.data ?? []
-  const kinds = remotesQuery.data?.kinds ?? []
-
-  return (
-    <section aria-labelledby="os-remotes-heading" className="space-y-4">
-      <div>
-        <h4 id="os-remotes-heading" className="text-lg font-semibold">
-          Remotes
-        </h4>
-        <p className="mt-1 text-sm text-base-content/70">
-          Opt-in harness connections. Add a kind, then health / list / send
-          through that product&apos;s API. Auth is an env-var name only.
-        </p>
-      </div>
-
-      {remotesQuery.isPending ? (
-        <p className="text-sm text-base-content/60">Loading remotes…</p>
-      ) : remotesQuery.isError ? (
-        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
-          <span className="text-sm">Could not load remotes. Retry from Settings.</span>
-        </Alert>
-      ) : remotes.length === 0 && !adding ? (
-        <EmptyRemotes onAdd={() => setAdding(true)} />
-      ) : (
-        <ul className="space-y-3">
-          {remotes.map((remote) => (
-            <li key={remote.id}>
-              <AddedRemoteCard remote={remote} kinds={kinds} />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {adding ? (
-        <AddRemoteForm
-          kinds={kinds}
-          existingIds={new Set(remotes.map((row) => row.id))}
-          onCancel={() => setAdding(false)}
-          onAdded={() => {
-            setAdding(false)
-            void queryClient.invalidateQueries({ queryKey: REMOTES_QUERY_KEY })
-          }}
-        />
-      ) : remotes.length > 0 ? (
-        <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
-          <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-          Add remote
-        </Button>
-      ) : null}
-    </section>
-  )
+export function configuredRemoteSection(id: string): `remotes-${string}` {
+  return `remotes-${id}`
 }
 
-function EmptyRemotes({ onAdd }: { onAdd: () => void }) {
+export function EmptyRemotesPane({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="space-y-3 rounded-box border border-dashed border-base-300 bg-base-200/40 p-4">
-      <p className="text-sm text-base-content/70">
-        No remotes added. Unused kinds do not appear as cards.
-      </p>
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">Remotes</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          No remotes configured. Add a kind to health-check it, list its bots,
+          and send a message. Unused kinds stay out of this list.
+        </p>
+      </div>
       <Button type="button" variant="primary" size="sm" onClick={onAdd}>
-        <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
+        <Plus className="h-4 w-4" aria-hidden="true" />
         Add remote
       </Button>
     </div>
   )
 }
 
-function AddRemoteForm({
+export function AddRemoteForm({
   kinds,
-  existingIds,
-  onCancel,
   onAdded,
 }: {
   kinds: RemoteKind[]
-  existingIds: Set<string>
-  onCancel: () => void
-  onAdded: () => void
+  onAdded: (remote: RemoteConnection) => void
 }) {
-  const available = kinds.filter((kind) => !existingIds.has(kind.id))
-  const defaultKind = available.find((kind) => kind.id === 'hermes') ?? available[0]
-  const [kindId, setKindId] = useState(defaultKind?.id ?? 'hermes')
-  const selected = available.find((kind) => kind.id === kindId) ?? defaultKind
+  const { success, error } = useToast()
+  const queryClient = useQueryClient()
+  const options = kinds.length
+    ? kinds
+    : [
+        { id: 'hermes', label: 'Hermes' },
+        { id: 'omb', label: OPENMOUSBOT_LABEL },
+        { id: 'rakazo', label: 'Rakazo' },
+      ]
+  const [kind, setKind] = useState(options[0]?.id ?? 'omb')
   const [baseUrl, setBaseUrl] = useState('')
-  const [apiKeyEnv, setApiKeyEnv] = useState(selected?.api_key_env_default ?? 'HERMES_API_KEY')
+  const [apiKeyEnv, setApiKeyEnv] = useState('')
 
-  const mutation = useMutation({
+  const addMutation = useMutation({
     mutationFn: () =>
       addRemote({
-        kind: kindId,
+        kind,
         base_url: baseUrl.trim(),
-        api_key_env: apiKeyEnv.trim(),
+        api_key_env: apiKeyEnv.trim() || undefined,
       }),
-    onSuccess: onAdded,
+    onSuccess: (remote) => {
+      queryClient.setQueryData(REMOTES_QUERY_KEY, (prev: { object?: string; kinds?: RemoteKind[]; data?: RemoteConnection[] } | undefined) => {
+        const kinds = prev?.kinds ?? []
+        const data = [...(prev?.data ?? []).filter((row) => row.id !== remote.id), remote]
+        return { object: 'list' as const, kinds, data }
+      })
+      queryClient.invalidateQueries({ queryKey: REMOTES_QUERY_KEY })
+      success('Remote added', remoteKindLabel(remote.id, remote.label))
+      onAdded(remote)
+    },
+    onError: (err: Error) => {
+      error('Could not add remote', err.message)
+    },
   })
-
-  const handleKindChange = (next: string) => {
-    const kind = available.find((item) => item.id === next)
-    setKindId(next)
-    if (kind?.api_key_env_default) {
-      setApiKeyEnv(kind.api_key_env_default)
-    }
-  }
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    mutation.mutate()
-  }
-
-  if (available.length === 0) {
-    return (
-      <Alert type="info" icon={<Server className="h-5 w-5" />}>
-        <span className="text-sm">Every known kind is already added.</span>
-      </Alert>
-    )
+    addMutation.mutate()
   }
 
   return (
-    <form className="space-y-3 rounded-box border border-base-300 p-4" onSubmit={handleSubmit}>
-      <h5 className="font-medium">Add remote</h5>
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div>
+        <h4 className="text-lg font-semibold">Add remote</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          Pick a kind, then enter a base URL and an optional api-key-env name
+          (placeholder only — never paste a token).
+        </p>
+      </div>
       <Select
         label="Kind"
         name="remote-kind"
-        value={kindId}
-        onChange={(event) => handleKindChange(event.target.value)}
+        value={kind}
+        onChange={(event) => setKind(event.target.value)}
+        required
       >
-        {available.map((kind) => (
-          <option key={kind.id} value={kind.id}>
-            {kind.label}
-            {kind.complete ? ' (complete)' : ''}
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {remoteKindLabel(option.id, option.label)}
           </option>
         ))}
       </Select>
@@ -162,98 +111,115 @@ function AddRemoteForm({
         name="remote-base-url"
         value={baseUrl}
         onChange={(event) => setBaseUrl(event.target.value)}
-        placeholder="http://127.0.0.1:8642"
+        placeholder="http://127.0.0.1:9"
         autoComplete="off"
         spellCheck={false}
         required
       />
       <Input
-        label="API key env name"
+        label="API key env (optional)"
         name="remote-api-key-env"
         value={apiKeyEnv}
         onChange={(event) => setApiKeyEnv(event.target.value)}
-        placeholder={selected?.api_key_env_default || 'HERMES_API_KEY'}
+        placeholder="OMB_API_KEY"
         autoComplete="off"
         spellCheck={false}
       />
-      <p className="text-xs text-base-content/60">
-        Store the environment variable name only. Never paste a token.
-      </p>
-      {mutation.isError ? (
-        <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-          <span className="text-sm">{mutation.error.message}</span>
-        </Alert>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="primary" size="sm" loading={mutation.isPending}>
-          Add
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
+      <Button type="submit" variant="primary" size="sm" loading={addMutation.isPending}>
+        Add remote
+      </Button>
     </form>
   )
 }
 
-function AddedRemoteCard({
-  remote,
-  kinds,
-}: {
-  remote: RemoteConnection
-  kinds: RemoteKind[]
-}) {
-  const kind = kinds.find((item) => item.id === remote.kind || item.id === remote.id)
-  const [prompt, setPrompt] = useState('')
+function botsFromOperate(result: RemoteOperateResult | undefined): Array<{ id: string; name?: string }> {
+  if (!result?.data) return []
+  const raw = result.data
+  let list: unknown = raw
+  if (raw && typeof raw === 'object' && 'bots' in raw) {
+    list = (raw as { bots: unknown }).bots
+  }
+  if (!Array.isArray(list)) return []
+  return list
+    .map((item) => {
+      if (typeof item === 'string') return { id: item }
+      if (item && typeof item === 'object' && 'id' in item) {
+        const rec = item as { id: unknown; name?: unknown }
+        return { id: String(rec.id), name: rec.name != null ? String(rec.name) : undefined }
+      }
+      return null
+    })
+    .filter((item): item is { id: string; name?: string } => Boolean(item?.id))
+}
+
+export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
+  const { error } = useToast()
+  const label = remoteKindLabel(remote.id, remote.label || remote.title)
+  const isOmb = isOpenMousBotKind(remote.id)
   const [health, setHealth] = useState<RemoteHealthResult | null>(null)
-  const [operate, setOperate] = useState<RemoteOperateResult | null>(null)
+  const [listed, setListed] = useState<RemoteOperateResult | null>(null)
+  const [sent, setSent] = useState<RemoteOperateResult | null>(null)
+  const [botId, setBotId] = useState('')
+  const [prompt, setPrompt] = useState('')
 
   const healthMutation = useMutation({
     mutationFn: () => probeRemoteHealth(remote.id),
-    onSuccess: (result) => {
-      setHealth(result)
-      setOperate(null)
+    onSuccess: (result) => setHealth(result),
+    onError: (err: Error) => {
+      setHealth({
+        remote: remote.id,
+        ok: false,
+        state: 'DOWN',
+        detail: err.message || 'health probe failed',
+      })
     },
   })
+
   const listMutation = useMutation({
-    mutationFn: () => operateRemote(remote.id, 'list'),
+    mutationFn: () => operateRemote(remote.id, { op: 'list' }),
     onSuccess: (result) => {
-      setOperate(result)
+      setListed(result)
+      const bots = botsFromOperate(result)
+      if (!botId && bots[0]?.id) setBotId(bots[0].id)
+    },
+    onError: (err: Error) => {
+      setListed({
+        remote: remote.id,
+        op: 'list',
+        ok: false,
+        detail: err.message || 'list failed',
+      })
     },
   })
+
   const sendMutation = useMutation({
-    mutationFn: () => operateRemote(remote.id, 'send', prompt),
-    onSuccess: (result) => {
-      setOperate(result)
+    mutationFn: () =>
+      operateRemote(remote.id, { op: 'send', prompt: prompt.trim(), target: botId.trim() }),
+    onSuccess: (result) => setSent(result),
+    onError: (err: Error) => {
+      error('Send failed', err.message)
+      setSent({
+        remote: remote.id,
+        op: 'send',
+        ok: false,
+        detail: err.message || 'send failed',
+      })
     },
   })
 
-  const busy = healthMutation.isPending || listMutation.isPending || sendMutation.isPending
-  const report = operate ?? null
-  const title = kind?.label || remote.title || remote.id
-
-  const healthTone = useMemo(() => {
-    if (!health) return ''
-    if (health.state === 'UP') return 'badge-success'
-    if (health.state === 'DOWN') return 'badge-error'
-    return 'badge-warning'
-  }, [health])
+  const bots = useMemo(() => botsFromOperate(listed ?? undefined), [listed])
+  const healthTone =
+    health?.state === 'UP' ? 'success' : health?.state === 'DOWN' ? 'warning' : health ? 'info' : undefined
 
   return (
-    <article className="space-y-3 rounded-box border border-base-300 bg-base-200/40 p-4">
-      <header className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h5 className="text-base font-semibold">{title}</h5>
-          <span className="badge badge-ghost badge-sm font-mono">{remote.kind || remote.id}</span>
-          {health ? (
-            <span className={`badge badge-sm ${healthTone}`}>{health.state}</span>
-          ) : null}
-        </div>
-        <p className="font-mono text-sm break-all">{remote.base_url}</p>
-        <p className="text-xs text-base-content/60">
-          API key env: <code>{remote.api_key_env || 'unset'}</code>
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-lg font-semibold">{label}</h4>
+        <p className="mt-1 text-sm text-base-content/70">
+          {remote.base_url || 'No base URL'}
+          {remote.api_key_env ? ` · env ${remote.api_key_env}` : ''}
         </p>
-      </header>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -261,7 +227,6 @@ function AddedRemoteCard({
           variant="outline"
           size="sm"
           loading={healthMutation.isPending}
-          disabled={busy}
           onClick={() => healthMutation.mutate()}
         >
           Health
@@ -271,73 +236,82 @@ function AddedRemoteCard({
           variant="outline"
           size="sm"
           loading={listMutation.isPending}
-          disabled={busy}
           onClick={() => listMutation.mutate()}
         >
-          List
+          {isOmb ? 'List bots' : 'List'}
         </Button>
       </div>
 
-      {health ? (
+      {health && (
         <Alert
-          type={health.ok ? 'success' : health.state === 'DOWN' ? 'error' : 'warning'}
+          type={healthTone === 'success' ? 'success' : healthTone === 'warning' ? 'warning' : 'info'}
           icon={<Server className="h-5 w-5" />}
         >
-          <span className="text-sm">
-            {health.state}: {health.detail}
-          </span>
-        </Alert>
-      ) : null}
-
-      <div className="space-y-2">
-        <Textarea
-          label="Send prompt"
-          name={`${remote.id}-send-prompt`}
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          placeholder="status"
-          rows={2}
-        />
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          loading={sendMutation.isPending}
-          disabled={busy || !prompt.trim()}
-          onClick={() => sendMutation.mutate()}
-        >
-          Send
-        </Button>
-      </div>
-
-      {report ? (
-        <div className="space-y-1">
-          <p className="text-sm">
-            {report.ok ? 'OK' : 'Failed'}: {report.detail}
-          </p>
-          {report.data != null ? (
-            <pre className="max-h-48 overflow-auto rounded-lg bg-base-300/60 p-2 text-xs">
-              {formatJson(report.data)}
-            </pre>
-          ) : null}
-        </div>
-      ) : null}
-
-      {(healthMutation.isError || listMutation.isError || sendMutation.isError) && (
-        <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
-          <span className="text-sm">
-            {(healthMutation.error || listMutation.error || sendMutation.error)?.message}
-          </span>
+          <div className="space-y-1 text-sm">
+            <p>
+              <span className="font-medium">{health.state}</span>
+              {health.ok ? '' : ' — report, not a crash'}
+            </p>
+            <p className="text-base-content/70">{health.detail}</p>
+          </div>
         </Alert>
       )}
-    </article>
-  )
-}
 
-function formatJson(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
+      {listed && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{isOmb ? 'Bots' : 'List'}</p>
+          {listed.ok && bots.length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {bots.map((bot) => (
+                <li key={bot.id} className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2 font-mono">
+                  {bot.id}
+                  {bot.name ? ` · ${bot.name}` : ''}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Alert type={listed.ok ? 'info' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
+              <span className="text-sm">{listed.detail}</span>
+            </Alert>
+          )}
+        </div>
+      )}
+
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          sendMutation.mutate()
+        }}
+      >
+        <Input
+          label={isOmb ? 'Bot id' : 'Target'}
+          name="remote-bot-id"
+          value={botId}
+          onChange={(event) => setBotId(event.target.value)}
+          placeholder={isOmb ? 'bot id' : 'optional target'}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <Textarea
+          label="Message"
+          name="remote-send-prompt"
+          value={prompt}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder="Message to send"
+          rows={3}
+          required
+        />
+        <Button type="submit" variant="primary" size="sm" loading={sendMutation.isPending}>
+          Send
+        </Button>
+      </form>
+
+      {sent && (
+        <Alert type={sent.ok ? 'success' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">{sent.detail}</span>
+        </Alert>
+      )}
+    </div>
+  )
 }

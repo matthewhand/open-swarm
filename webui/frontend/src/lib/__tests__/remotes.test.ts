@@ -1,65 +1,80 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { addRemote, fetchRemotes, operateRemote, probeRemoteHealth } from '../api'
+import { describe, expect, it } from 'vitest'
+import {
+  configuredRemotes,
+  remoteKindLabel,
+  remoteKinds,
+  unusedRemoteKinds,
+} from '../remotes'
 
-describe('remotes API client (REQ-61)', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
+describe('remotes catalog (REQ-59)', () => {
+  it('labels omb as OpenMousBot and never OMB', () => {
+    expect(remoteKindLabel('omb')).toBe('OpenMousBot')
+    expect(remoteKindLabel('openmousbot')).toBe('OpenMousBot')
+    expect(remoteKindLabel('hermes')).toBe('Hermes')
+    expect(remoteKindLabel('open-swarm')).toBe('open-swarm')
+    expect(remoteKindLabel('omb')).not.toMatch(/\bOMB\b/)
   })
 
-  it('lists an empty catalog without default cards', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ object: 'list', data: [], kinds: [{ id: 'hermes', complete: true }] }),
-      } as Response),
-    )
-    const listed = await fetchRemotes()
-    expect(listed.data).toEqual([])
-    expect(listed.kinds[0]?.id).toBe('hermes')
+  it('treats an empty catalog as no configured remotes', () => {
+    const empty = {
+      object: 'list' as const,
+      kinds: [
+        { id: 'hermes', label: 'Hermes' },
+        { id: 'omb', label: 'OpenMousBot' },
+        { id: 'rakazo', label: 'Rakazo' },
+      ],
+      configured: [],
+      data: [],
+    }
+    expect(configuredRemotes(empty)).toEqual([])
+    expect(unusedRemoteKinds(empty).map((kind) => kind.id)).toEqual([
+      'hermes',
+      'omb',
+      'rakazo',
+    ])
+    expect(remoteKinds(empty).find((kind) => kind.id === 'omb')?.label).toBe('OpenMousBot')
   })
 
-  it('adds hermes with base URL + api-key-env name only', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        id: 'hermes',
-        kind: 'hermes',
-        base_url: 'http://127.0.0.1:9',
-        api_key_env: 'HERMES_API_KEY',
-        added: true,
-      }),
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
-    const row = await addRemote({
-      kind: 'hermes',
-      base_url: 'http://127.0.0.1:9',
-      api_key_env: 'HERMES_API_KEY',
-    })
-    expect(row.kind).toBe('hermes')
-    expect(JSON.stringify(fetchMock.mock.calls[0]?.[1]?.body)).not.toMatch(/sk-|token/i)
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toContain('HERMES_API_KEY')
+  it('lists only configured remotes after add', () => {
+    const listed = {
+      object: 'list' as const,
+      kinds: [
+        { id: 'hermes', label: 'Hermes' },
+        { id: 'omb', label: 'OpenMousBot' },
+        { id: 'rakazo', label: 'Rakazo' },
+      ],
+      configured: [
+        {
+          id: 'omb',
+          kind: 'omb',
+          label: 'OpenMousBot',
+          title: 'OpenMousBot',
+          host_label: '',
+          base_url: 'http://127.0.0.1:8802',
+          source: 'config',
+        },
+      ],
+    }
+    const rows = configuredRemotes(listed)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('omb')
+    expect(remoteKindLabel(rows[0].id, listed.kinds)).toBe('OpenMousBot')
+    expect(unusedRemoteKinds(listed).map((kind) => kind.id)).toEqual(['hermes', 'rakazo'])
   })
 
-  it('health and operate post to the documented Hermes routes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ ok: true, state: 'UP', detail: 'up', op: 'list' }),
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
-    await probeRemoteHealth('hermes')
-    await operateRemote('hermes', 'list')
-    await operateRemote('hermes', 'send', 'status')
-    const urls = fetchMock.mock.calls.map((call) => String(call[0]))
-    expect(urls[0]).toBe('/v1/remotes/hermes/health/')
-    expect(urls[1]).toBe('/v1/remotes/hermes/operate/')
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
-      op: 'send',
-      prompt: 'status',
-      target: '',
-    })
+  it('ignores default data rows when configured is omitted', () => {
+    const listed = {
+      object: 'list' as const,
+      data: [
+        {
+          id: 'hermes',
+          title: 'Hermes',
+          host_label: '',
+          base_url: 'http://10.0.0.36:8642',
+          source: 'default',
+        },
+      ],
+    }
+    expect(configuredRemotes(listed)).toEqual([])
   })
 })

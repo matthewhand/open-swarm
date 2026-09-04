@@ -37,7 +37,7 @@ describe('supportAgent helpers', () => {
   })
 
   it('injects gate and skeptic seats using catalog ids when present', () => {
-    const toolGate: Blueprint = { ...codey, id: 'tool_gate', name: 'Gate' }
+    const toolGate: Blueprint = { ...codey, id: 'tool_gate', name: 'Safety' }
     const agents = supportFirstAgents([codey, toolGate])
     expect(agents[0]?.id).toBe(SUPPORT_AGENT_ID)
     expect(agents.some((agent) => agent.id === 'tool_gate' && isGateAgent(agent))).toBe(true)

@@ -52,19 +52,12 @@ async def test_health_grammar(bp):
 @pytest.mark.asyncio
 async def test_list_config_without_probing(bp):
     out = await _ask(bp, "list")
-    assert "No remotes added" in out
-    assert "10.0.0.36" not in out
-
-
-@pytest.mark.asyncio
-async def test_list_added_hermes_without_lan_default():
-    bp = RemoteHarnessBlueprint(
-        config={"llm": {}, "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}}}
-    )
-    out = await _ask(bp, "list")
     assert "hermes" in out
+    assert "omb" in out
+    assert "rakazo" in out
+    assert "swarm" in out
+    assert "10.0.0.36:8642" in out
     assert "127.0.0.1:9" in out
-    assert "10.0.0.36" not in out
 
 
 @pytest.mark.asyncio
@@ -79,17 +72,7 @@ async def test_send_params(bp):
 
 
 @pytest.mark.asyncio
-async def test_as_tool_specialists_wired():
-    bp = RemoteHarnessBlueprint(
-        config={
-            "llm": {},
-            "remotes": {
-                "hermes": {"base_url": "http://127.0.0.1:9"},
-                "omb": {"base_url": "http://127.0.0.1:9"},
-                "rakazo": {"base_url": "http://127.0.0.1:9"},
-            },
-        }
-    )
+async def test_as_tool_specialists_wired(bp):
     agents = bp._build_agents()
     assert agents, "expected coordinator + specialist agents (bare Agent fallback if no LLM)"
     coord = agents["coordinator"]
@@ -105,17 +88,14 @@ async def test_as_tool_specialists_wired():
 @pytest.mark.asyncio
 async def test_as_tool_only_placed_members():
     bp = RemoteHarnessBlueprint(
-        config={
-            "llm": {},
-            "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}},
-            "agent_team": {"members": ["hermes"]},
-        }
+        config={"llm": {}, "agent_team": {"members": ["hermes"]}}
     )
     agents = bp._build_agents()
     assert agents, "expected coordinator + placed specialist"
     assert "hermes" in agents
     assert "omb" not in agents
     assert "rakazo" not in agents
+    assert "swarm" not in agents
     names = []
     for tool in getattr(agents["coordinator"], "tools", []) or []:
         names.append(getattr(tool, "name", None) or getattr(tool, "__name__", ""))
@@ -123,3 +103,20 @@ async def test_as_tool_only_placed_members():
     assert "consult_hermes" in joined
     assert "consult_omb" not in joined
     assert "consult_rakazo" not in joined
+    assert "consult_swarm" not in joined
+
+
+@pytest.mark.asyncio
+async def test_as_tool_swarm_when_placed():
+    bp = RemoteHarnessBlueprint(
+        config={"llm": {}, "agent_team": {"members": ["swarm"]}}
+    )
+    agents = bp._build_agents()
+    assert agents, "expected coordinator + swarm specialist"
+    assert "swarm" in agents
+    assert "hermes" not in agents
+    names = []
+    for tool in getattr(agents["coordinator"], "tools", []) or []:
+        names.append(getattr(tool, "name", None) or getattr(tool, "__name__", ""))
+    joined = " ".join(str(n) for n in names)
+    assert "consult_swarm" in joined

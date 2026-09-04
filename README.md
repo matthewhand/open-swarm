@@ -87,6 +87,16 @@ curl -sf http://localhost:8000/v1/responses \
 
 The `model` field selects which blueprint handles the request. Streaming is supported. **Wrapping your CLIs:** install + authenticate your agentic CLIs, run `swarm-cli cli-agents --init --write` to generate the `cli_agents` config, then call with `model: "cli_fusion"` (one agent, consensus across your CLIs) or `model: "cli_map"` (many agents, each one CLI). See [docs/CLI_FUSION.md](docs/CLI_FUSION.md). **Web UI:** when `webui/frontend/dist/` is built, `/` prefers that React SPA dashboard (falls back to Django templates otherwise). Day-to-day operator UI is Django server-rendered + HTMx at trailing-slash routes (`/teams/`, `/blueprint-library/`, `/agent-creator/`, `/settings/`, `/sessions/`, …). The SPA is experimental and not at parity with those pages — see [USERGUIDE.md](./USERGUIDE.md) and [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md).
 
+## Pinokio (local sideload)
+
+Open Swarm is **not** in the Pinokio public catalog. In Pinokio, add the git URL only (Download from URL / sideload) — do not search Discover:
+
+```
+https://github.com/matthewhand/open-swarm.git
+```
+
+Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home` (REQ-45).
+
 ---
 
 ## Architecture
@@ -358,7 +368,7 @@ Documentation map:
 * [docs/GUIDED_TOUR.md](./docs/GUIDED_TOUR.md) — visual page-by-page tour of the web UI (React SPA + Django templates).
 * [docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md](./docs/SKILLS_AND_CONSENSUS_WALKTHROUGH.md) — illustrated end-to-end walkthrough of skills + 3-CLI consensus, with real terminal captures.
 * [docs/MOA.md](./docs/MOA.md) — Mixture of Agents consensus and consensus→team path.
-* [docs/HERDR.md](./docs/HERDR.md) — Herdr members (`kind=herdr`): same-host CLI default, optional `--remote`, mocked in CI.
+* [docs/HERDR.md](./docs/HERDR.md) — Herdr members (`kind=herdr`): same-host CLI default, optional `--remote` from configured remotes kind (REQ-64), mocked in CI.
 * [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) — screenshot capture registry; regenerate with `scripts/capture_user_journey.py`.
 * [Developer](#developer) — gateway vs workers, `/v1/responses` sequence, git-dated history.
 * [DEVELOPMENT.md](./DEVELOPMENT.md) — tech stack and internal architecture; [ROADMAP.md](./ROADMAP.md) — honest feature status.

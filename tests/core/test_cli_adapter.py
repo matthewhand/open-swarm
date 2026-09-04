@@ -53,6 +53,14 @@ def test_arg_mode_requires_prompt_token():
         CliAgentConfig(name="x", cmd=[PY, "-c", "print(1)"])  # no {prompt}
 
 
+def test_resume_flag_appended_only_when_id_provided():
+    adapter = CliAdapter.from_config("echo", _echo_cfg())
+    argv_off, _ = adapter._build_invocation("hi", "/tmp", resume_session_id=None)
+    assert "--resume" not in argv_off
+    argv_on, _ = adapter._build_invocation("hi", "/tmp", resume_session_id="sess-123")
+    assert argv_on[-2:] == ["--resume", "sess-123"]
+
+
 def test_stdin_mode_does_not_require_prompt_token():
     cfg = CliAgentConfig(name="x", cmd=["cat"], prompt_mode="stdin")
     assert cfg.prompt_mode == "stdin"
@@ -94,6 +102,49 @@ async def test_json_parse_dotpath():
     assert res.ok is True
     assert res.text == "answer:Q"
     assert res.parse_error is None
+
+
+async def test_json_parse_captures_sibling_session_id():
+    code = (
+        "import json,sys; "
+        "print(json.dumps({'result': 'answer', 'session_id': 'sess-42'}))"
+    )
+    adapter = CliAdapter.from_config(
+        "claude", {"cmd": [PY, "-c", code, "{prompt}"], "parse": "json:.result"}
+    )
+    res = await adapter.run("Q")
+    assert res.ok is True
+    assert res.text == "answer"
+    assert res.session_id == "sess-42"
+
+
+async def test_resume_argv_injected_only_when_id_given(tmp_path):
+    script = tmp_path / "echo_resume.py"
+    script.write_text(
+        "import json,sys\n"
+        "args=sys.argv[1:]\n"
+        "resume=None\n"
+        "if '--resume' in args:\n"
+        "    resume=args[args.index('--resume')+1]\n"
+        "print(json.dumps({'result': 'ok', 'session_id': resume or 'sid-new', "
+        "'argv': args}))\n"
+    )
+    raw = {
+        "cmd": [PY, str(script), "{prompt}"],
+        "parse": "json:.result",
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 2,
+        "session_id_paths": [".session_id"],
+    }
+    adapter = CliAdapter.from_config("echo", raw)
+    first = await adapter.run("hello")
+    assert first.ok and first.session_id == "sid-new"
+    argv = adapter._build_invocation("hello", ".", session_id=None)[0]
+    assert "--resume" not in argv
+    resumed = adapter._build_invocation("next", ".", session_id="sid-new")[0]
+    assert resumed[2:4] == ["--resume", "sid-new"]
+    second = await adapter.run("next", session_id="sid-new")
+    assert second.ok and second.session_id == "sid-new"
 
 
 async def test_json_parse_nested_list_index():

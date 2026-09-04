@@ -231,6 +231,85 @@ function getCsrfToken() {
   }
 }
 
+function setHerdrRemoteStatus(message, kind) {
+  const el = document.getElementById("herdr-remote-status");
+  if (!el) return;
+  el.textContent = message || "";
+  el.className = kind ? `os-meta text-${kind}` : "os-meta";
+}
+
+async function refreshHerdrRemoteKind() {
+  const status = document.getElementById("herdr-remote-status");
+  if (!status) return;
+  try {
+    const response = await fetch("/v1/remotes/", {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      setHerdrRemoteStatus("Could not load remotes list.", "danger");
+      return;
+    }
+    const body = await response.json();
+    const rows = Array.isArray(body.data) ? body.data : [];
+    const herdr = rows.find((row) => row && row.id === "herdr");
+    if (!herdr) {
+      setHerdrRemoteStatus(
+        "Not configured — add a base URL to list it under Settings Remotes.",
+      );
+      return;
+    }
+    const auth = herdr.api_key_set ? "auth set" : "auth unset";
+    setHerdrRemoteStatus(
+      `Configured kind=herdr · ${herdr.base_url || "(no base)"} · ${auth}. CLI --remote uses this base.`,
+      "success",
+    );
+  } catch {
+    setHerdrRemoteStatus("Could not load remotes list.", "danger");
+  }
+}
+
+async function addHerdrRemoteKind() {
+  const baseInput = document.getElementById("herdr-remote-base");
+  const envInput = document.getElementById("herdr-remote-key-env");
+  const base = (baseInput?.value || "").trim();
+  const envName = (envInput?.value || "").trim() || "HERDR_API_KEY";
+  if (!base) {
+    setHerdrRemoteStatus("Base URL is required to add kind=herdr.", "danger");
+    return;
+  }
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRFToken"] = csrf;
+  const response = await fetch("/v1/remotes/herdr/", {
+    method: "PATCH",
+    headers,
+    credentials: "same-origin",
+    body: JSON.stringify({
+      base_url: base,
+      api_key: "${" + envName + "}",
+    }),
+  });
+  let body = {};
+  try {
+    body = await response.json();
+  } catch {
+    body = {};
+  }
+  if (!response.ok) {
+    setHerdrRemoteStatus(body.error || `Add failed (${response.status}).`, "danger");
+    return;
+  }
+  if (baseInput) baseInput.value = "";
+  setHerdrRemoteStatus(
+    `Added kind=herdr · ${body.base_url || base}. CLI --remote uses this configured base.`,
+    "success",
+  );
+}
+
 function setHerdrStatus(message, kind) {
   const el = document.getElementById("herdr-agent-status");
   if (!el) return;
@@ -420,6 +499,7 @@ const SETTINGS_DASHBOARD_ACTIONS = {
   'chat-archive-all': chatArchiveAll,
   'chat-empty-trash': chatEmptyTrash,
   'add-herdr-agent': addHerdrAgent,
+  'add-herdr-remote': addHerdrRemoteKind,
   'discover-herdr-agents': discoverHerdrAgents,
 };
 
@@ -440,7 +520,7 @@ document.querySelector('.settings-page')?.addEventListener('click', (event) => {
     removeHerdrAgent(btn);
     return;
   }
-  if (action === 'add-herdr-agent' && btn.type === 'submit') {
+  if ((action === 'add-herdr-agent' || action === 'add-herdr-remote') && btn.type === 'submit') {
     // Form submit handler owns this; avoid double-fire from the click delegate.
     return;
   }
@@ -451,6 +531,11 @@ document.querySelector('.settings-page')?.addEventListener('click', (event) => {
 document.getElementById('herdr-add-form')?.addEventListener('submit', (event) => {
   event.preventDefault();
   addHerdrAgent();
+});
+
+document.getElementById('herdr-remote-form')?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  addHerdrRemoteKind();
 });
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -477,4 +562,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const groupId = firstGroup.id.replace('group-', '');
     toggleGroup(groupId);
   }
+
+  refreshHerdrRemoteKind();
 });
