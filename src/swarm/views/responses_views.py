@@ -286,6 +286,10 @@ class ResponsesView(APIView):
             raise ParseError("'input' did not yield any messages.")
 
         # --- Statefulness: continue a prior conversation by id ---
+        # REQ-65: on-mode workers get a new empty session; swarm owns create.
+        from swarm.core.session_policy import continue_api_previous_response
+
+        previous_response_id = continue_api_previous_response(model_name, previous_response_id)
         if previous_response_id:
             prior = await sync_to_async(responses_store.load)(str(previous_response_id))
             if prior is None:

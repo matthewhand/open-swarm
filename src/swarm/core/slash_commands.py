@@ -24,9 +24,25 @@ def _help_command(blueprint=None, args=None):
 
 # Built-in '/compact' slash command
 @slash_registry.register('/compact')
-def _compact_command(blueprint=None, args=None):
-    """Placeholder for compacting conversation context."""
-    return "[slash command] compact summary not implemented yet."
+def _compact_command(blueprint=None, args=None, conversation_id=None, messages=None, user=None, **_kwargs):
+    """Compact the backlog (composer + menu is the primary UI)."""
+    if conversation_id and messages and user is not None:
+        from swarm.core.chat_compact import CompactError, compact_backlog
+
+        agent_id = ""
+        if blueprint is not None:
+            agent_id = getattr(blueprint, "blueprint_name", None) or getattr(blueprint, "name", "") or ""
+        try:
+            row, _raw = compact_backlog(
+                user=user,
+                conversation_id=conversation_id,
+                agent_id=str(agent_id or ""),
+                messages=messages,
+            )
+        except CompactError as exc:
+            return f"[slash command] compact failed: {exc}"
+        return row.body
+    return "Compact the chat from the composer + menu."
 
 # Built-in '/model' slash command
 @slash_registry.register('/model')
