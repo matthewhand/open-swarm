@@ -40,6 +40,65 @@ import os
 import shutil
 from typing import Any
 
+# User-local bins Daphne often misses when started with PATH=/usr/bin:/bin.
+_EXTRA_BIN_REL = (
+    (".local", "bin"),
+    ("bin",),
+    (".grok", "bin"),
+    (".npm-global", "bin"),
+    (".local", "share", "pnpm"),
+)
+
+
+def extra_cli_path_dirs() -> list[str]:
+    """User and nvm bin dirs that commonly hold grok/agy/pi/opencode."""
+    home = os.path.expanduser("~")
+    dirs: list[str] = []
+    for parts in _EXTRA_BIN_REL:
+        path = os.path.join(home, *parts)
+        if os.path.isdir(path):
+            dirs.append(path)
+    nvm = os.path.join(home, ".nvm", "versions", "node")
+    if os.path.isdir(nvm):
+        for ver in sorted(os.listdir(nvm), reverse=True):
+            path = os.path.join(nvm, ver, "bin")
+            if os.path.isdir(path):
+                dirs.append(path)
+    for path in ("/usr/local/bin",):
+        if os.path.isdir(path):
+            dirs.append(path)
+    return dirs
+
+
+def host_cli_path(current: str | None = None) -> str:
+    """``PATH`` with extra user bin dirs prepended (deduped)."""
+    current = os.environ.get("PATH", "") if current is None else current
+    parts: list[str] = []
+    seen: set[str] = set()
+    for d in [*extra_cli_path_dirs(), *current.split(os.pathsep)]:
+        if d and d not in seen:
+            seen.add(d)
+            parts.append(d)
+    return os.pathsep.join(parts)
+
+
+def which_cli(exe: str) -> str | None:
+    """Resolve ``exe`` on PATH, then user-local bins (nvm, ~/.local/bin, …)."""
+    if not exe:
+        return None
+    if os.path.sep in exe:
+        return exe if os.path.isfile(exe) and os.access(exe, os.X_OK) else None
+    found = shutil.which(exe)
+    if found:
+        return found
+    extra = extra_cli_path_dirs()
+    if not extra:
+        return None
+    try:
+        return shutil.which(exe, path=os.pathsep.join(extra))
+    except TypeError:
+        return None
+
 # name -> adapter config dict (same shape as one `cli_agents` entry).
 CATALOG: dict[str, dict[str, Any]] = {
     "grok": {
@@ -468,7 +527,7 @@ def rail_cli_rows() -> list[dict[str, Any]]:
             "cli": name,
             "kind": "cli",
             "description": meta.get("description") or spec.get("description") or f"{name} CLI",
-            "installed": bool(shutil.which(CATALOG[name]["cmd"][0])),
+            "installed": bool(which_cli(CATALOG[name]["cmd"][0])),
         })
     return rows
 
@@ -486,7 +545,7 @@ def catalog_names() -> list[str]:
 
 def installed_catalog_clis() -> list[str]:
     """Catalog CLIs whose executable resolves on this host (sorted)."""
-    return [n for n in catalog_names() if shutil.which(CATALOG[n]["cmd"][0])]
+    return [n for n in catalog_names() if which_cli(CATALOG[n]["cmd"][0])]
 
 
 def _executable_on_path(exe: str) -> bool:
@@ -495,7 +554,7 @@ def _executable_on_path(exe: str) -> bool:
         return False
     if os.path.sep in exe:
         return os.path.isfile(exe) and os.access(exe, os.X_OK)
-    return shutil.which(exe) is not None
+    return which_cli(exe) is not None
 
 
 def installed_host_clis(config: dict[str, Any] | None = None) -> list[str]:
@@ -589,7 +648,7 @@ def suggest_unconfigured(
     for name, cfg in CATALOG.items():
         if name in configured:
             continue
-        if installed_only and shutil.which(cfg["cmd"][0]) is None:
+        if installed_only and which_cli(cfg["cmd"][0]) is None:
             continue
         out[name] = _deepcopy(cfg)
     return out

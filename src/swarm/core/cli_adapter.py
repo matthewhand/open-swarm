@@ -28,7 +28,6 @@ import codecs
 import json
 import logging
 import os
-import shutil
 import signal
 import time
 from collections.abc import AsyncIterator
@@ -324,10 +323,20 @@ class CliAdapter:
 
     def is_available(self) -> bool:
         """True when the CLI executable is resolvable on PATH (or absolute)."""
-        exe = self.config.cmd[0]
-        if os.path.sep in exe:
-            return os.path.isfile(exe) and os.access(exe, os.X_OK)
-        return shutil.which(exe) is not None
+        from swarm.core.cli_catalog import which_cli
+
+        return which_cli(self.config.cmd[0]) is not None
+
+    def _resolved_argv(self, argv: list[str]) -> list[str]:
+        """Pin argv[0] to an absolute path so a stripped Daphne PATH still runs."""
+        if not argv:
+            return argv
+        from swarm.core.cli_catalog import which_cli
+
+        resolved = which_cli(argv[0])
+        if not resolved:
+            return argv
+        return [resolved, *argv[1:]]
 
     def _build_invocation(
         self,
@@ -466,6 +475,7 @@ class CliAdapter:
             )
             return
 
+        argv = self._resolved_argv(argv)
         start = time.monotonic()
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -634,6 +644,9 @@ class CliAdapter:
             env[key] = _apply_tokens(val, prompt, workdir)
         if extra_env:
             env.update(extra_env)
+        from swarm.core.cli_catalog import host_cli_path
+
+        env["PATH"] = host_cli_path(env.get("PATH", os.environ.get("PATH", "")))
         return env
 
     async def check_auth(self) -> str:
@@ -650,7 +663,7 @@ class CliAdapter:
         if not cfg.auth_check:
             return AUTH_UNKNOWN
         workdir = os.getcwd()
-        argv = [_apply_tokens(p, "", workdir) for p in cfg.auth_check]
+        argv = self._resolved_argv([_apply_tokens(p, "", workdir) for p in cfg.auth_check])
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv,
@@ -778,8 +791,10 @@ class CliAdapterRegistry:
         out: list[CliDiscovery] = []
         for name in self.names():
             cfg = self._adapters[name].config
+            from swarm.core.cli_catalog import which_cli
+
             exe = cfg.cmd[0]
-            resolved = exe if os.path.sep in exe else shutil.which(exe)
+            resolved = which_cli(exe) or (exe if os.path.sep in exe else None)
             out.append(
                 CliDiscovery(
                     name=name,

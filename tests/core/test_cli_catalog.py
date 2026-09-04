@@ -126,6 +126,27 @@ def test_rail_cli_rows_use_star_agent_ids():
     assert cli_catalog.cli_from_rail_id("nope") is None
 
 
+def test_which_cli_finds_user_local_bin_when_path_is_stripped(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    local_bin = home / ".local" / "bin"
+    local_bin.mkdir(parents=True)
+    grok = local_bin / "grok"
+    grok.write_text("#!/bin/sh\n")
+    grok.chmod(0o755)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", str(empty))
+    assert cli_catalog.which_cli("grok") == str(grok)
+    rows = {r["id"]: r for r in cli_catalog.rail_cli_rows()}
+    assert rows["grok_agent"]["installed"] is True
+    adapter = CliAdapter.from_config("grok", {"cmd": ["grok", "-p", "{prompt}"]})
+    assert adapter.is_available()
+    assert adapter._resolved_argv(["grok", "-p", "hi"])[0] == str(grok)
+    path = cli_catalog.host_cli_path(str(empty))
+    assert str(local_bin) in path.split(":")
+
+
 def test_pi_catalog_print_mode_is_positional_prompt():
     e = cli_catalog.catalog_entry("pi")
     assert e["cmd"][0] == "pi"
@@ -175,7 +196,7 @@ def test_suggest_all_when_nothing_configured():
 
 def test_suggest_installed_only_filters_by_path(monkeypatch):
     # Only 'codex' resolves on PATH -> only codex is suggested.
-    def fake_which(exe):
+    def fake_which(exe, path=None):
         return "/usr/bin/codex" if exe == "codex" else None
 
     monkeypatch.setattr(cli_catalog.shutil, "which", fake_which)
@@ -184,7 +205,7 @@ def test_suggest_installed_only_filters_by_path(monkeypatch):
 
 
 def test_suggest_returns_deep_copies(monkeypatch):
-    monkeypatch.setattr(cli_catalog.shutil, "which", lambda exe: "/x")
+    monkeypatch.setattr(cli_catalog.shutil, "which", lambda exe, path=None: "/x")
     s = cli_catalog.suggest_unconfigured([], installed_only=True)
     s["claude"]["cmd"].append("--mutated")
     assert "--mutated" not in cli_catalog.CATALOG["claude"]["cmd"]
