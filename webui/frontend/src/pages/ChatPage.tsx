@@ -11,7 +11,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
-import { useToast } from '../components/DaisyUI'
+import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
 import {
@@ -127,7 +127,7 @@ export {
 
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { addToast } = useToast()
+  const { addToast, dismissByKind } = useToast()
   const { narrow, railOpen, openRail } = useRailChrome()
   const teamFromUrl = searchParams.get('team') ?? ''
   const remoteFromUrl = searchParams.get('remote') ?? ''
@@ -208,7 +208,6 @@ const ChatPage = () => {
   const backoffAttemptRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
-  const toastedOutageRef = useRef(false)
   const streamStartedAtRef = useRef<number | null>(null)
   const lastUserTextRef = useRef('')
   /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
@@ -612,7 +611,6 @@ const ChatPage = () => {
 
   const reconnect = useCallback(() => {
     backoffAttemptRef.current = 0
-    toastedOutageRef.current = false
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
@@ -622,12 +620,10 @@ const ChatPage = () => {
 
   useEffect(() => {
     if (status === 'open') {
-      toastedOutageRef.current = false
+      dismissByKind(TOAST_KIND_WS_DISCONNECT)
       return
     }
     if (status !== 'failed' && status !== 'closed') return
-    if (toastedOutageRef.current) return
-    toastedOutageRef.current = true
     const title = authRejected
       ? 'Chat unavailable — sign in required'
       : status === 'failed'
@@ -639,6 +635,7 @@ const ChatPage = () => {
         ? 'ASGI is not serving /ws/ or Origin does not match ALLOWED_HOSTS.'
         : 'The chat websocket closed. Message history is kept.'
     addToast({
+      kind: TOAST_KIND_WS_DISCONNECT,
       type: 'error',
       title,
       message: (
@@ -656,7 +653,7 @@ const ChatPage = () => {
       ),
       position: 'bottom-right',
     })
-  }, [status, authRejected, signInHref, addToast, reconnect])
+  }, [status, authRejected, signInHref, addToast, dismissByKind, reconnect])
 
   const canSend = status === 'open' && input.trim().length > 0
 

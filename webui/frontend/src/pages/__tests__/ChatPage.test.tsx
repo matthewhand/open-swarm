@@ -3,7 +3,7 @@ import { render, screen, waitFor, act, fireEvent, within } from '@testing-librar
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
-import { ToastProvider } from '../../components/DaisyUI'
+import { ToastProvider, TOAST_KIND_WS_DISCONNECT } from '../../components/DaisyUI'
 import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAvatar'
 import { resetConversationThreads } from '../../lib/chatMeter'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
@@ -228,6 +228,117 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
 
     fireEvent.keyDown(composer, { key: 'Escape' })
     expect(composer).toHaveValue('')
+  })
+})
+
+describe('ChatPage disconnect toasts (REQ-112 #489)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  function disconnectToasts() {
+    return document.querySelectorAll(`[data-toast-kind="${TOAST_KIND_WS_DISCONNECT}"]`)
+  }
+
+  it('shows at most one disconnect toast, clears it on reconnect, and keeps unrelated toasts', async () => {
+    renderChat()
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    await act(async () => {
+      MockWebSocket.instances[0]?.close()
+    })
+
+    expect(await screen.findByText('Chat disconnected')).toBeInTheDocument()
+    expect(disconnectToasts()).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Voice input' }))
+    expect(await screen.findByText(/Speech recognition is not available/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Reconnect/i }))
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2)
+    })
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.failBeforeOpen()
+    })
+
+    expect(await screen.findByText('Chat websocket unreachable')).toBeInTheDocument()
+    expect(disconnectToasts()).toHaveLength(1)
+    expect(screen.queryByText('Chat disconnected')).not.toBeInTheDocument()
+    expect(screen.getByText(/Speech recognition is not available/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Reconnect/i }))
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(3)
+    })
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+
+    await waitFor(() => {
+      expect(disconnectToasts()).toHaveLength(0)
+    })
+    expect(screen.queryByText('Chat disconnected')).not.toBeInTheDocument()
+    expect(screen.queryByText('Chat websocket unreachable')).not.toBeInTheDocument()
+    expect(screen.getByText(/Speech recognition is not available/i)).toBeInTheDocument()
+  })
+
+  it('does not stack disconnect toasts when ChatPage remounts while the socket is down', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/chat']}>
+            <ChatPage key="one" />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+
+    await act(async () => {
+      MockWebSocket.instances[0]?.failBeforeOpen()
+    })
+    expect(await screen.findByText('Chat websocket unreachable')).toBeInTheDocument()
+    expect(disconnectToasts()).toHaveLength(1)
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/chat']}>
+            <ChatPage key="two" />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2)
+    })
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.failBeforeOpen()
+    })
+
+    expect(disconnectToasts()).toHaveLength(1)
+    expect(screen.getAllByText('Chat websocket unreachable')).toHaveLength(1)
   })
 })
 

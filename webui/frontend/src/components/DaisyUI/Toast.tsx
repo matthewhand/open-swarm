@@ -1,10 +1,13 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
 
 /**
  * Toast types
  */
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
+
+/** Chat websocket drop / handshake failure / auth-gate outage (REQ-112). */
+export const TOAST_KIND_WS_DISCONNECT = 'ws-disconnect';
 
 /**
  * Toast interface
@@ -16,6 +19,8 @@ export interface Toast {
   message: ReactNode;
   duration?: number;
   position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  /** When set, addToast replaces any existing toast with the same kind. */
+  kind?: string;
 }
 
 /**
@@ -25,6 +30,7 @@ interface ToastContextType {
   toasts: Toast[];
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
+  dismissByKind: (kind: string) => void;
   success: (title: string, message: ReactNode, duration?: number) => void;
   error: (title: string, message: ReactNode, duration?: number) => void;
   warning: (title: string, message: ReactNode, duration?: number) => void;
@@ -42,35 +48,47 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
   // Monotonic counter avoids same-millisecond id collisions (duplicate keys).
   const toastIdRef = useRef(0);
 
-  const addToast = (toast: Omit<Toast, 'id'>) => {
-    toastIdRef.current += 1;
-    const id = `toast-${Date.now()}-${toastIdRef.current}`;
-    const newToast = { ...toast, id };
-    setToasts(prev => [...prev, newToast]);
-  };
+  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
+    setToasts(prev => {
+      if (toast.kind) {
+        const others = prev.filter(existing => existing.kind !== toast.kind);
+        const existing = prev.find(candidate => candidate.kind === toast.kind);
+        if (existing) {
+          return [...others, { ...existing, ...toast }];
+        }
+      }
+      toastIdRef.current += 1;
+      const id = `toast-${Date.now()}-${toastIdRef.current}`;
+      return [...prev, { ...toast, id }];
+    });
+  }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
-  };
+  }, []);
 
-  const success = (title: string, message: ReactNode, duration = 5000) => {
+  const dismissByKind = useCallback((kind: string) => {
+    setToasts(prev => prev.filter(toast => toast.kind !== kind));
+  }, []);
+
+  const success = useCallback((title: string, message: ReactNode, duration = 5000) => {
     addToast({ type: 'success', title, message, duration, position: 'top-right' });
-  };
+  }, [addToast]);
 
-  const error = (title: string, message: ReactNode, duration = 5000) => {
+  const error = useCallback((title: string, message: ReactNode, duration = 5000) => {
     addToast({ type: 'error', title, message, duration, position: 'top-right' });
-  };
+  }, [addToast]);
 
-  const warning = (title: string, message: ReactNode, duration = 5000) => {
+  const warning = useCallback((title: string, message: ReactNode, duration = 5000) => {
     addToast({ type: 'warning', title, message, duration, position: 'top-right' });
-  };
+  }, [addToast]);
 
-  const info = (title: string, message: ReactNode, duration = 5000) => {
+  const info = useCallback((title: string, message: ReactNode, duration = 5000) => {
     addToast({ type: 'info', title, message, duration, position: 'top-right' });
-  };
+  }, [addToast]);
 
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
+    <ToastContext.Provider value={{ toasts, addToast, removeToast, dismissByKind, success, error, warning, info }}>
       {children}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </ToastContext.Provider>
@@ -153,6 +171,7 @@ const ToastItem = ({ toast, removeToast }: ToastItemProps) => {
       role="status"
       aria-live={live}
       aria-atomic="true"
+      data-toast-kind={toast.kind}
     >
       <div className="flex items-start gap-3">
         <div className="mt-1">

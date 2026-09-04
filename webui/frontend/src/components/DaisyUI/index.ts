@@ -21,8 +21,10 @@ export {
   useSuccessToast,
   useErrorToast,
   useWarningToast,
-  useInfoToast
+  useInfoToast,
+  TOAST_KIND_WS_DISCONNECT,
 } from './Toast';
+export type { Toast, ToastType } from './Toast';
 
 // Loading & Skeleton Components
 export { 
