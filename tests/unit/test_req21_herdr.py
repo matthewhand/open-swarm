@@ -49,6 +49,8 @@ def test_sidepane_and_teams_can_pick_herdr_members():
     settings = SETTINGS.read_text(encoding="utf-8")
     assert "kind=herdr" in settings
     assert "discover-herdr-agents" in settings
+    assert "Add Herdr remote" in settings
+    assert "OpenMousBot" in settings
 
 
 def test_sqlite_default_unchanged_no_neon_url():

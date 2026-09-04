@@ -133,6 +133,10 @@ def test_settings_dashboard_lists_herdr_section(client, django_user_model):
     assert "w3:p1" in html
     assert "localhost" in html
     assert "discover-herdr-agents" in html
+    assert "Add Herdr remote" in html
+    assert "herdr-remote-form" in html
+    assert "OpenMousBot" in html
+    assert "api-key-env" in html
 
 
 @pytest.mark.django_db

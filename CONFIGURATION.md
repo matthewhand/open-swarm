@@ -266,12 +266,15 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | Variable | Purpose | Default |
 |---|---|---|
 | `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (wins over discovery). | unset → XDG-first discovery (see [§1](#1-config-file-location-and-discovery)) |
-| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json`). | `~/.config` |
+| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json` aliases, `team_rosters.json` composition). | `~/.config` |
 | `SWARM_RESPONSES_DIR` | Where `/v1/responses` stores records for `previous_response_id` chaining and `GET`/`DELETE`. | `$XDG_DATA_HOME/swarm/responses` (i.e. `~/.local/share/swarm/responses`) |
 | `SWARM_RESPONSES_SYNC_TIMEOUT` | Default seconds a `/v1/responses` request waits inline before auto-escalating to a queued handle (per-request override: `max_wait_seconds`). Unset = fully-blocking sync. | unset |
 | `SWARM_RESPONSES_MAX_AGE_DAYS` | Optional retention for `swarm.core.responses_store.prune_expired()` (terminal records only; skips `queued`/`in_progress`). **Not applied automatically** — call the helper or cron it. Unset / ≤0 = prune no-op when age omitted. | unset |
 | `SWARM_CHAT_DIR` | Per-agent SPA chat JSON store (`active/<user>/<agent>.json` + `trash/`). Used to restore Chat after reload / agent switch. Retention UI is Settings-only. | `$SWARM_USER_DATA_DIR/chats` (platformdirs if unset) |
+| `SWARM_ATTACHMENTS_DIR` | Composer file-attach bytes (REQ-38). Metadata is Django sqlite `ChatAttachment`; paths are `{user_key}/{uuid}` only. | `$SWARM_USER_DATA_DIR/attachments` |
 | `SWARM_CHAT_MAX_AGE_DAYS` | Auto-**move to trash** (never hard-delete) inactive agent chats older than this many days when Settings loads. `0` disables. Empty trash is a manual Settings action. | `90` |
+| `SWARM_RUNTIME_MODE` | Where **this app** is running (SPA runtime banner). `bare-metal` (dedicated harness, no container), `sandbox-home` (compose with `$HOME` / `SWARM_SANDBOX_ROOT` mapped), `sandbox-isolated` (compose without that tree). Missing / unrecognized → **unknown** (never fake a green sandbox). This is **not** the browser-control provider. Compose: `docker-compose.yml` defaults isolated; `docker-compose.dev.yml` defaults sandbox-home. | unset → unknown |
+| `SWARM_CHROME_CDP` | Optional Chrome DevTools URL for Playwright **attach** (`Browser (this machine)`). Launch is used when unset. | unset |
 | `XDG_DATA_HOME` | Base for state data (responses store). | `~/.local/share` |
 | `SWARM_WORKSPACES_DIR` / `WORKSPACES_DIR` | Root for per-request `params.workdir` / `params.cwd` and `swarm-cli moa --workdir` / `--cwd`. Relative paths resolve here; absolute paths outside this root are rejected unless unrestricted (below). | `$XDG_DATA_HOME/…/swarm/workspaces` (via `SWARM_USER_DATA_DIR` / platformdirs) |
 | `ALLOW_UNRESTRICTED_WORKDIR` | When `true`/`1`/`yes`, allow absolute workdirs outside `SWARM_WORKSPACES_DIR` (local CLI power users writing under `/tmp/…` or a repo checkout). Keep **off** for API servers. | `false` |
@@ -346,6 +349,14 @@ CRUD: `/v1/herdr-agents/`. Discover live panes: `/v1/herdr-agents/discover/`
 (`herdr agent list` + `herdr workspace list`). Operator UI: `/settings/` and
 `/teams/#herdr-members`. Wrapper: `swarm.herdr.HerdrClient`. Full notes:
 [docs/HERDR.md](docs/HERDR.md) (not Hermes/OMB/Rakazo; cloud CI must mock `herdr`).
+
+**REQ-64 remotes kind:** add `herdr` like Hermes / OpenMousBot / Rakazo
+(`swarm-cli remotes set herdr --base-url … --api-key-env HERDR_API_KEY`, or
+Settings → Remotes → + Add remote). That configured base is what
+`herdr --remote` / `HerdrClient.from_remote_config()` use. Localhost omits the
+flag only when you set a loopback URL. Missing config is a clear error — not a
+silent other-host. Health/list use stub HTTP in tests (`GET /health`,
+`GET /agents`). No tokens in the repo.
 
 ---
 

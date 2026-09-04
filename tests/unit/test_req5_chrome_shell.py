@@ -32,9 +32,14 @@ def test_base_shell_has_home_matching_nav_and_agents_pane():
     assert 'aria-label="Agent list"' in html
     assert "os-agent-sidebar__kicker" not in html
     assert 'id="os-theme-toggle"' in html
+    assert "os-theme-icon" in html
+    assert ">Light<" not in html and ">Dark<" not in html
     assert "agent_sidebar.js" in html
     assert "chrome_theme.js" in html
     assert "Hide from sidebar" not in html  # menu is created in JS, not a hide-all control
+    assert "os-agent-hidden-dialog" in html
+    assert "Hidden agents" in html
+    assert "Hide all" not in html
 
 
 def test_settings_header_is_not_purple_gradient():
@@ -56,6 +61,8 @@ def test_agent_sidebar_js_hides_and_persists():
     assert "/v1/teams/" not in js
     assert "/v1/herdr-agents/" in js
     assert "no hide-all" in js
+    assert "showModal" in js
+    assert "Hide all" not in js
 
 
 def test_theme_js_shares_spa_storage_key():

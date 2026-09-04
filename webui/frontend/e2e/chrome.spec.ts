@@ -102,7 +102,7 @@ test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ pa
   const rail = page.getByRole('navigation', { name: 'Agent list' })
   await expect(rail.getByRole('link', { name: /Support/ })).toBeVisible()
   await expect(rail.getByRole('link', { name: /Codey/ })).toBeVisible()
-  await expect(rail.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(rail.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(rail.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /2 hidden/i })).toBeVisible()
   await expect(page.getByLabel('Pinned agents')).toBeVisible()
@@ -302,7 +302,7 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
 
   const list = page.getByRole('navigation', { name: 'Agent list' })
   await expect(list.getByRole('link', { name: /Support/ })).toBeVisible()
-  await expect(list.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
@@ -311,14 +311,14 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
   await page.getByRole('button', { name: /2 hidden/i }).click()
   const dialog = page.getByRole('dialog', { name: /Hidden agents/i })
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: /Unhide Gate/i }).click()
-  await expect(list.getByRole('link', { name: /Gate/ })).toBeVisible()
+  await dialog.getByRole('button', { name: /Unhide Safety/i }).click()
+  await expect(list.getByRole('link', { name: /Safety/ })).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
     .toBe(JSON.stringify(['skeptic']))
 
   await page.reload()
-  await expect(list.getByRole('link', { name: /Gate/ })).toBeVisible()
+  await expect(list.getByRole('link', { name: /Safety/ })).toBeVisible()
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /1 hidden/i })).toBeVisible()
 })
@@ -335,7 +335,7 @@ test('hover-edit opens an agent-scoped editor; Blueprint picker persists; Edit b
   const support = list.getByRole('link', { name: /Support/ })
   await expect(support).toBeVisible()
   // REQ-26 seeds gate/skeptic as Hidden on first load; Support stays visible.
-  await expect(list.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
 
   await support.hover()

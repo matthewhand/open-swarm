@@ -536,7 +536,7 @@ describe('SettingsSheet blueprint editor', () => {
       } as Response),
     )
     renderSheet({ blueprintId: 'gate' })
-    const code = await screen.findByLabelText(/Gate blueprint Python/i)
+    const code = await screen.findByLabelText(/Safety blueprint Python/i)
     expect(code).toHaveClass('os-code-python')
     expect(code.textContent).toMatch(/YES/)
     expect(code.textContent).toMatch(/NO/)

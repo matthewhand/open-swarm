@@ -682,10 +682,15 @@ def remotes_cmd(
     name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | swarm"),
     op: str = typer.Option("list", "--op", help="For operate: list or send"),
     base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
-    api_key: str = typer.Option("", "--api-key", help="For set: persist auth token (or ${ENV})"),
-    api_key_env: str = typer.Option("", "--api-key-env", help="For set: store ${ENV} placeholder"),
+    api_key: str = typer.Option("", "--api-key", help="For set: env-var name or ${ENV} (not a token)"),
+    api_key_env: str = typer.Option("", "--api-key-env", help="For set: store env-var name only"),
     ui_url: str = typer.Option("", "--ui-url", help="For set: persist UI URL (Rakazo/Hermes dashboard)"),
-    cookie: str = typer.Option("", "--cookie", help="For set: persist session cookie (Rakazo)"),
+    cookie: str = typer.Option("", "--cookie", help="For set: session-cookie env-var name (not the cookie)"),
+    session_cookie_env: str = typer.Option(
+        "",
+        "--session-cookie-env",
+        help="For set: store Rakazo session-cookie env-var name only",
+    ),
     prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
     target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id or swarm blueprint id"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
@@ -697,18 +702,26 @@ def remotes_cmd(
 
     act = (action or "list").strip().lower()
     rid = (name or "").strip()
+    cfg = _remotes.load_raw_config(config)[0] if config else None
 
     if act == "list":
-        specs = _remotes.load_all_remotes()
+        specs = _remotes.load_added_remotes(cfg, config_path=config)
+        if not specs:
+            typer.echo("No remotes added. Use: swarm-cli remotes set hermes --base-url … --api-key-env HERMES_API_KEY")
+            return
         typer.echo("Remote harnesses:")
         for spec in specs.values():
-            key = "set" if spec.public_dict()["api_key_set"] else "unset"
+            pub = spec.public_dict()
+            key = pub.get("api_key_env") or ("set" if pub["api_key_set"] else "unset")
             typer.echo(f"  {spec.id:<8} {spec.base_url}  auth={key}  ({spec.host_label})")
         return
 
     if act == "get":
         try:
-            spec = _remotes.load_remote(rid)
+            if rid and not _remotes.is_remote_added(rid, cfg):
+                typer.echo(f"Remote '{rid}' is not added.", err=True)
+                raise typer.Exit(code=1)
+            spec = _remotes.load_remote(rid, cfg)
         except _remotes.RemoteError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1)
@@ -723,15 +736,20 @@ def remotes_cmd(
         if base_url:
             kwargs["base_url"] = base_url
         if api_key_env:
-            kwargs["api_key"] = f"${{{api_key_env}}}"
+            kwargs["api_key_env"] = api_key_env
         elif api_key:
             kwargs["api_key"] = api_key
         if ui_url:
             kwargs["ui_url"] = ui_url
-        if cookie:
+        if session_cookie_env:
+            kwargs["session_cookie_env"] = session_cookie_env
+        elif cookie:
             kwargs["cookie"] = cookie
         if not kwargs:
-            typer.echo("Nothing to persist. Pass --base-url and/or --api-key[--env].", err=True)
+            typer.echo(
+                "Nothing to persist. Pass --base-url and/or --api-key-env / --session-cookie-env.",
+                err=True,
+            )
             raise typer.Exit(code=1)
         try:
             spec, path = _remotes.persist_remote(rid, config_path=config, **kwargs)
@@ -743,11 +761,14 @@ def remotes_cmd(
         return
 
     if act == "health":
-        targets = [rid] if rid else list(_remotes.REMOTE_IDS)
+        targets = [rid] if rid else list(_remotes.added_remote_ids(cfg))
+        if not targets:
+            typer.echo("No remotes added.")
+            raise typer.Exit(code=0)
         any_down = False
         for target_id in targets:
             try:
-                result = _remotes.check_health(target_id)
+                result = _remotes.check_health(target_id, config=cfg)
             except _remotes.RemoteError as exc:
                 typer.echo(str(exc), err=True)
                 raise typer.Exit(code=1)
@@ -761,7 +782,7 @@ def remotes_cmd(
         if not rid:
             typer.echo("remotes operate requires a name (hermes|omb|rakazo|swarm)", err=True)
             raise typer.Exit(code=1)
-        result = _remotes.operate(rid, op, prompt=prompt, target=target)
+        result = _remotes.operate(rid, op, prompt=prompt, target=target, config=cfg)
         typer.echo(_json.dumps(result.as_dict(), indent=2, default=str))
         raise typer.Exit(code=0 if result.ok else 1)
 
@@ -1211,10 +1232,7 @@ def config_cmd(
                     else:
                         typer.echo(f"  {k}")
             else:
-                from swarm.core import remotes as _remotes
-
-                for spec in _remotes.load_all_remotes().values():
-                    typer.echo(f"  {spec.id}: {spec.base_url}  (default)")
+                typer.echo("  (none added)")
     elif action == "add":
         if not section or not name or not json_str:
             typer.echo("--section, --name, and --json are required for add", err=True)

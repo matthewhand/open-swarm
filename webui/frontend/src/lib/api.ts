@@ -157,6 +157,22 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+/** Multipart POST. Do not set Content-Type — the browser supplies the boundary. */
+export async function apiPostForm<T>(path: string, body: FormData): Promise<T> {
+  const headers = buildHeaders(false)
+  const response = await fetch(path, {
+    method: 'POST',
+    headers,
+    body,
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',
@@ -278,6 +294,16 @@ export function fetchBlueprints(): Promise<ListResponse<Blueprint>> {
   return apiGet<ListResponse<Blueprint>>('/v1/blueprints/')
 }
 
+/** GET /v1/runtime/ — REQ-45 app runtime banner (AllowAny, no secrets). */
+export function fetchRuntimeBanner(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/runtime/')
+}
+
+/** GET /v1/browser-control/ — REQ-45 provider catalog (this-machine default). */
+export function fetchBrowserControl(): Promise<Record<string, unknown>> {
+  return apiGet<Record<string, unknown>>('/v1/browser-control/')
+}
+
 export function fetchModels(): Promise<ListResponse<Model>> {
   return apiGet<ListResponse<Model>>('/v1/models/')
 }
@@ -385,6 +411,101 @@ export function removeFromLibrary(name: string): Promise<void> {
 }
 
 /**
+ * GET/POST /v1/remotes/ and POST /v1/remotes/<id>/health|operate/
+ * (swarm/views/remotes_api.py). Catalog is opt-in: empty until + Add remote.
+ * Hermes (kind=hermes) is the complete kind — health / list / send.
+ * Auth is an env-var *name* only; never send a live token.
+ */
+export interface RemoteKind {
+  id: string
+  title: string
+  label: string
+  complete: boolean
+  fields: string[]
+  list_paths: string[]
+  send_path: string
+  health_path: string
+  api_key_env_default: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind: string
+  title: string
+  host_label: string
+  base_url: string
+  ui_url: string
+  api_key_env: string
+  api_key_set: boolean
+  cookie_set: boolean
+  health_path: string
+  version_path: string
+  notes: string
+  source: string
+  added: boolean
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  data: RemoteConnection[]
+  kinds: RemoteKind[]
+  team_members?: unknown[]
+  vocabulary?: Record<string, string>
+}
+
+export interface AddRemoteRequest {
+  kind: string
+  base_url: string
+  api_key_env?: string
+}
+
+export interface RemoteHealthResult {
+  remote: string
+  ok: boolean
+  state: string
+  detail: string
+  http_status: number | null
+  version: unknown
+  latency_ms: number | null
+  url: string
+}
+
+export interface RemoteOperateResult {
+  remote: string
+  op: string
+  ok: boolean
+  detail: string
+  http_status: number | null
+  data: unknown
+  gap: string
+}
+
+export function fetchRemotes(): Promise<RemotesListResponse> {
+  return apiGet<RemotesListResponse>('/v1/remotes/')
+}
+
+export function addRemote(body: AddRemoteRequest): Promise<RemoteConnection> {
+  return apiPost<RemoteConnection>('/v1/remotes/', body)
+}
+
+export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult> {
+  return apiPost<RemoteHealthResult>(
+    `/v1/remotes/${encodeURIComponent(remoteId)}/health/`,
+    {},
+  )
+}
+
+export function operateRemote(
+  remoteId: string,
+  body: { op: 'list' | 'send'; prompt?: string; target?: string },
+): Promise<RemoteOperateResult> {
+  return apiPost<RemoteOperateResult>(
+    `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
+    body,
+  )
+}
+
+/**
  * GET/POST /v1/herdr-agents/ and DELETE /v1/herdr-agents/<id>/
  * (swarm/views/herdr_api.py). DaisyUI settings sheet is not in this tree
  * (ADR-001); Django /settings/ and admin list/add/remove these rows.
@@ -478,10 +599,6 @@ export interface CreateRemoteRequest {
   api_key?: string
   ui_url?: string
   cookie?: string
-}
-
-export function fetchRemotes(): Promise<RemotesListResponse> {
-  return apiGet<RemotesListResponse>('/v1/remotes/')
 }
 
 export function createRemote(remote: CreateRemoteRequest): Promise<RemoteConnection> {
@@ -735,6 +852,67 @@ export interface ConfigOptions {
 
 export function fetchConfigOptions(): Promise<ConfigOptions> {
   return apiGet<ConfigOptions>('/v1/config-options/')
+}
+
+/** GET /v1/remotes/ — kinds catalog + configured remotes (opt-in). */
+export interface RemoteKind {
+  id: string
+  label: string
+  fields?: string[]
+  health_path?: string
+}
+
+export interface RemoteConnection {
+  id: string
+  kind?: string
+  label: string
+  title: string
+  host_label?: string
+  base_url: string
+  ui_url?: string
+  api_key_set?: boolean
+  api_key_env?: string
+  cookie_set?: boolean
+  health_path?: string
+  notes?: string
+  source?: string
+}
+
+export interface RemotesListResponse {
+  object: 'list'
+  kinds: RemoteKind[]
+  data: RemoteConnection[]
+  vocabulary?: Record<string, string>
+  team_members?: Array<{ id: string; title?: string; placed?: boolean }>
+}
+
+export interface AddRemoteRequest {
+  kind: string
+  base_url: string
+  api_key_env?: string
+  ui_url?: string
+  cookie?: string
+}
+
+export interface RemoteHealthResult {
+  remote: string
+  ok: boolean
+  state: string
+  detail: string
+  http_status?: number | null
+  version?: unknown
+  latency_ms?: number | null
+  url?: string
+}
+
+export interface RemoteOperateResult {
+  remote: string
+  op: string
+  ok: boolean
+  detail: string
+  http_status?: number | null
+  data?: unknown
+  gap?: string
 }
 
 /** GET /v1/blueprints/<id>/tools — a blueprint's capability requirements

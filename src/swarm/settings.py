@@ -232,9 +232,10 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / "swarm" / "static",
-    BASE_DIR.parent / "staticfiles" / "webui" if (BASE_DIR.parent / "staticfiles" / "webui").exists() else None,
+    ("brand", BASE_DIR.parent / "assets" / "brand"),
 ]
-STATICFILES_DIRS = [d for d in STATICFILES_DIRS if d is not None]
+if (BASE_DIR.parent / "staticfiles" / "webui").exists():
+    STATICFILES_DIRS.append(BASE_DIR.parent / "staticfiles" / "webui")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

@@ -40,7 +40,7 @@ export const SYNTHETIC_SUPPORT: Blueprint = stubBlueprint(
 
 export const SYNTHETIC_GATE: Blueprint = stubBlueprint(
   GATE_AGENT_ID,
-  'Gate',
+  'Safety',
   'Dangerous? yes/no. Until wired, all approved.',
   'gate',
 )
@@ -66,7 +66,12 @@ export function isSupportAgent(agent: { id: string; name?: string | null }): boo
 
 export function isGateAgent(agent: { id: string; name?: string | null }): boolean {
   const name = agentName(agent)
-  return GATE_ID_ALIASES.has(agentId(agent)) || name === 'gate' || name === 'tool gate'
+  return (
+    GATE_ID_ALIASES.has(agentId(agent)) ||
+    name === 'gate' ||
+    name === 'tool gate' ||
+    name === 'safety'
+  )
 }
 
 export function isSkepticAgent(agent: { id: string; name?: string | null }): boolean {
