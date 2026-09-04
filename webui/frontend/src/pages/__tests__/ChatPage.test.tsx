@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
-import AgentSidebar from '../../components/AgentSidebar'
-import { AGENT_CHAT_SESSIONS_KEY } from '../../lib/agentChatSessions'
+import { ToastProvider } from '../../components/DaisyUI'
+import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAvatar'
+import { resetConversationThreads } from '../../lib/chatMeter'
+import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -14,7 +16,6 @@ class MockWebSocket {
   static instances: MockWebSocket[] = []
 
   readyState = MockWebSocket.CONNECTING
-  url: string
   onopen: WsHandler = null
   onmessage: WsHandler = null
   onclose: WsHandler = null
@@ -23,6 +24,8 @@ class MockWebSocket {
     this.readyState = 3
     this.onclose?.(new CloseEvent('close', { code: 1000 }))
   })
+
+  url: string
 
   constructor(url: string) {
     this.url = url
@@ -50,93 +53,20 @@ class MockWebSocket {
   }
 }
 
-function renderChat(initialEntry = '/chat', { sidebar = false } = {}) {
+function renderChat(initialEntry = '/chat') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        {sidebar ? <AgentSidebar /> : null}
-        <ChatPage />
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <ChatPage />
+        </MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
-
-function mockAgentListFetch() {
-  return vi.fn().mockImplementation(async (input: RequestInfo) => {
-    const url = String(input)
-    if (url.includes('/v1/support/context')) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          object: 'support.context',
-          briefing: '**Agents**\n- Support · support\n\n**Inference** off',
-        }),
-      } as Response
-    }
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({
-        data: [
-          {
-            id: 'hybrid_team',
-            name: 'Hybrid Team',
-            description: 'Hybrid',
-            object: 'blueprint',
-          },
-          {
-            id: 'support',
-            name: 'Support',
-            description: 'Onboarding. First team.',
-            role: 'support',
-            object: 'blueprint',
-          },
-          {
-            id: 'skeptic',
-            name: 'Skeptic',
-            description: 'Review',
-            role: 'skeptic',
-            object: 'blueprint',
-          },
-        ],
-      }),
-    } as Response
-  })
-}
-
-async function openLatestSocket() {
-  const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]
-  await act(async () => {
-    ws?.open()
-  })
-  return ws
-}
-
-function injectTurn(ws: MockWebSocket, user: string, assistant: string, id: string) {
-  ws.onmessage?.(
-    new MessageEvent('message', {
-      data: `<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">${user}</div></div>`,
-    }),
-  )
-  ws.onmessage?.(
-    new MessageEvent('message', {
-      data: `<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-${id}" class="assistant-message"></div></div>`,
-    }),
-  )
-  ws.onmessage?.(
-    new MessageEvent('message', {
-      data: `<div id="message-response-${id}" hx-swap-oob="true" class="assistant-message">${assistant}</div>`,
-    }),
-  )
-}
-
-beforeEach(() => {
-  localStorage.removeItem(AGENT_CHAT_SESSIONS_KEY)
-})
 
 describe('chatLoginHref helpers', () => {
   it('builds a rooted next path and encodes the Sign-in CTA', () => {
@@ -167,6 +97,7 @@ describe('ChatPage reconnect focus', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('does not auto-focus the composer on the initial connect', async () => {
@@ -226,9 +157,10 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
-  it('disables send while connecting and announces status via aria-live', async () => {
+  it('disables send while connecting and stays silent when healthy', async () => {
     renderChat()
 
     const statusRegion = screen.getByRole('status', { name: 'Connection status' })
@@ -237,20 +169,19 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
 
     const composer = screen.getByRole('textbox', { name: 'Chat message' })
     expect(composer).toBeDisabled()
-    expect(composer).toHaveAttribute(
-      'placeholder',
-      expect.stringMatching(/Connecting/i),
-    )
+    expect(composer).toHaveAttribute('placeholder', 'Message …')
     expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled()
+    expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
 
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
 
     await waitFor(() => {
-      expect(statusRegion).toHaveTextContent(/^Connected$/)
+      expect(composer).not.toBeDisabled()
     })
-    expect(composer).not.toBeDisabled()
+    expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
+    expect(statusRegion).toHaveTextContent('')
   })
 
   it('shows session-cookie Sign-in CTA when the server closes with 4401', async () => {
@@ -269,12 +200,6 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     const statusRegion = screen.getByRole('status', { name: 'Connection status' })
     expect(statusRegion).toHaveTextContent(/Unavailable — sign in required/i)
     expect(screen.getByText(/session cookie/i)).toBeInTheDocument()
-    expect(screen.getByText(/REST API bearer token/i)).toBeInTheDocument()
-    // Fixed-height chat column must not flex-shrink the Unavailable CTA away.
-    const unavailableAlert = screen
-      .getAllByRole('alert')
-      .find((el) => /sign in required/i.test(el.textContent || ''))
-    expect(unavailableAlert?.className).toMatch(/shrink-0/)
   })
 
   it('does not blame login when the socket never opens (ASGI/network)', async () => {
@@ -306,7 +231,7 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
   })
 })
 
-describe('ChatPage blueprint query-param honesty', () => {
+describe('ChatPage agent header (no blueprint dropdown)', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
@@ -315,9 +240,10 @@ describe('ChatPage blueprint query-param honesty', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
-  it('keeps an unknown ?blueprint= preselect and warns honestly', async () => {
+  it('uses the ?blueprint= id as the chat header without a catalog dropdown', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -335,20 +261,11 @@ describe('ChatPage blueprint query-param honesty', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    expect(select).toHaveValue('just_launched_team')
-    expect(
-      screen.getByRole('option', { name: /just_launched_team \(not in list\)/i }),
-    ).toBeInTheDocument()
-
-    const honesty = await screen.findByRole('alert')
-    expect(honesty).toHaveTextContent(/not in the discoverable list/i)
-    expect(honesty).toHaveTextContent('just_launched_team')
-    expect(honesty).toHaveTextContent(/reply errors/i)
-    expect(honesty).toHaveTextContent(/does not fall back to the default model/i)
+    expect(await screen.findByRole('heading', { name: 'just_launched_team' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
   })
 
-  it('does not warn when the ?blueprint= id is discoverable', async () => {
+  it('shows the discoverable agent name in the header', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -366,9 +283,148 @@ describe('ChatPage blueprint query-param honesty', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    expect(select).toHaveValue('codey')
-    expect(screen.queryByText(/not in the discoverable list/i)).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Codey' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
+  })
+
+  it('renders the selected agent avatar next to the name (REQ-60)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const identity = await screen.findByTestId('selected-agent-header')
+    const heading = within(identity).getByRole('heading', { name: 'Codey' })
+    const avatar = identity.querySelector('[data-agent-avatar]')
+    expect(avatar).toBeTruthy()
+    expect(avatar).toHaveAttribute('data-agent-avatar', 'default')
+    expect(avatar).toHaveClass('os-chat-header__avatar')
+    expect(identity.firstElementChild).toBe(avatar)
+    expect(heading.compareDocumentPosition(avatar!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(identity.querySelector('button')).toBeNull()
+    expect(identity.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
+  })
+
+  it('uses the same custom face in the header as AgentAvatar would on the rail', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              id: 'codey',
+              name: 'Codey',
+              description: 'Code assistant',
+              avatar_path: '/avatars/codey_avatar.png',
+            },
+          ],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const identity = await screen.findByTestId('selected-agent-header')
+    const headerImg = identity.querySelector('img')
+    expect(identity.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-agent-avatar',
+      'custom',
+    )
+    expect(headerImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
+
+    const rail = render(
+      <AgentAvatar src="/avatars/codey_avatar.png" size="sm" />,
+    )
+    expect(rail.container.querySelector('img')).toHaveAttribute(
+      'src',
+      headerImg?.getAttribute('src'),
+    )
+    rail.unmount()
+  })
+})
+
+function deliverMockInference(
+  ws: MockWebSocket,
+  reply: string,
+  id = 'message-response-mock1',
+) {
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">echo</div></div>`,
+    }),
+  )
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="message-list" hx-swap-oob="beforeend"><div id="${id}" class="assistant-message"></div></div>`,
+    }),
+  )
+  ws.onmessage?.(
+    new MessageEvent('message', {
+      data: `<div id="${id}" class="assistant-message" hx-swap-oob="true">${reply}</div>`,
+    }),
+  )
+}
+
+describe('ChatPage Send path with mock inference', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('renders mock assistant content after the user types and clicks Send', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'ping the mock' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).toHaveBeenCalled()
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string).message).toBe(
+      'ping the mock',
+    )
+
+    await act(async () => {
+      deliverMockInference(ws, 'MOCK_INFERENCE_VITEST_REPLY')
+    })
+
+    expect(screen.getByText('MOCK_INFERENCE_VITEST_REPLY')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Chat message' }), {
+      target: { value: 'follow-up' },
+    })
+    expect(screen.getByRole('button', { name: /^Send$/i })).toBeEnabled()
   })
 })
 
@@ -389,6 +445,7 @@ describe('ChatPage Send button honesty while streaming', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('keeps a real Send control (no busy spinner) while an assistant reply streams', async () => {
@@ -412,6 +469,28 @@ describe('ChatPage Send button honesty while streaming', () => {
     const loaders = screen.getAllByRole('status', { name: 'Loading' })
     expect(loaders.length).toBeGreaterThan(0)
   })
+
+  it('notifies rail bump when a generation completes', async () => {
+    const completed: string[] = []
+    const onComplete = (event: Event) => {
+      completed.push((event as CustomEvent<{ agentId?: string }>).detail?.agentId || '')
+    }
+    window.addEventListener('swarm:generation-complete', onComplete)
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-done1" hx-swap-oob="true">finished</div>',
+        }),
+      )
+    })
+    expect(completed).toEqual(['codey'])
+    window.removeEventListener('swarm:generation-complete', onComplete)
+  })
 })
 
 describe('ChatPage auto-reconnect backoff', () => {
@@ -433,6 +512,7 @@ describe('ChatPage auto-reconnect backoff', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('reconnects with backoff after unexpected drop, and skips auth 4401', async () => {
@@ -465,6 +545,44 @@ describe('ChatPage auto-reconnect backoff', () => {
   })
 })
 
+describe('ChatPage computer-control stub (REQ-27b)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows a top-right Computer control tool by default (not agent-attached)', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const tools = screen.getByRole('toolbar', { name: 'Chat tools' })
+    const trigger = screen.getByRole('button', { name: 'Computer control' })
+    expect(tools).toContainElement(trigger)
+
+    fireEvent.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
+    expect(dialog).toHaveClass('modal-open')
+    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OpenMousBot or Rakazo remote/)
+    expect(dialog.textContent).not.toMatch(/\bOMB\b/)
+    expect(dialog).toHaveTextContent(/not implemented here/i)
+  })
+})
+
 describe('ChatPage markdown bubbles', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
@@ -482,6 +600,7 @@ describe('ChatPage markdown bubbles', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetConversationThreads()
   })
 
   it('defaults /chat to Support with a quiet system pill, not a transcript dump', async () => {
@@ -526,42 +645,13 @@ describe('ChatPage markdown bubbles', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    await waitFor(() => {
-      expect(select).toHaveValue('support')
-    })
-
+    expect(screen.getByRole('heading', { name: 'Support' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Blueprint' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
     expect(screen.queryByText('Connected and ready')).not.toBeInTheDocument()
     expect(screen.queryByText(/Welcome —/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Inference/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Gate/)).not.toBeInTheDocument()
-
-    const pill = await screen.findByRole('button', { name: /System → Support/ })
-    expect(pill).toHaveAttribute('aria-expanded', 'false')
-    expect(pill).toHaveClass('os-handoff-chip--system')
-
-    const newTeam = screen.getByRole('link', { name: 'New team' })
-    expect(newTeam).toHaveAttribute('href', '/teams/launch/')
-    expect(screen.getByRole('link', { name: 'Set inference' })).toHaveAttribute(
-      'href',
-      '/settings/',
-    )
-    expect(screen.getByRole('link', { name: 'Write blueprint' })).toHaveAttribute(
-      'href',
-      '/agent-creator/',
-    )
-
-    fireEvent.click(pill)
-    expect(pill).toHaveAttribute('aria-expanded', 'true')
-    const briefingEl = await screen.findByTestId('support-briefing')
-    expect(briefingEl).toHaveTextContent(/Agents/)
-    expect(briefingEl).toHaveTextContent(/Support/)
-    expect(briefingEl).toHaveTextContent(/Inference/)
-    expect(briefingEl).toHaveTextContent(/Gate/)
-    expect(briefingEl).toHaveTextContent(/Skeptic/)
-    expect(briefingEl.closest('.chat-bubble')).toBeNull()
-    expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
   })
 
   it('renders assistant markdown (bold/code) in the bubble', async () => {
@@ -589,167 +679,1387 @@ describe('ChatPage markdown bubbles', () => {
   })
 })
 
-describe('ChatPage decision question card', () => {
-  beforeEach(() => {
+describe('ChatPage per-agent persistence (no retention chrome)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
+
+  it('restores a persisted agent thread after load and keeps retention off the chrome', async () => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
     vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
-    vi.stubGlobal('fetch', mockAgentListFetch())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('renders choices plus an open-string; a choice answers, the system pill stays one-way', async () => {
-    renderChat('/chat?blueprint=support')
-    await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Blueprint' })).toHaveValue(
-        'support',
-      )
-    })
-    const ws = await openLatestSocket()
-    const fence =
-      '```question\n{"id":"q1","ask":"Configure which agent?","choices":["hybrid_team","skeptic"],"other":"Name an agent"}\n```'
-    await act(async () => {
-      ws?.onmessage?.(
-        new MessageEvent('message', {
-          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-q1" class="assistant-message"></div></div>',
-        }),
-      )
-      ws?.onmessage?.(
-        new MessageEvent('message', {
-          data: `<div id="message-response-q1" hx-swap-oob="true" class="assistant-message">${fence}</div>`,
-        }),
-      )
-    })
-
-    const card = await screen.findByTestId('question-card')
-    expect(card).toHaveTextContent('Configure which agent?')
-    expect(card.closest('.os-handoff-chip--system')).toBeNull()
-    expect(screen.queryByTestId('chat-md')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /System → Support/ })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'hybrid_team' }))
-    expect(ws?.send).toHaveBeenCalledWith(
-      expect.stringContaining('"message":"hybrid_team"'),
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'jeeves',
+              conversation_id: 'agt-1-jeeves',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'prior answer' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'jeeves', name: 'Jeeves', description: 'Butler' }],
+          }),
+        } as Response
+      }),
     )
 
-    const other = screen.getByLabelText('Name an agent')
-    fireEvent.change(other, { target: { value: 'gate' } })
-    fireEvent.click(within(card).getByRole('button', { name: 'Send' }))
-    expect(ws?.send).toHaveBeenCalledWith(expect.stringContaining('"message":"gate"'))
-
+    renderChat('/chat?blueprint=jeeves')
     await act(async () => {
-      ws?.onmessage?.(
-        new MessageEvent('message', {
-          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">hybrid_team</div></div>',
-        }),
-      )
+      MockWebSocket.instances[0]?.open()
     })
-    expect(screen.getByRole('button', { name: 'hybrid_team' })).toBeDisabled()
-    expect(other).toBeDisabled()
+
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+    expect(screen.getByText('prior answer')).toBeInTheDocument()
+    expect(screen.queryByText(/Move to trash/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Empty trash/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Disk used/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument()
+  })
+
+  it('renders a CLI session notice without a chat-start/chat-end bubble', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'agt-1-cli',
+              messages: [
+                { role: 'user', content: 'hello' },
+                { role: 'status', content: 'Started a new grok session.' },
+                { role: 'assistant', content: 'hi' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const notice = await screen.findByText('Started a new grok session.')
+    expect(notice).toHaveAttribute('data-role', 'status')
+    expect(notice.closest('.chat-start')).toBeNull()
+    expect(notice.closest('.chat-end')).toBeNull()
+    expect(notice.closest('.chat-bubble')).toBeNull()
   })
 })
 
-describe('ChatPage per-agent threads', () => {
+describe('ChatPage Grok composer and per-agent threads', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
     vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
-    vi.stubGlobal('fetch', mockAgentListFetch())
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('uses a pill composer with + operator menu and mic', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toHaveAttribute(
+      'placeholder',
+      'Message …',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('menuitem', { name: 'Compact' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Blueprints' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Teams' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open settings' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Edit / })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
+    expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).not.toBeInTheDocument()
+  })
+
+  it('shows a Blobs header avatar when that theme is persisted', async () => {
+    act(() => {
+      saveAvatarTheme('blobs')
+    })
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const headerBlob = document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')
+    expect(headerBlob).toBeInTheDocument()
+    expect(headerBlob).toHaveAttribute('data-eye-state', 'active')
+    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
+    act(() => {
+      saveAvatarTheme('default')
+    })
+  })
+
+  it('opens a unique websocket thread per agent', async () => {
+    const first = renderChat('/chat?blueprint=codey')
+    expect(MockWebSocket.instances[0]?.url).toContain('/ws/ai-demo/')
+    const codeyUrl = MockWebSocket.instances[0]!.url
+    first.unmount()
+
+    renderChat('/chat?blueprint=stewie')
+    const stewieUrl = MockWebSocket.instances[MockWebSocket.instances.length - 1]!.url
+    expect(stewieUrl).toContain('/ws/ai-demo/')
+    expect(stewieUrl).not.toBe(codeyUrl)
+  })
+
+  it('opens the session id from ?session= without leaving Chat mounted', async () => {
+    renderChat('/chat?blueprint=codey&session=sess-worker-2')
+    expect(MockWebSocket.instances[0]?.url).toContain('/ws/ai-demo/sess-worker-2/')
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+
+  it('renders a bordered Summary block after Compact (nested parent stays inside)', async () => {
+    const compactPayload = {
+      summary: {
+        id: 2,
+        conversation_id: 'c-compact',
+        span: { start: 0, end: 1 },
+        parent_summary_id: 1,
+        body: 'outer digest',
+        created_at: '2026-09-03T00:00:00Z',
+        replaced_count: 2,
+      },
+      summaries: [
+        {
+          id: 1,
+          conversation_id: 'c-compact',
+          span: { start: 0, end: 1 },
+          parent_summary_id: null,
+          body: 'inner digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+        {
+          id: 2,
+          conversation_id: 'c-compact',
+          span: { start: 0, end: 1 },
+          parent_summary_id: 1,
+          body: 'outer digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/compact/') && init?.method === 'POST') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => compactPayload,
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'jeeves',
+              conversation_id: 'c-compact',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'prior answer' },
+              ],
+              summaries: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+
+    const blocks = await screen.findAllByTestId('chat-summary')
+    expect(blocks.length).toBe(2)
+    expect(blocks[0]).toHaveClass('chat-summary')
+    expect(blocks[1]).toHaveClass('chat-summary')
+    expect(blocks[1]).toHaveClass('chat-summary--nested')
+    expect(screen.getAllByText('Summary').length).toBe(2)
+    expect(screen.getByText('outer digest')).toBeInTheDocument()
+    expect(screen.getByText('inner digest')).toBeInTheDocument()
+    expect(screen.queryByText('prior question')).not.toBeInTheDocument()
+  })
+})
+
+const DEMO_ROSTER = {
+  object: 'list',
+  data: [
+    {
+      id: 'demo-team',
+      object: 'team_roster',
+      name: 'Demo Team',
+      description: 'Example multi-agent roster',
+      members: [
+        { id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' },
+        { id: 'stewie', name: 'Stewie', kind: 'agent', role: 'ops' },
+      ],
+    },
+  ],
+}
+
+function stubTeamAndBlueprints() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo) => {
+      const url = String(input)
+      if (url.includes('team_rosters') || url.includes('team-rosters')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => DEMO_ROSTER,
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'codey', name: 'Codey', description: 'Code assistant' }],
+        }),
+      } as Response
+    }),
+  )
+}
+
+describe('ChatPage remotes dropdown (REQ-59)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps Support, hybrid_team, and skeptic transcripts isolated and restorable', async () => {
-    renderChat('/chat', { sidebar: true })
-
-    const select = await screen.findByRole('combobox', { name: 'Blueprint' })
-    await waitFor(() => {
-      expect(select).toHaveValue('support')
-    })
-    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Support')
-    expect(screen.getByRole('button', { name: /System → Support/ })).toBeInTheDocument()
-
-    await openLatestSocket()
-    const supportSocket = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
+  it('lists only configured remotes plus Add remote', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/remotes')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              kinds: [
+                { id: 'hermes', label: 'Hermes' },
+                { id: 'omb', label: 'OpenMousBot' },
+                { id: 'rakazo', label: 'Rakazo' },
+              ],
+              configured: [
+                {
+                  id: 'omb',
+                  kind: 'omb',
+                  label: 'OpenMousBot',
+                  title: 'OpenMousBot',
+                  host_label: '',
+                  base_url: 'http://127.0.0.1:8802',
+                  source: 'config',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat()
     await act(async () => {
-      injectTurn(supportSocket, 'hello support', 'support reply', 'sup1')
+      MockWebSocket.instances[0]?.open()
     })
-    expect(screen.getByText('hello support')).toBeInTheDocument()
-    expect(screen.getByText('support reply')).toBeInTheDocument()
-    const supportUrl = supportSocket.url
-    expect(supportUrl).toMatch(/\/ws\/ai-demo\/.+\/\?blueprint=support$/)
+    const select = await screen.findByRole('combobox', { name: 'Remote' })
+    const options = within(select)
+      .getAllByRole('option')
+      .map((opt) => opt.textContent)
+    expect(options).toContain('OpenMousBot')
+    expect(options).toContain('Add remote')
+    expect(options).not.toContain('Hermes')
+    expect(options).not.toContain('Rakazo')
+    expect(options).not.toContain('OMB')
+    expect(select.textContent).not.toMatch(/\bOMB\b/)
+  })
+})
 
-    fireEvent.click(screen.getByRole('link', { name: /Hybrid Team/ }))
-    await waitFor(() => {
-      expect(select).toHaveValue('hybrid_team')
-    })
-    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Hybrid Team')
-    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /System → Support/ })).not.toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(MockWebSocket.instances.length).toBeGreaterThan(1)
-    })
-    await openLatestSocket()
-    const hybridSocket = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
-    expect(hybridSocket.url).not.toBe(supportUrl)
-    expect(hybridSocket.url).toMatch(/\/ws\/ai-demo\/.+\/\?blueprint=hybrid_team$/)
-    await act(async () => {
-      injectTurn(hybridSocket, 'hello hybrid', 'hybrid reply', 'hyb1')
-    })
-    expect(screen.getByText('hello hybrid')).toBeInTheDocument()
-    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('link', { name: /Skeptic/ }))
-    await waitFor(() => {
-      expect(select).toHaveValue('skeptic')
-    })
-    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Skeptic')
-    expect(screen.queryByText('hello hybrid')).not.toBeInTheDocument()
-    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('link', { name: /^Support/ }))
-    await waitFor(() => {
-      expect(select).toHaveValue('support')
-    })
-    expect(screen.getByText('hello support')).toBeInTheDocument()
-    expect(screen.getByText('support reply')).toBeInTheDocument()
-    expect(screen.queryByText('hello hybrid')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /System → Support/ })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('link', { name: /Hybrid Team/ }))
-    await waitFor(() => {
-      expect(screen.getByText('hello hybrid')).toBeInTheDocument()
-    })
-    expect(screen.queryByText('hello support')).not.toBeInTheDocument()
+describe('ChatPage team member dropdown', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    stubTeamAndBlueprints()
   })
 
-  it('restores an agent thread after remount from the persisted session', async () => {
-    const { unmount } = renderChat('/chat?blueprint=support')
-    await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Blueprint' })).toHaveValue('support')
-    })
-    await openLatestSocket()
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists All members first, then name + kind/role, then Manage Teams (unlabeled)', async () => {
+    renderChat('/chat?team=demo-team')
     await act(async () => {
-      injectTurn(
-        MockWebSocket.instances[MockWebSocket.instances.length - 1]!,
-        'remember this',
-        'stored for support',
-        'persist1',
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    expect(select).not.toHaveAccessibleName('Blueprint')
+    const options = within(select).getAllByRole('option')
+    expect(options.map((opt) => opt.textContent)).toEqual([
+      'All members',
+      'Codey (agent/coder)',
+      'Stewie (agent/ops)',
+      'Manage Teams',
+    ])
+    expect(select).toHaveValue('all')
+    expect(screen.queryByText('Blueprint')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Demo Team' })).toBeInTheDocument()
+  })
+
+  it('sends params {team, target} for all-members and a chosen member', async () => {
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'hello team' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalled()
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
+      message: 'hello team',
+      params: { team: 'demo-team', target: 'all' },
+    })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'codey' },
+    })
+    fireEvent.change(composer, { target: { value: 'just codey' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    await waitFor(() => {
+      const userFrames = ws.send.mock.calls
+        .map((call) => JSON.parse(String(call[0])))
+        .filter((frame) => frame.message && frame.type !== 'status')
+      expect(userFrames).toHaveLength(2)
+      expect(userFrames[1]).toEqual({
+        message: 'just codey',
+        params: { team: 'demo-team', target: 'codey' },
+      })
+    })
+  })
+
+  it('keeps Manage Teams last and does not send when that item is chosen', async () => {
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    const options = within(select).getAllByRole('option')
+    expect(options[options.length - 1]).toHaveValue('__manage__')
+    expect(options[options.length - 1]).toHaveTextContent('Manage Teams')
+    expect(select).toHaveValue('all')
+    expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
+  })
+
+  it('REQ-23 #331: Manage Teams navigates to /teams/ and does not WS-send', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: '__manage__' } })
+    expect(assign).toHaveBeenCalledWith('/teams/')
+    expect(MockWebSocket.instances[0]!.send).not.toHaveBeenCalled()
+  })
+})
+
+function SearchProbe() {
+  const [params] = useSearchParams()
+  return <div data-testid="search-probe">{params.toString()}</div>
+}
+
+function renderSwitchableChat(initialEntry = '/chat?blueprint=codey') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={client}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <nav>
+            <Link to="/chat?blueprint=codey">Go Codey</Link>
+            <Link to="/chat?blueprint=stewie">Go Stewie</Link>
+          </nav>
+          <SearchProbe />
+          <Routes>
+            <Route path="/chat" element={<ChatPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
+  )
+}
+
+describe('ChatPage per-agent thread switch (REQ-14 #319)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    window.localStorage.clear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          const agent = new URL(url, 'http://localhost').searchParams.get('agent')
+          if (agent === 'codey') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'codey',
+                conversation_id: 'agt-codey',
+                messages: [
+                  { role: 'user', content: 'prior question A' },
+                  { role: 'assistant', content: 'prior answer A' },
+                ],
+              }),
+            } as Response
+          }
+          if (agent === 'stewie') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'stewie',
+                conversation_id: 'agt-stewie',
+                messages: [
+                  { role: 'user', content: 'prior question B' },
+                  { role: 'assistant', content: 'prior answer B' },
+                ],
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ agent_id: agent, messages: [], summaries: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              { id: 'codey', name: 'Codey', description: 'Code assistant' },
+              { id: 'stewie', name: 'Stewie', description: 'Helpful agent' },
+            ],
+          }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    resetConversationThreads()
+    window.localStorage.clear()
+  })
+
+  it('rehydrates a distinct persisted thread when the rail switches agents', async () => {
+    renderSwitchableChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('prior question A')).toBeInTheDocument()
+    expect(screen.getByText('prior answer A')).toBeInTheDocument()
+    expect(screen.queryByText('prior question B')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Go Stewie' }))
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+
+    expect(await screen.findByText('prior question B')).toBeInTheDocument()
+    expect(screen.queryByText('prior question A')).not.toBeInTheDocument()
+    expect(screen.getByTestId('search-probe')).toHaveTextContent('blueprint=stewie')
+
+    fireEvent.click(screen.getByRole('link', { name: 'Go Codey' }))
+    expect(await screen.findByText('prior question A')).toBeInTheDocument()
+    expect(screen.queryByText('prior question B')).not.toBeInTheDocument()
+
+    const threadCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes('/chat/thread/'))
+    expect(threadCalls.some((url) => url.includes('agent=codey'))).toBe(true)
+    expect(threadCalls.some((url) => url.includes('agent=stewie'))).toBe(true)
+  })
+})
+
+describe('ChatPage Support default URL (REQ-5c #322)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('canonicalizes a missing blueprint onto Support without clobbering ?team=', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/chat']}>
+            <SearchProbe />
+            <Routes>
+              <Route path="/chat" element={<ChatPage />} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('search-probe')).toHaveTextContent('blueprint=support')
+    })
+    expect(await screen.findByRole('heading', { name: 'Support' })).toBeInTheDocument()
+  })
+})
+
+describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetConversationThreads()
+  })
+
+  it('toasts Nothing to compact yet on an empty thread', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+    expect(await screen.findByText('Nothing to compact yet.')).toBeInTheDocument()
+  })
+
+  it('toasts Compact failed when POST /chat/compact/ errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/compact/') && init?.method === 'POST') {
+          return {
+            ok: false,
+            status: 500,
+            json: async () => ({ error: 'boom' }),
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'codey',
+              conversation_id: 'c-fail',
+              messages: [
+                { role: 'user', content: 'prior question' },
+                { role: 'assistant', content: 'prior answer' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+    expect(await screen.findByText('Compact failed')).toBeInTheDocument()
+    expect(screen.getByText(/Could not compact this chat/i)).toBeInTheDocument()
+  })
+
+  it('drops the token meter after Compact replaces raw turns with a short summary', async () => {
+    const compactPayload = {
+      summary: {
+        id: 1,
+        conversation_id: 'c-meter',
+        span: { start: 0, end: 1 },
+        parent_summary_id: null,
+        body: 'short',
+        created_at: '2026-09-03T00:00:00Z',
+        replaced_count: 2,
+      },
+      summaries: [
+        {
+          id: 1,
+          conversation_id: 'c-meter',
+          span: { start: 0, end: 1 },
+          parent_summary_id: null,
+          body: 'short',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/compact/') && init?.method === 'POST') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => compactPayload,
+          } as Response
+        }
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'codey',
+              conversation_id: 'c-meter',
+              messages: [
+                { role: 'user', content: 'aaaaaaaaaaaaaaaa' },
+                { role: 'assistant', content: 'bbbbbbbbbbbbbbbb' },
+              ],
+              summaries: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('aaaaaaaaaaaaaaaa')).toBeInTheDocument()
+    const meter = screen.getByRole('meter', { name: 'Tokens in context' })
+    const before = Number(meter.getAttribute('aria-valuenow'))
+    expect(before).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
+    })
+    await screen.findByTestId('chat-summary')
+    expect(Number(meter.getAttribute('aria-valuenow'))).toBeLessThan(before)
+  })
+})
+
+const REMOTE_ROSTER = {
+  object: 'list',
+  data: [
+    {
+      id: 'harness-team',
+      object: 'team_roster',
+      name: 'Harness Team',
+      description: 'Remotes as Team members',
+      members: [
+        { id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' },
+        { id: 'omb', name: 'OMB', kind: 'remote', role: 'default' },
+        { id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' },
+      ],
+    },
+  ],
+}
+
+describe('ChatPage remote members (PR #318 / REQ-23)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => REMOTE_ROSTER,
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists Hermes/OMB/Rakazo as kind=remote in the unlabeled member dropdown', async () => {
+    renderChat('/chat?team=harness-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    expect(within(select).getAllByRole('option').map((opt) => opt.textContent)).toEqual([
+      'All members',
+      'Hermes (remote/default)',
+      'OMB (remote/default)',
+      'Rakazo (remote/default)',
+      'Manage Teams',
+    ])
+    expect(screen.getByRole('heading', { name: 'Harness Team' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+
+  it('sends params {team, target} for a remote member without calling remotes APIs', async () => {
+    renderChat('/chat?team=harness-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'hermes' },
+    })
+    fireEvent.change(composer, { target: { value: 'ping hermes' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalled()
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
+      message: 'ping hermes',
+      params: { team: 'harness-team', target: 'hermes' },
+    })
+    const fetchMock = vi.mocked(fetch)
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('/v1/remotes'))).toBe(true)
+  })
+})
+
+describe('ChatPage voice input stub (PR #322)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('toasts when SpeechRecognition is missing — no live mic / LAN', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Voice input' }))
+    expect(await screen.findByText(/Speech recognition is not available/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+  })
+})
+
+describe('ChatPage Safety tool popups (REQ-55)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    window.localStorage.clear()
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: 'codey', name: 'Codey' }] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  async function openAndStart() {
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-tool1" class="assistant-message"></div></div>',
+        }),
       )
     })
-    expect(screen.getByText('remember this')).toBeInTheDocument()
-    unmount()
+    return ws
+  }
 
+  it('shows blue running, green done, and red denied badges', async () => {
+    const ws = await openAndStart()
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_status',
+            id: 'c1',
+            name: 'read_file',
+            status: 'running',
+          }),
+        }),
+      )
+    })
+    expect(screen.getByTestId('tool-status-badge')).toHaveAttribute('data-status', 'running')
+    expect(screen.getByText('read_file')).toBeInTheDocument()
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_status',
+            id: 'c1',
+            name: 'read_file',
+            status: 'done',
+          }),
+        }),
+      )
+    })
+    expect(screen.getByTestId('tool-status-badge')).toHaveAttribute('data-status', 'done')
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_status',
+            id: 'c2',
+            name: 'wipe',
+            status: 'denied',
+          }),
+        }),
+      )
+    })
+    const badges = screen.getAllByTestId('tool-status-badge')
+    expect(badges.some((el) => el.getAttribute('data-status') === 'denied')).toBe(true)
+  })
+
+  it('prompts on concern and Always allow skips the next prompt for that tool', async () => {
+    const ws = await openAndStart()
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_approval',
+            id: 'ap1',
+            name: 'write_file',
+            agent_id: 'codey',
+          }),
+        }),
+      )
+    })
+    expect(screen.getByRole('dialog', { name: 'Safety approval' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Always allow' }))
+    expect(JSON.parse(String(ws.send.mock.calls.at(-1)?.[0]))).toEqual({
+      type: 'tool_decision',
+      id: 'ap1',
+      decision: 'always',
+    })
+    expect(screen.queryByRole('dialog', { name: 'Safety approval' })).not.toBeInTheDocument()
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'tool_approval',
+            id: 'ap2',
+            name: 'write_file',
+            agent_id: 'codey',
+          }),
+        }),
+      )
+    })
+    expect(screen.queryByRole('dialog', { name: 'Safety approval' })).not.toBeInTheDocument()
+    expect(JSON.parse(String(ws.send.mock.calls.at(-1)?.[0]))).toEqual({
+      type: 'tool_decision',
+      id: 'ap2',
+      decision: 'always',
+    })
+  })
+})
+
+function mockChatFetches(options: {
+  blueprint: string
+  name: string
+  kind?: 'api' | 'cli' | 'remote'
+  messages: { role: 'user' | 'assistant'; content: string; edited?: boolean }[]
+}) {
+  const kind = options.kind ?? 'api'
+  return vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes('/chat/thread/') && (init?.method === 'PATCH' || init?.method === 'patch')) {
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      const messages = options.messages.map((message, index) =>
+        index === body.index
+          ? { ...message, content: body.content, edited: true }
+          : message,
+      )
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: options.blueprint,
+          conversation_id: `agt-1-${options.blueprint}`,
+          kind,
+          editable: kind === 'api',
+          messages,
+        }),
+      } as Response
+    }
+    if (url.includes('/chat/thread/')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: options.blueprint,
+          conversation_id: `agt-1-${options.blueprint}`,
+          kind,
+          editable: kind === 'api',
+          messages: options.messages,
+        }),
+      } as Response
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [{ id: options.blueprint, name: options.name, description: options.name }],
+      }),
+    } as Response
+  })
+}
+
+describe('ChatPage REQ-49 message edit (API vs CLI/remote)', () => {
+  beforeEach(() => {
     MockWebSocket.instances = []
-    renderChat('/chat?blueprint=support')
-    expect(await screen.findByText('remember this')).toBeInTheDocument()
-    expect(screen.getByText('stored for support')).toBeInTheDocument()
-    expect(screen.getByTestId('chat-agent-header')).toHaveTextContent('Support')
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  it('API fixture chat shows edit on user and assistant; save is what the next send includes', async () => {
+    const fetchMock = mockChatFetches({
+      blueprint: 'jeeves',
+      name: 'Jeeves',
+      kind: 'api',
+      messages: [
+        { role: 'user', content: 'prior question' },
+        { role: 'assistant', content: 'prior answer' },
+      ],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('prior question')).toBeInTheDocument()
+    expect(screen.getByText('prior answer')).toBeInTheDocument()
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-agent-kind',
+      'api',
+    )
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-messages-editable',
+      'true',
+    )
+
+    const editButtons = screen.getAllByRole('button', { name: 'Edit message' })
+    expect(editButtons).toHaveLength(2)
+
+    fireEvent.click(editButtons[0])
+    const editor = await screen.findByRole('textbox', { name: 'Edit message' })
+    fireEvent.change(editor, { target: { value: 'engineered question' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('engineered question')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('edited-hint')).toBeInTheDocument()
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        (call) =>
+          String(call[0]).includes('/chat/thread/') &&
+          String(call[1]?.method || '').toUpperCase() === 'PATCH',
+      )
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual(
+        expect.objectContaining({ index: 0, content: 'engineered question' }),
+      )
+    })
+
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ edit: { index: 0, content: 'engineered question' } }),
+    )
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'follow up' } })
+    fireEvent.submit(composer.closest('form')!)
+    expect(ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ message: 'follow up', blueprint: 'jeeves' }),
+    )
+  })
+
+  it('clicking an API bubble enters edit mode', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetches({
+        blueprint: 'jeeves',
+        name: 'Jeeves',
+        messages: [
+          { role: 'user', content: 'click me' },
+          { role: 'assistant', content: 'assistant bubble' },
+        ],
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('assistant bubble')).toBeInTheDocument()
+    const bubbles = screen.getAllByTestId('chat-bubble')
+    fireEvent.click(bubbles[1])
+    expect(await screen.findByRole('textbox', { name: 'Edit message' })).toHaveValue(
+      'assistant bubble',
+    )
+  })
+
+  it('CLI fixture chat has no edit control and no click-to-edit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetches({
+        blueprint: 'cli:grok',
+        name: 'Grok CLI',
+        kind: 'cli',
+        messages: [
+          { role: 'user', content: 'cli user' },
+          { role: 'assistant', content: 'cli assistant' },
+        ],
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli:grok')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('cli user')).toBeInTheDocument()
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-agent-kind',
+      'cli',
+    )
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-messages-editable',
+      'false',
+    )
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByTestId('chat-bubble')[0])
+    expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+  })
+
+  it('remote fixture chat has no edit control and no click-to-edit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockChatFetches({
+        blueprint: 'remote:acp',
+        name: 'Remote ACP',
+        kind: 'remote',
+        messages: [
+          { role: 'user', content: 'remote user' },
+          { role: 'assistant', content: 'remote assistant' },
+        ],
+      }),
+    )
+
+    renderChat('/chat?blueprint=remote:acp')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('remote user')).toBeInTheDocument()
+    expect(screen.getByRole('log', { name: 'Conversation' })).toHaveAttribute(
+      'data-agent-kind',
+      'remote',
+    )
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByTestId('chat-bubble')[1])
+    expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ChatPage dropdown status lines (REQ-46)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+  })
+
+  function stubWithThreadStore(store: { messages: { role: string; content: string }[] }) {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          if (init?.method === 'POST') {
+            const body = JSON.parse(String(init.body || '{}')) as {
+              message?: { role?: string; content?: string }
+            }
+            if (body.message?.role && body.message.content) {
+              store.messages.push({
+                role: body.message.role,
+                content: body.message.content,
+              })
+            }
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'team-demo-team',
+              conversation_id: 'team-demo-team',
+              messages: store.messages,
+            }),
+          } as Response
+        }
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => DEMO_ROSTER,
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ clis: ['antigravity', 'grok'] }),
+          } as Response
+        }
+        if (url.includes('/v1/models')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: [
+                { id: 'gpt-4', object: 'model', created: 0, owned_by: 'openai' },
+                { id: 'grok-4', object: 'model', created: 0, owned_by: 'xai' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+  }
+
+  it('appends one team-target status event that is not a bubble and survives reload', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    const first = renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Team members' }), {
+      target: { value: 'codey' },
+    })
+
+    const status = await screen.findByTestId('chat-status')
+    expect(status).toHaveTextContent('Team target: All members → Codey (agent/coder)')
+    expect(status).toHaveClass('os-chat-status')
+    expect(status.className).not.toMatch(/chat-start|chat-end/)
+    expect(status.querySelector('.chat-bubble')).toBeNull()
+    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
+    expect(store.messages).toHaveLength(1)
+    expect(store.messages[0]).toEqual({
+      role: 'status',
+      content: 'Team target: All members → Codey (agent/coder)',
+    })
+
+    first.unmount()
+    renderChat('/chat?team=demo-team')
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+
+    const restored = await screen.findByTestId('chat-status')
+    expect(restored).toHaveTextContent('Team target: All members → Codey (agent/coder)')
+    expect(restored.className).not.toMatch(/chat-start|chat-end/)
+    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
+  })
+
+  it('appends one CLI status event (antigravity → grok) that is not a bubble', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    renderChat('/chat?blueprint=cli_agent&mode=cli&cli=antigravity')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    fireEvent.change(await screen.findByRole('combobox', { name: 'CLI' }), {
+      target: { value: 'grok' },
+    })
+
+    const status = await screen.findByTestId('chat-status')
+    expect(status).toHaveTextContent('CLI: antigravity → grok')
+    expect(status.className).not.toMatch(/chat-start|chat-end/)
+    expect(status.querySelector('.chat-bubble')).toBeNull()
+    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
   })
 })

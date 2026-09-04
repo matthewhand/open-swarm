@@ -13,14 +13,12 @@ from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as fusion
 from swarm.core.blueprint_base import BlueprintBase
-from swarm.core.decision_question import format_decision_question
 from swarm.core.support_context import (
     create_paths_markdown,
     live_context,
     model_context_block,
     quickstart_section,
 )
-from swarm.core.support_socratic import socratic_configure_question, wants_configure
 
 logger = logging.getLogger(__name__)
 
@@ -33,25 +31,13 @@ Goals:
 - Encourage them to build their first agent team.
 - Help them code a blueprint in Python. Always show Python in a fenced
   ```python code block.
-- Help configure tools and prompts for OTHER agents via Socratic dialog:
-  one question card at a time (never a wall of prose). Do not configure
-  Support itself. Config intel stays on the System → Support pill.
 - When inference is not configured, point at QUICKSTART §4 and /settings/,
   /profiles/ — never invent credentials or call a live Qwen/Comfy path.
-
-When you need a user decision, emit exactly one fenced question card:
-
-```question
-{"id":"q1","ask":"Configure which agent?","choices":["hybrid_team","skeptic"],"other":"Name an agent"}
-```
-
-Choices are chips. ``other`` is the last open-string option. Then stop.
 
 Tools:
 - get_live_context: current agents + inference status.
 - get_quickstart: existing quickstart excerpts (inference / team / blueprint / run).
 - list_create_paths: in-product paths to create agents, blueprints, and teams.
-- ask_decision: emit a question card (ask + comma-separated choices).
 - consult_product_guide: specialist (as_tool) for product Q&A.
 - consult_blueprint_coder: specialist (as_tool) for drafting blueprint Python.
 
@@ -150,18 +136,6 @@ def list_create_paths() -> str:
     return create_paths_markdown()
 
 
-@_function_tool
-def ask_decision(ask: str, choices: str, other: str = "Other") -> str:
-    """Emit a user-answerable question card. choices: comma-separated."""
-    opts = [part.strip() for part in (choices or "").split(",") if part.strip()]
-    return format_decision_question(
-        ask=ask,
-        choices=opts or ["Yes", "No"],
-        other=other or "Other",
-        question_id="ask",
-    )
-
-
 class SupportBlueprint(BlueprintBase):
     """Onboarding Support agent. Discoverable; metadata.role = support."""
 
@@ -192,12 +166,7 @@ class SupportBlueprint(BlueprintBase):
             name="BlueprintCoder",
             instructions=BLUEPRINT_CODER_INSTRUCTIONS.strip(),
         )
-        tools: list[Any] = [
-            get_live_context,
-            get_quickstart,
-            list_create_paths,
-            ask_decision,
-        ]
+        tools: list[Any] = [get_live_context, get_quickstart, list_create_paths]
         coordinator = Agent(
             name="Support",
             instructions=SUPPORT_INSTRUCTIONS.strip(),
@@ -232,8 +201,6 @@ class SupportBlueprint(BlueprintBase):
     def _deterministic_reply(self, user_text: str) -> str:
         if not user_text:
             return create_paths_markdown()
-        if wants_configure(user_text):
-            return socratic_configure_question(user_text)
         lowered = user_text.lower()
         parts = [user_text]
         if any(word in lowered for word in ("blueprint", "code", "python", "agent team", "write")):

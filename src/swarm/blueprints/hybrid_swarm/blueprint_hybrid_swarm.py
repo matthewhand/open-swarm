@@ -166,14 +166,30 @@ class HybridSwarmBlueprint(BlueprintBase):
             consensus_answer = await consensus(sub_question)
 
         # ---- 4. combine REST + CLI outputs into the final answer --------- #
-        parts = [f"REST plan:\n{plan}"]
+        from swarm.core.model_text import is_usable_model_text, sanitize_model_text
+
+        plan = sanitize_model_text(plan)
+        grok_answer = sanitize_model_text(grok_answer)
+        consensus_answer = sanitize_model_text(consensus_answer)
+        if not is_usable_model_text(plan):
+            plan = ""
+        parts: list[str] = []
+        if plan:
+            parts.append(f"REST plan:\n{plan}")
         if grok_answer:
             parts.append(f"grok persona:\n{grok_answer}")
         if consensus_answer:
             parts.append(f"Consensus:\n{consensus_answer}")
         if not (grok_answer or consensus_answer):
+            if registry.names():
+                parts.append("(CLI persona produced no text)")
+            else:
+                parts.append(
+                    "(no CLI agents configured — add a 'cli_agents' block; see docs/CLI_FUSION.md)"
+                )
+        if not parts:
             parts.append(
-                "(no CLI agents configured — add a 'cli_agents' block; see docs/CLI_FUSION.md)"
+                "(planner returned no usable text — check the orchestration LLM profile)"
             )
 
         yield support.message_chunk("\n\n".join(parts), final=True)

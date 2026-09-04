@@ -63,16 +63,3 @@ async def test_blueprint_ask_includes_python_fence():
     text = _final_content(chunks)
     assert "```python" in text
     assert "class FirstTeamBlueprint" in text
-    assert "```question" not in text
-
-
-async def test_configure_intent_emits_question_card_not_prose():
-    bp = SupportBlueprint(blueprint_id="support")
-    chunks = await _collect(
-        bp.run([{"role": "user", "content": "configure hybrid_team tools"}])
-    )
-    text = _final_content(chunks)
-    assert "```question" in text
-    assert "hybrid_team tools — add which?" in text
-    assert "**Agents**" not in text
-    assert "Welcome —" not in text

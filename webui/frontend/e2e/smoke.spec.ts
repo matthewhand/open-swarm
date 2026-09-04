@@ -14,20 +14,15 @@ test('app shell loads and renders without uncaught JS errors', async ({ page }) 
 
   await page.goto('/')
 
-  // App shell
   await expect(page).toHaveTitle(/Open Swarm/i)
   await expect(page.locator('#root')).not.toBeEmpty()
-
-  // A known nav item renders (proves React mounted, not a blank/error page)
-  await expect(
-    page.getByText(/Blueprints|Settings/i).first(),
-  ).toBeVisible()
+  await expect(page.getByRole('searchbox', { name: 'Search' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
 
   if (consoleErrors.length) {
     console.log(`[smoke] ${consoleErrors.length} console error(s) (expected w/o backend): ` +
       consoleErrors.slice(0, 5).join(' | '))
   }
 
-  // Hard requirement: no uncaught JS exceptions in the bundle.
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

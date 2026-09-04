@@ -647,6 +647,55 @@ html[data-os-theme="light"] .os-agent-sidebar {
 .os-role-pill--support { background: #2f8f7b; color: #04110e; }
 .os-role-pill--gate { background: #c4a035; color: #1a1403; }
 .os-role-pill--skeptic { background: #7a6b9b; color: #f4f1fb; }
+.os-team-item { color: var(--os-text-strong); }
+.os-team-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 0.3rem;
+  background: var(--os-panel-2);
+  color: var(--os-text-strong);
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+}
+.os-team-item__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.os-team-badge {
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--os-muted);
+  border: 1px solid var(--os-border);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
+/* REQ-67: role colour lives on .os-agent-role-badge only — no row fill/border. */
+.os-agent-item[data-kind="team"] { box-shadow: inset 2px 0 0 #6b7c8a; }
+.os-agent-item--nested { margin-left: 0.85rem; }
+.os-agent-role-badge {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--os-muted);
+}
+.os-agent-role-badge[data-role="support"] { color: #3d8f8a; }
+.os-agent-role-badge[data-role="gate"] { color: #c9a227; }
+.os-agent-role-badge[data-role="skeptic"] { color: #8a5a9b; }
+.os-agent-role-badge[data-role="chief_of_staff"] { color: #4f8ec9; }
+.os-agent-role-badge[data-kind="team"] { color: #6b7c8a; }
 .os-agent-hidden { margin-top: 0.65rem; padding-top: 0.5rem; border-top: 1px solid var(--os-border); }
 .os-agent-hidden__toggle {
   width: 100%;

@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -9,89 +10,98 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertCircle, Info, LogIn, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
+import AgentAvatar from '../components/AgentAvatar'
+import { LoadingDots, useToast } from '../components/DaisyUI'
+import ThemeToggle from '../components/ThemeToggle'
+import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
 import {
-  Alert,
-  Badge,
-  Button,
-  LoadingDots,
-  LoadingSpinner,
-} from '../components/DaisyUI'
-import { AgentMark, agentDisplayName } from '../components/AgentMark'
-import { QuestionCard } from '../components/QuestionCard'
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+  openAgentEditor,
+  type AgentSettingsChangedDetail,
+} from '../lib/agentSettings'
+import { useRailChrome } from '../components/RailChrome'
+import { ComputerControlStub } from '../components/ComputerControlStub'
+import { RemoteSelect } from '../components/RemoteSelect'
+import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
-  SupportActionChips,
-  SupportBriefingPill,
-} from '../components/SupportBriefingPill'
-import { fetchBlueprints, fetchSupportContext, isAuthError } from '../lib/api'
+  agentIdFromBlueprint,
+  compactAgentThread,
+  conversationIdForAgent,
+  conversationIdForTask,
+  fetchAgentThread,
+  type ConversationSummary,
+} from '../lib/agentChat'
 import {
-  getOrCreateAgentChatSession,
-  persistableMessages,
-  putAgentChatSession,
-} from '../lib/agentChatSessions'
-import { findSupportAgent, isSupportAgent } from '../lib/supportAgents'
+  buildDisplayItems,
+  contextTextsForMeter,
+  summariesById,
+} from '../lib/chatCompact'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
+  buildToolDecisionFrame,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import { ToolCallPopup } from '../components/ToolCallPopup'
+import {
+  isToolAlwaysAllowed,
+  rememberAlwaysAllow,
+  upsertToolCall,
+  type ToolCallState,
+} from '../lib/safety'
+import { notifyGenerationComplete } from '../lib/railOrder'
+import {
+  ALL_MEMBERS_TARGET,
+  MANAGE_TEAMS_HREF,
+  MANAGE_TEAMS_VALUE,
+  fetchTeamRosters,
+  memberOptionLabel,
+  teamHideId,
+  teamThreadId,
+} from '../lib/teamRosters'
+import { fetchConfiguredRemotes } from '../lib/remotesCatalog'
+import {
+  publishChatConnection,
+  type ChatConnectionStatus,
+} from '../lib/chatConnection'
 import {
   reconnectBackoffMs,
   shouldAutoReconnect,
   WS_AUTH_REQUIRED_CODE,
 } from '../lib/chatReconnect'
 import {
-  parseDecisionQuestion,
-  stripDecisionQuestion,
-} from '../lib/decisionQuestion'
+  CONTEXT_METER_TOKENS,
+  estimateTokensInContext,
+  formatElapsed,
+  formatTokenCount,
+} from '../lib/chatMeter'
 import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
+import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
+import {
+  agentLabel,
+  defaultBlueprintId,
+  SUPPORT_AGENT_ID,
+} from '../lib/supportAgent'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
 
-type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
+type ConnectionStatus = ChatConnectionStatus
 
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
-}
-
-/** Starter prompts shown on the empty chat to give users a way in. */
-const SUGGESTED_PROMPTS = [
-  'Summarize this repository’s architecture',
-  'Write unit tests for a Python function',
-  'Plan a multi-step refactor and list the risks',
-  'Explain how MCP servers extend an agent',
-]
-
-function fallbackSupportBriefing(
-  agents: Array<{ id: string; name?: string; role?: string | null }>,
-): string {
-  const lines = ['**Agents**']
-  if (agents.length) {
-    for (const agent of agents) {
-      const name = agent.name || agent.id
-      const role = agent.role ? ` · ${agent.role}` : ''
-      lines.push(`- ${name}${role}`)
-    }
-  } else {
-    lines.push('- none')
-  }
-  lines.push(
-    '',
-    '**Inference** off',
-    '',
-    '**Gate** — dangerous tool call? yes/no. Until wired, all approved.',
-    '**Skeptic** — prompt done? If not, findings go back to retry.',
-  )
-  return lines.join('\n')
+  tools?: ToolCallState[]
 }
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
@@ -104,33 +114,79 @@ export function chatLoginHref(searchParams: URLSearchParams): string {
   return `/accounts/login/?next=${encodeURIComponent(chatLoginNext(searchParams))}`
 }
 
+export {
+  estimateTokensInContext,
+  formatElapsed,
+  formatTokenCount,
+} from '../lib/chatMeter'
+
 const ChatPage = () => {
-  // Teams/Blueprints pages link here as /chat?blueprint=<id> to preselect.
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialBlueprint = searchParams.get('blueprint') ?? ''
-  const initialSession = getOrCreateAgentChatSession(initialBlueprint)
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    initialSession.messages.map((row) => ({ ...row, streaming: false })),
+  const { addToast } = useToast()
+  const { narrow, railOpen, openRail } = useRailChrome()
+  const teamFromUrl = searchParams.get('team') ?? ''
+  const remoteFromUrl = searchParams.get('remote') ?? ''
+  const sessionFromUrl = searchParams.get('session') ?? ''
+  const selectedBlueprint = teamFromUrl || remoteFromUrl
+    ? ''
+    : defaultBlueprintId(searchParams.get('blueprint'))
+  const [newChatPerTask, setNewChatPerTask] = useState(() =>
+    teamFromUrl || remoteFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
   )
+
+  const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  const [summariesByThread, setSummariesByThread] = useState<
+    Record<string, ConversationSummary[]>
+  >({})
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
-  const [selectedBlueprint, setSelectedBlueprint] = useState(initialBlueprint)
-  const [conversationId, setConversationId] = useState(initialSession.conversationId)
-  const [supportBriefing, setSupportBriefing] = useState('')
-  const didDefaultRef = useRef(false)
+  const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
-  /** True when the server closed with WS_AUTH_REQUIRED_CODE (no Django session). */
   const [authRejected, setAuthRejected] = useState(false)
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [plusOpen, setPlusOpen] = useState(false)
+  const [, setEditsTick] = useState(0)
+  const [selectedRemoteId, setSelectedRemoteId] = useState('')
+  const [conversationId, setConversationId] = useState(() =>
+    teamFromUrl
+      ? teamThreadId(teamFromUrl)
+      : remoteFromUrl
+        ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+        : sessionFromUrl ||
+          conversationIdForTask(agentIdFromBlueprint(selectedBlueprint), {
+            newChatPerTask: loadLocalNewChatPerTask(
+              defaultBlueprintId(searchParams.get('blueprint')),
+            ),
+          }),
+  )
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : remoteFromUrl
+      ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+      : sessionFromUrl
+        ? `${selectedBlueprint}::${sessionFromUrl}`
+        : newChatPerTask
+          ? conversationId
+          : selectedBlueprint
+
+  const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const summaries = useMemo(
+    () => summariesByThread[threadKey] ?? [],
+    [summariesByThread, threadKey],
+  )
+  const displayItems = useMemo(
+    () => buildDisplayItems(messages, summaries),
+    [messages, summaries],
+  )
+  const summaryMap = useMemo(() => summariesById(summaries), [summaries])
 
   const wsRef = useRef<WebSocket | null>(null)
-  const conversationIdRef = useRef(initialSession.conversationId)
-  const threadKeyRef = useRef(initialBlueprint)
-  const messagesRef = useRef<ChatMessage[]>(
-    initialSession.messages.map((row) => ({ ...row, streaming: false })),
-  )
+  const conversationIdRef = useRef(conversationId)
+  conversationIdRef.current = conversationId
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLInputElement | null>(null)
+  const plusRef = useRef<HTMLDivElement | null>(null)
   /** Monotonic counter for collision-free user-echo keys. */
   const userKeyCounterRef = useRef(0)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
@@ -138,134 +194,301 @@ const ChatPage = () => {
   const backoffAttemptRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
-  /** Last user prompt, kept for the experimental Retry action. */
+  const toastedOutageRef = useRef(false)
+  const streamStartedAtRef = useRef<number | null>(null)
   const lastUserTextRef = useRef('')
-
-  conversationIdRef.current = conversationId
-  messagesRef.current = messages
+  /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
+  const lastHydratedAgentRef = useRef<string | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
-  const blueprints = blueprintsQuery.data?.data ?? []
-  const urlBlueprint = searchParams.get('blueprint') ?? ''
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: fetchTeamRosters,
+  })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchConfiguredRemotes,
+    retry: 1,
+  })
+  const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const cliAgents = cliQuery.data?.rail ?? []
+  const teams = teamsQuery.data ?? []
+  const remotes = remotesQuery.data ?? []
+  const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const selectedRemote = remotes.find((remote) => remote.id === remoteFromUrl) ?? null
+  const selectedRemoteSession = selectedRemote?.agents.find((agent) => agent.id === sessionFromUrl)
+  const selectedTeamSession = selectedTeam?.members.find((member) => member.id === sessionFromUrl)
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
-  const headerName = agentDisplayName(selectedAgent, selectedBlueprint)
-  const supportSelected =
-    isSupportAgent(selectedAgent) || selectedBlueprint === 'support'
-  const blueprintMissingFromList =
-    Boolean(selectedBlueprint) &&
-    !blueprintsQuery.isPending &&
-    !blueprintsQuery.isError &&
-    !blueprints.some((bp) => bp.id === selectedBlueprint)
+  const runtimeBlueprint = teamFromUrl ? '' : assignedBlueprintId(selectedBlueprint)
+  const selectedAgentName = teamFromUrl
+    ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
+    : remoteFromUrl
+      ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
+      : selectedCli
+        ? selectedCli.name
+        : selectedAgent
+          ? agentLabel(selectedAgent)
+          : selectedBlueprint === SUPPORT_AGENT_ID
+            ? 'Support'
+            : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
-    if (urlBlueprint && urlBlueprint !== selectedBlueprint) {
-      setSelectedBlueprint(urlBlueprint)
+    // REQ-28: a selected composition team uses ?team=; do not clobber it
+    // with the Support default (REQ-23 owns send-to-all).
+    if (searchParams.get('team') || searchParams.get('remote')) return
+    if (!searchParams.get('blueprint')) {
+      setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })
     }
-  }, [urlBlueprint, selectedBlueprint])
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
-    if (didDefaultRef.current) return
-    if (urlBlueprint) {
-      didDefaultRef.current = true
+    if (teamFromUrl && sessionFromUrl) {
+      setMemberTarget(sessionFromUrl)
       return
     }
-    if (blueprintsQuery.isPending) return
-    didDefaultRef.current = true
-    const support = findSupportAgent(blueprints)
-    if (!support) return
-    setSelectedBlueprint(support.id)
-    setSearchParams({ blueprint: support.id }, { replace: true })
-  }, [urlBlueprint, blueprints, blueprintsQuery.isPending, setSearchParams])
+    setMemberTarget(ALL_MEMBERS_TARGET)
+  }, [teamFromUrl, sessionFromUrl])
 
   useEffect(() => {
-    const prevKey = threadKeyRef.current
-    if (prevKey === selectedBlueprint) return
-    putAgentChatSession(prevKey, {
-      conversationId: conversationIdRef.current,
-      messages: persistableMessages(messagesRef.current),
-    })
-    const next = getOrCreateAgentChatSession(selectedBlueprint)
-    threadKeyRef.current = selectedBlueprint
-    conversationIdRef.current = next.conversationId
-    setConversationId(next.conversationId)
-    setMessages(next.messages.map((row) => ({ ...row, streaming: false })))
-    setInput('')
-    lastUserTextRef.current = ''
-    backoffAttemptRef.current = 0
-  }, [selectedBlueprint])
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+  }, [])
 
   useEffect(() => {
-    if (threadKeyRef.current !== selectedBlueprint) return
-    const owned = getOrCreateAgentChatSession(selectedBlueprint)
-    if (owned.conversationId !== conversationId) return
-    putAgentChatSession(selectedBlueprint, {
-      conversationId,
-      messages: persistableMessages(messages),
-    })
-  }, [selectedBlueprint, conversationId, messages])
+    if (teamFromUrl) {
+      setNewChatPerTask(false)
+      return
+    }
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    setNewChatPerTask(loadLocalNewChatPerTask(agent))
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<AgentSettingsChangedDetail>).detail
+      if (detail?.agentId && detail.agentId === agent) {
+        setNewChatPerTask(detail.new_chat_per_task)
+      }
+    }
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+  }, [selectedBlueprint, teamFromUrl])
 
+  // Per-agent thread: stable conversation id + hydrate from disk/DB.
+  // Team threads use a stable team-* conversation id and do not use agent JSON.
+  // No history chrome — messages just come back after reload / agent switch.
   useEffect(() => {
-    if (!supportSelected) return
+    if (teamFromUrl) {
+      const key = teamThreadId(teamFromUrl)
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+    if (remoteFromUrl) {
+      const key = `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    const fresh = !sessionFromUrl && newChatPerTask
+    const nextId = fresh
+      ? conversationIdForTask(agent, { newChatPerTask: true })
+      : sessionFromUrl || conversationIdForAgent(agent)
+    const hydrateKey = sessionFromUrl
+      ? `${agent}::${sessionFromUrl}`
+      : fresh
+        ? nextId
+        : agent
+    const switched =
+      lastHydratedAgentRef.current !== null &&
+      lastHydratedAgentRef.current !== hydrateKey
+    lastHydratedAgentRef.current = hydrateKey
+    setConversationId(nextId)
+    userKeyCounterRef.current = 0
+    if (switched) {
+      setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: [] }))
+    }
+    if (fresh) {
+      // New empty session — do not restore a prior transcript.
+      return
+    }
     let cancelled = false
-    fetchSupportContext()
-      .then((ctx) => {
-        if (cancelled) return
-        const text = (ctx.briefing || ctx.welcome || '').trim()
-        if (text) setSupportBriefing(text)
-      })
-      .catch(() => {
-        if (!cancelled) setSupportBriefing(fallbackSupportBriefing(blueprints))
-      })
+    ;(async () => {
+      const thread = await fetchAgentThread(agent, sessionFromUrl || undefined)
+      if (cancelled) return
+      setSummariesByThread((prev) => ({
+        ...prev,
+        [threadKey]: thread.summaries,
+      }))
+      if (thread.messages.length === 0) return
+      setThreads((prev) => ({
+        ...prev,
+        [threadKey]: thread.messages.map((message, index) => ({
+          key: `hist-${index}-${message.role}`,
+          role: message.role,
+          text: message.content,
+          streaming: false,
+        })),
+      }))
+    })()
     return () => {
       cancelled = true
     }
-  }, [supportSelected, blueprints])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey])
 
-  const handleWsEvent = useCallback((event: ChatWsEvent) => {
-    if (event.kind === 'unknown') {
-      // Frame we don't recognise; log for debugging but never fabricate UI.
-      console.warn('Unrecognised chat websocket frame:', event.raw)
-      return
-    }
-    setMessages((prev) => {
-      switch (event.kind) {
-        case 'user_echo':
-          userKeyCounterRef.current += 1
-          return [
+  const attachToolToThread = useCallback(
+    (tool: ToolCallState) => {
+      setThreads((prev) => {
+        const current = prev[threadKey] ?? []
+        const targetIndex = [...current]
+          .reverse()
+          .findIndex((message) => message.role === 'assistant')
+        const index = targetIndex === -1 ? -1 : current.length - 1 - targetIndex
+        if (index === -1) {
+          return {
             ...prev,
-            {
-              key: `user-${userKeyCounterRef.current}-${Date.now()}`,
-              role: 'user',
-              text: event.text,
-              streaming: false,
-            },
-          ]
-        case 'assistant_start':
-          // Server may re-announce an id; keep keys unique.
-          if (prev.some((m) => m.key === event.id)) return prev
-          return [
-            ...prev,
-            { key: event.id, role: 'assistant', text: '', streaming: true },
-          ]
-        case 'assistant_chunk':
-          return prev.map((m) =>
-            m.key === event.id ? { ...m, text: m.text + event.text } : m,
-          )
-        case 'assistant_final':
-          return prev.map((m) =>
-            m.key === event.id
-              ? { ...m, text: event.text, streaming: false }
-              : m,
-          )
-      }
-    })
+            [threadKey]: [
+              ...current,
+              {
+                key: `tool-host-${tool.id}`,
+                role: 'assistant' as const,
+                text: '',
+                streaming: true,
+                tools: [tool],
+              },
+            ],
+          }
+        }
+        const next = [...current]
+        const host = next[index]!
+        next[index] = { ...host, tools: upsertToolCall(host.tools ?? [], tool) }
+        return { ...prev, [threadKey]: next }
+      })
+    },
+    [threadKey],
+  )
+
+  const sendToolDecision = useCallback((id: string, decision: 'allow' | 'always' | 'deny') => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(buildToolDecisionFrame(id, decision))
   }, [])
 
-  // Connect (and reconnect on demand) to the chat websocket.
+  const handleWsEvent = useCallback(
+    (event: ChatWsEvent) => {
+      if (event.kind === 'unknown') {
+        console.warn('Unrecognised chat websocket frame:', event.raw)
+        return
+      }
+      if (event.kind === 'tool_status') {
+        attachToolToThread({
+          id: event.id,
+          name: event.name,
+          status: event.status,
+          agentId: event.agentId,
+          needsApproval: false,
+        })
+        return
+      }
+      if (event.kind === 'tool_approval') {
+        const agentId = event.agentId || selectedBlueprint || threadKey
+        if (isToolAlwaysAllowed(agentId, event.name)) {
+          sendToolDecision(event.id, 'always')
+          attachToolToThread({
+            id: event.id,
+            name: event.name,
+            status: 'allowed',
+            agentId,
+            needsApproval: false,
+            concerned: true,
+          })
+          return
+        }
+        attachToolToThread({
+          id: event.id,
+          name: event.name,
+          status: 'running',
+          agentId,
+          needsApproval: true,
+          concerned: true,
+        })
+        return
+      }
+      setThreads((prev) => {
+        const current = prev[threadKey] ?? []
+        let next = current
+        switch (event.kind) {
+          case 'user_echo':
+            userKeyCounterRef.current += 1
+            next = [
+              ...current,
+              {
+                key: `user-${userKeyCounterRef.current}-${Date.now()}`,
+                role: 'user',
+                text: event.text,
+                streaming: false,
+              },
+            ]
+            break
+          case 'assistant_start':
+            if (current.some((m) => m.key === event.id)) return prev
+            next = [...current, { key: event.id, role: 'assistant', text: '', streaming: true }]
+            break
+          case 'assistant_chunk':
+            next = current.map((m) =>
+              m.key === event.id ? { ...m, text: m.text + event.text } : m,
+            )
+            break
+          case 'assistant_final':
+            next = current.map((m) =>
+              m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
+            )
+            break
+          case 'status':
+            next = [
+              ...current,
+              {
+                key: `status-${current.length}-${Date.now()}`,
+                role: 'status',
+                text: event.text,
+                streaming: false,
+              },
+            ]
+            break
+        }
+        return { ...prev, [threadKey]: next }
+      })
+      if (event.kind === 'assistant_final') {
+        notifyGenerationComplete(teamFromUrl ? teamHideId(teamFromUrl) : selectedBlueprint)
+      }
+    },
+    [attachToolToThread, selectedBlueprint, sendToolDecision, teamFromUrl, threadKey],
+  )
+
   useEffect(() => {
     let opened = false
     intentionalCloseRef.current = false
@@ -279,9 +502,8 @@ const ChatPage = () => {
 
     let ws: WebSocket
     try {
-      const session = getOrCreateAgentChatSession(selectedBlueprint)
       ws = new WebSocket(
-        buildChatWsUrl(session.conversationId, selectedBlueprint || undefined),
+        buildChatWsUrl(conversationId, teamFromUrl ? undefined : runtimeBlueprint || undefined),
       )
     } catch {
       setStatus('failed')
@@ -310,20 +532,12 @@ const ChatPage = () => {
     }
     ws.onclose = (event: CloseEvent) => {
       if (wsRef.current === ws) wsRef.current = null
-      // Auth gate: consumer accept-then-closes with 4401 (session cookie missing).
-      // Never-opened failures are usually ASGI/network/origin — not "use API token".
       const rejected = event.code === WS_AUTH_REQUIRED_CODE
       setAuthRejected(rejected)
       setStatus(opened ? 'closed' : 'failed')
 
       const attempt = backoffAttemptRef.current
-      if (
-        shouldAutoReconnect(
-          event.code,
-          intentionalCloseRef.current,
-          attempt,
-        )
-      ) {
+      if (shouldAutoReconnect(event.code, intentionalCloseRef.current, attempt)) {
         const delay = reconnectBackoffMs(attempt)
         backoffAttemptRef.current = attempt + 1
         reconnectTimerRef.current = setTimeout(() => {
@@ -345,10 +559,12 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent, selectedBlueprint])
+  }, [connectAttempt, handleWsEvent, conversationId, runtimeBlueprint, teamFromUrl])
 
-  // Keep the latest message in view while streaming, but only while the user
-  // is already at (or near) the bottom — never yank a reader who scrolled up.
+  useEffect(() => {
+    publishChatConnection(status)
+  }, [status])
+
   const pinnedToBottomRef = useRef(true)
   useEffect(() => {
     if (pinnedToBottomRef.current) {
@@ -356,8 +572,6 @@ const ChatPage = () => {
     }
   }, [messages])
 
-  // After a user-initiated reconnect succeeds, move focus to the composer so
-  // keyboard users can type immediately (skip initial page-load connect).
   useEffect(() => {
     const wasOpen = prevStatusRef.current === 'open'
     prevStatusRef.current = status
@@ -366,9 +580,55 @@ const ChatPage = () => {
     }
   }, [status, connectAttempt])
 
-  const isReceiving = messages.length > 0 && messages[messages.length - 1].streaming
-  const canSend =
-    status === 'open' && input.trim().length > 0 && !isReceiving
+  const reconnect = useCallback(() => {
+    backoffAttemptRef.current = 0
+    toastedOutageRef.current = false
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    setConnectAttempt((n) => n + 1)
+  }, [])
+
+  useEffect(() => {
+    if (status === 'open') {
+      toastedOutageRef.current = false
+      return
+    }
+    if (status !== 'failed' && status !== 'closed') return
+    if (toastedOutageRef.current) return
+    toastedOutageRef.current = true
+    const title = authRejected
+      ? 'Chat unavailable — sign in required'
+      : status === 'failed'
+        ? 'Chat websocket unreachable'
+        : 'Chat disconnected'
+    const detail = authRejected
+      ? 'Live chat needs a Django session cookie. Sign in, then reconnect.'
+      : status === 'failed'
+        ? 'ASGI is not serving /ws/ or Origin does not match ALLOWED_HOSTS.'
+        : 'The chat websocket closed. Message history is kept.'
+    addToast({
+      type: 'error',
+      title,
+      message: (
+        <span>
+          {detail}{' '}
+          {authRejected ? (
+            <a href={signInHref} className="link">
+              Sign in
+            </a>
+          ) : null}{' '}
+          <button type="button" className="link" onClick={reconnect}>
+            Reconnect
+          </button>
+        </span>
+      ),
+      position: 'bottom-right',
+    })
+  }, [status, authRejected, signInHref, addToast, reconnect])
+
+  const canSend = status === 'open' && input.trim().length > 0
 
   const sendText = useCallback(
     (text: string) => {
@@ -376,27 +636,43 @@ const ChatPage = () => {
       const trimmed = text.trim()
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
       lastUserTextRef.current = trimmed
-      // Protocol from DjangoChatConsumer.receive():
-      // {"message": "<text>", "blueprint": "<id>"} — the blueprint field is
-      // optional and selects which blueprint generates the reply.
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      // Team compose adds params { team, target: "all" | memberId }.
+      if (teamFromUrl) {
+        ws.send(
+          buildChatWsFrame(trimmed, undefined, {
+            team: teamFromUrl,
+            target: memberTarget || ALL_MEMBERS_TARGET,
+          }),
+        )
+        return
+      }
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          runtimeBlueprint || selectedBlueprint || undefined,
+          selectedCli
+            ? { cli: selectedCli.cli }
+            : newChatPerTask
+              ? { new_session: messages.length === 0 }
+              : undefined,
+        ),
+      )
     },
-    [selectedBlueprint],
+    [
+      runtimeBlueprint,
+      selectedBlueprint,
+      selectedCli,
+      teamFromUrl,
+      memberTarget,
+      newChatPerTask,
+      messages.length,
+    ],
   )
 
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
     sendText(input)
     setInput('')
-  }
-
-  const reconnect = () => {
-    backoffAttemptRef.current = 0
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current)
-      reconnectTimerRef.current = null
-    }
-    setConnectAttempt((n) => n + 1)
   }
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -406,319 +682,365 @@ const ChatPage = () => {
     }
   }
 
-  const composerPlaceholder =
-    status === 'open'
-      ? 'Type a message…'
-      : status === 'connecting'
-        ? 'Connecting… sending is disabled'
-        : 'Websocket not connected — sending is disabled'
+  const handleMic = () => {
+    type SpeechRec = {
+      start: () => void
+      onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null
+    }
+    const Ctor = (
+      window as unknown as {
+        SpeechRecognition?: new () => SpeechRec
+        webkitSpeechRecognition?: new () => SpeechRec
+      }
+    ).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition
+    if (!Ctor) {
+      addToast({
+        type: 'info',
+        title: 'Voice input',
+        message: 'Speech recognition is not available in this browser.',
+      })
+      return
+    }
+    const recognition = new Ctor()
+    recognition.onresult = (event) => {
+      const spoken = event.results?.[0]?.[0]?.transcript
+      if (spoken) setInput((prev) => (prev ? `${prev} ${spoken}` : spoken))
+    }
+    recognition.start()
+  }
+
+  useEffect(() => {
+    if (!plusOpen) return
+    const onPointer = (event: Event) => {
+      if (plusRef.current && !plusRef.current.contains(event.target as Node)) {
+        setPlusOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', onPointer)
+    return () => window.removeEventListener('mousedown', onPointer)
+  }, [plusOpen])
+
+  const streamingMessage = messages.find((message) => message.streaming)
+  useEffect(() => {
+    if (!streamingMessage) {
+      streamStartedAtRef.current = null
+      return
+    }
+    if (streamStartedAtRef.current == null) {
+      streamStartedAtRef.current = Date.now()
+    }
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [streamingMessage])
+
+  const handleCompact = useCallback(async () => {
+    setPlusOpen(false)
+    if (messages.length === 0) {
+      addToast({
+        type: 'info',
+        title: 'Compact',
+        message: 'Nothing to compact yet.',
+      })
+      return
+    }
+    try {
+      const result = await compactAgentThread({
+        conversationId,
+        agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        })),
+      })
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Compact failed',
+        message: 'Could not compact this chat. Sign in and try again.',
+      })
+    }
+  }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
+
+  const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
+  const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
+  const streamElapsed =
+    streamingMessage && streamStartedAtRef.current != null
+      ? formatElapsed(nowMs - streamStartedAtRef.current)
+      : null
+
+  const composerPlaceholder = status === 'open' ? 'Message …' : 'Message …'
+
+  const statusLabel = useMemo(() => {
+    if (status === 'open') return ''
+    if (status === 'connecting') return 'Connecting…'
+    if (authRejected) return 'Unavailable — sign in required'
+    if (status === 'failed') return 'Unavailable — websocket unreachable'
+    return 'Disconnected'
+  }, [authRejected, status])
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-13rem)] min-h-[28rem] w-full max-w-5xl flex-col gap-4 px-4 py-6 lg:h-[calc(100vh-6.5rem)]">
-      {/* Header: title + blueprint selector + connection status.
-          Stacks vertically below lg; single row on desktop. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-x-6">
-        <h1
-          className="text-3xl font-bold flex items-center gap-2"
-          data-testid="chat-agent-header"
-        >
-          <AgentMark
-            agent={selectedAgent}
-            fallbackId={selectedBlueprint}
-            size="lg"
-          />
-          {headerName}
-        </h1>
-
-        {/* Blueprint selector (from /v1/blueprints/) */}
-        <div className="flex flex-wrap items-end gap-4 lg:flex-1 lg:justify-end">
-          {blueprintsQuery.isPending ? (
-            <div className="flex items-center gap-2 py-2">
-              <LoadingSpinner size="sm" />
-              <span className="text-sm">Loading blueprints…</span>
-            </div>
-          ) : blueprintsQuery.isError ? (
-            <Alert
-              type="warning"
-              icon={<AlertCircle className="h-5 w-5" />}
-              className="max-w-md py-2"
+    <div className="os-chat flex h-full min-h-0 w-full flex-col">
+      <header className="os-chat-header">
+        <div className="os-chat-header__identity flex min-w-0 items-center gap-2" data-testid="selected-agent-header">
+          {narrow ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square shrink-0"
+              aria-label="Open agent list"
+              aria-expanded={railOpen}
+              onClick={openRail}
             >
-              <span className="text-sm">
-                Could not load blueprints
-                {isAuthError(blueprintsQuery.error) ? (
-                  <>
-                    {' '}
-                    (authentication failed —{' '}
-                    <a href={signInHref} className="link">
-                      sign in
-                    </a>{' '}
-                    for a Django session, or send{' '}
-                    <code>Authorization: Bearer</code> for REST)
-                  </>
-                ) : (
-                  ` (${blueprintsQuery.error.message})`
-                )}
-                .
-              </span>
-            </Alert>
-          ) : (
-            <div className="w-full max-w-xs flex flex-col gap-1">
-              <div className="mb-1 flex items-center gap-1.5">
-                <span className="text-sm font-medium">
-                  Blueprint
-                </span>
-                {/* Focusable so keyboard users can reveal the tooltip;
-                    aria-describedby keeps the note available to screen readers. */}
-                <span
-                  className="tooltip tooltip-bottom before:max-w-[18rem] before:whitespace-normal"
-                  data-tip="Sent with every message — the selected blueprint generates the reply. Choose “Server default model” to use the server-configured model instead."
-                >
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs btn-circle p-0 min-h-0 h-auto"
-                    aria-label="About blueprint selection"
-                    tabIndex={0}
-                  >
-                    <Info className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-                  </button>
-                </span>
-              </div>
-              <select
-                className="select select-md h-12 w-full border border-base-300"
-                value={selectedBlueprint}
-                onChange={(e) => {
-                  const id = e.target.value
-                  setSelectedBlueprint(id)
-                  if (id) setSearchParams({ blueprint: id }, { replace: true })
-                  else setSearchParams({}, { replace: true })
-                }}
-                aria-label="Blueprint"
-              >
-                <option value="">Server default model</option>
-                {/* Keep a ?blueprint= preselection visible even if it is not
-                    in the fetched list (e.g. a just-created team). */}
-                {blueprintMissingFromList && (
-                  <option value={selectedBlueprint}>
-                    {selectedBlueprint} (not in list)
-                  </option>
-                )}
-                {blueprints.map((bp) => (
-                  <option key={bp.id} value={bp.id}>
-                    {bp.name || bp.id}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="pb-1">
-            <ConnectionBadge status={status} authRejected={authRejected} />
+              <PanelLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
+          {!teamFromUrl ? (
+            <AgentAvatar
+              src={selectedAgent?.avatar_path}
+              size="lg"
+              className="os-chat-header__avatar"
+            />
+          ) : null}
+          <h1 className="truncate text-base font-semibold tracking-tight">
+            <button
+              type="button"
+              className="os-identity-btn truncate text-left"
+              aria-label={`Open ${selectedAgentName} definition`}
+              onClick={() => {
+                if (teamFromUrl) {
+                  openSettingsSheet({
+                    section: 'definition',
+                    definitionKind: 'team',
+                    definitionId: teamFromUrl,
+                    teamId: teamFromUrl,
+                  })
+                  return
+                }
+                const role = agentRole({
+                  id: selectedBlueprint,
+                  name: selectedAgentName,
+                  role: selectedAgent?.role,
+                })
+                openSettingsSheet({
+                  section: 'definition',
+                  definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
+                  definitionId: selectedBlueprint,
+                  blueprintId: selectedBlueprint,
+                })
+              }}
+            >
+              {selectedAgentName}
+            </button>
+          </h1>
+          {!teamFromUrl && selectedBlueprint ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              aria-label={`Edit ${selectedAgentName}`}
+              onClick={() =>
+                openAgentEditor({
+                  agentId: selectedBlueprint,
+                })
+              }
+            >
+              Edit
+            </button>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <RemoteSelect
+            remotes={remotesQuery.data}
+            value={selectedRemoteId}
+            onChange={setSelectedRemoteId}
+            size="sm"
+            className="h-8 max-w-[10rem]"
+          />
+          {teamFromUrl ? (
+            <select
+              className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
+              value={memberTarget}
+              aria-label="Team members"
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === MANAGE_TEAMS_VALUE) {
+                  window.location.assign(MANAGE_TEAMS_HREF)
+                  return
+                }
+                setMemberTarget(value)
+              }}
+            >
+              <option value={ALL_MEMBERS_TARGET}>All members</option>
+              {(selectedTeam?.members ?? []).map((member) => (
+                <option key={member.id} value={member.id}>
+                  {memberOptionLabel(member)}
+                </option>
+              ))}
+              <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
+            </select>
+          ) : null}
+          <div
+            className="flex items-center gap-2"
+            role="toolbar"
+            aria-label="Chat tools"
+          >
+            <ComputerControlStub />
+            <ThemeToggle />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              aria-label="Open settings"
+              aria-haspopup="dialog"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))}
+            >
+              <Settings className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {blueprintMissingFromList && (
-        <Alert
-          type="warning"
-          icon={<AlertCircle className="h-5 w-5" />}
-          className="shrink-0"
-        >
-          <div className="space-y-1 text-sm">
-            <span className="font-medium">
-              Blueprint <code>{selectedBlueprint}</code> from the URL is not in
-              the discoverable list.
-            </span>
-            <p>
-              It stays selected so chat can still request it (for example a
-              just-launched team). If the server does not recognise the id, the
-              reply errors — it does not fall back to the default model.
-            </p>
+      <span role="status" aria-live="polite" aria-atomic="true" aria-label="Connection status" className="sr-only">
+        {statusLabel}
+      </span>
+
+      <div
+        ref={scrollBoxRef}
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-4 focus:outline focus:outline-2 focus:outline-primary"
+        aria-live="polite"
+        role="log"
+        aria-label="Conversation"
+        tabIndex={0}
+        onScroll={(e) => {
+          const el = e.currentTarget
+          pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+        }}
+      >
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-base-content/45">
+            <p className="text-sm">Message {selectedAgentName}</p>
           </div>
-        </Alert>
-      )}
-
-      {/* Fallback when the websocket is unavailable.
-          shrink-0: fixed-height flex column otherwise collapses this CTA. */}
-      {(status === 'failed' || status === 'closed') && (
-        <Alert
-          type="error"
-          icon={<AlertCircle className="h-5 w-5" />}
-          className="shrink-0"
-        >
-          <div className="space-y-2">
-            <span className="font-medium">
-              {authRejected
-                ? 'Websocket unavailable — sign in required.'
-                : status === 'failed'
-                  ? 'Websocket unavailable.'
-                  : 'Websocket connection closed.'}
-            </span>
-            <p className="text-sm">
-              {authRejected ? (
-                <>
-                  Live chat authenticates with a Django{' '}
-                  <strong>session cookie</strong> (form login), not a REST
-                  API bearer token. Sign in, then reconnect. Message history
-                  above is kept when present.
-                </>
-              ) : (
-                <>
-                  Live chat runs over the backend websocket (served by{' '}
-                  <code>manage.py runserver</code>, daphne or any ASGI server
-                  via <code>swarm.asgi:application</code>). If you are already
-                  signed in, check that ASGI is serving <code>/ws/</code> and
-                  your Origin matches <code>ALLOWED_HOSTS</code>, then
-                  reconnect. Message history above is kept when present.
-                </>
-              )}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <a href={signInHref} className="btn btn-sm btn-primary">
-                <LogIn className="h-4 w-4 mr-1" aria-hidden="true" />
-                Sign in
-              </a>
-              <Button size="sm" variant="ghost" onClick={reconnect}>
-                <RefreshCw className="h-4 w-4 mr-1" aria-hidden="true" />
-                Reconnect
-              </Button>
-            </div>
-          </div>
-        </Alert>
-      )}
-
-      {/* Conversation: scrollable message list + composer pinned at bottom */}
-      <div className="card flex min-h-0 flex-1 flex-col overflow-hidden border border-base-300 bg-base-100">
-        <div
-          ref={scrollBoxRef}
-          className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4 focus:outline focus:outline-2 focus:outline-primary"
-          aria-live="polite"
-          role="log"
-          aria-label="Conversation"
-          tabIndex={0}
-          onScroll={(e) => {
-            const el = e.currentTarget
-            // Within 48px of the bottom counts as "following" the stream.
-            pinnedToBottomRef.current =
-              el.scrollHeight - el.scrollTop - el.clientHeight < 48
-          }}
-        >
-          {supportSelected && (
-            <div className="os-support-rail">
-              <SupportBriefingPill briefing={supportBriefing} />
-              <SupportActionChips />
-            </div>
-          )}
-          {messages.length === 0 && !supportSelected ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <MessageSquare className="h-10 w-10 opacity-20" aria-hidden="true" />
-              <div>
-                <p className="font-medium text-base-content/70">
-                  {status === 'open'
-                    ? 'Connected and ready'
-                    : status === 'connecting'
-                      ? 'Connecting to the chat websocket…'
-                      : 'Websocket not connected'}
+        ) : (
+          displayItems.map((item, idx) => {
+            if (item.kind === 'summary') {
+              return (
+                <SummaryBlock
+                  key={`sum-${item.summary.id}`}
+                  summary={item.summary}
+                  byId={summaryMap}
+                />
+              )
+            }
+            const message = item.message
+            if (message.role === 'status') {
+              return (
+                <p key={message.key} className="os-chat-status" data-role="status">
+                  {message.text}
                 </p>
-                <p className="text-sm text-base-content/70">
-                  {status === 'open'
-                    ? 'Send a message below, or try one of these:'
-                    : status === 'connecting'
-                      ? 'Hang tight — this usually takes a moment.'
-                      : authRejected
-                        ? 'Sign in with a Django session, then reconnect.'
-                        : 'Sign in if needed, confirm ASGI is up, then reconnect.'}
-                </p>
-              </div>
-              {status === 'open' && (
-                <div className="flex flex-wrap justify-center gap-2 mt-1 max-w-xl">
-                  {SUGGESTED_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => setInput(prompt)}
-                      className="btn btn-sm btn-outline rounded-full normal-case font-normal"
-                    >
-                      {prompt}
-                    </button>
+              )
+            }
+            const isLast = idx === displayItems.length - 1
+            const retryEnabled =
+              SHOW_MESSAGE_ACTIONS &&
+              isLast &&
+              message.role === 'assistant' &&
+              !message.streaming &&
+              lastUserTextRef.current.length > 0
+            return (
+              <div
+                key={message.key}
+                className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
+              >
+                <div className="chat-header text-xs opacity-60">
+                  {message.role === 'user' ? 'You' : selectedAgentName}
+                </div>
+                <div
+                  className={`chat-bubble ${
+                    message.role === 'user'
+                      ? 'bg-neutral text-neutral-content'
+                      : 'bg-base-200 text-base-content'
+                  }`}
+                >
+                  <ChatBubbleBody text={message.text} streaming={message.streaming} />
+                  {(message.tools ?? []).map((tool) => (
+                    <ToolCallPopup
+                      key={tool.id}
+                      tool={tool}
+                      onDecision={(decision) => {
+                        const agentId = tool.agentId || selectedBlueprint || threadKey
+                        if (decision === 'always') rememberAlwaysAllow(agentId, tool.name)
+                        sendToolDecision(tool.id, decision)
+                        attachToolToThread({
+                          ...tool,
+                          needsApproval: false,
+                          status:
+                            decision === 'deny'
+                              ? 'denied'
+                              : decision === 'always' || decision === 'allow'
+                                ? 'allowed'
+                                : tool.status,
+                        })
+                      }}
+                    />
                   ))}
                 </div>
-              )}
-            </div>
-          ) : (
-            messages.map((message, idx) => {
-              const isLast = idx === messages.length - 1
-              const retryEnabled =
-                SHOW_MESSAGE_ACTIONS &&
-                isLast &&
-                message.role === 'assistant' &&
-                !message.streaming &&
-                lastUserTextRef.current.length > 0
-              const question =
-                message.role === 'assistant' && !message.streaming
-                  ? parseDecisionQuestion(message.text)
-                  : null
-              const prose = question
-                ? stripDecisionQuestion(message.text)
-                : message.text
-              const questionOpen = Boolean(question) && isLast
-              return (
-                <div
-                  key={message.key}
-                  className={`chat ${message.role === 'user' ? 'chat-end' : 'chat-start'}`}
-                >
-                  <div className="chat-header text-xs opacity-60">
-                    {message.role === 'user' ? 'You' : headerName}
-                  </div>
-                  {prose.length > 0 || message.streaming ? (
-                    <div
-                      className={`chat-bubble ${
-                        message.role === 'user'
-                          ? 'bg-neutral text-neutral-content'
-                          : 'bg-base-200 text-base-content'
-                      }`}
-                    >
-                      <ChatBubbleBody
-                        text={prose}
-                        streaming={message.streaming && !question}
-                      />
-                    </div>
-                  ) : null}
-                  {question ? (
-                    <QuestionCard
-                      question={question}
-                      disabled={!questionOpen || status !== 'open'}
-                      onChoose={sendText}
-                    />
-                  ) : null}
-                  {SHOW_MESSAGE_ACTIONS &&
-                    message.role === 'assistant' &&
-                    !message.streaming && (
-                      <ChatMessageActions
-                        text={message.text}
-                        onRetry={
-                          retryEnabled
-                            ? () => {
-                                sendText(lastUserTextRef.current)
-                              }
-                            : undefined
-                        }
-                      />
-                    )}
-                </div>
-              )
-            })
-          )}
-          <div ref={listEndRef} />
-        </div>
+                {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
+                  <ChatMessageActions
+                    text={message.text}
+                    onRetry={
+                      retryEnabled
+                        ? () => {
+                            sendText(lastUserTextRef.current)
+                          }
+                        : undefined
+                    }
+                  />
+                )}
+              </div>
+            )
+          })
+        )}
+        <div ref={listEndRef} />
+      </div>
 
-        {/* Composer */}
-        <form
-          onSubmit={handleSend}
-          className="flex gap-2 border-t border-base-300 p-3"
-        >
+      <form onSubmit={handleSend} className="os-composer-wrap">
+        <div className="os-composer">
+          <div className="relative" ref={plusRef}>
+            <button
+              type="button"
+              className="os-composer__icon"
+              aria-label="Add"
+              aria-haspopup="menu"
+              aria-expanded={plusOpen}
+              onClick={() => setPlusOpen((value) => !value)}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+            </button>
+            {plusOpen && (
+              <ul
+                role="menu"
+                aria-label="Chat actions"
+                className="os-plus-menu"
+              >
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="os-plus-menu__item"
+                    onClick={() => {
+                      void handleCompact()
+                    }}
+                  >
+                    <Layers className="h-4 w-4" aria-hidden="true" />
+                    Compact
+                  </button>
+                </li>
+              </ul>
+            )}
+          </div>
           <input
             ref={composerRef}
             type="text"
-            className="input input-md h-12 flex-1"
+            className="os-composer__input"
             placeholder={composerPlaceholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -726,18 +1048,71 @@ const ChatPage = () => {
             disabled={status !== 'open'}
             aria-label="Chat message"
           />
-          <Button type="submit" variant="primary" size="lg" disabled={!canSend}>
-            <Send className="h-4 w-4 mr-1" aria-hidden="true" />
-            Send
-          </Button>
-        </form>
-      </div>
+          <button
+            type="button"
+            className="os-composer__icon"
+            aria-label="Voice input"
+            onClick={handleMic}
+          >
+            <Mic className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <button type="submit" className="sr-only" disabled={!canSend}>
+          Send
+        </button>
+      </form>
+
+      <footer className="os-chat-footer" aria-live="polite">
+        <div
+          className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
+          role="meter"
+          aria-label="Tokens in context"
+          aria-valuemin={0}
+          aria-valuemax={CONTEXT_METER_TOKENS}
+          aria-valuenow={tokenCount}
+        >
+          <div
+            className="h-full rounded-full bg-base-content/45"
+            style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+          />
+        </div>
+        <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
+        {streamingMessage ? (
+          <span className="min-w-0 truncate">
+            {selectedAgentName} · {streamElapsed ?? '0s'}
+          </span>
+        ) : null}
+      </footer>
     </div>
   )
 }
 
-/** Memoized bubble body: avoids re-running markdown + sanitize for every
- * already-final message on each streamed chunk. */
+function SummaryBlock({
+  summary,
+  byId,
+  depth = 0,
+}: {
+  summary: ConversationSummary
+  byId: Record<number, ConversationSummary>
+  depth?: number
+}) {
+  const parent =
+    summary.parent_summary_id != null ? byId[summary.parent_summary_id] : undefined
+  const replaced =
+    summary.replaced_count ?? summary.span.end - summary.span.start + 1
+  return (
+    <div
+      className={depth > 0 ? 'chat-summary chat-summary--nested' : 'chat-summary'}
+      data-testid="chat-summary"
+    >
+      <div className="chat-summary__label">Summary</div>
+      <div className="chat-summary__body whitespace-pre-wrap break-words">{summary.body}</div>
+      <div className="chat-summary__meta">Replaced {replaced} turns</div>
+      {parent ? <SummaryBlock summary={parent} byId={byId} depth={depth + 1} /> : null}
+    </div>
+  )
+}
+
 const ChatBubbleBody = memo(
   function ChatBubbleBody({
     text,
@@ -763,54 +1138,5 @@ const ChatBubbleBody = memo(
   },
   (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
 )
-
-function connectionStatusLabel(
-  status: ConnectionStatus,
-  authRejected: boolean,
-): string {
-  switch (status) {
-    case 'connecting':
-      return 'Connecting…'
-    case 'open':
-      return 'Connected'
-    case 'closed':
-      return authRejected
-        ? 'Unavailable — sign in required'
-        : 'Disconnected'
-    case 'failed':
-      return authRejected
-        ? 'Unavailable — sign in required'
-        : 'Unavailable — websocket unreachable'
-  }
-}
-
-function ConnectionBadge({
-  status,
-  authRejected,
-}: {
-  status: ConnectionStatus
-  authRejected: boolean
-}) {
-  const label = connectionStatusLabel(status, authRejected)
-  return (
-    <span
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      aria-label="Connection status"
-    >
-      {status === 'connecting' ? (
-        <Badge type="warning">
-          <LoadingSpinner size="xs" className="mr-1" />
-          {label}
-        </Badge>
-      ) : status === 'open' ? (
-        <Badge type="success">{label}</Badge>
-      ) : (
-        <Badge type="error">{label}</Badge>
-      )}
-    </span>
-  )
-}
 
 export default ChatPage

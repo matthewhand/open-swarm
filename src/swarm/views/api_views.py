@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
+from swarm.core.agent_roles import blueprint_role_fields
 from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
     ENABLE_GITHUB_MARKETPLACE,
@@ -22,6 +23,18 @@ from swarm.views.blueprint_library_views import (
 from swarm.views.utils import get_available_blueprints
 
 logger = logging.getLogger(__name__)
+
+
+def _metadata_avatar_path(meta: dict) -> str | None:
+    """Pass through a custom face URL from blueprint metadata.
+
+    Does not invent a Bert/default file — SPA owns the bland fallback (REQ-60)
+    and REQ-6 owns default art. Empty/missing stays ``None``.
+    """
+    raw = meta.get("avatar_path") or meta.get("avatar")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
 
 
 def _github_marketplace_error_response(exc: gh_service.GitHubAPIError) -> Response:
@@ -191,7 +204,8 @@ class BlueprintsListView(APIView):
                         "tags": meta.get("tags") or [],
                         "installed": None,
                         "compiled": None,
-                        "role": meta.get("role") or None,
+                        "avatar_path": _metadata_avatar_path(meta),
+                        **blueprint_role_fields(meta),
                     })
             else:
                 logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
@@ -520,7 +534,8 @@ class BlueprintSourceView(APIView):
 class CliAgentsView(APIView):
     """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
 
-    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]}}.
+    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]},
+    list_models: {cli: [argv…]}}. Live probes are GET /v1/cli-agents/<cli>/models.
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
@@ -532,7 +547,34 @@ class CliAgentsView(APIView):
             "clis": cli_catalog.catalog_names(),
             "native_consensus": cli_catalog.NATIVE_CONSENSUS,
             "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
+            "rail": cli_catalog.rail_cli_rows(),
+            # Tiny Settings / #358 hook: the real list-models argv per CLI.
+            # Does not run the probe (that would block this catalog GET).
+            "list_models": {
+                n: cli_catalog.list_models_argv(n)
+                for n in cli_catalog.catalog_names()
+                if cli_catalog.has_list_models(n)
+            },
         })
+
+
+class CliAgentModelsView(APIView):
+    """Live list-models probe for one catalog CLI, or every catalogued CLI.
+
+    GET /v1/cli-agents/<cli>/models -> {cli, models: [...], warning?}
+    GET /v1/cli-agents/models       -> [{cli, models: [...], warning?}, ...]
+    Missing CLI / failed / timed-out probe → empty models + warning (HTTP 200).
+    """
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, request, cli: str | None = None, *_args, **_kwargs):
+        from swarm.core.cli_models import list_models, list_models_all
+
+        name = (cli or request.query_params.get("cli") or "").strip()
+        if name:
+            return Response(list_models(name).as_dict())
+        return Response([row.as_dict() for row in list_models_all()])
 
 
 class ConfigOptionsView(APIView):
@@ -574,6 +616,12 @@ class ConfigOptionsView(APIView):
                 "cli_traits": cli_catalog.CLI_TRAITS,
                 "model_traits": cli_catalog.MODEL_TRAITS,
                 "model_flags": cli_catalog.MODEL_FLAG,
+                # Tiny Settings / #358 hook: documented list-models argv per CLI.
+                "list_models": {
+                    n: cli_catalog.list_models_argv(n)
+                    for n in cli_catalog.catalog_names()
+                    if cli_catalog.has_list_models(n)
+                },
             },
             "tools": {
                 "capabilities": sorted(

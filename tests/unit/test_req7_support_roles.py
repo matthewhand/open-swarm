@@ -51,5 +51,3 @@ def test_spa_role_looks_are_distinct():
     assert ".os-handoff-chip--system" in css
     assert ".os-briefing-popover" in css
     assert ".os-support-chips" in css
-    assert ".os-question-card" in css
-    assert ".os-question-choice" in css

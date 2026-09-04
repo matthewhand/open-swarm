@@ -48,6 +48,7 @@ registers aliases (e.g. `moa` ← `cli_fusion` / `ensemble`; `dynamic_team` ←
 | `chatbot` | Minimal single-agent chat |
 | `suggestion` | Structured JSON suggestion (`suggestion` CLI) |
 | `codey` | Coding workflow (`codey` CLI) |
+| `software_dev` | CoS / engineer / skeptic team via openai-agents as-tool (REQ-36; Issue #348) |
 | `rue_code` | Multi-agent code workflow |
 | `jeeves` | MCP-aware butler demo |
 | `geese` | Multi-agent writing/research |
