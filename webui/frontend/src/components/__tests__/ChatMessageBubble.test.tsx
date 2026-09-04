@@ -223,3 +223,65 @@ describe('REQ-117: Fenced code blocks collapse, hover expand, copy, re-collapse'
     expect(pre?.querySelector('[data-testid="code-expand"]')).toBeInTheDocument()
   })
 })
+
+describe('REQ-122: No You / agent name labels above chat bubbles', () => {
+  it('does not render visible You or agentName header labels above bubbles', () => {
+    const { rerender } = render(
+      <ChatMessageBubble
+        role="user"
+        agentName="Stewie"
+        text="Hello world"
+        streaming={false}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+      />,
+    )
+
+    // User bubble: no visible "You" text
+    expect(screen.queryByText('You')).not.toBeInTheDocument()
+    const userContainer = screen.getByLabelText('You message')
+    expect(userContainer).toBeInTheDocument()
+
+    // Assistant bubble: no visible "Stewie" text above bubble
+    rerender(
+      <ChatMessageBubble
+        role="assistant"
+        agentName="Stewie"
+        text="Hello from assistant"
+        streaming={false}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+      />,
+    )
+
+    expect(screen.queryByText('Stewie')).not.toBeInTheDocument()
+    const assistantContainer = screen.getByLabelText('Stewie message')
+    expect(assistantContainer).toBeInTheDocument()
+  })
+
+  it('still renders edited hint when message was edited', () => {
+    render(
+      <ChatMessageBubble
+        role="user"
+        agentName="Stewie"
+        text="Edited message"
+        streaming={false}
+        edited={true}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+      />,
+    )
+
+    expect(screen.getByTestId('edited-hint')).toHaveTextContent('edited')
+    expect(screen.queryByText('You')).not.toBeInTheDocument()
+  })
+})

@@ -123,19 +123,21 @@ export function ChatMessageBubble({
     }
   }
 
+  const speaker = role === 'user' ? 'You' : agentName
+
   return (
     <div
       className={`chat group ${role === 'user' ? 'chat-end' : 'chat-start'}`}
       data-message-role={role}
+      aria-label={`${speaker} message`}
     >
-      <div className="chat-header text-xs opacity-60">
-        {role === 'user' ? 'You' : agentName}
-        {edited ? (
-          <span className="ml-1 font-normal opacity-70" data-testid="edited-hint">
+      {edited ? (
+        <div className="chat-header text-xs opacity-60">
+          <span className="font-normal opacity-70" data-testid="edited-hint">
             edited
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       {editing ? (
         <div className="chat-bubble bg-base-200 text-base-content w-full max-w-xl">
           <Textarea
