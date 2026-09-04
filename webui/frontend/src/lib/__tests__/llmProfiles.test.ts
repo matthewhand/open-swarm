@@ -4,6 +4,8 @@ import {
   effectiveTaskProfile,
   isKnownProfile,
   missingProfileWarning,
+  sanitizeUiWarning,
+  uiStatusWarnings,
 } from '../llmProfiles'
 
 const settings: LlmProfilesSettings = {
@@ -54,5 +56,15 @@ describe('llmProfiles helpers', () => {
     expect(warning).toMatch(/missing-slug/)
     expect(warning).toMatch(/gpt-5.6-terra/)
     expect(missingProfileWarning('gpt-4o-mini', settings, 'gpt-5.6-terra')).toBeNull()
+  })
+
+  it('strips REQ and Issue numbers from UI status copy', () => {
+    const cleaned = sanitizeUiWarning('No connected cli_agents; skipped REQ-44 list-models probe.')
+    expect(cleaned).not.toMatch(/REQ-\d+|#\d+|Issue\s+\d+/i)
+    expect(cleaned.toLowerCase()).toMatch(/cli/)
+    expect(uiStatusWarnings(['skipped REQ-44 list-models probe.', 'No CLI agents connected — add a CLI to list models'])).toEqual([
+      'skipped list-models probe',
+      'No CLI agents connected — add a CLI to list models',
+    ])
   })
 })

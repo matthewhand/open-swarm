@@ -214,6 +214,21 @@ describe('SearchPalette choose + actions (REQ-5c #322)', () => {
     window.removeEventListener(THEME_TOGGLE_EVENT, toggled)
   })
 
+  it('Actions → Show LLM profiles opens Settings on the profiles pane', async () => {
+    const opened: Array<{ section?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent<{ section?: string }>).detail ?? {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    const { onClose } = renderRoutedPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Show LLM profiles/i }))
+    window.removeEventListener('swarm:open-settings', onOpen)
+    expect(onClose).toHaveBeenCalled()
+    expect(opened).toEqual([{ section: 'llm-profiles' }])
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
+  })
+
   it('Actions Django rows hard-navigate via location.assign', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })

@@ -13,6 +13,7 @@ import {
 import { fetchDefinition, summarizeDefinition } from '../lib/definitionApi'
 import { agentRole } from '../lib/agentRoles'
 import { agentLabel } from '../lib/supportAgent'
+import { openSettingsSheet } from './SettingsSheet'
 
 export interface DefinitionPaneProps {
   kind: DefinitionKind
@@ -152,6 +153,15 @@ export default function DefinitionPane({
             <span className="text-sm" data-testid="missing-model-hint">
               {MISSING_MODEL_HINT}
             </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => openSettingsSheet({ section: 'llm-profiles' })}
+            >
+              Show LLM profiles
+            </Button>
           </Alert>
         )}
         {summaryError ? (

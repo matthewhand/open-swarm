@@ -134,7 +134,7 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect(dialog.getByText(/\bOMB\b/)).toHaveCount(0)
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Show LLM profiles' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Rail' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'System' })).toBeVisible()
 

@@ -10,6 +10,7 @@ import SettingsSheet, {
   type OpenSettingsDetail,
   type SettingsSection,
 } from './components/SettingsSheet'
+import { OPEN_LLM_PROFILES_EVENT } from './lib/chromeOverlay'
 import { RailChromeProvider, SwipeHint } from './components/RailChrome'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
@@ -114,6 +115,10 @@ function App() {
       setSettingsDetail(detail)
       setSettingsOpen(true)
     }
+    const onOpenLlmProfiles = () => {
+      setSettingsDetail({ section: 'llm-profiles' })
+      setSettingsOpen(true)
+    }
     const onOpenAgentEditor = (event: Event) => {
       const detail = (event as CustomEvent<OpenAgentEditorDetail>).detail
       setEditingAgentId(detail?.agentId ?? null)
@@ -123,12 +128,14 @@ function App() {
     window.addEventListener(THEME_SET_EVENT, onSet)
     window.addEventListener('swarm:open-search', onOpenSearch)
     window.addEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
+    window.addEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
     window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
     return () => {
       window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
       window.removeEventListener(THEME_SET_EVENT, onSet)
       window.removeEventListener('swarm:open-search', onOpenSearch)
       window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
+      window.removeEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
       window.removeEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
     }
   }, [])

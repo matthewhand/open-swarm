@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { fetchBlueprints } from '../lib/api'
 import { openChromeOverlay, type ChromeOverlay } from '../lib/chromeOverlay'
+import { openSettingsSheet } from './SettingsSheet'
 import { agentMarkIndex } from '../lib/hiddenAgents'
 import { exampleRoleAgents } from '../lib/agentRoles'
 import { agentLabel } from '../lib/supportAgent'
@@ -134,9 +135,9 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
       {
         id: 'action-llm',
         tab: 'Actions',
-        name: 'LLM profiles',
+        name: 'Show LLM profiles',
         description: 'Open LLM profiles in Settings',
-        overlay: 'llm-profiles',
+        action: () => openSettingsSheet({ section: 'llm-profiles' }),
       },
     ]
     return [...botRows, ...actionRows]
