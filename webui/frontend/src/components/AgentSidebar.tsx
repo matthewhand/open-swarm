@@ -9,12 +9,13 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Users, X } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
 import AddAgentWizard, { type AgentKind } from './AddAgentWizard'
 import {
   fetchBlueprints,
   fetchCliAgents,
   fetchHerdrAgents,
+  fetchRemotes,
   type Blueprint,
   type CliRailAgent,
   type HerdrAgent,
@@ -77,6 +78,8 @@ import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAg
 import { formatRailTimestamp, getRowLastMessage } from '../lib/chatTime'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
+import { configuredRemotes } from '../lib/remotes'
+import RemoteSessionsPopup from './RemoteSessionsPopup'
 import { selectStackedFaces } from '../lib/avatarStack'
 import {
   defaultSessionForRemote,
@@ -218,6 +221,7 @@ export default function AgentSidebar({
   const [hiddenOpen, setHiddenOpen] = useState(false)
   const [hoveringHidden, setHoveringHidden] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
+  const [remotesPopupOpen, setRemotesPopupOpen] = useState(false)
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [settingsTick, setSettingsTick] = useState(0)
@@ -284,6 +288,15 @@ export default function AgentSidebar({
     queryFn: fetchConfiguredRemotes,
     retry: 1,
   })
+  const fullRemotesQuery = useQuery({
+    queryKey: ['remotes-list'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
+  const configuredRemotesList = useMemo(
+    () => configuredRemotes(fullRemotesQuery.data),
+    [fullRemotesQuery.data],
+  )
   const cliQuery = useQuery({
     queryKey: ['cli-agents'],
     queryFn: fetchCliAgents,
@@ -1559,27 +1572,51 @@ export default function AgentSidebar({
             <Plug className="h-4 w-4" aria-hidden="true" />
             Plugins
           </button>
-          <label className="sr-only" htmlFor="os-rail-hostname">
-            Hostname
-          </label>
-          <input
-            id="os-rail-hostname"
-            type="text"
-            className="os-rail-hostname"
-            value={hostname}
-            spellCheck={false}
-            onChange={(event) => setHostname(event.target.value)}
-            onBlur={() => setHostname(saveHostname(hostname))}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.currentTarget.blur()
-              }
-              if (event.key === 'Escape') {
-                setHostname(loadHostname() || defaultHostname())
-                event.currentTarget.blur()
-              }
-            }}
-          />
+          <div className="relative os-rail-hostname-row">
+            <button
+              type="button"
+              className="os-rail-hostname-icon btn btn-ghost btn-xs btn-square h-5 w-5 min-h-0 text-base-content/60 hover:text-base-content"
+              aria-label="Remote sessions"
+              aria-expanded={remotesPopupOpen}
+              aria-haspopup="menu"
+              data-testid="rail-server-icon"
+              onClick={() => setRemotesPopupOpen((open) => !open)}
+            >
+              <Server className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <label className="sr-only" htmlFor="os-rail-hostname">
+              Hostname
+            </label>
+            <input
+              id="os-rail-hostname"
+              type="text"
+              className="os-rail-hostname"
+              value={hostname}
+              spellCheck={false}
+              onChange={(event) => setHostname(event.target.value)}
+              onBlur={() => setHostname(saveHostname(hostname))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur()
+                }
+                if (event.key === 'Escape') {
+                  setHostname(loadHostname() || defaultHostname())
+                  event.currentTarget.blur()
+                }
+              }}
+            />
+            {remotesPopupOpen && (
+              <RemoteSessionsPopup
+                isOpen={remotesPopupOpen}
+                onClose={() => setRemotesPopupOpen(false)}
+                remotes={configuredRemotesList}
+                onOpenSettingsRemotes={() => {
+                  setRemotesPopupOpen(false)
+                  openSettingsSheet({ section: 'remotes' })
+                }}
+              />
+            )}
+          </div>
         </div>
       </aside>
 
