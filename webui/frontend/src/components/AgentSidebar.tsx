@@ -96,6 +96,7 @@ import {
 } from '../lib/agentSettings'
 import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'
+import { isMacPlatform, searchShortcutLabel } from '../lib/keybindingTips'
 import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
 import SessionPicker from './SessionPicker'
 import { openSettingsSheet } from './SettingsSheet'
@@ -247,17 +248,8 @@ export default function AgentSidebar({
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const hideDropDepth = useRef(0)
-  const [tipsDismissed, setTipsDismissed] = useState(() => {
-    try {
-      return Boolean(localStorage.getItem('swarm_keybinding_tips_dismissed'))
-    } catch {
-      return false
-    }
-  })
-  const isMac =
-    typeof navigator !== 'undefined' &&
-    /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
-  const searchShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
+  const isMac = isMacPlatform()
+  const searchShortcut = searchShortcutLabel()
   const [addWizardOpen, setAddWizardOpen] = useState(false)
   const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
 
@@ -1364,32 +1356,6 @@ export default function AgentSidebar({
           </button>
         </div>
 
-        {!tipsDismissed && (
-          <div className="px-3 pt-2" data-testid="first-load-tips">
-            <div className="os-keybinding-tips alert p-2 text-xs flex items-center justify-between gap-1 shadow-sm border border-base-content/10 bg-base-200/50">
-              <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                <span className="font-semibold text-base-content/80">Tips:</span>
-                <span><kbd className="kbd kbd-xs">{searchShortcutLabel}</kbd> Search</span>
-                <span><kbd className="kbd kbd-xs">{isMac ? '⌥1–9' : 'Alt+1–9'}</kbd> Pins</span>
-                <span><kbd className="kbd kbd-xs">Esc</kbd> Clear</span>
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-square shrink-0 text-base-content/60 hover:text-base-content"
-                aria-label="Dismiss tips"
-                onClick={() => {
-                  try {
-                    localStorage.setItem('swarm_keybinding_tips_dismissed', '1')
-                  } catch {}
-                  setTipsDismissed(true)
-                }}
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="os-rail-search-row flex items-center gap-1.5 px-3 pb-2 pt-3">
           <label className="sr-only" htmlFor="os-rail-search">
             Search
@@ -1400,7 +1366,7 @@ export default function AgentSidebar({
               id="os-rail-search"
               type="search"
               className="os-rail-search__input"
-              placeholder={`Search ${searchShortcutLabel}`}
+              placeholder={`Search ${searchShortcut}`}
               readOnly
               autoComplete="off"
               onFocus={(event) => {
@@ -1409,7 +1375,7 @@ export default function AgentSidebar({
               }}
               onClick={openPalette}
             />
-            <kbd className="os-rail-search__kbd kbd kbd-xs">{searchShortcutLabel}</kbd>
+            <kbd className="os-rail-search__kbd kbd kbd-xs">{searchShortcut}</kbd>
           </div>
           <button
             type="button"

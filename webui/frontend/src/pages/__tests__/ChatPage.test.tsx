@@ -8,6 +8,7 @@ import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAva
 import { resetConversationThreads } from '../../lib/chatMeter'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
 import { OPEN_AGENT_EDITOR_EVENT } from '../../lib/agentSettings'
+import { KEYBINDING_TIPS_STORAGE_KEY } from '../../lib/keybindingTips'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -1200,6 +1201,56 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
     expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).toBeInTheDocument()
+  })
+
+  it('shows quiet first-load tips under the composer and persists dismiss', async () => {
+    localStorage.removeItem(KEYBINDING_TIPS_STORAGE_KEY)
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const tips = screen.getByTestId('first-load-tips')
+    expect(tips).toHaveTextContent('Search')
+    expect(tips).toHaveTextContent('Pins')
+    expect(tips).toHaveTextContent('Clear')
+    expect(tips.className).not.toContain('alert')
+    expect(tips.closest('.os-composer-wrap')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss tips' }))
+    expect(screen.queryByTestId('first-load-tips')).not.toBeInTheDocument()
+    expect(localStorage.getItem(KEYBINDING_TIPS_STORAGE_KEY)).toBe('1')
+    localStorage.removeItem(KEYBINDING_TIPS_STORAGE_KEY)
+  })
+
+  it('hides first-load tips once the conversation has messages', async () => {
+    localStorage.removeItem(KEYBINDING_TIPS_STORAGE_KEY)
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(screen.getByTestId('first-load-tips')).toBeInTheDocument()
+
+    await act(async () => {
+      deliverMockInference(MockWebSocket.instances[0]!, 'hello from the bot')
+    })
+    expect(screen.queryByTestId('first-load-tips')).not.toBeInTheDocument()
+    localStorage.removeItem(KEYBINDING_TIPS_STORAGE_KEY)
+  })
+
+  it('shows an unfocused Enter send hint on the composer', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    expect(composer).not.toHaveFocus()
+    expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
+    fireEvent.focus(composer)
+    expect(screen.queryByTestId('composer-send-hint')).not.toBeInTheDocument()
+    fireEvent.blur(composer)
+    expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
   })
 
   it('shows a Blobs header avatar by default and falls back to bland when opted in', async () => {

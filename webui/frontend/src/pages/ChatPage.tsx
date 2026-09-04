@@ -23,6 +23,7 @@ import {
 } from '../lib/agentSettings'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
+import KeybindingTips from '../components/KeybindingTips'
 import { RemoteSelect } from '../components/RemoteSelect'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
@@ -192,6 +193,7 @@ const ChatPage = () => {
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [composerFocused, setComposerFocused] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [agentKind, setAgentKind] = useState<AgentKind>(() =>
     classifyAgentKind(searchParams.get('remote') ? `remote:${searchParams.get('remote')}` : searchParams.get('blueprint')),
@@ -1237,7 +1239,7 @@ const ChatPage = () => {
       ? formatElapsed(nowMs - streamStartedAtRef.current)
       : null
 
-  const composerPlaceholder = status === 'open' ? 'Message …' : 'Message …'
+  const composerPlaceholder = 'Message …'
 
   const statusLabel = useMemo(() => {
     if (status === 'open') return ''
@@ -1687,12 +1689,23 @@ const ChatPage = () => {
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleComposerKeyDown}
+              onFocus={() => setComposerFocused(true)}
+              onBlur={() => setComposerFocused(false)}
               disabled={status !== 'open'}
               aria-label="Chat message"
               aria-haspopup="listbox"
               aria-expanded={isSlashOpen}
               aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
             />
+            {!composerFocused && !input ? (
+              <kbd
+                className="os-composer__hint kbd kbd-xs"
+                data-testid="composer-send-hint"
+                title="Enter to send"
+              >
+                ↵
+              </kbd>
+            ) : null}
             <button
               type="button"
               className="os-composer__icon"
@@ -1703,6 +1716,7 @@ const ChatPage = () => {
             </button>
           </div>
         </div>
+        {messages.length === 0 ? <KeybindingTips /> : null}
         <button type="submit" className="sr-only" disabled={!canSend}>
           Send
         </button>
