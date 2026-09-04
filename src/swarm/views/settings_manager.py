@@ -552,10 +552,14 @@ class SettingsManager:
                 pub = spec.public_dict()
                 remote_settings[spec.id.upper()] = {
                     "value": {
+                        "kind": pub.get("kind") or spec.id,
+                        "configured": pub.get("configured", False),
                         "base_url": pub["base_url"],
                         "ui_url": pub["ui_url"],
-                        "api_key": "***SET***" if pub["api_key_set"] else "Not Set",
-                        "cookie": "***SET***" if pub["cookie_set"] else "Not Set",
+                        "api_key_env": pub.get("api_key_env") or "",
+                        "session_cookie_env": pub.get("session_cookie_env") or "",
+                        "api_key": "redacted" if pub["api_key_set"] else "Not Set",
+                        "cookie": "redacted" if pub["cookie_set"] else "Not Set",
                         "host_label": pub["host_label"],
                         "source": pub["source"],
                     },

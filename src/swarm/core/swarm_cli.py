@@ -682,10 +682,15 @@ def remotes_cmd(
     name: str = typer.Argument("", help="Remote id: hermes | omb | rakazo | swarm"),
     op: str = typer.Option("list", "--op", help="For operate: list or send"),
     base_url: str = typer.Option("", "--base-url", help="For set: persist base URL"),
-    api_key: str = typer.Option("", "--api-key", help="For set: persist auth token (or ${ENV})"),
-    api_key_env: str = typer.Option("", "--api-key-env", help="For set: store ${ENV} placeholder"),
+    api_key: str = typer.Option("", "--api-key", help="For set: env-var name or ${ENV} (not a token)"),
+    api_key_env: str = typer.Option("", "--api-key-env", help="For set: store env-var name only"),
     ui_url: str = typer.Option("", "--ui-url", help="For set: persist UI URL (Rakazo/Hermes dashboard)"),
-    cookie: str = typer.Option("", "--cookie", help="For set: persist session cookie (Rakazo)"),
+    cookie: str = typer.Option("", "--cookie", help="For set: session-cookie env-var name (not the cookie)"),
+    session_cookie_env: str = typer.Option(
+        "",
+        "--session-cookie-env",
+        help="For set: store Rakazo session-cookie env-var name only",
+    ),
     prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
     target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id or swarm blueprint id"),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
@@ -723,15 +728,20 @@ def remotes_cmd(
         if base_url:
             kwargs["base_url"] = base_url
         if api_key_env:
-            kwargs["api_key"] = f"${{{api_key_env}}}"
+            kwargs["api_key_env"] = api_key_env
         elif api_key:
             kwargs["api_key"] = api_key
         if ui_url:
             kwargs["ui_url"] = ui_url
-        if cookie:
+        if session_cookie_env:
+            kwargs["session_cookie_env"] = session_cookie_env
+        elif cookie:
             kwargs["cookie"] = cookie
         if not kwargs:
-            typer.echo("Nothing to persist. Pass --base-url and/or --api-key[--env].", err=True)
+            typer.echo(
+                "Nothing to persist. Pass --base-url and/or --api-key-env / --session-cookie-env.",
+                err=True,
+            )
             raise typer.Exit(code=1)
         try:
             spec, path = _remotes.persist_remote(rid, config_path=config, **kwargs)
