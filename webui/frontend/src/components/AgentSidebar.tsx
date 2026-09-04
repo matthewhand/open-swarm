@@ -246,18 +246,6 @@ export default function AgentSidebar({
     /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
   const searchShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
   const [addWizardOpen, setAddWizardOpen] = useState(false)
-  const handleAgentCreated = useCallback(
-    (created: { id: string; name: string; kind: AgentKind }) => {
-      setAddWizardOpen(false)
-      if (created.kind === 'remote') {
-        navigate(`/chat?remote=${encodeURIComponent(created.id)}`)
-      } else {
-        navigate(`/chat?blueprint=${encodeURIComponent(created.id)}`)
-      }
-      onClose?.()
-    },
-    [navigate, onClose],
-  )
   const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
 
   useEffect(() => {
@@ -488,6 +476,30 @@ export default function AgentSidebar({
       persistVisibleOrder(moveRailId(base, fromId, beforeId))
     },
     [railOrder, visibleRowIds, persistVisibleOrder],
+  )
+
+  const handleAgentCreated = useCallback(
+    (created: { id: string; name: string; kind: AgentKind }) => {
+      setAddWizardOpen(false)
+      const base = mergeRailOrder(railOrder, visibleRowIds)
+      persistVisibleOrder(bumpRailIdToTop(base, created.id))
+      if (created.kind === 'remote') {
+        navigate(`/chat?remote=${encodeURIComponent(created.id)}`)
+      } else {
+        navigate(`/chat?blueprint=${encodeURIComponent(created.id)}`)
+      }
+      onClose?.()
+    },
+    [navigate, onClose, railOrder, visibleRowIds, persistVisibleOrder],
+  )
+
+  const handleAgentSelected = useCallback(
+    (agentId: string) => {
+      setAddWizardOpen(false)
+      navigate(`/chat?blueprint=${encodeURIComponent(agentId)}`)
+      onClose?.()
+    },
+    [navigate, onClose],
   )
 
   useEffect(() => {
@@ -1770,6 +1782,7 @@ export default function AgentSidebar({
         isOpen={addWizardOpen}
         onClose={() => setAddWizardOpen(false)}
         onCreated={handleAgentCreated}
+        onSelectAgent={handleAgentSelected}
       />
     </>
   )

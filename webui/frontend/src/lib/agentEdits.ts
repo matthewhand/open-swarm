@@ -26,6 +26,8 @@ export interface AgentEdit {
   role?: AgentRole
   blueprintId?: string
   llmOverride?: string
+  folder?: string
+  command?: string
 }
 
 export type AgentEditMap = Record<string, AgentEdit>
@@ -94,6 +96,16 @@ export function saveAgentEdit(agentId: string, patch: AgentEdit): AgentEdit {
     const llm = patch.llmOverride.trim()
     if (llm) next.llmOverride = llm
     else delete next.llmOverride
+  }
+  if (patch.folder !== undefined) {
+    const folder = patch.folder.trim()
+    if (folder) next.folder = folder
+    else delete next.folder
+  }
+  if (patch.command !== undefined) {
+    const command = patch.command.trim()
+    if (command) next.command = command
+    else delete next.command
   }
 
   if (Object.keys(next).length === 0) delete map[agentId]
