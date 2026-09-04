@@ -266,7 +266,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | Variable | Purpose | Default |
 |---|---|---|
 | `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (wins over discovery). | unset → XDG-first discovery (see [§1](#1-config-file-location-and-discovery)) |
-| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json`). | `~/.config` |
+| `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json` aliases, `team_rosters.json` composition). | `~/.config` |
 | `SWARM_RESPONSES_DIR` | Where `/v1/responses` stores records for `previous_response_id` chaining and `GET`/`DELETE`. | `$XDG_DATA_HOME/swarm/responses` (i.e. `~/.local/share/swarm/responses`) |
 | `SWARM_RESPONSES_SYNC_TIMEOUT` | Default seconds a `/v1/responses` request waits inline before auto-escalating to a queued handle (per-request override: `max_wait_seconds`). Unset = fully-blocking sync. | unset |
 | `SWARM_RESPONSES_MAX_AGE_DAYS` | Optional retention for `swarm.core.responses_store.prune_expired()` (terminal records only; skips `queued`/`in_progress`). **Not applied automatically** — call the helper or cron it. Unset / ≤0 = prune no-op when age omitted. | unset |
