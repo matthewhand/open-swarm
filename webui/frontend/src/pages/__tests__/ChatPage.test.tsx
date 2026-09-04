@@ -1941,6 +1941,21 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
     await screen.findByTestId('chat-summary')
     expect(Number(meter.getAttribute('aria-valuenow'))).toBeLessThan(before)
   })
+
+  it('opens session token diagnostics popup when clicking token meter (REQ-115)', async () => {
+    renderChat('/chat?blueprint=support')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const meterBtn = screen.getByRole('button', { name: 'Session token usage' })
+    expect(meterBtn).toBeInTheDocument()
+
+    fireEvent.click(meterBtn)
+
+    expect(await screen.findByTestId('token-diagnostics-modal')).toBeInTheDocument()
+    expect(screen.getByText('Session Token Diagnostics')).toBeInTheDocument()
+  })
 })
 
 const REMOTE_ROSTER = {
