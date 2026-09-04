@@ -34,8 +34,10 @@ def _load_generated(code: str):
 
 
 @pytest.mark.django_db
-def test_agent_persona_generator_streams_via_async_openai():
+def test_agent_persona_generator_streams_via_async_openai(monkeypatch):
     """Django /agent-creator/ must not emit nonexistent chat_completion_stream."""
+    monkeypatch.delenv("LITELLM_MODEL", raising=False)
+    monkeypatch.delenv("DEFAULT_LLM", raising=False)
     from swarm.views.agent_creator_views import AgentPersonaGenerator
 
     code = AgentPersonaGenerator().generate_agent_code(

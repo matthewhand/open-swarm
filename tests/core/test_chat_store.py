@@ -47,6 +47,34 @@ def test_save_load_roundtrip(tmp_path):
     assert [m["content"] for m in loaded["messages"]] == ["hi", "hello"]
 
 
+def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
+    path = chat_store.save(
+        "u1",
+        "cli_agent",
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "status", "content": "Started a new echo session."},
+            {"role": "assistant", "content": "hello"},
+        ],
+        conversation_id="agt-1-cli",
+        cli_sessions={"echo": "sid-1"},
+        base_dir=tmp_path,
+    )
+    assert path is not None
+    loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert [m["role"] for m in loaded["messages"]] == ["user", "status", "assistant"]
+    assert loaded["cli_sessions"] == {"echo": "sid-1"}
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        loaded["messages"] + [{"role": "user", "content": "again"}],
+        base_dir=tmp_path,
+    )
+    again = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert again["cli_sessions"] == {"echo": "sid-1"}
+    assert again["cli_sessions"].get("echo") != "sk-secret"
+
+
 def test_normalize_and_default_agent():
     assert chat_store.normalize_agent_id(None) == "_default"
     assert chat_store.normalize_agent_id("  ") == "_default"

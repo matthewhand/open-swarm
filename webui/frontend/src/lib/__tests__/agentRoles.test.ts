@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { AGENT_EDITS_KEY, saveAgentEdit } from '../agentEdits'
 import type { Blueprint } from '../api'
 import {
   ROLE_CHIEF_OF_STAFF,
@@ -26,11 +27,16 @@ const codey: Blueprint = {
 }
 
 describe('agentRoles', () => {
+  afterEach(() => {
+    localStorage.removeItem(AGENT_EDITS_KEY)
+  })
+
   it('normalizes aliases and unknown specializations', () => {
     expect(normalizeAgentRole('tool_gate')).toBe('gate')
     expect(normalizeAgentRole('tool-gate')).toBe('gate')
     expect(normalizeAgentRole('reviewer')).toBe('skeptic')
     expect(normalizeAgentRole('support')).toBe('support')
+    expect(normalizeAgentRole('chief-of-staff')).toBe('chief_of_staff')
     expect(normalizeAgentRole('Writer')).toBe('default')
     expect(normalizeAgentRole(null)).toBe('default')
   })
@@ -39,7 +45,13 @@ describe('agentRoles', () => {
     expect(agentRole({ id: 'support', name: 'Support' })).toBe('support')
     expect(agentRole({ id: 'gate', name: 'Gate' })).toBe('gate')
     expect(agentRole({ id: 'skeptic', name: 'Skeptic' })).toBe('skeptic')
+    expect(agentRole({ id: 'cos', name: 'Chief of Staff' })).toBe('chief_of_staff')
     expect(agentRole(codey)).toBe('default')
+  })
+
+  it('honours a persisted role override from the agent editor', () => {
+    saveAgentEdit('codey', { role: 'gate' })
+    expect(agentRole(codey)).toBe('gate')
   })
 
   it('injects support, gate, and skeptic ahead of catalog agents', () => {
@@ -66,7 +78,7 @@ describe('agentRoles (REQ-28)', () => {
     expect(isChiefOfStaff('CoS')).toBe(true)
   })
 
-  it('uses a distinct rail class from support / gate / skeptic', () => {
+  it('uses a distinct badge class from support / gate / skeptic', () => {
     expect(roleCssClass('cos')).toBe('os-agent-role-chief_of_staff')
     expect(roleCssClass('cos')).not.toBe(roleCssClass('support'))
     expect(roleCssClass('cos')).not.toBe(roleCssClass('gate'))

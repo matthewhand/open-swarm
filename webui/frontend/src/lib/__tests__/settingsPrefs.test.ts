@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  BUMP_COMPLETED_KEY,
   HOSTNAME_OVERRIDE_KEY,
   RETENTION_MODE_KEY,
   isRetentionMode,
+  loadBumpCompleted,
   loadHostnameOverride,
   loadRetentionMode,
+  saveBumpCompleted,
   saveHostnameOverride,
   saveRetentionMode,
 } from '../settingsPrefs'
@@ -13,6 +16,7 @@ describe('settingsPrefs', () => {
   afterEach(() => {
     localStorage.removeItem(HOSTNAME_OVERRIDE_KEY)
     localStorage.removeItem(RETENTION_MODE_KEY)
+    localStorage.removeItem(BUMP_COMPLETED_KEY)
   })
 
   it('treats only Count/Disk/Archive/Trash ids as retention modes', () => {
@@ -38,5 +42,14 @@ describe('settingsPrefs', () => {
     expect(loadRetentionMode()).toBe('archive')
     localStorage.setItem(RETENTION_MODE_KEY, 'not-a-mode')
     expect(loadRetentionMode()).toBe('count')
+  })
+
+  it('defaults bump-completed on and persists off', () => {
+    expect(loadBumpCompleted()).toBe(true)
+    expect(saveBumpCompleted(false)).toBe(false)
+    expect(localStorage.getItem(BUMP_COMPLETED_KEY)).toBe('0')
+    expect(loadBumpCompleted()).toBe(false)
+    saveBumpCompleted(true)
+    expect(loadBumpCompleted()).toBe(true)
   })
 })

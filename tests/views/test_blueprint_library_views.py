@@ -577,6 +577,10 @@ class TestBlueprintCreator:
         response = blueprint_creator(request)
 
         assert response.status_code == 200
+        html = response.content.decode()
+        assert "Blueprint interface spec" in html
+        assert "class MyTeamBlueprint" in html
+        assert "async def run" in html
 
     @patch("swarm.views.blueprint_library_views.generate_blueprint_code")
     @patch("swarm.views.blueprint_library_views.get_user_blueprint_library")
@@ -1153,3 +1157,44 @@ class TestGenerateBlueprintCode:
         assert "yield" in code
         assert "chat_completion_stream" not in code
         assert "chat.completions.create" in code
+
+
+    def test_generate_blueprint_code_assist_keeps_validated_spec_class(self, monkeypatch):
+        from swarm.core.blueprint_spec import BLUEPRINT_INTERFACE
+        from swarm.views.blueprint_library_views import generate_blueprint_code
+
+        monkeypatch.setattr(
+            "swarm.core.llm_assist.generate_blueprint_class",
+            lambda **kwargs: BLUEPRINT_INTERFACE,
+        )
+        code = generate_blueprint_code(
+            name="Spec Team",
+            description="spec",
+            category="ai_assistants",
+            tags=["spec"],
+            _requirements="summarise the last user message",
+            assist=True,
+        )
+        assert "class MyTeamBlueprint(BlueprintBase)" in code
+        assert "async def run" in code
+        assert "chat_completion_stream" not in code
+
+    def test_generate_blueprint_code_assist_falls_back_when_draft_invalid(self, monkeypatch):
+        from swarm.views.blueprint_library_views import generate_blueprint_code
+
+        monkeypatch.setattr(
+            "swarm.core.llm_assist.generate_blueprint_class",
+            lambda **kwargs: "print('not a blueprint')\n",
+        )
+        code = generate_blueprint_code(
+            name="Fallback Team",
+            description="template path",
+            category="ai_assistants",
+            tags=["test"],
+            _requirements="must handle JSON",
+            assist=True,
+        )
+        assert "class FallbackTeamBlueprint(BlueprintBase)" in code
+        assert "AsyncOpenAI" in code
+        assert "must handle JSON" in code
+        assert "chat_completion_stream" not in code

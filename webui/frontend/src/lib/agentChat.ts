@@ -91,7 +91,7 @@ export function conversationIdForTask(
 }
 
 export interface AgentThreadMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   content: string
 }
 
@@ -112,7 +112,7 @@ function isThreadMessage(value: unknown): value is AgentThreadMessage {
   if (!value || typeof value !== 'object') return false
   const row = value as { role?: unknown; content?: unknown }
   return (
-    (row.role === 'user' || row.role === 'assistant') &&
+    (row.role === 'user' || row.role === 'assistant' || row.role === 'status') &&
     typeof row.content === 'string'
   )
 }
@@ -122,9 +122,13 @@ function parseSummaries(value: unknown): ConversationSummary[] {
 }
 
 /** GET /chat/thread/?agent= — empty on auth/network failure (chat still works). */
-export async function fetchAgentThread(agentId: string): Promise<AgentThread> {
+export async function fetchAgentThread(
+  agentId: string,
+  conversationIdOverride?: string,
+): Promise<AgentThread> {
   const agent = agentIdFromBlueprint(agentId)
-  const conversationId = conversationIdForAgent(agent)
+  const conversationId =
+    (conversationIdOverride || '').trim() || conversationIdForAgent(agent)
   try {
     const data = await apiGet<AgentThread>(
       `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
