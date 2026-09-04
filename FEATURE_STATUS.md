@@ -56,6 +56,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | Session Explorer | ✅ | `/sessions/` + `/sessions/<id>/` + `/api/sessions/` in `views/session_explorer.py` (`@login_required`). With `ENABLE_API_AUTH`, operator bridge also shows configured `token:<sha256-prefix>` sessions to the web login; foreign `user:…` hidden; REST IDOR unchanged (`explorer_owner_allows`). Golden path: `tests/api/test_auth_operator_golden_path.py` (create→own→list + IDOR; library create→run→sessions: AsyncOpenAI stream + My Blueprints chat POST + Explorer list/detail + owner stamps) |
 | `chat.html` / `simple_blueprint_page.html` | 🗑 removed | Deleted 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
+| Bee brand mark (REQ-106) | ✅ | `assets/brand/` colour + `currentColor` mono + white-on-`#111111` SVGs; favicon ICO 16/32/48 + Apple/PWA 180/192/512 (colour wired; mono rasters documented). SPA `index.html` + Django `brand_icons.html`; root `/favicon.ico` is the ICO, not SPA HTML. Hero JPG unchanged. Tests: `tests/unit/test_req106_brand_mark.py` |
 
 ## 5. Web UI — React SPA (`webui/frontend`) — 🔲 2 · 🟡 1 · 🗑 3
 

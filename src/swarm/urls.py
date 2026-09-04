@@ -103,6 +103,7 @@ from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPI
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
     asgi_file_response,
+    brand_root_file,
     custom_login,
     index,
     profiles_page,
@@ -119,6 +120,15 @@ from swarm.views.webui import WebUIView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", index, name="index"),  # Root path for web UI
+    # REQ-106 bee mark — root URLs browsers and the SPA head request.
+    # Registered before the SPA catch-all so /favicon.ico is not index.html.
+    path("favicon.ico", brand_root_file, {"filename": "favicon.ico"}, name="brand-favicon"),
+    path("favicon-16.png", brand_root_file, {"filename": "favicon-16.png"}, name="brand-favicon-16"),
+    path("favicon-32.png", brand_root_file, {"filename": "favicon-32.png"}, name="brand-favicon-32"),
+    path("apple-touch-icon.png", brand_root_file, {"filename": "apple-touch-icon.png"}, name="brand-apple-touch-icon"),
+    path("icon-192.png", brand_root_file, {"filename": "icon-192.png"}, name="brand-icon-192"),
+    path("icon-512.png", brand_root_file, {"filename": "icon-512.png"}, name="brand-icon-512"),
+    path("manifest.json", brand_root_file, {"filename": "manifest.json"}, name="brand-manifest"),
     # First-class SPA Chat (composer + Connected). Agent Router is /agents.
     path("chat", spa_chat, name="spa_chat"),
     path("chat/", spa_chat, name="spa_chat_slash"),

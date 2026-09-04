@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Open Swarm bee">
+  <!--
+    Colour master. Silhouette-first honeybee inspired by the README banner
+    (profile, facing right, striped abdomen, pale wings). No photo-real veins.
+    Chunky strokes so the mark still reads as a bee at 16px.
+    Yellow #F4C400 / black #1A140C. Not Neon.
+  -->
+  <title>Open Swarm bee</title>
+  <defs>
+    <clipPath id="os-abdomen">
+      <ellipse cx="22.5" cy="38" rx="16.5" ry="11"/>
+    </clipPath>
+  </defs>
+
+  <!-- Wings: two solid lobes, no veins -->
+  <ellipse cx="24" cy="20.5" rx="17" ry="10.5" transform="rotate(-32 24 20.5)" fill="#FFF6D0" stroke="#1A140C" stroke-width="2.4"/>
+  <ellipse cx="36" cy="17" rx="14" ry="8.5" transform="rotate(-16 36 17)" fill="#FFF6D0" stroke="#1A140C" stroke-width="2.4"/>
+
+  <!-- Rear legs (thick ticks; 16px still shows them) -->
+  <g fill="none" stroke="#1A140C" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 45 L10 54"/>
+    <path d="M20 47 L18 55"/>
+    <path d="M28 47 L30 55"/>
+    <path d="M36 45 L42 53"/>
+  </g>
+
+  <!-- Abdomen -->
+  <ellipse cx="22.5" cy="38" rx="16.5" ry="11" fill="#F4C400" stroke="#1A140C" stroke-width="2.5"/>
+  <g clip-path="url(#os-abdomen)">
+    <rect x="13" y="26" width="4.4" height="24" fill="#1A140C"/>
+    <rect x="20.6" y="26" width="4.4" height="24" fill="#1A140C"/>
+    <rect x="28.2" y="26" width="3.6" height="24" fill="#1A140C"/>
+  </g>
+  <ellipse cx="22.5" cy="38" rx="16.5" ry="11" fill="none" stroke="#1A140C" stroke-width="2.5"/>
+
+  <!-- Stinger -->
+  <path d="M6.2 38 L11.4 34.6 V41.4 Z" fill="#1A140C"/>
+
+  <!-- Thorax -->
+  <ellipse cx="40" cy="36.5" rx="9.2" ry="8.4" fill="#F4C400" stroke="#1A140C" stroke-width="2.5"/>
+
+  <!-- Head -->
+  <circle cx="51.2" cy="35.2" r="6.6" fill="#1A140C"/>
+  <ellipse cx="53.4" cy="33.6" rx="2.2" ry="2.6" fill="#FFF6D0"/>
+
+  <!-- Antennae -->
+  <g fill="none" stroke="#1A140C" stroke-width="2.5" stroke-linecap="round">
+    <path d="M53 29.4 Q58 22 62 18.5"/>
+    <path d="M50.6 29 Q53.5 20.5 57.5 15.5"/>
+  </g>
+  <circle cx="62" cy="18.5" r="1.7" fill="#1A140C"/>
+  <circle cx="57.5" cy="15.5" r="1.7" fill="#1A140C"/>
+</svg>
