@@ -1,7 +1,9 @@
 """Honest runtime-mode banner: where *this app* is running.
 
-Compose (or a dedicated harness) sets ``SWARM_RUNTIME_MODE``. The UI banner is
-about the **application** filesystem — not the browser-control provider
+Compose (or a dedicated harness) sets ``SWARM_RUNTIME`` (base compose /
+Pinokio) or ``SWARM_RUNTIME_MODE`` (dev compose). Either name is accepted;
+the canonical name wins when both are set. The UI banner is about the
+**application** filesystem — not the browser-control provider
 (Playwright-on-this-machine stays the default; sandbox/SaaS *browser* rows
 stay grey TODO).
 
@@ -21,6 +23,8 @@ import os
 from typing import Any, Mapping
 
 ENV_RUNTIME_MODE = "SWARM_RUNTIME_MODE"
+# Pinokio + docker-compose.yml announce the mode as SWARM_RUNTIME (REQ-45).
+ENV_RUNTIME_MODE_ALIAS = "SWARM_RUNTIME"
 
 MODE_BARE_METAL = "bare-metal"
 MODE_SANDBOX_HOME = "sandbox-home"
@@ -107,7 +111,10 @@ def normalize_runtime_mode(raw: str | None) -> str:
 
 def read_runtime_mode(environ: Mapping[str, str] | None = None) -> str:
     env = os.environ if environ is None else environ
-    return normalize_runtime_mode(env.get(ENV_RUNTIME_MODE))
+    raw = env.get(ENV_RUNTIME_MODE)
+    if raw is None or not str(raw).strip():
+        raw = env.get(ENV_RUNTIME_MODE_ALIAS)
+    return normalize_runtime_mode(raw)
 
 
 def runtime_banner(mode: str | None = None, *, environ: Mapping[str, str] | None = None) -> dict[str, Any]:
