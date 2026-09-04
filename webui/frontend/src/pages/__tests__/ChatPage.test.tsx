@@ -1199,13 +1199,10 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.getByRole('button', { name: 'Edit agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
-    expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).not.toBeInTheDocument()
+    expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).toBeInTheDocument()
   })
 
-  it('shows a Blobs header avatar when that theme is persisted', async () => {
-    act(() => {
-      saveAvatarTheme('blobs')
-    })
+  it('shows a Blobs header avatar by default and falls back to bland when opted in', async () => {
     renderChat('/chat?blueprint=codey')
     await act(async () => {
       MockWebSocket.instances[0]?.open()
@@ -1213,10 +1210,12 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     const headerBlob = document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')
     expect(headerBlob).toBeInTheDocument()
     expect(headerBlob).toHaveAttribute('data-eye-state', 'active')
-    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
+
     act(() => {
-      saveAvatarTheme('default')
+      saveAvatarTheme('bland')
     })
+    expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).not.toBeInTheDocument()
+    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
   })
 
   it('opens a unique websocket thread per agent', async () => {

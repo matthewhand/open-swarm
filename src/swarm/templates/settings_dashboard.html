@@ -144,21 +144,21 @@
     {% endif %}
   </section>
 
-  <!-- REQ-34: avatar theme (localStorage; does not rewrite blueprints) -->
+  <!-- REQ-34 / REQ-155: avatar theme (localStorage; does not rewrite blueprints) -->
   <section class="chat-retention-card mb-4" aria-labelledby="avatar-theme-title">
     <div class="dashboard-header-top">
       <div>
         <h2 class="dashboard-title" id="avatar-theme-title">Avatar theme</h2>
         <p class="dashboard-subtitle mb-0">
-          Default keeps today’s rail dots. Blobs are per-agent shapes with capsule eyes.
+          Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles.
           The choice stays in this browser and does not rewrite blueprints.
         </p>
       </div>
     </div>
     <label class="form-label mt-3" for="os-avatar-theme">Avatar theme</label>
     <select id="os-avatar-theme" class="form-select os-avatar-theme-select">
-      <option value="default">Default</option>
-      <option value="blobs">Blobs</option>
+      <option value="blobs">Blobs with eyes (default)</option>
+      <option value="bland">Bland static circle</option>
     </select>
   </section>
 

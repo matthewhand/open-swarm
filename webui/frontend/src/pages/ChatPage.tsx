@@ -1240,6 +1240,8 @@ const ChatPage = () => {
           {!teamFromUrl ? (
             <AgentAvatar
               src={selectedAgent?.avatar_path}
+              agentId={agentIdFromBlueprint(selectedBlueprint)}
+              active={Boolean(streamingMessage || status === 'open')}
               size="lg"
               className="os-chat-header__avatar"
             />

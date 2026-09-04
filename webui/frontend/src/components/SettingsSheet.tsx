@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, HardDrive, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
 import DefinitionPane from './DefinitionPane'
+import AvatarThemePicker from './AvatarThemePicker'
 import {
   EMPTY_LOCAL_STORE,
   createRemote,
@@ -842,6 +843,9 @@ function RailPane({
         On: when a generation finishes, that agent moves to the top of the
         visible list. Off: order changes only by drag.
       </p>
+      <div className="pt-2 border-t border-base-200">
+        <AvatarThemePicker />
+      </div>
     </div>
   )
 }

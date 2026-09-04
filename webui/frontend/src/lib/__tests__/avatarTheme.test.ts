@@ -12,20 +12,27 @@ describe('avatar theme persist', () => {
     localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
   })
 
-  it('defaults to Default and persists Blobs like hostname', () => {
+  it('defaults to Blobs and persists Bland like hostname', () => {
     expect(loadAvatarTheme()).toBe(defaultAvatarTheme())
-    expect(loadAvatarTheme()).toBe('default')
-    expect(saveAvatarTheme('blobs')).toBe('blobs')
-    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBe('blobs')
     expect(loadAvatarTheme()).toBe('blobs')
+    expect(saveAvatarTheme('bland')).toBe('bland')
+    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBe('bland')
+    expect(loadAvatarTheme()).toBe('bland')
   })
 
-  it('treats unknown values as Default and clears storage for Default', () => {
-    expect(saveAvatarTheme('not-a-theme')).toBe('default')
+  it('treats unknown values as Blobs (default) and clears storage for Blobs', () => {
+    expect(saveAvatarTheme('not-a-theme')).toBe('blobs')
     expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBeNull()
-    localStorage.setItem(AVATAR_THEME_STORAGE_KEY, 'blobs')
-    expect(saveAvatarTheme('default')).toBe('default')
+    localStorage.setItem(AVATAR_THEME_STORAGE_KEY, 'bland')
+    expect(saveAvatarTheme('blobs')).toBe('blobs')
     expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBeNull()
+  })
+
+  it('migrates legacy default to bland', () => {
+    localStorage.setItem(AVATAR_THEME_STORAGE_KEY, 'default')
+    expect(loadAvatarTheme()).toBe('bland')
+    expect(saveAvatarTheme('default')).toBe('bland')
+    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBe('bland')
   })
 
   it('dispatches a same-tab event so pickers update without reload', () => {
@@ -34,8 +41,8 @@ describe('avatar theme persist', () => {
       seen.push((event as CustomEvent<string>).detail)
     }
     window.addEventListener(AVATAR_THEME_SET_EVENT, onSet)
-    saveAvatarTheme('blobs')
+    saveAvatarTheme('bland')
     window.removeEventListener(AVATAR_THEME_SET_EVENT, onSet)
-    expect(seen).toEqual(['blobs'])
+    expect(seen).toEqual(['bland'])
   })
 })

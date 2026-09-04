@@ -7,7 +7,7 @@ export interface BlobAvatarProps {
   agentId: string
   /** Selected conversation and/or streaming — eyes wander slowly. */
   active?: boolean
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }
 
