@@ -493,15 +493,31 @@ button.os-agent-row {
   color: var(--color-base-content);
 }
 
-.os-rail-hostname {
+.os-rail-hostname-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.35rem;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+.os-rail-hostname-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+.os-rail-hostname-icon.text-error,
+.os-rail-hostname-icon[data-tone="error"] {
+  color: #d46a6a;
+}
+.os-rail-hostname {
+  min-width: 0;
+  flex: 1;
   width: 100%;
   background: transparent;
   border: 0;
   border-radius: 0.35rem;
   padding: 0.25rem 0.25rem;
   font-size: 0.75rem;
-  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+  color: inherit;
   outline: none;
 }
 .os-rail-hostname:focus {
