@@ -136,8 +136,19 @@ function botsFromOperate(result: RemoteOperateResult | undefined): Array<{ id: s
   if (!result?.data) return []
   const raw = result.data
   let list: unknown = raw
-  if (raw && typeof raw === 'object' && 'bots' in raw) {
-    list = (raw as { bots: unknown }).bots
+  if (raw && typeof raw === 'object') {
+    if ('bots' in raw) {
+      list = (raw as { bots: unknown }).bots
+    } else if ('agents' in raw) {
+      list = (raw as { agents: unknown }).agents
+    } else if ('data' in raw) {
+      const d = (raw as { data: unknown }).data
+      if (Array.isArray(d)) {
+        list = d
+      } else if (d && typeof d === 'object' && 'bots' in d) {
+        list = (d as { bots: unknown }).bots
+      }
+    }
   }
   if (!Array.isArray(list)) return []
   return list
@@ -176,7 +187,7 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
   })
 
   const listMutation = useMutation({
-    mutationFn: () => operateRemote(remote.id, { op: 'list' }),
+    mutationFn: () => operateRemote(remote.id, { op: 'list' }, { timeoutMs: 12000 }),
     onSuccess: (result) => {
       setListed(result)
       const bots = botsFromOperate(result)

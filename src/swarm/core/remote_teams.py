@@ -394,6 +394,8 @@ _DISCOVERY_CAP = 32
 _DISCOVERY_PATHS: dict[str, tuple[str, ...]] = {
     "hermes": ("/v1/models", "/v1/agents/", "/api/sessions"),
     "rakazo": ("/api/bots", "/api/agents", "/v1/agents/", "/v1/models"),
+    "openmousbot": ("/api/bots", "/v1/agents/", "/v1/models"),
+    "omb": ("/api/bots", "/v1/agents/", "/v1/models"),
     "openmausbot": ("/api/bots", "/v1/agents/", "/v1/models"),
     "dsh": ("/v1/models", "/v1/agents/", "/api/tags"),
 }

@@ -512,14 +512,48 @@ export function probeRemoteHealth(remoteId: string): Promise<RemoteHealthResult>
   )
 }
 
-export function operateRemote(
+export interface OperateRemoteOptions {
+  timeoutMs?: number
+}
+
+/**
+ * REQ-131: Operate remote (list/send) with bounded timeout (<=10-15s).
+ * Prevents endless spinner if remote hangs or is unresponsive.
+ */
+export async function operateRemote(
   remoteId: string,
   body: { op: 'list' | 'send'; prompt?: string; target?: string },
+  options?: OperateRemoteOptions,
 ): Promise<RemoteOperateResult> {
-  return apiPost<RemoteOperateResult>(
-    `/v1/remotes/${encodeURIComponent(remoteId)}/operate/`,
-    body,
-  )
+  const timeoutMs = options?.timeoutMs ?? 12000
+  const controller = new AbortController()
+  const timer = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+
+  try {
+    const response = await fetch(`/v1/remotes/${encodeURIComponent(remoteId)}/operate/`, {
+      method: 'POST',
+      headers: buildHeaders(true),
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      await throwApiError(`/v1/remotes/${encodeURIComponent(remoteId)}/operate/`, response)
+    }
+
+    return (await response.json()) as RemoteOperateResult
+  } catch (err: unknown) {
+    if (controller.signal.aborted) {
+      throw new Error(
+        `OpenMousBot list operation timed out after ${Math.round(timeoutMs / 1000)}s. Remote server is slow or hung.`,
+      )
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**

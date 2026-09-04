@@ -1120,10 +1120,16 @@ def _hermes_send(
 
 
 def _omb_list(spec: RemoteSpec, timeout: float) -> OperateResult:
-    result = http_json("GET", f"{spec.base_url}/api/bots", headers=_auth_headers(spec), timeout=timeout)
+    base_url = (spec.base_url or "").rstrip("/")
+    timeout_s = min(float(timeout or _OPERATE_TIMEOUT_S), 10.0)
+    result = http_json("GET", f"{base_url}/api/bots", headers=_auth_headers(spec), timeout=timeout_s)
     if result.status in _UP:
-        bots = result.body.get("bots") if isinstance(result.body, dict) else result.body
-        count = len(bots) if isinstance(bots, list) else "?"
+        bots = None
+        if isinstance(result.body, dict):
+            bots = result.body.get("bots") or result.body.get("agents") or result.body.get("data")
+        elif isinstance(result.body, list):
+            bots = result.body
+        count = len(bots) if isinstance(bots, list) else (1 if bots else 0)
         return OperateResult(
             remote="omb",
             op="list",
@@ -1156,16 +1162,20 @@ def _omb_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> Ope
         return OperateResult(remote="omb", op="send", ok=False, detail="prompt is required")
     bot_id = (target or "").strip()
     headers = _auth_headers(spec)
+    base_url = (spec.base_url or "").rstrip("/")
+    timeout_s = min(float(timeout or _OPERATE_TIMEOUT_S), 10.0)
     if not bot_id:
-        listed = _omb_list(spec, timeout)
+        listed = _omb_list(spec, timeout_s)
         bots = []
         if listed.ok and isinstance(listed.data, dict):
-            bots = listed.data.get("bots") or []
+            bots = listed.data.get("bots") or listed.data.get("agents") or []
+        elif listed.ok and isinstance(listed.data, list):
+            bots = listed.data
         if isinstance(bots, list) and bots:
             first = bots[0] if isinstance(bots[0], dict) else {}
             bot_id = str(first.get("id") or "")
         if not bot_id:
-            created = http_json("POST", f"{spec.base_url}/api/bots", headers=headers, body={}, timeout=timeout)
+            created = http_json("POST", f"{base_url}/api/bots", headers=headers, body={}, timeout=timeout_s)
             if created.status in _UP and isinstance(created.body, dict):
                 bot = created.body.get("bot") or {}
                 bot_id = str(bot.get("id") or "")
@@ -1180,10 +1190,10 @@ def _omb_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> Ope
                 )
     result = http_json(
         "POST",
-        f"{spec.base_url}/api/bots/{bot_id}/messages",
+        f"{base_url}/api/bots/{bot_id}/messages",
         headers=headers,
         body={"text": prompt},
-        timeout=timeout,
+        timeout=timeout_s,
     )
     if result.status in _UP or result.status == 202:
         return OperateResult(
