@@ -178,8 +178,8 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `PATCH /v1/remotes/<id>/`; Settings group **Remote Harnesses** |
 | Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops |
 | Hermes operate | ✅ | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`, `POST /v1/runs` (Bearer `API_SERVER_KEY`) |
-| OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OMB source clone) |
-| Rakazo operate | 🟡 | `GET /health` public; `POST /rpc/bots/list` + `/rpc/threads/send` need Better Auth session — honest 401 + gap flag |
+| OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OpenMousBot source clone) |
+| Rakazo remote (REQ-63) | ✅ | Kind `rakazo`. Opt-in add (API base URL, optional UI URL, `api_key_env` and/or `session_cookie_env` names). Settings health / list bots / send. `GET /health` may succeed unauthenticated; RPC list/send reports auth-needed (`gap=rakazo_rpc_requires_better_auth_session`) without crashing. Env-var names only — no pasted cookies/tokens. Stub HTTP tests; no live LAN. |
 | Nested swarm operate (REQ-57) | ✅ | Catalog id `swarm` (alias `open-swarm`). List `GET /v1/blueprints/`; send `POST /v1/chat/completions/`. Default stub `http://127.0.0.1:9`. `persist_remote` refuses this process listen URL. Not auto-placed. |
 | Agent-as-tool Team members | ✅ | Remotes are Team members (`consult_hermes`/`consult_omb`/`consult_rakazo`/`consult_swarm`) that see/talk via as_tool — **not** `/teams/` LLM-profile aliases. `GET /v1/remotes/` returns `vocabulary` + `team_members` |
 | Place remotes in a Team | ✅ | Persist `agent_team.members`; `swarm-cli remotes team\|place\|unplace`; `GET/PATCH /v1/agent-team/`; `remote_harness` attaches `as_tool` only for **placed** members |

@@ -55,14 +55,18 @@ export function AddRemoteForm({
       ]
   const [kind, setKind] = useState(options[0]?.id ?? 'omb')
   const [baseUrl, setBaseUrl] = useState('')
+  const [uiUrl, setUiUrl] = useState('')
   const [apiKeyEnv, setApiKeyEnv] = useState('')
+  const [sessionCookieEnv, setSessionCookieEnv] = useState('')
 
   const addMutation = useMutation({
     mutationFn: () =>
       addRemote({
         kind,
         base_url: baseUrl.trim(),
+        ui_url: uiUrl.trim() || undefined,
         api_key_env: apiKeyEnv.trim() || undefined,
+        session_cookie_env: sessionCookieEnv.trim() || undefined,
       }),
     onSuccess: (remote) => {
       queryClient.setQueryData(REMOTES_QUERY_KEY, (prev: { object?: string; kinds?: RemoteKind[]; data?: RemoteConnection[] } | undefined) => {
@@ -116,6 +120,17 @@ export function AddRemoteForm({
         spellCheck={false}
         required
       />
+      {kind === 'rakazo' ? (
+        <Input
+          label="UI URL"
+          name="remote-ui-url"
+          value={uiUrl}
+          onChange={(event) => setUiUrl(event.target.value)}
+          placeholder="http://127.0.0.1:5173"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      ) : null}
       <Input
         label="API key env (optional)"
         name="remote-api-key-env"
@@ -125,6 +140,20 @@ export function AddRemoteForm({
         autoComplete="off"
         spellCheck={false}
       />
+      {kind === 'rakazo' ? (
+        <Input
+          label="Session cookie env (optional)"
+          name="remote-session-cookie-env"
+          value={sessionCookieEnv}
+          onChange={(event) => setSessionCookieEnv(event.target.value)}
+          placeholder="RAKAZO_SESSION_COOKIE"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      ) : null}
+      <p className="text-xs text-base-content/60">
+        Env-var names only — never paste a token or cookie.
+      </p>
       <Button type="submit" variant="primary" size="sm" loading={addMutation.isPending}>
         Add remote
       </Button>
@@ -136,8 +165,10 @@ function botsFromOperate(result: RemoteOperateResult | undefined): Array<{ id: s
   if (!result?.data) return []
   const raw = result.data
   let list: unknown = raw
-  if (raw && typeof raw === 'object' && 'bots' in raw) {
-    list = (raw as { bots: unknown }).bots
+  if (raw && typeof raw === 'object') {
+    const rec = raw as { bots?: unknown; json?: unknown }
+    if (Array.isArray(rec.bots)) list = rec.bots
+    else if (Array.isArray(rec.json)) list = rec.json
   }
   if (!Array.isArray(list)) return []
   return list
@@ -156,6 +187,8 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
   const { error } = useToast()
   const label = remoteKindLabel(remote.id, remote.label || remote.title)
   const isOmb = isOpenMousBotKind(remote.id)
+  const isRakazo = remote.id === 'rakazo'
+  const listsBots = isOmb || isRakazo
   const [health, setHealth] = useState<RemoteHealthResult | null>(null)
   const [listed, setListed] = useState<RemoteOperateResult | null>(null)
   const [sent, setSent] = useState<RemoteOperateResult | null>(null)
@@ -218,6 +251,7 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
         <p className="mt-1 text-sm text-base-content/70">
           {remote.base_url || 'No base URL'}
           {remote.api_key_env ? ` · env ${remote.api_key_env}` : ''}
+          {remote.session_cookie_env ? ` · cookie-env ${remote.session_cookie_env}` : ''}
         </p>
       </div>
 
@@ -238,7 +272,7 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
           loading={listMutation.isPending}
           onClick={() => listMutation.mutate()}
         >
-          {isOmb ? 'List bots' : 'List'}
+          {listsBots ? 'List bots' : 'List'}
         </Button>
       </div>
 
@@ -259,7 +293,7 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
 
       {listed && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">{isOmb ? 'Bots' : 'List'}</p>
+          <p className="text-sm font-medium">{listsBots ? 'Bots' : 'List'}</p>
           {listed.ok && bots.length > 0 ? (
             <ul className="space-y-1 text-sm">
               {bots.map((bot) => (
@@ -271,7 +305,10 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
             </ul>
           ) : (
             <Alert type={listed.ok ? 'info' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
-              <span className="text-sm">{listed.detail}</span>
+              <div className="space-y-1 text-sm">
+                <span>{listed.detail}</span>
+                {listed.gap ? <p className="font-mono text-xs">{listed.gap}</p> : null}
+              </div>
             </Alert>
           )}
         </div>

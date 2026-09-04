@@ -1,4 +1,4 @@
-# Remote harnesses — Hermes, OpenMausBot, Rakazo, nested swarm
+# Remote harnesses — Hermes, OpenMousBot, Rakazo, nested swarm
 
 Open Swarm can sit **in front of** other agent harnesses: configure them, check
 they are up, and send work through **their** APIs. This is not a concurrent
@@ -52,7 +52,7 @@ Defaults (override anytime):
 ```bash
 swarm-cli remotes set hermes --base-url http://10.0.0.36:8642 --api-key-env HERMES_API_KEY
 swarm-cli remotes set omb --base-url http://10.0.0.32:8802 --api-key-env OMB_API_KEY
-swarm-cli remotes set rakazo --base-url http://10.0.0.32:3100 --ui-url http://10.0.0.32:5173 --api-key-env RAKAZO_API_KEY
+swarm-cli remotes set rakazo --base-url http://10.0.0.32:3100 --ui-url http://10.0.0.32:5173 --api-key-env RAKAZO_API_KEY --session-cookie-env RAKAZO_SESSION_COOKIE
 swarm-cli remotes set swarm --base-url http://127.0.0.1:9 --api-key-env SWARM_REMOTE_API_KEY
 ```
 
@@ -69,7 +69,11 @@ Equivalent persist:
 
 Env overrides win over the file: `HERMES_BASE_URL`, `OMB_BASE_URL`, `RAKAZO_BASE_URL`, `SWARM_REMOTE_BASE_URL`.
 
-Settings → **Remote Harnesses** shows the same values with secrets redacted.
+Settings → **Remotes** is opt-in (REQ-59 / REQ-63): empty until **+ Add remote**.
+Rakazo add accepts API base URL, optional UI URL, and `api-key-env` /
+`session-cookie-env` names only (never a pasted token or cookie). After add,
+Settings can health-check, list bots, and send. `GET /health` may succeed
+without auth; RPC list/send reports auth-needed without crashing.
 `swarm-cli remotes get hermes` prints the redacted view.
 
 ## Health

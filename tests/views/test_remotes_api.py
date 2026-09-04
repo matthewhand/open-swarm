@@ -64,6 +64,36 @@ class TestRemotesList:
         assert body["label"] == "OpenMousBot"
         assert body["persisted_to"] == "/tmp/swarm_config.json"
 
+    @patch("swarm.views.remotes_api.remotes_core.persist_remote")
+    def test_create_rakazo_env_names(self, mock_persist, api_client):
+        spec = _spec("rakazo")
+        spec.title = "Rakazo"
+        spec.api_key_env = "RAKAZO_API_KEY"
+        spec.session_cookie_env = "RAKAZO_SESSION_COOKIE"
+        spec.ui_url = "http://127.0.0.1:5173"
+        mock_persist.return_value = (spec, "/tmp/swarm_config.json")
+        resp = api_client.post(
+            "/v1/remotes/",
+            {
+                "kind": "rakazo",
+                "base_url": "http://127.0.0.1:4173",
+                "ui_url": "http://127.0.0.1:5173",
+                "api_key_env": "RAKAZO_API_KEY",
+                "session_cookie_env": "RAKAZO_SESSION_COOKIE",
+            },
+            format="json",
+        )
+        assert resp.status_code == 201
+        mock_persist.assert_called_once()
+        kwargs = mock_persist.call_args.kwargs
+        assert kwargs["api_key_env"] == "RAKAZO_API_KEY"
+        assert kwargs["session_cookie_env"] == "RAKAZO_SESSION_COOKIE"
+        assert kwargs["ui_url"] == "http://127.0.0.1:5173"
+        body = resp.json()
+        assert body["api_key_env"] == "RAKAZO_API_KEY"
+        assert body["session_cookie_env"] == "RAKAZO_SESSION_COOKIE"
+        assert "api_key" not in body
+
 
 class TestRemoteDetail:
     @patch("swarm.views.remotes_api.remotes_core.load_remote")

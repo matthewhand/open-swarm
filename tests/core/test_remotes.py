@@ -322,6 +322,56 @@ def test_openmousbot_health_down_is_report_not_crash():
     assert result.remote == "omb"
 
 
+def test_rakazo_add_persists_env_names_only(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    monkeypatch.delenv("RAKAZO_BASE_URL", raising=False)
+    spec, path = remotes_core.add_remote(
+        "rakazo",
+        base_url="http://127.0.0.1:4173",
+        ui_url="http://127.0.0.1:5173",
+        api_key_env="RAKAZO_API_KEY",
+        session_cookie_env="RAKAZO_SESSION_COOKIE",
+        config_path=cfg,
+    )
+    assert path == cfg
+    assert spec.id == "rakazo"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    entry = data["remotes"]["rakazo"]
+    assert entry["base_url"] == "http://127.0.0.1:4173"
+    assert entry["ui_url"] == "http://127.0.0.1:5173"
+    assert entry["api_key"] == "${RAKAZO_API_KEY}"
+    assert entry["api_key_env"] == "RAKAZO_API_KEY"
+    assert entry["cookie"] == "${RAKAZO_SESSION_COOKIE}"
+    assert entry["session_cookie_env"] == "RAKAZO_SESSION_COOKIE"
+    assert "sid=" not in cfg.read_text(encoding="utf-8")
+    pub = spec.public_dict()
+    assert pub["api_key_env"] == "RAKAZO_API_KEY"
+    assert pub["session_cookie_env"] == "RAKAZO_SESSION_COOKIE"
+    assert "api_key" not in pub
+    assert remotes_core.is_configured("rakazo", data)
+
+
+def test_persist_remote_refuses_pasted_secrets(tmp_path: Path):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    with pytest.raises(remotes_core.RemoteError, match="env-var name"):
+        remotes_core.persist_remote("rakazo", api_key="sk-live-secret", config_path=cfg)
+    with pytest.raises(remotes_core.RemoteError, match="env-var name"):
+        remotes_core.add_remote(
+            "rakazo",
+            base_url="http://127.0.0.1:4173",
+            api_key_env="sk-secret-value",
+            config_path=cfg,
+        )
+    with pytest.raises(remotes_core.RemoteError, match="env-var name"):
+        remotes_core.persist_remote(
+            "rakazo",
+            cookie="better-auth.session_token=abc",
+            config_path=cfg,
+        )
+
+
 def test_rakazo_list_401_is_honest_gap(http_router):
     host, port, router = http_router
     router.routes = {("POST", "/rpc/bots/list"): (401, {"error": "UNAUTHORIZED"})}

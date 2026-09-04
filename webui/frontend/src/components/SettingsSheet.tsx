@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, HardDrive, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
 import DefinitionPane from './DefinitionPane'
+import { RemoteOperatePane } from './RemotesSettings'
 import {
   EMPTY_LOCAL_STORE,
   createRemote,
@@ -514,7 +515,9 @@ function RemotesCatalogPane() {
   const [adding, setAdding] = useState(false)
   const [kind, setKind] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
+  const [uiUrl, setUiUrl] = useState('')
+  const [apiKeyEnv, setApiKeyEnv] = useState('')
+  const [sessionCookieEnv, setSessionCookieEnv] = useState('')
   const [selectedId, setSelectedId] = useState('')
 
   const remotesQuery = useQuery({
@@ -526,6 +529,7 @@ function RemotesCatalogPane() {
   const configured = configuredRemotes(catalog)
   const kinds = remoteKinds(catalog)
   const unused = unusedRemoteKinds(catalog)
+  const selectedRemote = configured.find((remote) => remote.id === selectedId)
 
   useEffect(() => {
     if (!kind && unused[0]) setKind(unused[0].id)
@@ -536,7 +540,9 @@ function RemotesCatalogPane() {
       createRemote({
         kind,
         ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
-        ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+        ...(uiUrl.trim() ? { ui_url: uiUrl.trim() } : {}),
+        ...(apiKeyEnv.trim() ? { api_key_env: apiKeyEnv.trim() } : {}),
+        ...(sessionCookieEnv.trim() ? { session_cookie_env: sessionCookieEnv.trim() } : {}),
       }),
     onSuccess: (created) => {
       queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
@@ -549,7 +555,9 @@ function RemotesCatalogPane() {
       void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
       setAdding(false)
       setBaseUrl('')
-      setApiKey('')
+      setUiUrl('')
+      setApiKeyEnv('')
+      setSessionCookieEnv('')
       setKind('')
       setSelectedId(created.id)
       success('Remote added', `${remoteKindLabel(created.kind || created.id, kinds)} is now configured.`)
@@ -620,6 +628,8 @@ function RemotesCatalogPane() {
                   <p className="font-medium">{label}</p>
                   <p className="truncate font-mono text-xs text-base-content/60">
                     {remote.base_url || 'localhost'}
+                    {remote.api_key_env ? ` · env ${remote.api_key_env}` : ''}
+                    {remote.session_cookie_env ? ` · cookie-env ${remote.session_cookie_env}` : ''}
                   </p>
                 </div>
                 <Button
@@ -673,16 +683,40 @@ function RemotesCatalogPane() {
               instance as its own remote.
             </p>
           ) : null}
+          {kind === 'rakazo' ? (
+            <Input
+              label="UI URL"
+              name="remote-ui-url"
+              value={uiUrl}
+              onChange={(event) => setUiUrl(event.target.value)}
+              placeholder="http://127.0.0.1:5173"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          ) : null}
           <Input
-            label="API key"
-            name="remote-api-key"
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="${API_KEY}"
+            label="API key env"
+            name="remote-api-key-env"
+            value={apiKeyEnv}
+            onChange={(event) => setApiKeyEnv(event.target.value)}
+            placeholder="RAKAZO_API_KEY"
             autoComplete="off"
             spellCheck={false}
           />
+          {kind === 'rakazo' ? (
+            <Input
+              label="Session cookie env"
+              name="remote-session-cookie-env"
+              value={sessionCookieEnv}
+              onChange={(event) => setSessionCookieEnv(event.target.value)}
+              placeholder="RAKAZO_SESSION_COOKIE"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          ) : null}
+          <p className="text-xs text-base-content/60">
+            Env-var names only — never paste a token or cookie.
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
@@ -698,7 +732,9 @@ function RemotesCatalogPane() {
               size="sm"
               onClick={() => {
                 setAdding(false)
-                setApiKey('')
+                setApiKeyEnv('')
+                setSessionCookieEnv('')
+                setUiUrl('')
               }}
             >
               Cancel
@@ -711,6 +747,8 @@ function RemotesCatalogPane() {
           Add remote
         </Button>
       )}
+
+      {selectedRemote ? <RemoteOperatePane remote={selectedRemote} /> : null}
     </div>
   )
 }

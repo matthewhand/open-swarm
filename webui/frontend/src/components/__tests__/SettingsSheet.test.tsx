@@ -216,6 +216,36 @@ describe('SettingsSheet', () => {
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
   })
+
+  it('shows Rakazo UI URL and session-cookie-env fields without secret inputs', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          kinds: [
+            { id: 'hermes', label: 'Hermes' },
+            { id: 'omb', label: 'OpenMousBot' },
+            { id: 'rakazo', label: 'Rakazo' },
+          ],
+          configured: [],
+          data: [],
+        }),
+      } as Response),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Remotes' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Add remote/i }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Kind' }), {
+      target: { value: 'rakazo' },
+    })
+    expect(screen.getByRole('textbox', { name: 'UI URL' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Session cookie env' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'API key env' })).toBeInTheDocument()
+    expect(screen.getByText(/Env-var names only/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^API key$/i)).not.toBeInTheDocument()
   })
 
   it('persists retention via join radios and shows a save toast', async () => {

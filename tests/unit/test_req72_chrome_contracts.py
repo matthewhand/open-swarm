@@ -18,14 +18,16 @@ SETTINGS_PREFS = REPO / "webui" / "frontend" / "src" / "lib" / "settingsPrefs.ts
 TEAM_ROSTERS = REPO / "webui" / "frontend" / "src" / "lib" / "teamRosters.ts"
 
 
-def test_settings_remotes_panes_are_placeholders_not_live_api():
-    """#318/#320: Settings Hermes/OMB/Rakazo chrome is a stub; /v1/remotes/ is backend-only."""
+def test_settings_remotes_are_opt_in_not_placeholder():
+    """REQ-59/62/63: Settings remotes are opt-in via /v1/remotes/; no placeholder panes."""
     src = SETTINGS_SHEET.read_text(encoding="utf-8")
-    assert "placeholder remote" in src
-    assert "remotes API has not landed" in src
-    assert "/v1/remotes" not in src
-    for label in ("Hermes", "OMB", "Rakazo"):
-        assert label in src
+    assert "placeholder remote" not in src
+    assert "remotes API has not landed" not in src
+    assert "fetchRemotes" in src
+    assert "Add remote" in src
+    assert "createRemote" in src
+    assert "session_cookie_env" in src
+    assert "OpenMousBot" in src or "configuredRemotes" in src
 
 
 def test_search_palette_bot_rows_spa_navigate_chat():
@@ -56,11 +58,12 @@ def test_sidebar_team_hide_id_and_plugins_empty_copy():
 
 
 def test_app_mobile_drawer_and_settings_event():
-    """#322 mobile drawer; #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
+    """#322 mobile rail; #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
     src = APP.read_text(encoding="utf-8")
-    assert 'aria-label="Open agents sidebar"' in src
     assert "OPEN_SETTINGS_EVENT" in src
-    assert "setSettingsBlueprintId" in src
+    assert "setSettingsOpen" in src
+    assert "railOpen" in src
+    assert "<SettingsSheet" in src
 
 
 def test_hostname_rail_and_settings_keys_are_distinct():
