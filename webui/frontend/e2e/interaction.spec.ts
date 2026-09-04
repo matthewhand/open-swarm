@@ -12,8 +12,8 @@ test('theme toggle flips data-theme and persists, no uncaught JS errors', async 
   await page.goto('/')
 
   const root = page.locator('[data-theme]').first()
-  // Accessible name flips with state ("Switch to light/dark theme").
-  const toggle = page.getByRole('button', { name: /^Switch to (light|dark) theme$/ })
+  // Accessible name flips with state ("Switch to light/system/dark theme").
+  const toggle = page.getByRole('button', { name: /^Switch to (light|dark|system) theme$/ })
 
   // Default theme (no stored preference) is dark, matching Django pages.
   await expect(root).toHaveAttribute('data-theme', 'dark')
@@ -27,7 +27,15 @@ test('theme toggle flips data-theme and persists, no uncaught JS errors', async 
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_theme')))
     .toBe('light')
 
-  // Flip back to dark — the control is genuinely two-way, not a one-shot.
+  // Flip to system — stores 'system' and resolves data-theme to light or dark (never 'system').
+  await toggle.click()
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_theme')))
+    .toBe('system')
+  const resolvedAttr = await root.getAttribute('data-theme')
+  expect(['light', 'dark']).toContain(resolvedAttr)
+
+  // Flip back to dark — complete 3-way cycle.
   await toggle.click()
   await expect(root).toHaveAttribute('data-theme', 'dark')
   await expect
@@ -46,4 +54,14 @@ test('stored theme preference is restored on reload', async ({ page }) => {
 
   const root = page.locator('[data-theme]').first()
   await expect(root).toHaveAttribute('data-theme', 'light')
+})
+
+test('stored system theme preference resolves to light or dark on reload', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('swarm_theme', 'system'))
+  await page.goto('/')
+
+  const root = page.locator('[data-theme]').first()
+  const theme = await root.getAttribute('data-theme')
+  expect(['light', 'dark']).toContain(theme)
+  expect(theme).not.toBe('system')
 })

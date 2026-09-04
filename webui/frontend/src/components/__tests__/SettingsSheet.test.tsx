@@ -48,6 +48,8 @@ describe('SettingsSheet', () => {
     localStorage.removeItem(HOSTNAME_OVERRIDE_KEY)
     localStorage.removeItem(RETENTION_MODE_KEY)
     localStorage.removeItem(BUMP_COMPLETED_KEY)
+    localStorage.removeItem('swarm_theme')
+    localStorage.removeItem('swarm_theme_navbar')
     vi.unstubAllGlobals()
   })
 
@@ -61,6 +63,7 @@ describe('SettingsSheet', () => {
 
     const remotesToggle = screen.getByRole('button', { name: 'Remotes' })
     expect(remotesToggle).not.toHaveClass('menu-dropdown-toggle')
+    expect(screen.getByRole('button', { name: 'General' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Definition' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Blueprints' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Hermes' })).not.toBeInTheDocument()
@@ -787,4 +790,47 @@ describe('SettingsSheet definition pane (REQ-42)', () => {
     expect(screen.getByTestId('definition-explanation').textContent).toMatch(/YES\/NO/)
     expect(screen.queryByLabelText(/Gate blueprint Python/i)).not.toBeInTheDocument()
   })
+
+  describe('SettingsSheet General/Visuals (REQ-110)', () => {
+    it('sets light, dark, and system theme preferences via dropdown', () => {
+      renderSheet()
+      fireEvent.click(screen.getByRole('button', { name: 'General' }))
+
+      const select = screen.getByRole('combobox', { name: 'Theme' })
+      expect(select).toBeInTheDocument()
+      expect(select).toHaveValue('dark')
+
+      // Switch to light
+      fireEvent.change(select, { target: { value: 'light' } })
+      expect(select).toHaveValue('light')
+      expect(localStorage.getItem('swarm_theme')).toBe('light')
+
+      // Switch to system
+      fireEvent.change(select, { target: { value: 'system' } })
+      expect(select).toHaveValue('system')
+      expect(localStorage.getItem('swarm_theme')).toBe('system')
+
+      // Switch to dark
+      fireEvent.change(select, { target: { value: 'dark' } })
+      expect(select).toHaveValue('dark')
+      expect(localStorage.getItem('swarm_theme')).toBe('dark')
+    })
+
+    it('toggles navbar theme control visibility and persists flag', () => {
+      renderSheet()
+      fireEvent.click(screen.getByRole('button', { name: 'General' }))
+
+      const toggle = screen.getByRole('checkbox', { name: 'Show theme control in top bar' })
+      expect(toggle).toBeChecked()
+
+      fireEvent.click(toggle)
+      expect(toggle).not.toBeChecked()
+      expect(localStorage.getItem('swarm_theme_navbar')).toBe('false')
+
+      fireEvent.click(toggle)
+      expect(toggle).toBeChecked()
+      expect(localStorage.getItem('swarm_theme_navbar')).toBe('true')
+    })
+  })
 })
+
