@@ -156,6 +156,82 @@ html[data-theme="light"] #root {
 .os-agent-sidebar {
   background: var(--os-chrome-sidebar);
   border-right: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  position: relative;
+}
+
+/* REQ-116: Left rail resizer affordance */
+.os-rail-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 50;
+  touch-action: none;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+.os-rail-resizer:hover,
+.os-rail-resizer:focus-visible,
+.os-rail-resizer--active {
+  background-color: var(--color-primary, #3b82f6);
+  outline: none;
+}
+
+/* REQ-116: Avatar-only rail mode when width <= AVATAR_ONLY_THRESHOLD */
+.os-agent-sidebar--avatar-only .os-agent-row {
+  justify-content: center;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+.os-agent-sidebar--avatar-only .os-agent-row > span.flex-1 {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-fav-grid {
+  grid-template-columns: 1fr;
+  margin-left: 0.25rem;
+  margin-right: 0.25rem;
+  padding: 0.25rem 0.15rem;
+}
+.os-agent-sidebar--avatar-only .os-fav-tile {
+  min-height: auto;
+  padding: 0.35rem 0;
+}
+.os-agent-sidebar--avatar-only .os-fav-tile__name,
+.os-agent-sidebar--avatar-only .os-fav-tile__shortcut,
+.os-agent-sidebar--avatar-only .os-fav-tile__badge {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-rail-search-row {
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  justify-content: center;
+}
+.os-agent-sidebar--avatar-only .os-rail-search__input,
+.os-agent-sidebar--avatar-only .os-rail-search__kbd {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-rail-search {
+  padding: 0.4rem;
+  justify-content: center;
+  flex: none;
+}
+.os-agent-sidebar--avatar-only .os-search-add-btn {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-keybinding-tips {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-hidden-bots-label,
+.os-agent-sidebar--avatar-only .os-hidden-bots-tail {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-rail-hostname {
+  display: none;
+}
+.os-agent-sidebar--avatar-only .os-plugins-label {
+  display: none;
 }
 .os-agent-avatar {
   display: block;

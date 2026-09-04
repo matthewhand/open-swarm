@@ -1658,3 +1658,51 @@ describe('AgentSidebar REQ-129 — Hidden Bots row chrome', () => {
   })
 })
 
+describe('AgentSidebar REQ-116 — Resizable left rail', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    rememberEmptyFavourites()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'list', data: [] }),
+      } as Response),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('renders resizer handle on desktop and sets avatar-only state when narrow', async () => {
+    renderSidebar({ narrow: false })
+    const resizer = await screen.findByTestId('rail-resize-handle')
+    expect(resizer).toBeInTheDocument()
+    expect(resizer).toHaveAttribute('role', 'separator')
+
+    const rail = screen.getByTestId('os-agent-rail')
+    expect(rail).toHaveAttribute('data-avatar-only', 'false')
+
+    // Simulate resizing with keyboard ArrowLeft to shrink past threshold
+    fireEvent.keyDown(resizer, { key: 'Home' }) // jumps to MIN_RAIL_WIDTH (68px)
+    expect(rail).toHaveAttribute('data-avatar-only', 'true')
+    expect(rail).toHaveClass('os-agent-sidebar--avatar-only')
+
+    // Simulate expanding back
+    fireEvent.keyDown(resizer, { key: 'End' }) // jumps to MAX_RAIL_WIDTH (420px)
+    expect(rail).toHaveAttribute('data-avatar-only', 'false')
+    expect(rail).not.toHaveClass('os-agent-sidebar--avatar-only')
+  })
+
+  it('initializes in avatar-only mode if stored width is <= threshold', async () => {
+    localStorage.setItem('swarm_rail_width', '80')
+    renderSidebar({ narrow: false })
+    const rail = await screen.findByTestId('os-agent-rail')
+    expect(rail).toHaveAttribute('data-avatar-only', 'true')
+    expect(rail).toHaveClass('os-agent-sidebar--avatar-only')
+  })
+})
+
