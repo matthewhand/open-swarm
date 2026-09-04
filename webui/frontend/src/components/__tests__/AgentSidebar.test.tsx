@@ -89,6 +89,20 @@ function dragTo(source: Element, target: Element) {
 function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
   return vi.fn().mockImplementation(async (input: RequestInfo) => {
     const url = String(input)
+    if (url.includes('/v1/preferences')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'user_preferences',
+          principal: 'session:test',
+          guest: true,
+          empty: true,
+          favourites: [],
+          hidden_agents: [],
+        }),
+      } as Response
+    }
     if (url.includes('team_rosters') || url.includes('team-rosters')) {
       return {
         ok: true,
@@ -935,6 +949,7 @@ describe('AgentSidebar special roles', () => {
   beforeEach(() => {
     localStorage.clear()
     rememberEmptyFavourites()
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -1271,6 +1286,52 @@ describe('AgentSidebar favourites grid (REQ-94)', () => {
   })
 })
 
+describe('AgentSidebar Django prefs (REQ-144)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('applies server favourites and hidden ids over localStorage', async () => {
+    localStorage.setItem(PINNED_AGENTS_STORAGE_KEY, JSON.stringify([{ id: 'old', name: 'Old' }]))
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify(['stale']))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/preferences')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              principal: 'user:alice',
+              guest: false,
+              empty: false,
+              favourites: [{ id: 'codey', name: 'Codey' }],
+              hidden_agents: ['stewie'],
+            }),
+          } as Response
+        }
+        return mockFetch()(url)
+      }),
+    )
+
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const grid = await screen.findByTestId('agent-fav-grid')
+    await waitFor(() => {
+      expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    })
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'codey', name: 'Codey' },
+    ])
+    expect(JSON.parse(localStorage.getItem(HIDDEN_AGENTS_STORAGE_KEY) || '[]')).toEqual(['stewie'])
+  })
+})
+
 describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -1373,6 +1434,18 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
         const url = String(input)
+        if (url.includes('/v1/preferences')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: true,
+              favourites: [],
+              hidden_agents: [],
+            }),
+          } as Response
+        }
         if (url.includes('/v1/remotes')) {
           return {
             ok: true,
@@ -1568,7 +1641,7 @@ describe('AgentSidebar special roles', () => {
   beforeEach(() => {
     localStorage.clear()
     rememberEmptyFavourites()
-    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, '[]')
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {

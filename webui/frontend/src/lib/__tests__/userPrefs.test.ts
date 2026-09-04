@@ -178,8 +178,8 @@ describe('userPrefs', () => {
     })
     expect(saved?.favourites).toEqual([{ id: 'support', name: 'Support' }])
     expect(fetchMock).toHaveBeenCalled()
-    const call = fetchMock.mock.calls[0]
-    expect(String(call[0])).toContain(USER_PREFS_PATH)
-    expect(call[1]?.method).toBe('PATCH')
+    const call = fetchMock.mock.calls.find((entry) => entry[1]?.method === 'PATCH')
+    expect(call).toBeTruthy()
+    expect(String(call?.[0])).toContain(USER_PREFS_PATH)
   })
 })

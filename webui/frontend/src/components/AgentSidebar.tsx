@@ -95,6 +95,7 @@ import {
 import {
   AGENT_SETTINGS_CHANGED_EVENT,
   loadLocalNewChatPerTask,
+  openAgentEditor,
 } from '../lib/agentSettings'
 import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'

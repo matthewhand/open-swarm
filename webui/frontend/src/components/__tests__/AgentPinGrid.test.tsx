@@ -77,11 +77,33 @@ describe('AgentPinGrid drag-to-pin', () => {
     endAgentDrag()
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ object: 'list', data: blueprints }),
-      } as Response),
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/preferences')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: true,
+              favourites: [],
+              hidden_agents: [],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/herdr-agents') || url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [], rail: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
     )
   })
 
