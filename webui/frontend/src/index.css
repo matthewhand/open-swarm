@@ -782,6 +782,66 @@ button.os-agent-row {
   color: color-mix(in srgb, var(--color-base-content) 80%, var(--color-primary));
 }
 
+/* REQ-68 / REQ-66: shared stacked avatars (max 3 + remainder). */
+.os-avatar-stack {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+.os-avatar-stack__face {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-base-100);
+  flex: 0 0 auto;
+  position: relative;
+}
+.os-avatar-stack--stacked .os-avatar-stack__face + .os-avatar-stack__face {
+  margin-inline-start: -0.42rem;
+}
+.os-avatar-stack--stacked .os-avatar-stack__remainder {
+  margin-inline-start: 0.2rem;
+}
+.os-avatar-stack--stacked .os-avatar-stack__face:nth-child(1) { z-index: 3; }
+.os-avatar-stack--stacked .os-avatar-stack__face:nth-child(2) { z-index: 2; }
+.os-avatar-stack--stacked .os-avatar-stack__face:nth-child(3) { z-index: 1; }
+.os-avatar-stack__face--working {
+  animation: os-working-pulse 1.35s ease-in-out infinite;
+}
+.os-avatar-stack__remainder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-base-100);
+  background: color-mix(in srgb, var(--color-base-content) 14%, var(--color-base-200));
+  color: color-mix(in srgb, var(--color-base-content) 78%, transparent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  z-index: 4;
+}
+@keyframes os-working-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.82; }
+}
+.os-session-picker__sub {
+  margin: 0;
+  padding: 0 1.1rem 0.45rem;
+  font-size: 0.75rem;
+  color: color-mix(in srgb, currentColor 52%, transparent);
+}
+.os-agent-row--remote {
+  box-shadow: inset 2px 0 0 #5a7a6a;
+}
+.os-agent-role-badge[data-kind="remote"] { color: #5a7a6a; }
+
 .os-code-python {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
