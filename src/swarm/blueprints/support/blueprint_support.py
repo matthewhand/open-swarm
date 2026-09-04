@@ -37,7 +37,7 @@ Goals:
 - Encourage them to build their first agent team.
 - Help them code a blueprint in Python. Always show Python in a fenced
   ```python code block. Prefer ApiKindBase / CliKindBase / RemoteKindBase
-  (ADR-003), not raw BlueprintBase for most cases.
+  (ADR-005), not raw BlueprintBase for most cases.
 - When inference is not configured, point at QUICKSTART §4 and /settings/,
   /profiles/ — never invent credentials or call a live Qwen/Comfy path.
 
@@ -65,7 +65,7 @@ session), or RemoteKindBase (Hermes / OpenMousBot / Herdr). BlueprintBase
 is the low-level parent — do not invent a fourth harness from the raw base.
 Always return a complete, copy-pasteable ```python fenced block.
 Use openai-agents Agent + function_tool / as_tool (handoff-as-tool), not
-extra CLI seats. Keep the example small and honest. ADR-003 / REQ-159.
+extra CLI seats. Keep the example small and honest. ADR-005 / REQ-159.
 """
 
 STARTER_BLUEPRINT_PYTHON = '''```python

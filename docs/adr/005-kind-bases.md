@@ -1,4 +1,4 @@
-# ADR-003: Three kind bases (API / CLI / remote)
+# ADR-005: Three kind bases (API / CLI / remote)
 
 - **Status:** Accepted for docs + Support (2026-09-04)
 - **Date:** 2026-09-04

@@ -54,5 +54,5 @@ BLUEPRINT_AGENT_BRIEF = (
     '`{"messages": [{"role": "assistant", "content": "..."}]}` chunks. '
     "The framework discovers them and serves them as the API `model` id "
     "on /v1/chat/completions, in the web Chat/Library UI, and via "
-    "`swarm-cli launch <id> --message ...`. ADR-003 / REQ-159."
+    "`swarm-cli launch <id> --message ...`. ADR-005 / REQ-159."
 )

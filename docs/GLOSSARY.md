@@ -15,14 +15,14 @@ native sessions — the framework is not injected into those harnesses. A
 **cross-type team** may still mix all three for coordination; only API
 members own the programmatic topology. See
 [openai-agents-handoff-graphs](./examples/openai-agents-handoff-graphs/README.md)
-(REQ-156). Kind-base templates: [ADR-003](./adr/003-kind-bases.md) (REQ-159).
+(REQ-156). Kind-base templates: [ADR-005](./adr/005-kind-bases.md) (REQ-159).
 
 ## Kind base (`ApiKindBase` / `CliKindBase` / `RemoteKindBase`)
 
 Documented subclass templates over `BlueprintBase` (`swarm.core.kind_bases`).
 Support and NL builders **prefer these** instead of inventing a fourth
 harness from the raw base. Only `ApiKindBase` fully hosts openai-agents
-graphs. See [ADR-003](./adr/003-kind-bases.md).
+graphs. See [ADR-005](./adr/005-kind-bases.md).
 
 ## Handoff graph
 
@@ -34,7 +34,7 @@ This is **not** the #561 peer mailbox (`list_agents` / `send_message`).
 
 ## Blueprint
 
-A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed). New recipes should subclass a [kind base](#kind-base-apikindbase--clikindbase--remotekindbase) (ADR-003).
+A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed). New recipes should subclass a [kind base](#kind-base-apikindbase--clikindbase--remotekindbase) (ADR-005).
 
 ## Team (handoff members — REQ-11)
 

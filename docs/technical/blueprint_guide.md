@@ -8,7 +8,7 @@ sandbox stack. Prefer this over older notes that pointed at
 
 A blueprint is a coded team the framework discovers and runs. New work should
 subclass a **kind base** (`ApiKindBase` / `CliKindBase` / `RemoteKindBase` —
-[ADR-003](../adr/003-kind-bases.md)), not raw `BlueprintBase` in the common
+[ADR-005](../adr/005-kind-bases.md)), not raw `BlueprintBase` in the common
 case. Each recipe still needs an async `run` loop. The framework loads config, resolves LLM profiles, discovers
 blueprint modules under known roots, and exposes them via `swarm-cli` and the
 API (`/v1/models`, chat completions, library UI).

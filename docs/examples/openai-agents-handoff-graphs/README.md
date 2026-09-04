@@ -16,7 +16,7 @@ touch ChatPage / rail / SearchPalette (Antigravity owns that UI wave). Peer
 mailbox tools (`list_agents` / `send_message`, #561) are a different surface
 from this **handoff graph**. GitHub then the engineer seeds `:8001`.
 Kind-base templates Support should subclass:
-[ADR-003](../../adr/003-kind-bases.md) (REQ-159 / #570).
+[ADR-005](../../adr/005-kind-bases.md) (REQ-159 / #570).
 
 Announce spiel ([REQ-136 #529](https://github.com/matthewhand/open-swarm/issues/529)):
 AI enthusiasts juggle many frameworks; some combine CLIs and APIs, but still

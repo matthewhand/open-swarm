@@ -1,4 +1,4 @@
-"""First-class harness kind bases (REQ-159 / ADR-003).
+"""First-class harness kind bases (REQ-159 / ADR-005).
 
 ``BlueprintBase`` remains the low-level openai-agents unit. New work — and
 Support / NL builders — should subclass one of these three templates instead
@@ -41,7 +41,7 @@ class ApiKindBase(KindBase):
 
     Hosts openai-agents handoff / as-tool graphs. This is the only kind that
     fully runs programmatic workflows (forced pipeline, circular skeptic, …).
-    See ``docs/examples/openai-agents-handoff-graphs/`` and ADR-003.
+    See ``docs/examples/openai-agents-handoff-graphs/`` and ADR-005.
     """
 
     kind: ClassVar[str] = KIND_API

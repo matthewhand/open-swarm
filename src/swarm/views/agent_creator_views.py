@@ -75,7 +75,7 @@ class BlueprintCodeValidator:
     """Validates generated blueprint code using Python AST parsing and linting"""
 
     def __init__(self):
-        # Kind bases (ADR-003) or low-level BlueprintBase, plus async run().
+        # Kind bases (ADR-005) or low-level BlueprintBase, plus async run().
         # Typing imports (AsyncGenerator, Any) are optional.
         self.required_imports = list(ALLOWED_BLUEPRINT_BASE_NAMES)
         self.required_methods = ['run']
