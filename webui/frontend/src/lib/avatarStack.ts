@@ -51,6 +51,18 @@ export function earliestStartedAt(faces: ReadonlyArray<{ startedAt: number }>): 
   return faces.reduce((min, face) => Math.min(min, face.startedAt), faces[0]!.startedAt)
 }
 
+/** Epoch ms from a number, ISO/date string, or a stable fallback index. */
+export function parseStartedAt(value: unknown, fallbackIndex = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) return parsed
+    const asNum = Number(value)
+    if (Number.isFinite(asNum)) return asNum
+  }
+  return fallbackIndex
+}
+
 /**
  * Most recent `maxFaces` by `startedAt`, plus remainder.
  * Callers that need a different order (e.g. running-first) should pass
