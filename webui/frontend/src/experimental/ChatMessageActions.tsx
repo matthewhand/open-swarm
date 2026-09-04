@@ -1,5 +1,15 @@
 import { useState } from 'react'
 import { Check, Copy, RotateCcw } from 'lucide-react'
+import { useToast } from '../components/DaisyUI'
+import {
+  COPY_EMPTY_MESSAGE,
+  COPY_EMPTY_TITLE,
+  COPY_FAILED_MESSAGE,
+  COPY_FAILED_TITLE,
+  copyButtonLabel,
+  copyTextToClipboard,
+  messageHasCopyableText,
+} from '../lib/clipboard'
 
 /**
  * EXPERIMENTAL: per-message actions for assistant chat bubbles.
@@ -7,6 +17,8 @@ import { Check, Copy, RotateCcw } from 'lucide-react'
  * Copy puts the raw markdown text on the clipboard; Retry re-sends the
  * preceding user message through the normal send path. Toggle off with:
  *   localStorage.setItem('swarm_experimental_chat_message_actions', 'off')
+ *
+ * React / reply / more are not mounted here — hide-until-ready, not stubs.
  */
 
 export function ChatMessageActions({
@@ -17,15 +29,21 @@ export function ChatMessageActions({
   onRetry?: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const { error } = useToast()
+  const canCopy = messageHasCopyableText(text)
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
+    const result = await copyTextToClipboard(text)
+    if (result === 'copied') {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard unavailable (permissions/insecure context) — no-op */
+      return
     }
+    if (result === 'empty') {
+      error(COPY_EMPTY_TITLE, COPY_EMPTY_MESSAGE)
+      return
+    }
+    error(COPY_FAILED_TITLE, COPY_FAILED_MESSAGE)
   }
 
   return (
@@ -34,7 +52,8 @@ export function ChatMessageActions({
         type="button"
         className="btn btn-ghost btn-xs gap-1"
         onClick={copy}
-        aria-label="Copy message"
+        disabled={!canCopy}
+        aria-label={copyButtonLabel(copied, canCopy)}
       >
         {copied ? (
           <>
