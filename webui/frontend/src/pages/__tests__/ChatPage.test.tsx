@@ -2595,7 +2595,7 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
     expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
   })
 
-  it('renders API and Model dropdowns on API agent and hides CLI and Remotes controls (REQ-133)', async () => {
+  it('does not render mystery API/Model dropdowns on API agents in navbar (REQ-186)', async () => {
     const store = { messages: [] as { role: string; content: string }[] }
     stubWithThreadStore(store)
 
@@ -2604,8 +2604,8 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    expect(await screen.findByRole('combobox', { name: 'API' })).toBeInTheDocument()
-    expect(await screen.findByRole('combobox', { name: 'Model' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
   })
