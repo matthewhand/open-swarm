@@ -878,7 +878,7 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <div className="os-chat-header__identity flex min-w-0 items-center gap-2" data-testid="selected-agent-header">
+        <div className="os-chat-header__identity flex min-w-0 items-center gap-2 group" data-testid="selected-agent-header">
           {narrow ? (
             <button
               type="button"
@@ -932,7 +932,7 @@ const ChatPage = () => {
             <div className="tooltip tooltip-bottom" data-tip="Edit agent">
               <button
                 type="button"
-                className="btn btn-ghost btn-sm btn-square"
+                className="btn btn-ghost btn-sm btn-square os-navbar-edit-btn"
                 aria-label="Edit agent"
                 onClick={() =>
                   openAgentEditor({
