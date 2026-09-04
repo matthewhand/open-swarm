@@ -352,6 +352,9 @@ class CliAdapter:
             if extra:
                 insert = min(int(policy["resume_insert"]), len(argv))
                 argv = argv[:insert] + extra + argv[insert:]
+            elif self.config.resume_argv is None:
+                # No catalog/config policy: append the common --resume flag.
+                argv = argv + ["--resume", sid]
         stdin_bytes: bytes | None = None
         if self.config.prompt_mode == "stdin":
             stdin_bytes = prompt.encode("utf-8")
