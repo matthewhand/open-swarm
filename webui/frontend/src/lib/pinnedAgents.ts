@@ -1,8 +1,10 @@
 /**
  * Persist pinned favourite tiles (drag-from-conversation-list).
  *
- * Pin is a copy, not a move: the conversation row stays in the rail.
- * IDs live in localStorage so a reload keeps the unlabeled tile grid.
+ * REQ-94: pin is a move, not a copy. The rail list excludes these ids so
+ * an agent is never listed in both the favourite grid and the rows below.
+ * Unpin restores the row (rail order is unchanged). IDs live in
+ * localStorage so a reload keeps the unlabeled tile grid and the exclusion.
  */
 
 export const PINNED_AGENTS_STORAGE_KEY = 'swarm_pinned_agents'
@@ -94,6 +96,21 @@ export function unpinAgent(id: string, current: PinnedAgent[]): PinnedAgent[] {
   const next = current.filter((item) => item.id !== id)
   savePinnedAgents(next)
   return next
+}
+
+/** Ids currently sitting in the favourite grid (hidden pins stay in storage). */
+export function pinnedAgentIds(pins: PinnedAgent[]): Set<string> {
+  return new Set(pins.map((pin) => pin.id))
+}
+
+/** Drop favourited ids from the AGENTS/rail list so pin is a move, not a copy. */
+export function excludePinnedFromList<T extends { id: string }>(
+  items: T[],
+  pins: PinnedAgent[],
+): T[] {
+  if (!pins.length) return items
+  const ids = pinnedAgentIds(pins)
+  return items.filter((item) => !ids.has(item.id))
 }
 
 export function writeAgentDragPayload(dataTransfer: DataTransfer, agent: PinnedAgent): void {

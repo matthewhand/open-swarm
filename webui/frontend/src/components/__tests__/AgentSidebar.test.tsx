@@ -343,8 +343,11 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
 
     const grid = screen.getByLabelText('Pinned agents')
-    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
-    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    const tile = within(grid).getByRole('link', { name: 'Codey' })
+    expect(tile).toBeInTheDocument()
+    expect(tile.querySelector('.os-agent-avatar--lg')).toBeTruthy()
+    expect(tile.querySelector('.os-fav-tile__name')).toHaveTextContent('Codey')
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
       { id: 'codey', name: 'Codey' },
     ])
@@ -450,9 +453,11 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.contextMenu(codey)
     fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
     const grid = screen.getByLabelText('Pinned agents')
-    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    const tile = within(grid).getByRole('link', { name: 'Codey' })
+    expect(tile).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
-    dragTo(codey, screen.getByRole('region', { name: 'Hidden' }))
+    dragTo(tile, screen.getByRole('region', { name: 'Hidden' }))
 
     await waitFor(() => {
       expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
@@ -560,6 +565,7 @@ describe('AgentSidebar Grok rail', () => {
     const grid = screen.getByLabelText('Pinned agents')
     expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
     expect(within(grid).getAllByRole('link')).toHaveLength(1)
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
   })
 
   it('moves a just-completed fixture to index 0 when bump is on', async () => {
@@ -914,6 +920,63 @@ describe('AgentSidebar teams', () => {
   })
 })
 
+describe('AgentSidebar favourites grid (REQ-94)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.stubGlobal('fetch', mockFetch())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('drops a row onto the 2-up grid as a named large avatar and removes it from the list', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    expect(grid).toHaveAttribute('data-fav-layout', '2-up')
+    expect(screen.queryByText(/Favourites/i)).not.toBeInTheDocument()
+
+    dragTo(codey, grid)
+    const first = await within(grid).findByRole('link', { name: 'Codey' })
+    expect(first.querySelector('.os-agent-avatar--lg')).toBeTruthy()
+    expect(first.querySelector('.os-fav-tile__name')).toHaveTextContent('Codey')
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+
+    dragTo(stewie, grid)
+    const tiles = within(grid).getAllByRole('link')
+    expect(tiles.map((link) => link.getAttribute('aria-label'))).toEqual(['Codey', 'Stewie'])
+    expect(tiles[1].querySelector('.os-fav-tile__name')).toHaveTextContent('Stewie')
+    expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'codey', name: 'Codey' },
+      { id: 'stewie', name: 'Stewie' },
+    ])
+  })
+
+  it('keeps named tiles and list exclusion after remount', async () => {
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([
+        { id: 'codey', name: 'Codey' },
+        { id: 'stewie', name: 'Stewie' },
+      ]),
+    )
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const grid = screen.getByTestId('agent-fav-grid')
+    const tiles = await within(grid).findAllByRole('link')
+    expect(tiles.map((link) => link.getAttribute('aria-label'))).toEqual(['Codey', 'Stewie'])
+    expect(tiles[0].querySelector('.os-agent-avatar--lg')).toBeTruthy()
+    expect(tiles[0].querySelector('.os-fav-tile__name')).toHaveTextContent('Codey')
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
+  })
+})
+
 describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -932,13 +995,16 @@ describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
     fireEvent.contextMenu(codey)
     fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
     const grid = screen.getByLabelText('Pinned agents')
-    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    const tile = within(grid).getByRole('link', { name: 'Codey' })
+    expect(tile).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
-    fireEvent.contextMenu(codey)
+    fireEvent.contextMenu(tile)
     fireEvent.click(await screen.findByRole('menuitem', { name: /^Unpin$/i }))
     await waitFor(() => {
       expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
     })
+    expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
   })
 

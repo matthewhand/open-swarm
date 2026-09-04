@@ -4,6 +4,7 @@
  */
 (function agentSidebar() {
   var STORAGE_KEY = "swarm_hidden_agents";
+  var PINNED_KEY = "swarm_pinned_agents";
   var MARK_COUNT = 6;
 
   var DEFAULT_HIDDEN = ["gate", "tool_gate", "skeptic"];
@@ -28,6 +29,23 @@
       name === "safety" ||
       name === "skeptic"
     );
+  }
+
+  function loadPinnedIds() {
+    try {
+      var raw = localStorage.getItem(PINNED_KEY);
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      var ids = [];
+      parsed.forEach(function (item) {
+        var id = typeof item === "string" ? item : item && item.id;
+        if (typeof id === "string" && id.length && ids.indexOf(id) === -1) ids.push(id);
+      });
+      return ids;
+    } catch (err) {
+      return [];
+    }
   }
 
   function loadHidden() {
@@ -367,8 +385,9 @@
       var hiddenTeams = teams.filter(function (team) {
         return hiddenIds.indexOf(teamHideId(team.id)) !== -1 && matchesFilter(team, q);
       });
+      var pinnedIds = loadPinnedIds();
       var visible = sortRoles(agents.filter(function (agent) {
-        return hiddenIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
+        return hiddenIds.indexOf(agent.id) === -1 && pinnedIds.indexOf(agent.id) === -1 && matchesFilter(agent, q);
       }));
       var hidden = sortRoles(agents.filter(function (agent) {
         return hiddenIds.indexOf(agent.id) !== -1 && matchesFilter(agent, q);

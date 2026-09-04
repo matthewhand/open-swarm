@@ -239,10 +239,12 @@ test('REQ-5c #322: pin persists across reload; Unpin clears the grid', async ({ 
 
   await page.reload()
   await expect(page.getByLabel('Pinned agents').getByRole('link', { name: 'Codey' })).toBeVisible()
+  await expect(list.getByRole('link', { name: /Codey/ })).toHaveCount(0)
 
-  await list.getByRole('link', { name: /Codey/ }).click({ button: 'right' })
+  await page.getByLabel('Pinned agents').getByRole('link', { name: 'Codey' }).click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^Unpin$/i }).click()
   await expect(page.getByLabel('Pinned agents').getByRole('link', { name: 'Codey' })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
 })
 
 test('REQ-28 #345: CoS badge and nested team rows render in the rail', async ({ page }) => {

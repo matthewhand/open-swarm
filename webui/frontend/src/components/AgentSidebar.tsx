@@ -55,6 +55,7 @@ import {
 } from '../lib/settingsPrefs'
 import {
   endAgentDrag,
+  excludePinnedFromList,
   loadPinnedAgents,
   parseAgentDragPayload,
   pinAgent,
@@ -405,8 +406,11 @@ export default function AgentSidebar({
       id: agent.id,
       agent,
     }))
-    return [...supportRows, ...cliRows, ...teamRows, ...remoteRows, ...otherRows]
-  }, [supportAgents, cliAgents, visibleRootTeams, visibleRemotes, otherAgents])
+    return excludePinnedFromList(
+      [...supportRows, ...cliRows, ...teamRows, ...remoteRows, ...otherRows],
+      pins,
+    )
+  }, [supportAgents, cliAgents, visibleRootTeams, visibleRemotes, otherAgents, pins])
   const orderedRows = useMemo(
     () => applyRailOrder(catalogRows, railOrder),
     [catalogRows, railOrder],
@@ -1088,10 +1092,12 @@ export default function AgentSidebar({
         <div
           className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''}`}
           aria-label="Pinned agents"
+          data-fav-layout="2-up"
+          data-testid="agent-fav-grid"
           onDragOver={(event) => {
             event.preventDefault()
             try {
-              event.dataTransfer.dropEffect = 'copy'
+              event.dataTransfer.dropEffect = 'move'
             } catch {
               /* synthetic events may omit dataTransfer */
             }
@@ -1101,7 +1107,19 @@ export default function AgentSidebar({
           onDrop={dropPin}
         >
           {visiblePins.map((pin) => {
+            const live = agents.find((agent) => agent.id === pin.id)
+            const pinName = live ? agentLabel(live) : pin.name || pin.id
             const pinClass = `os-fav-tile ${draggingId === pin.id ? 'os-fav-tile--dragging' : ''}`
+            const pinFace = (
+              <>
+                <AgentAvatar
+                  src={live?.avatar_path}
+                  size="lg"
+                  className="os-fav-tile__avatar"
+                />
+                <span className="os-fav-tile__name">{pinName}</span>
+              </>
+            )
             const pinHandlers = {
               draggable: true as const,
               onDragStart: (event: ReactDragEvent) => beginRowDrag(event, pin),
@@ -1111,7 +1129,7 @@ export default function AgentSidebar({
                 event.preventDefault()
                 setMenu({
                   agentId: pin.id,
-                  agentName: pin.name,
+                  agentName: pinName,
                   hidden: resolvedHiddenIds.includes(pin.id),
                   pinned: true,
                   x: event.clientX,
@@ -1125,15 +1143,12 @@ export default function AgentSidebar({
                   key={pin.id}
                   href="/teams/#herdr-members"
                   className={pinClass}
-                  title={pin.name}
-                  aria-label={pin.name}
+                  title={pinName}
+                  aria-label={pinName}
                   data-agent-id={pin.id}
                   {...pinHandlers}
                 >
-                  <AgentAvatar
-                    src={agents.find((agent) => agent.id === pin.id)?.avatar_path}
-                    size="sm"
-                  />
+                  {pinFace}
                 </a>
               )
             }
@@ -1142,15 +1157,12 @@ export default function AgentSidebar({
                 key={pin.id}
                 to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
                 className={pinClass}
-                title={pin.name}
-                aria-label={pin.name}
+                title={pinName}
+                aria-label={pinName}
                 data-agent-id={pin.id}
                 {...pinHandlers}
               >
-                <AgentAvatar
-                  src={agents.find((agent) => agent.id === pin.id)?.avatar_path}
-                  size="sm"
-                />
+                {pinFace}
               </Link>
             )
           })}

@@ -1,6 +1,6 @@
 /**
  * Unlabeled chrome pin grid — drop target for AGENTS sidepane rows.
- * Persist pins in localStorage.swarm_pinned_agents (copy/pin, not a move).
+ * Persist pins in localStorage.swarm_pinned_agents (REQ-94: move, not a copy).
  */
 (function agentPinGrid() {
   var STORAGE_KEY = "swarm_pinned_agents";
@@ -100,7 +100,7 @@
       if (selected === pin.id) link.setAttribute("aria-current", "page");
 
       var dot = document.createElement("span");
-      dot.className = "os-agent-dot";
+      dot.className = "os-agent-dot os-agent-tile__avatar";
       dot.setAttribute("data-mark", markIndex(pin.id));
       dot.setAttribute("aria-hidden", "true");
 
@@ -134,7 +134,7 @@
 
     grid.addEventListener("dragover", function (event) {
       event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
       grid.classList.add("is-over");
     });
     grid.addEventListener("dragleave", function (event) {
