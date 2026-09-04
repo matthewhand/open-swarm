@@ -19,10 +19,13 @@ const PREFIX = 'swarm_experimental_'
 export function isExperimentalEnabled(flag: ExperimentalFlag): boolean {
   try {
     const raw = localStorage.getItem(PREFIX + flag)
+    if (flag === 'command_palette') {
+      return raw === 'on' || raw === 'true'
+    }
     if (raw === 'off' || raw === 'false') return false
     if (raw === 'on' || raw === 'true') return true
   } catch {
-    /* storage unavailable — default ON */
+    /* storage unavailable */
   }
-  return true
+  return flag !== 'command_palette'
 }

@@ -124,6 +124,13 @@ function App() {
       setEditingAgentId(detail?.agentId ?? null)
       setAgentEditorOpen(true)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', onKey)
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
     window.addEventListener(THEME_SET_EVENT, onSet)
     window.addEventListener('swarm:open-search', onOpenSearch)
@@ -131,6 +138,7 @@ function App() {
     window.addEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
     window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
     return () => {
+      window.removeEventListener('keydown', onKey)
       window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
       window.removeEventListener(THEME_SET_EVENT, onSet)
       window.removeEventListener('swarm:open-search', onOpenSearch)

@@ -100,7 +100,7 @@ export default function CommandPalette() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setOpen((prev) => !prev)
       }
