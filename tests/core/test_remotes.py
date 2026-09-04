@@ -148,6 +148,48 @@ def test_configured_catalog_starts_empty_then_add_and_remove(tmp_path: Path, mon
     assert remotes_core.list_configured_remotes(data) == []
 
 
+def test_alias_openmousbot_and_label():
+    spec = remotes_core.load_remote("openmousbot", {"llm": {}, "remotes": {}})
+    assert spec.id == "omb"
+    pub = spec.public_dict()
+    assert pub["label"] == "OpenMousBot"
+    assert pub["title"] == "OpenMousBot"
+    assert "OMB" not in pub["label"]
+    assert remotes_core.display_label("omb") == "OpenMousBot"
+    kinds = remotes_core.kind_catalog()
+    assert any(k["id"] == "omb" and k["label"] == "OpenMousBot" for k in kinds)
+
+
+def test_configured_remotes_empty_until_add():
+    cfg = {"llm": {}, "remotes": {}}
+    assert remotes_core.load_configured_remotes(cfg) == {}
+    assert remotes_core.is_configured("omb", cfg) is False
+
+
+def test_add_and_remove_openmousbot(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
+    monkeypatch.delenv("OMB_BASE_URL", raising=False)
+    spec, path = remotes_core.add_remote(
+        "omb",
+        base_url="http://127.0.0.1:9",
+        api_key_env="OMB_API_KEY",
+        config_path=cfg,
+    )
+    assert path == cfg
+    assert spec.id == "omb"
+    assert spec.public_dict()["label"] == "OpenMousBot"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["omb"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["omb"]["api_key"] == "${OMB_API_KEY}"
+    assert data["remotes"]["omb"]["api_key_env"] == "OMB_API_KEY"
+    assert remotes_core.is_configured("omb", data)
+    rid, _ = remotes_core.remove_remote("omb", config_path=cfg)
+    assert rid == "omb"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert "omb" not in (data.get("remotes") or {})
+
+
 def test_persist_and_reload(tmp_path: Path, monkeypatch):
     cfg = tmp_path / "swarm_config.json"
     cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
@@ -234,15 +276,50 @@ def test_hermes_list_and_send(http_router):
 def test_omb_list_and_send_creates_bot(http_router):
     host, port, router = http_router
     router.routes = {
+        ("GET", "/api/health"): (200, {"app": "openmousbot", "ok": True}),
         ("GET", "/api/bots"): (200, {"bots": []}),
         ("POST", "/api/bots"): (201, {"bot": {"id": "b1"}}),
         ("POST", "/api/bots/b1/messages"): (202, {"ok": True}),
     }
+    health = remotes_core.check_health("omb", config=_cfg(host, port), timeout=2.0)
+    assert health.ok is True
+    assert health.state == "UP"
     listed = remotes_core.operate("omb", "list", config=_cfg(host, port))
     assert listed.ok is True
+    assert "OpenMousBot" in listed.detail
+    assert "OMB" not in listed.detail
     sent = remotes_core.operate("omb", "send", prompt="hi", config=_cfg(host, port))
     assert sent.ok is True
     assert sent.data["bot_id"] == "b1"
+    assert "OpenMousBot" in sent.detail
+
+
+def test_openmousbot_list_and_send_to_bot_id(http_router):
+    host, port, router = http_router
+    router.routes = {
+        ("GET", "/api/bots"): (200, {"bots": [{"id": "bot-9", "name": "alpha"}]}),
+        ("POST", "/api/bots/bot-9/messages"): (202, {"ok": True, "queued": True}),
+    }
+    listed = remotes_core.operate("omb", "list", config=_cfg(host, port))
+    assert listed.ok is True
+    assert listed.data["bots"][0]["id"] == "bot-9"
+    sent = remotes_core.operate(
+        "omb", "send", prompt="hello", target="bot-9", config=_cfg(host, port)
+    )
+    assert sent.ok is True
+    assert sent.data["bot_id"] == "bot-9"
+    assert sent.http_status == 202
+
+
+def test_openmousbot_health_down_is_report_not_crash():
+    result = remotes_core.check_health(
+        "omb",
+        config={"remotes": {"omb": {"base_url": "http://127.0.0.1:1"}}},
+        timeout=0.3,
+    )
+    assert result.ok is False
+    assert result.state == "DOWN"
+    assert result.remote == "omb"
 
 
 def test_rakazo_list_401_is_honest_gap(http_router):
