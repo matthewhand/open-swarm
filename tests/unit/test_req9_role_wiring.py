@@ -67,12 +67,15 @@ def test_sidepane_css_class_names_exist_django_and_spa():
     js = SIDEBAR_JS.read_text(encoding="utf-8")
     ts = SIDEBAR_TS.read_text(encoding="utf-8")
     team = TEAM_JS.read_text(encoding="utf-8")
+    # REQ-67: role colour lives on .os-agent-role-badge[data-role=...], not row classes.
+    assert "os-agent-role-badge" in django_css
+    assert "os-agent-role-badge" in spa_css
     for role, css_class in ROLE_CSS_CLASSES.items():
         if role == "default":
             continue
-        assert css_class in django_css
-        assert css_class in spa_css
-        assert f'data-role="{role}"' in django_css or f'data-role="{role}"' in spa_css
+        assert f'data-role="{role}"' in django_css
+        assert f'data-role="{role}"' in spa_css
+        assert css_class.startswith("os-agent-role-")
     assert "data-role" in js
     assert "os-agent-role-" in js
     assert "os-agent-role-" in ts
@@ -116,4 +119,4 @@ def test_codegen_wires_gate_and_skeptic_roles():
 def test_api_views_serialize_role_fields():
     src = (REPO / "src" / "swarm" / "views" / "api_views.py").read_text(encoding="utf-8")
     assert "from swarm.core.agent_roles import blueprint_role_fields" in src
-    assert "item.update(blueprint_role_fields(meta))" in src
+    assert "**blueprint_role_fields(meta)" in src

@@ -29,8 +29,8 @@ def test_original_svg_exists_and_is_not_a_raster_still():
 
 def test_django_sidebar_and_library_card_use_default_svg():
     js = SIDEBAR_JS.read_text(encoding="utf-8")
-    assert "/static/img/default-agent-avatar.svg" in js
-    assert "os-agent-dot" not in js
+    # Django rail uses a colour-dot mark; library cards keep the SVG fallback.
+    assert "os-agent-dot" in js
     card = CARD.read_text(encoding="utf-8")
     assert "img/default-agent-avatar.svg" in card
     assert "fa-robot" not in card
@@ -40,7 +40,9 @@ def test_spa_wires_agent_avatar_as_default():
     avatar = SPA_AVATAR_TSX.read_text(encoding="utf-8")
     sidebar = SPA_SIDEBAR.read_text(encoding="utf-8")
     chat = CHAT.read_text(encoding="utf-8")
-    assert "default-agent-avatar.svg" in avatar
+    # SPA fallback is an inline data-URI (REQ-60 bland default), not a static SVG path.
+    assert "DEFAULT_AGENT_AVATAR_SRC" in avatar
+    assert "data:image/svg+xml" in avatar
     assert "AgentAvatar" in sidebar
     assert "os-agent-dot" not in sidebar
     assert "agentMarkIndex" not in sidebar
@@ -52,4 +54,5 @@ def test_spa_wires_agent_avatar_as_default():
 
 def test_blueprints_list_exposes_avatar_path_for_chat():
     api = (REPO / "src" / "swarm" / "views" / "api_views.py").read_text(encoding="utf-8")
-    assert '"avatar_path": _blueprint_avatar_url(blueprint_id, meta)' in api
+    assert '"avatar_path": _metadata_avatar_path(meta)' in api
+    assert "def _metadata_avatar_path" in api

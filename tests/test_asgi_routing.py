@@ -137,10 +137,24 @@ class TestWebsocketGating:
 
     @pytest.mark.django_db
     @pytest.mark.asyncio
-    async def test_disallowed_origin_rejected(self):
-        """Origin outside ALLOWED_HOSTS is denied by the origin validator."""
+    async def test_disallowed_origin_rejected(self, settings):
+        """Origin outside ALLOWED_HOSTS is denied by the origin validator.
+
+        Debug defaults include ``*`` so a LAN phone can connect. Pin a
+        restricted list and wrap a fresh validator so this contract stays real.
+        """
+        from channels.auth import AuthMiddlewareStack
+        from channels.routing import URLRouter
+        from channels.security.websocket import AllowedHostsOriginValidator
+
+        from swarm.routing import websocket_urlpatterns
+
+        settings.ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+        restricted = AllowedHostsOriginValidator(
+            AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        )
         communicator = WebsocketCommunicator(
-            application,
+            restricted,
             WS_PATH,
             headers=[(b"origin", b"http://evil.example.com"), (b"host", b"localhost")],
         )
