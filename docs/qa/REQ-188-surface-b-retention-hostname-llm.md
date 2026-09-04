@@ -325,6 +325,17 @@ Intentional on that PR. If H1 becomes Django prefs / chat API, it is a **follow-
 
 ---
 
+## Verification (existing tests only)
+
+Re-ran the tests this report cites. All passed on this SHA. They **confirm** the current (buggy) contracts; they do not prove the panes work.
+
+| Suite | Result |
+|-------|--------|
+| Vitest: `SettingsSheet.test.tsx`, `overlays/SettingsSheet.test.tsx`, `settingsPrefs.test.ts`, `hostname.test.ts`, `llmProfiles.test.ts` | 5 files, **46 passed** |
+| Pytest: `test_req72_chrome_contracts.py` (incl. dual hostname keys), `test_llm_profiles_api.py`, `test_llm_task_routing.py` | **21 passed** |
+
+Notable locks: “persists retention via join radios” = `localStorage` only; `test_hostname_rail_and_settings_keys_are_distinct` still requires two keys.
+
 ## What this audit did not do
 
 - No runtime product change.
