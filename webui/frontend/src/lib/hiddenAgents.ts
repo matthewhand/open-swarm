@@ -1,7 +1,8 @@
 /**
  * Persist which agents are hidden from the SPA left rail.
  *
- * Hidden IDs live in localStorage so a reload keeps the same visible list.
+ * Hidden IDs cache in localStorage. REQ-144 also persists them on
+ * GET/PATCH /v1/preferences/ (server wins after a one-time local import).
  * Grok-Bot rail has no hide-all control — hide is always per-agent.
  * Agent Router still parks non-starters via hideAllExceptStarters.
  *

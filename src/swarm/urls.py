@@ -74,6 +74,7 @@ from swarm.views.herdr_api import (
     HerdrDiscoverAPIView,
 )
 from swarm.views.llm_profiles_api import LlmProfilesView
+from swarm.views.preferences_api import UserPreferencesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.responses_views import (
     ResponsesCancelView,
@@ -193,6 +194,8 @@ urlpatterns = [
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
     path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),
     path("v1/llm-profiles/", LlmProfilesView.as_view(), name="llm-profiles-api"),
+    path("v1/preferences", UserPreferencesView.as_view(), name="user-preferences-api-no-slash"),
+    path("v1/preferences/", UserPreferencesView.as_view(), name="user-preferences-api"),
     # Live list-models probes (REQ-44). More specific "models" routes first.
     path("v1/cli-agents/models", CliAgentModelsView.as_view(), name="cli-agent-models-all-no-slash"),
     path("v1/cli-agents/models/", CliAgentModelsView.as_view(), name="cli-agent-models-all"),

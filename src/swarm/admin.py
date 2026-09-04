@@ -7,7 +7,7 @@ sheet is not in this tree (ADR-001).
 
 from django.contrib import admin
 
-from swarm.models import HerdrAgent
+from swarm.models import HerdrAgent, UserPreference
 
 
 @admin.register(HerdrAgent)
@@ -20,3 +20,10 @@ class HerdrAgentAdmin(admin.ModelAdmin):
     @admin.display(description="Remote", ordering="remote")
     def remote_display(self, obj: HerdrAgent) -> str:
         return obj.remote or "localhost (no --remote)"
+
+
+@admin.register(UserPreference)
+class UserPreferenceAdmin(admin.ModelAdmin):
+    list_display = ("principal", "user", "updated_at")
+    search_fields = ("principal", "user__username")
+    readonly_fields = ("created_at", "updated_at")

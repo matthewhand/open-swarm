@@ -113,6 +113,7 @@ from swarm.models.core_models import (  # noqa: E402
     MCPConfig,
 )
 from swarm.models.herdr import HerdrAgent  # noqa: E402
+from swarm.models.preferences import UserPreference  # noqa: E402
 
 __all__ = [
     "ChatConversation",
@@ -123,5 +124,6 @@ __all__ = [
     "MCPConfig",
     "MarketplaceIndex",
     "HerdrAgent",
+    "UserPreference",
 ]
 

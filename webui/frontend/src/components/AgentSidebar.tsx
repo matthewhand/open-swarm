@@ -29,7 +29,6 @@ import {
   roleCssClass,
   roleFromAgent,
 } from '../lib/agentRoles'
-import { openAgentEditor } from '../lib/agentSettings'
 import {
   hasHiddenAgentsStorage,
   hideAgentId,
@@ -67,6 +66,7 @@ import {
   unpinAgent,
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
+import { hydrateRailPrefs, saveUserPrefs } from '../lib/userPrefs'
 import {
   loadAllAgentSessions,
   SCALE_OUT_SESSIONS_EVENT,
@@ -94,6 +94,7 @@ import {
 import {
   AGENT_SETTINGS_CHANGED_EVENT,
   loadLocalNewChatPerTask,
+  openAgentEditor,
 } from '../lib/agentSettings'
 import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'
@@ -255,6 +256,9 @@ export default function AgentSidebar({
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const hideDropDepth = useRef(0)
+  const prefsHydrated = useRef(false)
+  const skipPrefsSave = useRef(true)
+  const [prefsReady, setPrefsReady] = useState(false)
   const isMac = isMacPlatform()
   const searchShortcut = searchShortcutLabel()
   const [addWizardOpen, setAddWizardOpen] = useState(false)
@@ -450,6 +454,41 @@ export default function AgentSidebar({
     if (hiddenIds !== null || blueprintsQuery.isPending) return
     setHiddenIds(loadOrSeedHiddenAgentIds(agents))
   }, [hiddenIds, blueprintsQuery.isPending, agents])
+
+  useEffect(() => {
+    if (prefsHydrated.current || blueprintsQuery.isPending) return
+    let cancelled = false
+    void hydrateRailPrefs(agents).then((next) => {
+      if (cancelled) return
+      prefsHydrated.current = true
+      skipPrefsSave.current = true
+      setPins(next.pins)
+      setHiddenIds(next.hidden)
+      setHostname(next.hostnameOverride || defaultHostname())
+      setPrefsReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [blueprintsQuery.isPending, agents])
+
+  useEffect(() => {
+    if (!prefsReady) return
+    if (skipPrefsSave.current) {
+      skipPrefsSave.current = false
+      return
+    }
+    const handle = window.setTimeout(() => {
+      const override =
+        hostname.trim() === defaultHostname() ? '' : hostname.trim()
+      void saveUserPrefs({
+        favourites: pins,
+        hidden_agents: resolvedHiddenIds,
+        hostname_override: override,
+      })
+    }, 300)
+    return () => window.clearTimeout(handle)
+  }, [pins, resolvedHiddenIds, hostname, prefsReady])
 
   useEffect(() => {
     const onSettings = () => setSettingsTick((n) => n + 1)
@@ -1747,7 +1786,12 @@ export default function AgentSidebar({
               value={hostname}
               spellCheck={false}
               onChange={(event) => setHostname(event.target.value)}
-              onBlur={() => setHostname(saveHostname(hostname))}
+              onBlur={() => {
+                const next = saveHostname(hostname)
+                setHostname(next)
+                const override = next === defaultHostname() ? '' : next
+                void saveUserPrefs({ hostname_override: override })
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.currentTarget.blur()

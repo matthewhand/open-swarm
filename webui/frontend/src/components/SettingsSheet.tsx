@@ -47,11 +47,11 @@ import {
   loadHostnameOverride,
   loadRetentionMode,
   saveBumpCompleted,
-  saveHostnameOverride,
   saveRetentionMode,
   type RetentionMode,
 } from '../lib/settingsPrefs'
 import { agentLabel, catalogLabel } from '../lib/supportAgent'
+import { applyHostnameOverride, fetchUserPrefs, saveUserPrefs } from '../lib/userPrefs'
 import {
   initialNavbarThemeVisible,
   initialTheme,
@@ -127,7 +127,14 @@ export default function SettingsSheet({
 
   useEffect(() => {
     if (!isOpen) return
-    setHostname(loadHostnameOverride())
+    void fetchUserPrefs().then((server) => {
+      if (server && !server.empty) {
+        applyHostnameOverride(server.hostname_override)
+        setHostname(server.hostname_override)
+        return
+      }
+      setHostname(loadHostnameOverride())
+    })
     setRetention(loadRetentionMode())
     setBumpCompleted(loadBumpCompleted())
     if (initialSection) {
@@ -144,9 +151,10 @@ export default function SettingsSheet({
 
   const handleSaveHostname = (event: FormEvent) => {
     event.preventDefault()
-    saveHostnameOverride(hostname)
-    setHostname(loadHostnameOverride())
-    success('Hostname saved', 'Override stored in this browser.')
+    const next = applyHostnameOverride(hostname)
+    setHostname(next)
+    void saveUserPrefs({ hostname_override: next })
+    success('Hostname saved', 'Override stored for this account.')
   }
 
   const handleSaveRetention = (event: FormEvent) => {
