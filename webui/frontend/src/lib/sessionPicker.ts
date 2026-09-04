@@ -110,3 +110,40 @@ export function stackFacesForTeam(team: TeamRoster): StackFace[] {
 export function stackFacesForRemote(remote: RemoteEntry): StackFace[] {
   return facesFromSessions(sessionsForRemote(remote))
 }
+
+/**
+ * REQ-130: Default talk-to session for a team.
+ * Prefers configured Chief of Staff (cos / chief_of_staff), falls back to first member.
+ */
+export function defaultSessionForTeam(team: TeamRoster): MemberSession | null {
+  const sessions = sessionsForTeam(team)
+  if (sessions.length === 0) return null
+  const cos = sessions.find(
+    (s) =>
+      s.memberId === 'cos' ||
+      s.role === 'chief_of_staff' ||
+      s.role === 'cos' ||
+      /chief.?of.?staff/i.test(s.role || '') ||
+      /cos/i.test(s.title),
+  )
+  return cos || sessions[0] || null
+}
+
+/**
+ * REQ-130: Default talk-to session for a remote.
+ * Prefers configured Chief of Staff, falls back to first member.
+ */
+export function defaultSessionForRemote(remote: RemoteEntry): MemberSession | null {
+  const sessions = sessionsForRemote(remote)
+  if (sessions.length === 0) return null
+  const cos = sessions.find(
+    (s) =>
+      s.memberId === 'cos' ||
+      s.role === 'chief_of_staff' ||
+      s.role === 'cos' ||
+      /chief.?of.?staff/i.test(s.role || '') ||
+      /cos/i.test(s.title),
+  )
+  return cos || sessions[0] || null
+}
+

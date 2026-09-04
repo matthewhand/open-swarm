@@ -993,7 +993,11 @@ const ChatPage = () => {
               onChange={(e) => {
                 const value = e.target.value
                 if (value === MANAGE_TEAMS_VALUE) {
-                  window.location.assign(MANAGE_TEAMS_HREF)
+                  if (teamFromUrl) {
+                    window.location.assign(`${MANAGE_TEAMS_HREF}#${encodeURIComponent(teamFromUrl)}`)
+                  } else {
+                    window.location.assign(MANAGE_TEAMS_HREF)
+                  }
                   return
                 }
                 setMemberTarget(value)
@@ -1005,7 +1009,10 @@ const ChatPage = () => {
                   {memberOptionLabel(member)}
                 </option>
               ))}
-              <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
+              <option disabled aria-hidden="true">
+                ──────────
+              </option>
+              <option value={MANAGE_TEAMS_VALUE}>Manage Team</option>
             </select>
           ) : null}
           <div

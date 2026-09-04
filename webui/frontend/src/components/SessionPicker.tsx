@@ -70,6 +70,11 @@ export default function SessionPicker({
     [query, sessions],
   )
 
+  const teamSession = useMemo(
+    () => (sessions as readonly any[]).find((s) => s?.groupKind === 'team'),
+    [sessions],
+  )
+
   useEffect(() => {
     setActiveIdx(0)
   }, [query, open, sessions])
@@ -146,6 +151,7 @@ export default function SessionPicker({
         aria-label={label}
         className="os-search-palette"
       >
+        <span className="sr-only">{displayName}</span>
         <div className="os-search-palette__field">
           <Search className="h-4 w-4 shrink-0 text-base-content/45" aria-hidden="true" />
           <input
@@ -207,6 +213,17 @@ export default function SessionPicker({
             ))
           )}
         </ul>
+        {teamSession && (
+          <div className="border-t border-base-300 px-3 py-2 text-right">
+            <a
+              href={`/teams/#${encodeURIComponent(teamSession.groupId)}`}
+              className="btn btn-ghost btn-xs text-xs text-primary"
+              onClick={onClose}
+            >
+              Manage Team →
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )

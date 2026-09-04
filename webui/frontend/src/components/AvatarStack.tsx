@@ -22,6 +22,7 @@ export interface AvatarStackProps {
    */
   animate?: boolean
   className?: string
+  label?: string
 }
 
 /**
@@ -36,6 +37,7 @@ export default function AvatarStack({
   maxFaces = STACK_FACE_LIMIT,
   animate = true,
   className = '',
+  label,
 }: AvatarStackProps) {
   const planned =
     remainder == null
@@ -55,16 +57,18 @@ export default function AvatarStack({
     <span
       className={`os-stacked-avatars ${className}`.trim()}
       data-avatar-stack={stacked ? 'true' : 'false'}
+      data-stack-count={String(shown.length)}
       data-face-count={String(shown.length)}
       data-remainder={String(extra)}
-      aria-hidden="true"
+      aria-label={label}
+      aria-hidden={label ? undefined : 'true'}
     >
       {shown.map((face) => (
         <span
           key={face.id}
-          className={`os-stacked-avatar os-stacked-avatar--stacked${
+          className={`os-stacked-avatar os-avatar-stack__face os-stacked-avatar--stacked${
             animate ? ' os-stacked-avatar--pulse' : ''
-          }`}
+          }${face.working ? ' os-avatar-stack__face--working' : ''}`}
           data-testid="os-stacked-avatar"
           data-face-id={face.id}
           data-session-id={face.id}
