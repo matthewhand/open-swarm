@@ -15,7 +15,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from swarm.core import chat_store
+from swarm.core import chat_attachments, chat_store
 from swarm.core.agent_kind import can_edit_agent_messages, classify_agent_kind
 from swarm.core.chat_compact import (
     CompactError,
@@ -23,7 +23,7 @@ from swarm.core.chat_compact import (
     list_summaries,
     summary_to_dict,
 )
-from swarm.models import ChatConversation, ChatMessage
+from swarm.models import ChatAttachment, ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +243,73 @@ def chat_thread(request):
     )
     payload["messages"] = _public_messages(current_messages)
     return JsonResponse(payload)
+
+
+@require_http_methods(["POST"])
+def chat_attachment_upload(request):
+    """Store one composer file and return its id (REQ-38).
+
+    Session cookie required (same gate as the chat websocket). Bytes go to
+    the local attachment store; sqlite holds metadata. Multipart field
+    ``file``; optional ``conversation_id``.
+    """
+    if not getattr(request.user, "is_authenticated", False):
+        return JsonResponse({"error": "authentication required"}, status=401)
+
+    uploaded = request.FILES.get("file")
+    if uploaded is None:
+        return JsonResponse({"error": "file is required"}, status=400)
+
+    size = int(getattr(uploaded, "size", 0) or 0)
+    if size <= 0:
+        return JsonResponse({"error": "empty file"}, status=400)
+    if size > chat_attachments.MAX_ATTACHMENT_BYTES:
+        return JsonResponse(
+            {
+                "error": (
+                    f"file too large (max {chat_attachments.MAX_ATTACHMENT_BYTES} bytes)"
+                ),
+            },
+            status=413,
+        )
+
+    name = chat_attachments.safe_display_name(getattr(uploaded, "name", "") or "file")
+    content_type = (getattr(uploaded, "content_type", None) or "").strip()[:255]
+    conversation_id = (request.POST.get("conversation_id") or "").strip()[:255]
+    data = uploaded.read()
+    if len(data) > chat_attachments.MAX_ATTACHMENT_BYTES:
+        return JsonResponse(
+            {
+                "error": (
+                    f"file too large (max {chat_attachments.MAX_ATTACHMENT_BYTES} bytes)"
+                ),
+            },
+            status=413,
+        )
+
+    row = ChatAttachment.objects.create(
+        owner=request.user,
+        conversation_id=conversation_id,
+        original_name=name,
+        content_type=content_type,
+        size=len(data),
+    )
+    try:
+        chat_attachments.write_bytes(request.user, row.id, data)
+    except OSError:
+        logger.exception("Failed to store chat attachment %s", row.id)
+        row.delete()
+        return JsonResponse({"error": "could not store file"}, status=500)
+
+    return JsonResponse(
+        {
+            "id": str(row.id),
+            "name": row.original_name,
+            "size": row.size,
+            "content_type": row.content_type,
+        },
+        status=201,
+    )
 
 
 @login_required

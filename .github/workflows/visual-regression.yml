@@ -20,7 +20,8 @@ jobs:
   golden-journey:
     # HOLD (REQ-89 #446): skipped during merge-smash flush — screenshots/tour lock stale.
     # Re-enable after smash / PNG recapture. Do not delete this workflow.
-    # Agents: ignore this job; own-diff CI only (pytest still required).
+    # Own-diff triage still applies, but goal is green main Python Tests (REQ-134 #524).
+    # This HOLD is not a pytest waiver.
     if: false
     runs-on: ubuntu-latest
     timeout-minutes: 30

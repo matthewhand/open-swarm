@@ -43,6 +43,20 @@ Pytest is configured in `pyproject.toml` (Django settings, asyncio mode,
 test paths). Some suites are skipped without API keys or optional services;
 that is expected.
 
+**CI goal is green `main`.** The `Python Tests` workflow (3.10 / 3.11 /
+3.12) must collect and pass on tip of `main`. Own-diff triage is still
+the first question when a PR is red (did *this* change break it?), but
+that is not permission to live with a permanent pytest collection or
+matrix red. Do not skip or weaken unrelated tests to paper over a
+product/export mismatch.
+
+**Intentional HOLDs** (skipped on purpose; not unexplained red):
+
+- `golden-journey` in `.github/workflows/visual-regression.yml` (`if: false`)
+  — REQ-89 [#446](https://github.com/matthewhand/open-swarm/issues/446).
+  Screenshot / tour lock is stale. Do not delete the workflow; do not
+  treat the skip as a pytest waiver. Re-enable only after recapture.
+
 ## Linting
 
 ```bash
@@ -74,8 +88,9 @@ under `tests/blueprints/`.
 
 ## Pull requests
 
-- **Tests must pass**: `uv run pytest` succeeds, and `uv run ruff check` is
-  clean on the files you changed.
+- **Tests must pass**: `uv run pytest` succeeds (collection + suite), and
+  `uv run ruff check` is clean on the files you changed. Goal is green
+  `main` / green PR checks except documented HOLDs (see Running tests).
 - **Keep the lockfile in sync**: if you change dependencies in
   `pyproject.toml`, run `uv lock` and commit `uv.lock` — CI runs
   `uv lock --check` and fails on drift.

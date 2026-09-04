@@ -330,22 +330,31 @@ class CliAdapter:
         return shutil.which(exe) is not None
 
     def _build_invocation(
-        self, prompt: str, workdir: str, session_id: str | None = None
+        self,
+        prompt: str,
+        workdir: str,
+        session_id: str | None = None,
+        resume_session_id: str | None = None,
     ) -> tuple[list[str], bytes | None]:
         """Return (argv, stdin_bytes) for the given prompt.
 
         First-turn catalog cmds stay one-shot. Resume argv is inserted only
-        when ``session_id`` is set and this CLI has a resume policy.
+        when ``session_id`` / ``resume_session_id`` is set and this CLI has a
+        resume policy. ``resume_session_id`` is an alias of ``session_id``.
         """
+        sid = resume_session_id or session_id
         argv = [_apply_tokens(part, prompt, workdir) for part in self.config.cmd]
-        if session_id:
+        if sid:
             policy = self.session_policy()
             extra = [
-                part.replace(SESSION_TOKEN, session_id) for part in policy["resume_argv"]
+                part.replace(SESSION_TOKEN, sid) for part in policy["resume_argv"]
             ]
             if extra:
                 insert = min(int(policy["resume_insert"]), len(argv))
                 argv = argv[:insert] + extra + argv[insert:]
+            elif self.config.resume_argv is None:
+                # No catalog/config policy: append the common --resume flag.
+                argv = argv + ["--resume", sid]
         stdin_bytes: bytes | None = None
         if self.config.prompt_mode == "stdin":
             stdin_bytes = prompt.encode("utf-8")
