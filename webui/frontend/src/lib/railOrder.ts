@@ -94,6 +94,16 @@ export function moveRailId(order: string[], fromId: string, beforeId: string): s
   return without
 }
 
+/**
+ * REQ-128: Bump an active agent to the top of the non-favourites list on generation finish.
+ *
+ * Stability and tie-breaking:
+ * - The most recently finished agent is placed at index 0.
+ * - All other agents maintain their existing relative order (stable ordering).
+ * - If multiple agents finish in rapid succession, each moves to index 0 as it completes,
+ *   so the last one to complete sits at the very top.
+ * - If an agent is already at index 0, the order remains unchanged.
+ */
 export function bumpRailIdToTop(order: string[], id: string): string[] {
   if (!id) return order
   return [id, ...order.filter((item) => item !== id)]
