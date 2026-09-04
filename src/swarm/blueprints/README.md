@@ -42,6 +42,9 @@ registers aliases (e.g. `moa` ← `cli_fusion` / `ensemble`; `dynamic_team` ←
 
 | Dir | Notes |
 |-----|--------|
+| `support` | Onboarding (`role=support`); default Chat + top-of-sidebar |
+| `gate` | Stub `role=gate` marker (approval classifier; loop later) |
+| `skeptic` | Stub `role=skeptic` marker (retry check; loop later) |
 | `chatbot` | Minimal single-agent chat |
 | `suggestion` | Structured JSON suggestion (`suggestion` CLI) |
 | `codey` | Coding workflow (`codey` CLI) |
