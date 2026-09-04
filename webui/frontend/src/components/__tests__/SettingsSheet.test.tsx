@@ -127,22 +127,28 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
   })
 
-  it('LLM profiles shows the empty-models copy when /v1/models/ returns none', async () => {
+  it('LLM profiles shows the empty-models copy when none are connected', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ object: 'list', data: [] }),
+        json: async () => ({
+          object: 'llm_profiles',
+          profiles: [],
+          default_llm_profile: '',
+          override_per_task: false,
+          task_llm_profiles: {},
+        }),
       } as Response),
     )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
-    expect(await screen.findByText(/No models reported/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '/profiles/' })).toHaveAttribute('href', '/profiles/')
+    expect(await screen.findByText(/No connected models yet/i)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Default' })).toBeDisabled()
   })
 
-  it('LLM profiles shows the operator fallback when /v1/models/ errors', async () => {
+  it('LLM profiles shows the operator fallback when profiles fail to load', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -154,9 +160,8 @@ describe('SettingsSheet', () => {
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'LLM profiles' }))
     expect(
-      await screen.findByText(/Could not load models/i, undefined, { timeout: 4000 }),
+      await screen.findByText(/Could not load configured profiles/i, undefined, { timeout: 4000 }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'LLM profiles' })).toHaveAttribute('href', '/profiles/')
   })
 
   it('adds an OpenMousBot remote then lists it in Settings and the dropdown', async () => {
@@ -568,7 +573,7 @@ describe('SettingsSheet blueprint editor', () => {
     const list = await screen.findByRole('listbox', { name: 'Blueprints' })
     const selected = await within(list).findByRole('option', { name: 'Codey' })
     expect(selected).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByRole('button', { name: 'System' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
   })
 
   it('shows highlighted gate YES/NO Python when source is missing', async () => {
