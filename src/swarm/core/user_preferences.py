@@ -21,6 +21,10 @@ PREF_REGISTRY: dict[str, dict[str, str]] = {
         "type": "id_list",
         "description": "Hidden rail / Hidden Bots agent ids.",
     },
+    "hostname_override": {
+        "type": "hostname_string",
+        "description": "Display / system-name hostname override (not a secret).",
+    },
 }
 
 SECRET_KEY_FRAGMENTS = (
@@ -36,6 +40,8 @@ SECRET_KEY_FRAGMENTS = (
 
 FAVOURITES_KEY = "favourites"
 HIDDEN_KEY = "hidden_agents"
+HOSTNAME_KEY = "hostname_override"
+HOSTNAME_MAX_LEN = 255
 
 
 def is_secret_key(name: str) -> bool:
@@ -116,8 +122,25 @@ def normalize_id_list(raw: Any) -> list[str]:
     return ids
 
 
+def normalize_hostname_override(raw: Any) -> str:
+    """Display label only — strip controls and cap length.
+
+    Does **not** run ``is_secret_key`` on the *value*: names like ``token-box``
+    are valid hostnames. Secret-shaped *keys* are still dropped elsewhere.
+    """
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raw = str(raw)
+    cleaned = "".join(ch for ch in raw if ch.isprintable() and ch not in "\r\n\t")
+    cleaned = cleaned.strip()
+    if len(cleaned) > HOSTNAME_MAX_LEN:
+        cleaned = cleaned[:HOSTNAME_MAX_LEN].rstrip()
+    return cleaned
+
+
 def empty_values() -> dict[str, Any]:
-    return {FAVOURITES_KEY: [], HIDDEN_KEY: []}
+    return {FAVOURITES_KEY: [], HIDDEN_KEY: [], HOSTNAME_KEY: ""}
 
 
 def coerce_values(raw: Any) -> dict[str, Any]:
@@ -131,10 +154,13 @@ def coerce_values(raw: Any) -> dict[str, Any]:
             out[key] = normalize_favourites(value)
         elif key == HIDDEN_KEY:
             out[key] = normalize_id_list(value)
+        elif key == HOSTNAME_KEY:
+            out[key] = normalize_hostname_override(value)
         else:
             out[key] = value
     out.setdefault(FAVOURITES_KEY, [])
     out.setdefault(HIDDEN_KEY, [])
+    out.setdefault(HOSTNAME_KEY, "")
     return out
 
 
@@ -148,6 +174,8 @@ def merge_values(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, An
             merged[key] = normalize_favourites(value)
         elif key == HIDDEN_KEY:
             merged[key] = normalize_id_list(value)
+        elif key == HOSTNAME_KEY:
+            merged[key] = normalize_hostname_override(value)
         else:
             merged[key] = value
     return merged
@@ -176,6 +204,7 @@ def public_payload(
         "empty": empty,
         "favourites": bag[FAVOURITES_KEY],
         "hidden_agents": bag[HIDDEN_KEY],
+        "hostname_override": bag[HOSTNAME_KEY],
         "values": extras_bag(bag),
         "registry": [
             {"key": key, **meta} for key, meta in PREF_REGISTRY.items()
@@ -187,6 +216,7 @@ def public_payload(
 __all__ = [
     "FAVOURITES_KEY",
     "HIDDEN_KEY",
+    "HOSTNAME_KEY",
     "PREF_REGISTRY",
     "coerce_values",
     "empty_values",
@@ -194,6 +224,7 @@ __all__ = [
     "is_secret_key",
     "merge_values",
     "normalize_favourites",
+    "normalize_hostname_override",
     "normalize_id_list",
     "preference_identity",
     "public_payload",

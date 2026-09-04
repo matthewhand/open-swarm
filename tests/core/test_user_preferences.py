@@ -8,6 +8,7 @@ from swarm.core.user_preferences import (
     is_secret_key,
     merge_values,
     normalize_favourites,
+    normalize_hostname_override,
     preference_identity,
     public_payload,
 )
@@ -55,7 +56,19 @@ def test_public_payload_marks_empty_and_lists_registry():
     assert payload["object"] == "user_preferences"
     assert payload["empty"] is True
     assert payload["favourites"] == []
-    assert [item["key"] for item in payload["registry"]] == ["favourites", "hidden_agents"]
+    assert payload["hostname_override"] == ""
+    assert [item["key"] for item in payload["registry"]] == [
+        "favourites",
+        "hidden_agents",
+        "hostname_override",
+    ]
+
+
+def test_normalize_hostname_override_strips_controls_and_caps_length():
+    assert normalize_hostname_override("  lab-box\n") == "lab-box"
+    assert normalize_hostname_override(None) == ""
+    long_name = "x" * 300
+    assert len(normalize_hostname_override(long_name)) == 255
 
 
 def test_preference_identity_uses_authenticated_user():

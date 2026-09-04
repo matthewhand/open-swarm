@@ -1,9 +1,10 @@
 /**
- * Django-backed UI preferences (REQ-144 / #540).
+ * Django-backed UI preferences (REQ-144 / #540, REQ-168 / #592).
  *
- * Favourites + Hidden Bots load from GET /v1/preferences/ and persist on
- * change via PATCH. localStorage stays a cache: if the server bag is empty
- * and this browser already has values, import once, then the server wins.
+ * Favourites, Hidden Bots, and hostname override load from GET
+ * /v1/preferences/ and persist on change via PATCH. localStorage stays a
+ * cache: if the server bag is empty and this browser already has values,
+ * import once, then the server wins.
  *
  * Unexpected / offline responses keep the local cache (do not treat a
  * blueprint list mock as "empty server").
@@ -16,6 +17,7 @@ import {
   loadOrSeedHiddenAgentIds,
   saveHiddenAgentIds,
 } from './hiddenAgents'
+import { defaultHostname, HOSTNAME_STORAGE_KEY, saveHostname } from './hostname'
 import {
   hasPinnedAgentsStorage,
   loadOrSeedPinnedAgents,
@@ -23,6 +25,11 @@ import {
   savePinnedAgents,
   type PinnedAgent,
 } from './pinnedAgents'
+import {
+  hasHostnameOverrideStorage,
+  loadHostnameOverride,
+  saveHostnameOverride,
+} from './settingsPrefs'
 
 export const USER_PREFS_PATH = '/v1/preferences/'
 
@@ -33,12 +40,14 @@ export interface UserPrefs {
   empty: boolean
   favourites: PinnedAgent[]
   hidden_agents: string[]
+  hostname_override: string
   values?: Record<string, unknown>
 }
 
 export type RailPrefs = {
   pins: PinnedAgent[]
   hidden: string[]
+  hostnameOverride: string
   source: 'server' | 'import' | 'local'
 }
 
@@ -72,6 +81,8 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
   const hidden = Array.isArray(rec.hidden_agents)
     ? rec.hidden_agents.filter((id): id is string => typeof id === 'string' && id.length > 0)
     : []
+  const hostname =
+    typeof rec.hostname_override === 'string' ? rec.hostname_override.trim() : ''
   return {
     object: 'user_preferences',
     principal: typeof rec.principal === 'string' ? rec.principal : '',
@@ -79,13 +90,41 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
     empty: rec.empty === true,
     favourites: pins,
     hidden_agents: Array.from(new Set(hidden)),
+    hostname_override: hostname,
     values: rec.values && typeof rec.values === 'object' ? (rec.values as Record<string, unknown>) : {},
   }
 }
 
-export function applyPrefsToLocal(prefs: { favourites: PinnedAgent[]; hidden_agents: string[] }): void {
+export function applyHostnameOverride(value: string): string {
+  const trimmed = value.trim()
+  saveHostnameOverride(trimmed)
+  saveHostname(trimmed || defaultHostname())
+  return trimmed
+}
+
+export function localHostnameOverride(): string {
+  if (hasHostnameOverrideStorage()) return loadHostnameOverride()
+  try {
+    const rail = localStorage.getItem(HOSTNAME_STORAGE_KEY)
+    if (rail && rail.trim().length > 0 && rail.trim() !== defaultHostname()) {
+      return rail.trim()
+    }
+  } catch {
+    /* ignore */
+  }
+  return loadHostnameOverride()
+}
+
+export function applyPrefsToLocal(prefs: {
+  favourites: PinnedAgent[]
+  hidden_agents: string[]
+  hostname_override?: string
+}): void {
   savePinnedAgents(prefs.favourites)
   saveHiddenAgentIds(prefs.hidden_agents)
+  if (typeof prefs.hostname_override === 'string') {
+    applyHostnameOverride(prefs.hostname_override)
+  }
 }
 
 export async function fetchUserPrefs(): Promise<UserPrefs | null> {
@@ -100,8 +139,13 @@ export async function fetchUserPrefs(): Promise<UserPrefs | null> {
 export async function saveUserPrefs(patch: {
   favourites?: PinnedAgent[]
   hidden_agents?: string[]
+  hostname_override?: string
 }): Promise<UserPrefs | null> {
-  if (patch.favourites === undefined && patch.hidden_agents === undefined) {
+  if (
+    patch.favourites === undefined &&
+    patch.hidden_agents === undefined &&
+    patch.hostname_override === undefined
+  ) {
     return null
   }
   try {
@@ -124,7 +168,7 @@ export function localRailSnapshot(
   const hidden = hasHiddenAgentsStorage()
     ? loadHiddenAgentIds()
     : loadOrSeedHiddenAgentIds(catalog)
-  return { pins, hidden, source: 'local' }
+  return { pins, hidden, hostnameOverride: localHostnameOverride(), source: 'local' }
 }
 
 /**
@@ -137,11 +181,20 @@ export async function hydrateRailPrefs(
   const server = await fetchUserPrefs()
   if (server && !server.empty) {
     applyPrefsToLocal(server)
-    return { pins: server.favourites, hidden: server.hidden_agents, source: 'server' }
+    return {
+      pins: server.favourites,
+      hidden: server.hidden_agents,
+      hostnameOverride: server.hostname_override,
+      source: 'server',
+    }
   }
   const local = localRailSnapshot(catalog)
   if (server?.empty) {
-    await saveUserPrefs({ favourites: local.pins, hidden_agents: local.hidden })
+    await saveUserPrefs({
+      favourites: local.pins,
+      hidden_agents: local.hidden,
+      hostname_override: local.hostnameOverride,
+    })
     return { ...local, source: 'import' }
   }
   return local

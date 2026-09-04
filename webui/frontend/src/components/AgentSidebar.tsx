@@ -260,13 +260,6 @@ export default function AgentSidebar({
   const prefsHydrated = useRef(false)
   const skipPrefsSave = useRef(true)
   const [prefsReady, setPrefsReady] = useState(false)
-  const [tipsDismissed, setTipsDismissed] = useState(() => {
-    try {
-      return Boolean(localStorage.getItem('swarm_keybinding_tips_dismissed'))
-    } catch {
-      return false
-    }
-  })
   const isMac = isMacPlatform()
   const searchShortcut = searchShortcutLabel()
   const [addWizardOpen, setAddWizardOpen] = useState(false)
@@ -472,6 +465,7 @@ export default function AgentSidebar({
       skipPrefsSave.current = true
       setPins(next.pins)
       setHiddenIds(next.hidden)
+      setHostname(next.hostnameOverride || defaultHostname())
       setPrefsReady(true)
     })
     return () => {
@@ -486,13 +480,16 @@ export default function AgentSidebar({
       return
     }
     const handle = window.setTimeout(() => {
+      const override =
+        hostname.trim() === defaultHostname() ? '' : hostname.trim()
       void saveUserPrefs({
         favourites: pins,
         hidden_agents: resolvedHiddenIds,
+        hostname_override: override,
       })
     }, 300)
     return () => window.clearTimeout(handle)
-  }, [pins, resolvedHiddenIds, prefsReady])
+  }, [pins, resolvedHiddenIds, hostname, prefsReady])
 
   useEffect(() => {
     const onSettings = () => setSettingsTick((n) => n + 1)
@@ -1790,7 +1787,12 @@ export default function AgentSidebar({
               value={hostname}
               spellCheck={false}
               onChange={(event) => setHostname(event.target.value)}
-              onBlur={() => setHostname(saveHostname(hostname))}
+              onBlur={() => {
+                const next = saveHostname(hostname)
+                setHostname(next)
+                const override = next === defaultHostname() ? '' : next
+                void saveUserPrefs({ hostname_override: override })
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.currentTarget.blur()

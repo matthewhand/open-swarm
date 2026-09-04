@@ -33,8 +33,9 @@ def test_get_empty_when_no_row(api_client):
     assert body["empty"] is True
     assert body["favourites"] == []
     assert body["hidden_agents"] == []
+    assert body["hostname_override"] == ""
     keys = [item["key"] for item in body["registry"]]
-    assert keys == ["favourites", "hidden_agents"]
+    assert keys == ["favourites", "hidden_agents", "hostname_override"]
     blob = json.dumps(body)
     assert "api_key" not in blob
     assert "sk-" not in blob
@@ -163,3 +164,34 @@ def test_patch_normalizes_duplicate_and_string_pins(api_client):
     )
     assert [pin["id"] for pin in response.json()["favourites"]] == ["codey", "stewie"]
     assert response.json()["favourites"][1]["name"] == "stewie"
+
+
+@pytest.mark.django_db
+def test_hostname_override_must_be_a_string(api_client):
+    response = api_client.patch(
+        "/v1/preferences/",
+        {"hostname_override": 12},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_hostname_override_visible_to_other_client_same_user():
+    user = User.objects.create_user("alice", password="pw")
+    writer = APIClient()
+    writer.force_login(user)
+    reader = APIClient()
+    reader.force_login(user)
+
+    writer.patch(
+        "/v1/preferences/",
+        {"hostname_override": "  lab-box\n"},
+        format="json",
+    )
+    seen = reader.get("/v1/preferences/").json()
+    assert seen["hostname_override"] == "lab-box"
+    assert seen["empty"] is False
+    blob = json.dumps(seen)
+    assert "api_key" not in blob
+    assert "sk-" not in blob

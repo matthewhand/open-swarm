@@ -49,7 +49,7 @@ class UserPreferencesView(APIView):
 
     @extend_schema(
         operation_id="v1_preferences_get",
-        summary="Load this caller's UI preferences (favourites + Hidden Bots)",
+        summary="Load this caller's UI preferences (favourites, Hidden Bots, hostname)",
         responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request, *_args, **_kwargs):
@@ -58,12 +58,15 @@ class UserPreferencesView(APIView):
 
     @extend_schema(
         operation_id="v1_preferences_patch",
-        summary="Persist favourites and/or Hidden Bots for this caller",
+        summary="Persist favourites, Hidden Bots, and/or hostname override",
         request=inline_serializer(
             name="UserPreferencesPatchRequest",
             fields={
                 "favourites": serializers.ListField(required=False),
                 "hidden_agents": serializers.ListField(required=False),
+                "hostname_override": serializers.CharField(
+                    required=False, allow_blank=True
+                ),
                 "values": serializers.DictField(required=False),
             },
         ),
@@ -71,11 +74,15 @@ class UserPreferencesView(APIView):
     )
     def patch(self, request, *_args, **_kwargs):
         body = request.data if isinstance(request.data, dict) else {}
-        if not any(key in body for key in ("favourites", "hidden_agents", "values")):
+        if not any(
+            key in body
+            for key in ("favourites", "hidden_agents", "hostname_override", "values")
+        ):
             return Response(
                 {
                     "error": (
-                        "Provide at least one of favourites, hidden_agents, values."
+                        "Provide at least one of favourites, hidden_agents, "
+                        "hostname_override, values."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -91,6 +98,12 @@ class UserPreferencesView(APIView):
                 {"error": "hidden_agents must be a list of agent ids."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if "hostname_override" in body and body.get("hostname_override") is not None:
+            if not isinstance(body.get("hostname_override"), str):
+                return Response(
+                    {"error": "hostname_override must be a string."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         if "values" in body and not isinstance(body.get("values"), dict):
             return Response(
                 {"error": "values must be an object."},
@@ -106,6 +119,8 @@ class UserPreferencesView(APIView):
             patch[prefs.FAVOURITES_KEY] = body["favourites"]
         if "hidden_agents" in body:
             patch[prefs.HIDDEN_KEY] = body["hidden_agents"]
+        if "hostname_override" in body:
+            patch[prefs.HOSTNAME_KEY] = body["hostname_override"]
 
         current = row.values if row is not None else {}
         merged = prefs.merge_values(current, patch)

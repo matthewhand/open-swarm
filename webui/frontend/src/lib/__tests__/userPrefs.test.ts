@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../hiddenAgents'
 import { DEFAULT_PINNED_SUPPORT, PINNED_AGENTS_STORAGE_KEY } from '../pinnedAgents'
+import { HOSTNAME_OVERRIDE_KEY } from '../settingsPrefs'
 import {
   USER_PREFS_PATH,
   hydrateRailPrefs,
@@ -36,6 +37,7 @@ describe('userPrefs', () => {
         empty: false,
         favourites: [{ id: 'codey', name: 'Codey' }, { id: 'codey' }, 'stewie'],
         hidden_agents: ['gate', '', 'skeptic'],
+        hostname_override: '  lab-box  ',
       }),
     ).toEqual({
       object: 'user_preferences',
@@ -47,6 +49,7 @@ describe('userPrefs', () => {
         { id: 'stewie', name: 'stewie' },
       ],
       hidden_agents: ['gate', 'skeptic'],
+      hostname_override: 'lab-box',
       values: {},
     })
   })
@@ -63,6 +66,7 @@ describe('userPrefs', () => {
           empty: false,
           favourites: [{ id: 'codey', name: 'Codey' }, { id: 'support', name: 'Support' }],
           hidden_agents: ['gate'],
+          hostname_override: 'lab-box',
         }),
       ),
     )
@@ -71,6 +75,8 @@ describe('userPrefs', () => {
     expect(next.source).toBe('server')
     expect(next.pins.map((pin) => pin.id)).toEqual(['codey', 'support'])
     expect(next.hidden).toEqual(['gate'])
+    expect(next.hostnameOverride).toBe('lab-box')
+    expect(localStorage.getItem(HOSTNAME_OVERRIDE_KEY)).toBe('lab-box')
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]').map((p: { id: string }) => p.id)).toEqual([
       'codey',
       'support',
@@ -84,6 +90,7 @@ describe('userPrefs', () => {
       JSON.stringify([{ id: 'codey', name: 'Codey' }]),
     )
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify(['skeptic']))
+    localStorage.setItem(HOSTNAME_OVERRIDE_KEY, 'old-host')
     const fetchMock = vi.fn().mockImplementation(async (_url: RequestInfo, init?: RequestInit) => {
       if (init?.method === 'PATCH') {
         const body = JSON.parse(String(init.body || '{}'))
@@ -92,6 +99,7 @@ describe('userPrefs', () => {
           empty: false,
           favourites: body.favourites,
           hidden_agents: body.hidden_agents,
+          hostname_override: body.hostname_override,
         })
       }
       return jsonResponse({
@@ -99,6 +107,7 @@ describe('userPrefs', () => {
         empty: true,
         favourites: [],
         hidden_agents: [],
+        hostname_override: '',
       })
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -107,11 +116,13 @@ describe('userPrefs', () => {
     expect(next.source).toBe('import')
     expect(next.pins).toEqual([{ id: 'codey', name: 'Codey' }])
     expect(next.hidden).toEqual(['skeptic'])
+    expect(next.hostnameOverride).toBe('old-host')
     const patchCall = fetchMock.mock.calls.find((call) => call[1]?.method === 'PATCH')
     expect(patchCall?.[0]).toContain(USER_PREFS_PATH)
     const sent = JSON.parse(String(patchCall?.[1]?.body || '{}'))
     expect(sent.favourites).toEqual([{ id: 'codey', name: 'Codey' }])
     expect(sent.hidden_agents).toEqual(['skeptic'])
+    expect(sent.hostname_override).toBe('old-host')
   })
 
   it('seeds Support + default hidden, then imports, when both stores are empty', async () => {
@@ -169,17 +180,21 @@ describe('userPrefs', () => {
         empty: false,
         favourites: [{ id: 'support', name: 'Support' }],
         hidden_agents: ['gate'],
+        hostname_override: 'lab-box',
       }),
     )
     vi.stubGlobal('fetch', fetchMock)
     const saved = await saveUserPrefs({
       favourites: [{ id: 'support', name: 'Support' }],
       hidden_agents: ['gate'],
+      hostname_override: 'lab-box',
     })
     expect(saved?.favourites).toEqual([{ id: 'support', name: 'Support' }])
+    expect(saved?.hostname_override).toBe('lab-box')
     expect(fetchMock).toHaveBeenCalled()
     const call = fetchMock.mock.calls.find((entry) => entry[1]?.method === 'PATCH')
     expect(call).toBeTruthy()
     expect(String(call?.[0])).toContain(USER_PREFS_PATH)
+    expect(JSON.parse(String(call?.[1]?.body || '{}')).hostname_override).toBe('lab-box')
   })
 })

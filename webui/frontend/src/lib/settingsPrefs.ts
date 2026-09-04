@@ -1,9 +1,9 @@
 /**
  * Client-side settings-sheet preferences (REQ-19).
  *
- * Hostname override and retention mode persist in localStorage until a remotes
- * / settings API lands. Read/write is best-effort — private mode or quota
- * failures must not throw into the UI.
+ * Hostname override is also persisted on GET/PATCH /v1/preferences/ (REQ-168).
+ * localStorage remains the cache. Retention mode is still browser-local.
+ * Read/write is best-effort — private mode or quota failures must not throw.
  */
 
 export const HOSTNAME_OVERRIDE_KEY = 'swarm_hostname_override'
@@ -23,6 +23,14 @@ export const RETENTION_MODE_LABELS: Record<RetentionMode, string> = {
 
 export function isRetentionMode(value: unknown): value is RetentionMode {
   return typeof value === 'string' && (RETENTION_MODES as readonly string[]).includes(value)
+}
+
+export function hasHostnameOverrideStorage(): boolean {
+  try {
+    return localStorage.getItem(HOSTNAME_OVERRIDE_KEY) !== null
+  } catch {
+    return false
+  }
 }
 
 export function loadHostnameOverride(): string {
