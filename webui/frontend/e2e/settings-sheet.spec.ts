@@ -18,6 +18,26 @@ async function stubApis(page: import('@playwright/test').Page) {
       }),
     })
   })
+  await page.route('**/v1/llm-profiles**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'llm_profiles',
+        profiles: [
+          { id: 'gpt-5.6-terra', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+        ],
+        default_llm_profile: 'gpt-5.6-terra',
+        default_is_auto: true,
+        override_per_task: false,
+        task_llm_profiles: {},
+        auto_picks: { default: 'gpt-5.6-terra' },
+        warnings: [],
+        routes: {},
+        task_classes: ['orchestration', 'auxiliary', 'delegation'],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -25,7 +45,44 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/health**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'ok' }),
+    })
+  })
+  await page.route('**/v1/system**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        path: '~/share/swarm/store.db',
+        size_bytes: 13_002_342,
+        size_label: '12.4 MB',
+        created: true,
+        conversation_count: 3,
+        message_count: 11,
+      }),
+    })
+  })
   await page.route('**/v1/remotes**', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'omb',
+          kind: 'omb',
+          label: 'OpenMousBot',
+          title: 'OpenMousBot',
+          host_label: '',
+          base_url: 'http://127.0.0.1:8802',
+          source: 'config',
+        }),
+      })
+      return
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -35,17 +92,10 @@ async function stubApis(page: import('@playwright/test').Page) {
           { id: 'hermes', label: 'Hermes' },
           { id: 'omb', label: 'OpenMousBot' },
           { id: 'rakazo', label: 'Rakazo' },
-          { id: 'herdr', label: 'Herdr', opt_in: true },
         ],
+        configured: [],
         data: [],
       }),
-    })
-  })
-  await page.route('**/health**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ status: 'ok' }),
     })
   })
 }
@@ -73,14 +123,20 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
 
   const sections = page.getByRole('navigation', { name: 'Settings sections' })
   await expect(sections.getByRole('button', { name: 'Remotes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Hermes' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'OMB' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Rakazo' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: '+ Add remote' })).toBeVisible()
-  await expect(sections.getByRole('button', { name: 'Herdr' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(sections.getByRole('button', { name: 'Rakazo' })).toHaveCount(0)
+
+  await sections.getByRole('button', { name: 'Remotes' }).click()
+  await expect(dialog.getByRole('button', { name: /Add remote/i })).toBeVisible()
+  await expect(dialog.getByText(/No remotes configured/i)).toBeVisible()
+  await expect(dialog.getByText('OpenMousBot')).toHaveCount(0)
+  await expect(dialog.getByText(/\bOMB\b/)).toHaveCount(0)
   await expect(sections.getByRole('button', { name: 'Retention' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'Hostname' })).toBeVisible()
   await expect(sections.getByRole('button', { name: 'LLM profiles' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'Rail' })).toBeVisible()
+  await expect(sections.getByRole('button', { name: 'System' })).toBeVisible()
 
   await expect(page.getByRole('radiogroup', { name: 'Retention mode' })).toHaveClass(/join/)
   await page.getByRole('radio', { name: 'Trash' }).click()
@@ -97,6 +153,13 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hostname_override')))
     .toBe('swarm.example.com')
+
+  await page.getByRole('button', { name: 'System' }).click()
+  await expect(page.getByRole('heading', { name: 'System' })).toBeVisible()
+  await expect(page.getByText('12.4 MB')).toBeVisible()
+  await expect(page.getByText('~/share/swarm/store.db')).toBeVisible()
+  await expect(page.getByText(/local database/i)).toBeVisible()
+  await expect(page.locator('#os-system-store')).not.toContainText('Django')
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()

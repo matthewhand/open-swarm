@@ -1,17 +1,20 @@
-"""remote_harness — Open Swarm as a harness *for* Hermes / OMB / Rakazo.
+"""remote_harness — Open Swarm as a harness *for* Hermes / OMB / Rakazo / nested swarm.
 
 This is not a concurrent Grok / OpenMausBot / Rakazo seat clone. Specialists
 are openai-agents agent-as-tool wrappers around each remote's real HTTP API
 (``swarm.core.remotes``). The coordinator hands off; it does not impersonate
-those products.
+those products. Nested ``swarm`` is another open-swarm process over HTTP —
+not in-process recursion.
 
 Deterministic grammar (no LLM required — same idea as ``harness_fleet``):
 
-    health              probe all three remotes
+    health              probe catalog remotes
     health hermes       probe one
     list                show persisted config
     list omb            GET/list via that harness API
+    list swarm          GET child /v1/blueprints/
     send hermes <text>  POST a job (Hermes /v1/runs, OMB bot message, Rakazo thread)
+    send swarm <text>   POST child /v1/chat/completions/
 
 Structured params: ``{"op":"health"|"list"|"send","name":"hermes","prompt":"…"}``.
 
@@ -33,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def _health_tool(name: str = "") -> str:
-    """Probe Hermes, OMB, and/or Rakazo. Honest DOWN if unreachable."""
+    """Probe Hermes, OMB, Rakazo, Herdr, and/or nested swarm. Honest DOWN if unreachable."""
     targets = [name] if name.strip() else list(remotes_core.load_all_remotes())
     lines = []
     for rid in targets:
@@ -82,19 +85,20 @@ def _render_operate(result: remotes_core.OperateResult) -> str:
 
 
 class RemoteHarnessBlueprint(BlueprintBase):
-    """Connect/configure/operate Hermes, OpenMausBot, and Rakazo as remotes."""
+    """Connect/configure/operate Hermes, OpenMausBot, Rakazo, and nested swarm."""
 
     metadata: ClassVar[dict[str, Any]] = {
         "name": "remote_harness",
-        "title": "Remote Harnesses (Hermes / OMB / Rakazo)",
+        "title": "Remote Harnesses (Hermes / OMB / Rakazo / swarm)",
         "description": (
-            "Team members: Hermes, OpenMausBot, Rakazo — they see/talk via "
-            "openai-agents as_tool (consult_hermes/omb/rakazo). Not a seat clone, "
-            "not the /teams/ LLM-profile alias registry. Grok-Bot chrome is not live."
+            "Team members: Hermes, OpenMausBot, Rakazo, nested open-swarm — they "
+            "see/talk via openai-agents as_tool (consult_hermes/omb/rakazo/swarm). "
+            "Not a seat clone, not the /teams/ LLM-profile alias registry. "
+            "Grok-Bot chrome is not live."
         ),
-        "version": "0.1.0",
+        "version": "0.2.0",
         "author": "Open Swarm Team",
-        "tags": ["remotes", "hermes", "omb", "rakazo", "ops", "tools"],
+        "tags": ["remotes", "hermes", "omb", "rakazo", "swarm", "ops", "tools"],
         "required_mcp_servers": [],
         "env_vars": [
             "HERMES_BASE_URL",
@@ -104,6 +108,8 @@ class RemoteHarnessBlueprint(BlueprintBase):
             "RAKAZO_BASE_URL",
             "RAKAZO_API_KEY",
             "RAKAZO_SESSION_COOKIE",
+            "SWARM_REMOTE_BASE_URL",
+            "SWARM_REMOTE_API_KEY",
         ],
     }
 
@@ -127,17 +133,17 @@ class RemoteHarnessBlueprint(BlueprintBase):
 
         @function_tool
         def remote_health(name: str = "") -> str:
-            """Probe hermes, omb, and/or rakazo. Honest DOWN if unreachable."""
+            """Probe hermes, omb, rakazo, and/or nested swarm. Honest DOWN if unreachable."""
             return _health_tool(name)
 
         @function_tool
         def remote_list(name: str = "") -> str:
-            """List config, or list jobs/bots on hermes|omb|rakazo."""
+            """List config, or list jobs/bots/agents on hermes|omb|rakazo|swarm."""
             return _list_tool(name)
 
         @function_tool
         def remote_send(name: str, prompt: str, target: str = "") -> str:
-            """Send a job via the remote's real API. name=hermes|omb|rakazo."""
+            """Send a job via the remote's real API. name=hermes|omb|rakazo|swarm."""
             return _send_tool(name, prompt, target)
 
         shared = [remote_health, remote_list, remote_send]
@@ -179,6 +185,16 @@ class RemoteHarnessBlueprint(BlueprintBase):
                 "You operate remote Rakazo via tools. Do not claim Grok-Bot chrome is live.",
                 "consult_rakazo",
                 "Hand off to the Rakazo remote operator.",
+            ),
+            "swarm": (
+                "SwarmRemote",
+                (
+                    "You operate a nested open-swarm instance via HTTP. "
+                    "Do not treat it as in-process recursion. "
+                    "Do not add this server as its own remote."
+                ),
+                "consult_swarm",
+                "Hand off to the nested open-swarm remote operator.",
             ),
         }
 
@@ -265,7 +281,7 @@ class RemoteHarnessBlueprint(BlueprintBase):
                 body = _list_tool(name)
             else:
                 if not name:
-                    body = "Usage: send <hermes|omb|rakazo|herdr> <prompt>"
+                    body = "Usage: send <hermes|omb|rakazo|herdr|swarm> <prompt>"
                 else:
                     body = _send_tool(name, prompt, target)
             yield support.message_chunk(

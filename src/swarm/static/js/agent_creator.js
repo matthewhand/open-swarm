@@ -27,8 +27,9 @@ function generateAgentCode() {
         showMessage('Please fill in all required fields (marked with *)', 'danger');
         return;
     }
+    data.assist = true
 
-    showMessage('Generating agent code...', 'info');
+    showMessage('Generating BlueprintBase class (default LLM, then template fallback)...', 'info');
 
     fetch('/agent-creator/generate/', {
         method: 'POST',

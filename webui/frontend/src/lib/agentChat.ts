@@ -11,6 +11,7 @@ export type { ConversationSummary } from './chatCompact'
 export const DEFAULT_AGENT_ID = '_default'
 
 const STORAGE_PREFIX = 'swarm_agent_chat:'
+const TASKS_PREFIX = 'swarm_agent_tasks:'
 
 export function agentIdFromBlueprint(blueprintId: string | null | undefined): string {
   const trimmed = (blueprintId ?? '').trim()
@@ -31,8 +32,66 @@ export function conversationIdForAgent(agentId: string): string {
   }
 }
 
+function tasksKey(agentId: string): string {
+  return `${TASKS_PREFIX}${agentIdFromBlueprint(agentId)}`
+}
+
+function readTaskIds(agentId: string): string[] {
+  try {
+    const raw = window.localStorage.getItem(tasksKey(agentId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string' && id) : []
+  } catch {
+    return []
+  }
+}
+
+function writeTaskIds(agentId: string, ids: string[]): void {
+  try {
+    window.localStorage.setItem(tasksKey(agentId), JSON.stringify(ids))
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Register a running task session so the rail can show a count. */
+export function registerTaskSession(agentId: string, conversationId: string): string[] {
+  const agent = agentIdFromBlueprint(agentId)
+  const next = readTaskIds(agent)
+  if (conversationId && !next.includes(conversationId)) next.push(conversationId)
+  writeTaskIds(agent, next)
+  return next
+}
+
+export function listTaskSessions(agentId: string): string[] {
+  return readTaskIds(agentId)
+}
+
+export function activeTaskSessionCount(agentId: string): number {
+  return listTaskSessions(agentId).length
+}
+
+/**
+ * Conversation id for one user task / CoS handoff.
+ *
+ * Off (default): reuse the stable per-agent id.
+ * On: mint a new empty session and keep it in the concurrent list.
+ */
+export function conversationIdForTask(
+  agentId: string,
+  opts?: { newChatPerTask?: boolean; taskId?: string },
+): string {
+  if (!opts?.newChatPerTask) {
+    return conversationIdForAgent(agentId)
+  }
+  const minted = opts.taskId?.trim() || newConversationId()
+  registerTaskSession(agentId, minted)
+  return minted
+}
+
 export interface AgentThreadMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'status'
   content: string
 }
 
@@ -53,7 +112,7 @@ function isThreadMessage(value: unknown): value is AgentThreadMessage {
   if (!value || typeof value !== 'object') return false
   const row = value as { role?: unknown; content?: unknown }
   return (
-    (row.role === 'user' || row.role === 'assistant') &&
+    (row.role === 'user' || row.role === 'assistant' || row.role === 'status') &&
     typeof row.content === 'string'
   )
 }
@@ -63,9 +122,13 @@ function parseSummaries(value: unknown): ConversationSummary[] {
 }
 
 /** GET /chat/thread/?agent= — empty on auth/network failure (chat still works). */
-export async function fetchAgentThread(agentId: string): Promise<AgentThread> {
+export async function fetchAgentThread(
+  agentId: string,
+  conversationIdOverride?: string,
+): Promise<AgentThread> {
   const agent = agentIdFromBlueprint(agentId)
-  const conversationId = conversationIdForAgent(agent)
+  const conversationId =
+    (conversationIdOverride || '').trim() || conversationIdForAgent(agent)
   try {
     const data = await apiGet<AgentThread>(
       `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,

@@ -1,0 +1,81 @@
+"""REQ-72 (#417) chrome contracts for shipped Grok rail / remotes stub / settings.
+
+Tests only. Locks merged-on-main behavior (PRs #318, #319, #320, #322, #331, #342)
+so a later SPA rewrite cannot silently drop the stub split or dual hostname keys.
+Does not cover in-flight PRs (344, 370, 383, 400, 403, …).
+"""
+
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+SETTINGS_SHEET = REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx"
+SEARCH_PALETTE = REPO / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
+CHAT_PAGE = REPO / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
+SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
+APP = REPO / "webui" / "frontend" / "src" / "App.tsx"
+HOSTNAME = REPO / "webui" / "frontend" / "src" / "lib" / "hostname.ts"
+SETTINGS_PREFS = REPO / "webui" / "frontend" / "src" / "lib" / "settingsPrefs.ts"
+TEAM_ROSTERS = REPO / "webui" / "frontend" / "src" / "lib" / "teamRosters.ts"
+
+
+def test_settings_remotes_panes_are_placeholders_not_live_api():
+    """#318/#320: Settings Hermes/OMB/Rakazo chrome is a stub; /v1/remotes/ is backend-only."""
+    src = SETTINGS_SHEET.read_text(encoding="utf-8")
+    assert "placeholder remote" in src
+    assert "remotes API has not landed" in src
+    assert "/v1/remotes" not in src
+    for label in ("Hermes", "OMB", "Rakazo"):
+        assert label in src
+
+
+def test_search_palette_bot_rows_spa_navigate_chat():
+    """#322: choosing a bot uses navigate('/chat?blueprint='); Django actions assign()."""
+    src = SEARCH_PALETTE.read_text(encoding="utf-8")
+    assert "href: `/chat?blueprint=${encodeURIComponent(agent.id)}`" in src
+    assert "if (row.href.startsWith('/chat')) navigate(row.href)" in src
+    assert "window.location.assign(row.href)" in src
+    assert "dispatchToggleTheme()" in src
+
+
+def test_chat_page_support_default_and_manage_teams():
+    """#322 Support default URL; #331 Manage Teams assigns /teams/."""
+    src = CHAT_PAGE.read_text(encoding="utf-8")
+    assert "setSearchParams({ blueprint: SUPPORT_AGENT_ID }" in src
+    assert "window.location.assign(MANAGE_TEAMS_HREF)" in src
+    assert "Nothing to compact yet" in src
+    assert "Compact failed" in src
+
+
+def test_sidebar_team_hide_id_and_plugins_empty_copy():
+    """#342 team hide uses teamHideId; #322 Plugins dialog is empty."""
+    src = SIDEBAR.read_text(encoding="utf-8")
+    assert "teamHideId(team.id)" in src
+    assert "No plugins installed." in src
+    assert "Unpin" in src
+    assert 'aria-label="Open agents sidebar"' not in src  # hamburger lives in App.tsx
+
+
+def test_app_mobile_drawer_and_settings_event():
+    """#322 mobile drawer; #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
+    src = APP.read_text(encoding="utf-8")
+    assert 'aria-label="Open agents sidebar"' in src
+    assert "OPEN_SETTINGS_EVENT" in src
+    assert "setSettingsBlueprintId" in src
+
+
+def test_hostname_rail_and_settings_keys_are_distinct():
+    """#322 rail `swarm_hostname` vs #320 settings `swarm_hostname_override`."""
+    rail = HOSTNAME.read_text(encoding="utf-8")
+    sheet = SETTINGS_PREFS.read_text(encoding="utf-8")
+    assert "swarm_hostname" in rail
+    assert "swarm_hostname_override" in sheet
+    assert "HOSTNAME_STORAGE_KEY = 'swarm_hostname'" in rail
+    assert "HOSTNAME_OVERRIDE_KEY = 'swarm_hostname_override'" in sheet
+
+
+def test_manage_teams_href_is_django_teams():
+    src = TEAM_ROSTERS.read_text(encoding="utf-8")
+    assert "MANAGE_TEAMS_HREF = '/teams/'" in src
+    assert "MANAGE_TEAMS_VALUE = '__manage__'" in src
+    assert "def teamHideId" not in src
+    assert "export function teamHideId" in src
