@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import pytest
 
+from swarm.blueprints.common import cli_fusion_support as fusion
+from swarm.blueprints.common.support_blueprint import (
+    CLICK_BUBBLE_TO_EDIT,
+    SUPPORT_SKILL_FIXTURE,
+    SUPPORT_SKILL_NAME,
+    support_turn_context,
+    support_turn_reply,
+)
 from swarm.blueprints.support.blueprint_support import SupportBlueprint
+from swarm.core import skills
 from swarm.core.blueprint_base import BlueprintBase
 
 
@@ -63,3 +72,54 @@ async def test_blueprint_ask_includes_python_fence():
     text = _final_content(chunks)
     assert "```python" in text
     assert "class FirstTeamBlueprint" in text
+
+
+def test_skill_is_discoverable_and_carries_fixture():
+    found = skills.discover_skills()
+    assert SUPPORT_SKILL_NAME in found
+    skill = found[SUPPORT_SKILL_NAME]
+    assert SUPPORT_SKILL_FIXTURE in skill.instructions
+    assert "use when" in skill.description.lower()
+
+
+def test_apply_skill_to_prompt_attaches_support_skill():
+    prompt, name = fusion.apply_skill_to_prompt("hello", {"skill": SUPPORT_SKILL_NAME})
+    assert name == SUPPORT_SKILL_NAME
+    assert SUPPORT_SKILL_FIXTURE in prompt
+
+
+def test_support_context_includes_skill_fixture():
+    ctx = support_turn_context("api", "how do I edit?")
+    assert SUPPORT_SKILL_FIXTURE in ctx
+    assert SUPPORT_SKILL_NAME in ctx
+
+
+def test_support_blueprint_system_prompt_includes_fixture():
+    bp = SupportBlueprint(blueprint_id="support")
+    prompt = bp.system_prompt([{"role": "user", "content": "hi"}])
+    assert SUPPORT_SKILL_FIXTURE in prompt
+    assert "SKILL INSTRUCTIONS" in prompt
+
+
+async def test_cli_mode_support_turn_does_not_claim_click_edit():
+    bp = SupportBlueprint(blueprint_id="support")
+    bp.set_params({"session_kind": "cli", "skill": SUPPORT_SKILL_NAME})
+    chunks = await _collect(
+        bp.run([{"role": "user", "content": "how do I edit that last bubble?"}])
+    )
+    text = _final_content(chunks)
+    assert text
+    assert CLICK_BUBBLE_TO_EDIT not in text.lower()
+    assert "outside" in text.lower()
+
+
+async def test_remote_mode_support_turn_does_not_claim_click_edit():
+    bp = SupportBlueprint(blueprint_id="support")
+    bp.set_params({"session_kind": "remote"})
+    chunks = await _collect(bp.run([{"role": "user", "content": "can I edit this?"}]))
+    assert CLICK_BUBBLE_TO_EDIT not in _final_content(chunks).lower()
+
+
+def test_cli_reply_helper_never_says_click_edit():
+    reply = support_turn_reply([{"role": "user", "content": "edit?"}], "cli")
+    assert CLICK_BUBBLE_TO_EDIT not in reply.lower()

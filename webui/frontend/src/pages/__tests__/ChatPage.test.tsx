@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
@@ -412,9 +412,11 @@ describe('ChatPage Send path with mock inference', () => {
 
     const ws = MockWebSocket.instances[0]!
     expect(ws.send).toHaveBeenCalled()
-    expect(JSON.parse(ws.send.mock.calls[0][0] as string).message).toBe(
-      'ping the mock',
-    )
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({
+      message: 'ping the mock',
+      blueprint: 'support',
+      params: { skill: 'support-session-ownership' },
+    })
 
     await act(async () => {
       deliverMockInference(ws, 'MOCK_INFERENCE_VITEST_REPLY')
