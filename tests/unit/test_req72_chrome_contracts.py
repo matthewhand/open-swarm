@@ -60,7 +60,7 @@ def test_app_mobile_rail_and_settings_event():
     """REQ-54 tucked rail + #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
     src = APP.read_text(encoding="utf-8")
     assert "OPEN_SETTINGS_EVENT" in src
-    assert "setSettingsBlueprintId" in src
+    assert "setSettingsDetail" in src
     assert "useLeftEdgeSwipe" in src
     assert "SwipeHint" in src
     assert 'aria-label="Open agents sidebar"' not in src
