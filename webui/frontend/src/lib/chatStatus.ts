@@ -15,13 +15,14 @@ export type StatusChromeRole = (typeof STATUS_CHROME_ROLES)[number]
 
 export type ChatTranscriptRole = 'user' | 'assistant' | StatusChromeRole
 
-export type DropdownKind = 'team' | 'cli' | 'model' | 'mode'
+export type DropdownKind = 'team' | 'cli' | 'model' | 'mode' | 'api'
 
 export const DROPDOWN_KIND_LABEL: Record<DropdownKind, string> = {
   team: 'Team target',
   cli: 'CLI',
   model: 'Model',
   mode: 'Mode',
+  api: 'API',
 }
 
 /** Navigation-only options — changing to these must not write a status line. */

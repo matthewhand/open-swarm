@@ -24,12 +24,14 @@ import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
-import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
+import { fetchBlueprints, fetchCliAgents, fetchCliModels, fetchModels, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
+  appendAgentMessage,
   compactAgentThread,
   conversationIdForAgent,
   conversationIdForTask,
+  DEFAULT_AGENT_ID,
   fetchAgentThread,
   patchAgentMessage,
   type ConversationSummary,
@@ -92,7 +94,21 @@ import {
   SUPPORT_AGENT_ID,
   supportTurnExtras,
 } from '../lib/supportAgent'
-import { asTranscriptRole, isStatusRole } from '../lib/chatStatus'
+import {
+  asTranscriptRole,
+  formatDropdownStatus,
+  isStatusRole,
+  shouldRecordDropdownChange,
+  type DropdownKind,
+} from '../lib/chatStatus'
+import {
+  discoverChatClis,
+  isCliAgentContext,
+  isCliBlueprintId,
+  preferredChatCli,
+  MANAGE_CLI_VALUE,
+  MANAGE_CLI_HREF,
+} from '../lib/cliAgentContext'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
@@ -288,6 +304,105 @@ const ChatPage = () => {
 
   const showRemotesControl = isRemoteAgent || isRemoteBackedTeam
 
+  const modelsQuery = useQuery({
+    queryKey: ['models'],
+    queryFn: fetchModels,
+    retry: 1,
+  })
+
+  const isCliAgent = Boolean(
+    !teamFromUrl &&
+      !remoteFromUrl &&
+      !isRemoteBackedTeam &&
+      !isRemoteAgent &&
+      (selectedCli ||
+        agentKind === 'cli' ||
+        isCliBlueprintId(selectedBlueprint) ||
+        isCliAgentContext({
+          blueprintId: selectedBlueprint,
+          searchParams,
+        })),
+  )
+
+  const isApiAgent = Boolean(
+    !teamFromUrl &&
+      !remoteFromUrl &&
+      !isRemoteBackedTeam &&
+      !isRemoteAgent &&
+      !isCliAgent,
+  )
+
+  const discoveredClis = useMemo(
+    () => discoverChatClis(cliQuery.data, searchParams.get('cli') || selectedCli?.cli),
+    [cliQuery.data, searchParams, selectedCli],
+  )
+  const currentCli = useMemo(() => {
+    const fromParam = (searchParams.get('cli') ?? '').trim()
+    if (fromParam) return fromParam
+    if (selectedCli?.cli) return selectedCli.cli
+    return preferredChatCli(discoveredClis, '')
+  }, [searchParams, selectedCli, discoveredClis])
+
+  const cliModelsQuery = useQuery({
+    queryKey: ['cli-models', currentCli],
+    queryFn: () => fetchCliModels(currentCli),
+    enabled: Boolean(isCliAgent && currentCli),
+    retry: 1,
+  })
+  const availableCliModels = useMemo(() => {
+    const list = cliModelsQuery.data?.models ?? (cliQuery.data as any)?.list_models?.[currentCli] ?? []
+    return list.length ? list : ['default']
+  }, [cliModelsQuery.data, cliQuery.data, currentCli])
+
+  const currentCliModel = useMemo(() => {
+    const fromParam = (searchParams.get('model') ?? '').trim()
+    if (fromParam && availableCliModels.includes(fromParam)) return fromParam
+    return availableCliModels[0] || 'default'
+  }, [searchParams, availableCliModels])
+
+  const availableApiAgents = useMemo(
+    () => blueprints.filter((bp) => !isCliBlueprintId(bp.id)),
+    [blueprints],
+  )
+  const availableApiModels = useMemo(() => {
+    const list = modelsQuery.data?.data?.map((m) => m.id) ?? []
+    return list.length ? list : ['default']
+  }, [modelsQuery.data])
+
+  const currentApiModel = useMemo(() => {
+    const fromParam = (searchParams.get('model') ?? '').trim()
+    if (fromParam && availableApiModels.includes(fromParam)) return fromParam
+    return availableApiModels[0] || 'default'
+  }, [searchParams, availableApiModels])
+
+  const recordDropdownChange = useCallback(
+    (kind: DropdownKind, fromLabel: string, toLabel: string) => {
+      if (!shouldRecordDropdownChange(fromLabel, toLabel)) return
+      const statusText = formatDropdownStatus(kind, fromLabel, toLabel)
+      const statusMsg: ChatMessage = {
+        key: `status-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        role: 'status',
+        text: statusText,
+        streaming: false,
+      }
+      setThreads((prev) => ({
+        ...prev,
+        [threadKey]: [...(prev[threadKey] ?? []), statusMsg],
+      }))
+      const agent = teamFromUrl
+        ? `team-${teamFromUrl}`
+        : remoteFromUrl
+          ? `remote-${remoteFromUrl}`
+          : selectedBlueprint || DEFAULT_AGENT_ID
+      void appendAgentMessage(
+        agent,
+        { role: 'status', content: statusText },
+        conversationIdRef.current || undefined,
+      ).catch(() => {})
+    },
+    [threadKey, teamFromUrl, remoteFromUrl, selectedBlueprint],
+  )
+
   useEffect(() => {
     // REQ-28: a selected composition team uses ?team=; do not clobber it
     // with the Support default (REQ-23 owns send-to-all).
@@ -346,7 +461,29 @@ const ChatPage = () => {
         setThreads((prev) => ({ ...prev, [key]: [] }))
         setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
       }
-      return
+      let cancelled = false
+      ;(async () => {
+        const thread = await fetchAgentThread(key, key)
+        if (cancelled) return
+        setSummariesByThread((prev) => ({
+          ...prev,
+          [key]: thread.summaries,
+        }))
+        if (thread.messages.length === 0) return
+        setThreads((prev) => ({
+          ...prev,
+          [key]: thread.messages.map((message, index) => ({
+            key: `hist-${index}-${message.role}`,
+            role: asTranscriptRole(message.role),
+            text: message.content,
+            streaming: false,
+            edited: message.edited === true,
+          })),
+        }))
+      })()
+      return () => {
+        cancelled = true
+      }
     }
     if (remoteFromUrl) {
       const key = `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
@@ -722,11 +859,19 @@ const ChatPage = () => {
       })
         ? supportTurnExtras()
         : undefined
-      const cliParams = selectedCli
-        ? { cli: selectedCli.cli }
-        : newChatPerTask
-          ? { new_session: messages.length === 0 }
-          : undefined
+      const selectedModelParam = (searchParams.get('model') ?? '').trim()
+      const cliParams = isCliAgent
+        ? {
+            cli: currentCli,
+            ...(selectedModelParam && selectedModelParam !== 'default' ? { model: selectedModelParam } : {}),
+          }
+        : isApiAgent && selectedModelParam && selectedModelParam !== 'default'
+          ? { model: selectedModelParam }
+          : selectedCli
+            ? { cli: selectedCli.cli }
+            : newChatPerTask
+              ? { new_session: messages.length === 0 }
+              : undefined
       ws.send(
         buildChatWsFrame(
           trimmed,
@@ -741,6 +886,11 @@ const ChatPage = () => {
       runtimeBlueprint,
       selectedBlueprint,
       selectedCli,
+      isCliAgent,
+      currentCli,
+      currentCliModel,
+      isApiAgent,
+      currentApiModel,
       teamFromUrl,
       memberTarget,
       newChatPerTask,
@@ -1000,7 +1150,13 @@ const ChatPage = () => {
                   }
                   return
                 }
+                const prev = memberTarget
+                const prevMember = (selectedTeam?.members ?? []).find((m) => m.id === prev)
+                const nextMember = (selectedTeam?.members ?? []).find((m) => m.id === value)
+                const fromLabel = prev === ALL_MEMBERS_TARGET ? 'All members' : memberOptionLabel(prevMember || { id: prev, name: prev })
+                const toLabel = value === ALL_MEMBERS_TARGET ? 'All members' : memberOptionLabel(nextMember || { id: value, name: value })
                 setMemberTarget(value)
+                recordDropdownChange('team', fromLabel, toLabel)
               }}
             >
               <option value={ALL_MEMBERS_TARGET}>All members</option>
@@ -1014,6 +1170,126 @@ const ChatPage = () => {
               </option>
               <option value={MANAGE_TEAMS_VALUE}>Manage Team</option>
             </select>
+          ) : null}
+          {isCliAgent ? (
+            <>
+              <select
+                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+                value={currentCli}
+                aria-label="CLI"
+                data-testid="cli-select"
+                onChange={(e) => {
+                  const nextCli = e.target.value
+                  if (nextCli === MANAGE_CLI_VALUE) {
+                    window.location.assign(MANAGE_CLI_HREF)
+                    return
+                  }
+                  const prev = currentCli
+                  setSearchParams(
+                    (prevParams) => {
+                      const nextParams = new URLSearchParams(prevParams)
+                      nextParams.set('cli', nextCli)
+                      return nextParams
+                    },
+                    { replace: true },
+                  )
+                  recordDropdownChange('cli', prev, nextCli)
+                }}
+              >
+                {discoveredClis.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option disabled aria-hidden="true">
+                  ──────────
+                </option>
+                <option value={MANAGE_CLI_VALUE}>Manage Cli</option>
+              </select>
+              <select
+                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+                value={currentCliModel}
+                aria-label="Model"
+                data-testid="cli-model-select"
+                onChange={(e) => {
+                  const nextModel = e.target.value
+                  const prev = currentCliModel
+                  setSearchParams(
+                    (prevParams) => {
+                      const nextParams = new URLSearchParams(prevParams)
+                      nextParams.set('model', nextModel)
+                      return nextParams
+                    },
+                    { replace: true },
+                  )
+                  recordDropdownChange('model', prev, nextModel)
+                }}
+              >
+                {availableCliModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
+          {isApiAgent ? (
+            <>
+              <select
+                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+                value={selectedBlueprint}
+                aria-label="API"
+                data-testid="api-select"
+                onChange={(e) => {
+                  const nextBp = e.target.value
+                  const prevBp = selectedBlueprint
+                  const prevAgent = blueprints.find((b) => b.id === prevBp)
+                  const nextAgent = blueprints.find((b) => b.id === nextBp)
+                  const prevLabel = prevAgent ? agentLabel(prevAgent) : prevBp
+                  const nextLabel = nextAgent ? agentLabel(nextAgent) : nextBp
+                  setSearchParams(
+                    (prevParams) => {
+                      const nextParams = new URLSearchParams(prevParams)
+                      nextParams.set('blueprint', nextBp)
+                      return nextParams
+                    },
+                    { replace: true },
+                  )
+                  recordDropdownChange('api', prevLabel, nextLabel)
+                }}
+              >
+                {availableApiAgents.map((bp) => (
+                  <option key={bp.id} value={bp.id}>
+                    {agentLabel(bp)}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
+                value={currentApiModel}
+                aria-label="Model"
+                data-testid="api-model-select"
+                onChange={(e) => {
+                  const nextModel = e.target.value
+                  const prev = currentApiModel
+                  setSearchParams(
+                    (prevParams) => {
+                      const nextParams = new URLSearchParams(prevParams)
+                      nextParams.set('model', nextModel)
+                      return nextParams
+                    },
+                    { replace: true },
+                  )
+                  recordDropdownChange('model', prev, nextModel)
+                }}
+              >
+                {availableApiModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </>
           ) : null}
           <div
             className="flex items-center gap-2"
@@ -1045,8 +1321,14 @@ const ChatPage = () => {
         aria-live="polite"
         role="log"
         aria-label="Conversation"
-        data-agent-kind={remoteFromUrl ? 'remote' : selectedCli ? 'cli' : agentKind}
-        data-messages-editable={messagesEditable && !selectedCli ? 'true' : 'false'}
+        data-agent-kind={
+          remoteFromUrl || isRemoteAgent || agentKind === 'remote'
+            ? 'remote'
+            : isCliAgent
+              ? 'cli'
+              : agentKind
+        }
+        data-messages-editable={messagesEditable && !isCliAgent && agentKind !== 'remote' ? 'true' : 'false'}
         tabIndex={0}
         onScroll={(e) => {
           const el = e.currentTarget

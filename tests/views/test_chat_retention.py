@@ -274,3 +274,33 @@ def test_settings_chat_group_lists_env_vars(client):
     data = json.loads(payload)
     assert "chat_persistence" in data
     assert "SWARM_CHAT_MAX_AGE_DAYS" in data["chat_persistence"]["settings"]
+
+
+@pytest.mark.django_db
+def test_chat_thread_post_appends_status_message(client, user):
+    _seed_thread(user, "codey", "prior turn")
+    resp = client.post(
+        "/chat/thread/?agent=codey",
+        data=json.dumps({"message": {"role": "status", "content": "CLI: antigravity → grok"}}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["messages"]) == 3
+    assert body["messages"][-1]["role"] == "status"
+    assert body["messages"][-1]["content"] == "CLI: antigravity → grok"
+
+    loaded = chat_store.load(chat_store.user_key_for(user), "codey")
+    assert loaded is not None
+    assert loaded["messages"][-1]["content"] == "CLI: antigravity → grok"
+
+
+@pytest.mark.django_db
+def test_chat_thread_post_requires_valid_message(client, user):
+    resp = client.post(
+        "/chat/thread/?agent=codey",
+        data=json.dumps({"message": {}}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 400
+

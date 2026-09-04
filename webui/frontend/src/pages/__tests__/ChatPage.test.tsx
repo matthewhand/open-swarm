@@ -2437,7 +2437,9 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    fireEvent.change(await screen.findByRole('combobox', { name: 'CLI' }), {
+    await screen.findByRole('option', { name: 'grok' })
+    const cliSelect = await screen.findByRole('combobox', { name: 'CLI' })
+    fireEvent.change(cliSelect, {
       target: { value: 'grok' },
     })
 
@@ -2447,4 +2449,35 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
     expect(status.querySelector('.chat-bubble')).toBeNull()
     expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
   })
+
+  it('renders CLI and Model dropdowns on CLI agent and hides API and Remotes controls (REQ-133)', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    renderChat('/chat?blueprint=cli_agent&mode=cli&cli=antigravity')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByRole('combobox', { name: 'CLI' })).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: 'Model' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+  })
+
+  it('renders API and Model dropdowns on API agent and hides CLI and Remotes controls (REQ-133)', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByRole('combobox', { name: 'API' })).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: 'Model' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+  })
 })
+

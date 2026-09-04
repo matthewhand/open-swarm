@@ -207,6 +207,35 @@ export async function patchAgentMessage(
   }
 }
 
+/** POST /chat/thread/?agent= — append a status/turn message (REQ-46). */
+export async function appendAgentMessage(
+  agentId: string,
+  message: { role: string; content: string },
+  conversationId?: string,
+): Promise<AgentThread> {
+  const agent = agentIdFromBlueprint(agentId)
+  await ensureCsrfCookie()
+  const data = await apiPost<AgentThread>(
+    `/chat/thread/?agent=${encodeURIComponent(agent)}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ''}`,
+    { message, conversation_id: conversationId },
+  )
+  const messages = Array.isArray(data?.messages)
+    ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
+    : []
+  const kind = classifyAgentKind(agent, data?.kind)
+  return {
+    agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
+    conversation_id:
+      typeof data?.conversation_id === 'string' && data.conversation_id
+        ? data.conversation_id
+        : conversationId || conversationIdForAgent(agent),
+    messages,
+    summaries: parseSummaries(data?.summaries),
+    kind,
+    editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
+  }
+}
+
 /** POST /chat/compact/ — summarise the backlog. Raw transcript stays on disk. */
 export async function compactAgentThread(opts: {
   conversationId: string
