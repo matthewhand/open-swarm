@@ -62,11 +62,12 @@ def test_sidebar_team_hide_id_and_plugins_empty_copy():
 
 
 def test_app_mobile_drawer_and_settings_event():
-    """#322 mobile drawer; #334 hover-edit opens settings via OPEN_SETTINGS_EVENT."""
+    """#322/#344: rail tucks on narrow; hover-edit opens settings via OPEN_SETTINGS_EVENT."""
     src = APP.read_text(encoding="utf-8")
-    assert 'aria-label="Open agents sidebar"' in src
     assert "OPEN_SETTINGS_EVENT" in src
-    assert "setSettingsBlueprintId" in src
+    assert "setSettingsOpen(true)" in src
+    assert "AgentSidebar" in src
+    assert "narrow ? railOpen : true" in src
 
 
 def test_hostname_rail_and_settings_keys_are_distinct():

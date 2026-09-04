@@ -95,8 +95,9 @@ def test_placed_members_missing_key_means_added(monkeypatch):
     for name in ("HERMES_BASE_URL", "OMB_BASE_URL", "RAKAZO_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
     cfg = {"llm": {}, "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}}}
-    assert remotes_core.load_placed_members(cfg) == ["hermes"]
-    assert remotes_core.load_placed_members({"llm": {}}) == []
+    # Missing agent_team.members uses the REQ-11 default roster (not an empty Team).
+    assert remotes_core.load_placed_members(cfg) == ["hermes", "omb", "rakazo"]
+    assert remotes_core.load_placed_members({"llm": {}}) == ["hermes", "omb", "rakazo"]
 
 
 def test_placed_members_empty_list_is_empty_team():

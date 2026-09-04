@@ -57,8 +57,8 @@ def test_search_palette_has_bots_and_actions_tabs():
     for tab in ("All", "Messages", "Bots", "Groups", "Files", "Links", "Routines", "Actions"):
         assert f"'{tab}'" in search
     assert "Toggle theme" in search
-    assert "/blueprint-library/" in search
-    assert "/teams/launch/" in search
+    assert "overlay: 'blueprints'" in search
+    assert "overlay: 'teams'" in search
 
 
 def test_django_operator_dump_is_not_the_spa_remotes_sheet():

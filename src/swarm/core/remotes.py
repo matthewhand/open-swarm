@@ -899,6 +899,9 @@ def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeou
     except RemoteError as exc:
         return HealthResult(remote=remote_id, ok=False, state="UNKNOWN", detail=str(exc))
 
+    if not is_configured(spec.id, config):
+        return HealthResult(remote=spec.id, ok=False, state="UNKNOWN", detail="remote not added")
+
     if not spec.base_url:
         return HealthResult(remote=spec.id, ok=False, state="UNKNOWN", detail="base_url is empty")
     if _looks_like_forbidden_llm_proxy(spec.base_url):
@@ -1416,6 +1419,8 @@ def operate(
             action = "send"
         if action not in ("list", "send"):
             return OperateResult(remote=rid, op=action, ok=False, detail=f"Unknown op '{op}'. Use list or send.")
+        if not is_configured(rid, config):
+            return OperateResult(remote=rid, op=action, ok=False, detail="remote not added")
         if not spec.base_url:
             return OperateResult(remote=rid, op=action, ok=False, detail="base_url is empty")
         if _looks_like_forbidden_llm_proxy(spec.base_url):
