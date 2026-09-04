@@ -220,5 +220,10 @@ webui/frontend/build/
 # Local agent tooling state
 .letta/
 
+# Operator-specific agent memory / host-path workflows (not Cloud Agent).
+# Keep `.cursor/` tracked — that is the shared Cloud Agent install/start contract.
+.Jules/
+.grok/
+
 # Pinokio local install marker (created by install.js; not a catalog listing)
 .pinokio/

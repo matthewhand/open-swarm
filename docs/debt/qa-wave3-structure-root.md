@@ -1,10 +1,35 @@
 # REQ-95 / #452 — Wave 3 Scope A: root-folder sprawl (look-only)
 
-> **Look-only.** Inventory + proposed resolutions only. This PR does **not**
-> move, delete, rename, or gitignore anything. No product code, Docker, CI,
-> `src/`, `webui/`, or other `docs/` files were changed. Scope C owns the
-> `docs/` vs root-guide honesty pass; Scope D owns Docker / Makefile / CI
-> layout. Do not treat this file as an implementer ticket.
+> **Look-only inventory** landed first (`#458`). A later implementer PR
+> applied **only** the safe **N** delete / gitignore list below. No Pinokio
+> moves, no root-guide merges, no `swarm_config.json` / remotes, no
+> `build_all_blueprints.py` (Makefile still calls it), no fly/compose/oracle
+> / Neon / golden-journey, no package reorg. **Do not `git apply` the leftover
+> patches** — they were deleted unread.
+
+**Safe N landed (implementer):**
+
+| Path | Action |
+|------|--------|
+| `diff-commandpalette.patch`, `tabs-diff.patch` | **deleted** (not applied) |
+| `build_blueprint_executables.py` | **deleted** (broken `blueprints/codey` path) |
+| `pyinstaller_specs/codey.spec`, `pyinstaller_specs/geese.spec` | **deleted** |
+| `scripts/codey_py_entry.py`, `scripts/aggregate_feedback.py` | **deleted** (still no callers) |
+| `.grok/workflows/moa-team-megafan-report.md` | **deleted** (accidental scratch dump; not re-homed) |
+| `.grok/`, `.Jules/` | **gitignored** and untracked (`.cursor/` stays) |
+
+**Skipped (still load-bearing or out of this PR):**
+
+- `assets/images/favicon.ico` — REQ-106 (`#487`) now copies the bee ICO here
+  (`scripts/export_brand_icons.py`) and
+  `tests/unit/test_req106_brand_mark.py` asserts byte-equality with
+  `assets/brand/favicon.ico`. SPA/Django hrefs are `/favicon.ico` and
+  `brand/favicon.ico`, not this path, but deleting it would fail that test.
+- Large `assets/images/20250105-Swarm-Openwebui-Voice-Demo.mp4` — skipped
+  (blob risk).
+- `scripts/delete_stale_branches.sh` — not run; not deleted here.
+- `build_all_blueprints.py`, `swarm_cli_hook.py` — Makefile still calls the
+  builder.
 
 **Issue:** [#452](https://github.com/matthewhand/open-swarm/issues/452) (REQ-95).
 **As-of:** `origin/main` @ `ccc1b33e`

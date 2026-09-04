@@ -18,6 +18,7 @@ Nothing here describes the current system — for that, start at
 | [BASELINE_REPORT.md](./BASELINE_REPORT.md) | 2025-08-03 | Milestone 0 uv/README check | [README.md](../../README.md), [QUICKSTART.md](../QUICKSTART.md) |
 | [architecture_marketplace_to_mcp.md](./architecture_marketplace_to_mcp.md) | pre-CLI-fusion | Marketplace → local config → MCP clients | [../VISION.md](../VISION.md), `swarm.core.tool_capabilities` |
 | [requirements/](./requirements/) | 2026-08/09 | Full REQ transcripts (parallel SoT) | [GitHub Issues](https://github.com/matthewhand/open-swarm/issues) + [../requirements/](../requirements/) pointers |
+| *(removed)* `.grok/workflows/moa-team-megafan-report.md` | 2026-09 | Accidental Grok megafan JSON dump (no secrets; code-audit scratch). Deleted in the #452 safe-N cleanup rather than re-homed. | git history |
 
 ## Related historical documents kept in place
 
