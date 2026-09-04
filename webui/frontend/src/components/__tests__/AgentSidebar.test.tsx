@@ -975,6 +975,45 @@ describe('AgentSidebar favourites grid (REQ-94)', () => {
     expect(within(list).queryByRole('link', { name: /Stewie/ })).not.toBeInTheDocument()
   })
 
+  it('overlays a role badge inside a favourite tile when the agent has a role', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const support = await within(list).findByRole('link', { name: /Support/ })
+    const codey = within(list).getByRole('link', { name: /Codey/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(support, grid)
+    dragTo(codey, grid)
+
+    const supportTile = await within(grid).findByRole('link', { name: 'Support' })
+    const badge = supportTile.querySelector('.os-fav-tile__badge')
+    expect(badge).toBeTruthy()
+    expect(badge).toHaveClass('os-agent-role-badge')
+    expect(badge).toHaveAttribute('data-role', 'support')
+    expect(badge).toHaveTextContent('Support')
+    expect(support.contains(badge)).toBe(false)
+
+    const codeyTile = within(grid).getByRole('link', { name: 'Codey' })
+    expect(codeyTile.querySelector('.os-fav-tile__badge')).toBeNull()
+    expect(codeyTile.querySelector('.os-agent-role-badge')).toBeNull()
+  })
+
+  it('keeps favourite tiles ghost until hover or selected', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const stewie = within(list).getByRole('link', { name: /Stewie/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+    dragTo(codey, grid)
+    dragTo(stewie, grid)
+
+    const codeyTile = await within(grid).findByRole('link', { name: 'Codey' })
+    const stewieTile = within(grid).getByRole('link', { name: 'Stewie' })
+    expect(codeyTile).toHaveClass('os-fav-tile--active')
+    expect(stewieTile).not.toHaveClass('os-fav-tile--active')
+    expect(stewieTile.className).toMatch(/\bos-fav-tile\b/)
+    expect(getComputedStyle(stewieTile).backgroundColor).toMatch(/rgba?\(0,\s*0,\s*0,\s*0\)|transparent/)
+  })
+
   it('unfavourites when a tile is dropped onto the agents list (no duplicate)', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })

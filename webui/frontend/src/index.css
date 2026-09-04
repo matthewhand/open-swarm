@@ -332,6 +332,7 @@ html[data-theme="light"] #root {
   background: color-mix(in srgb, var(--color-base-300) 50%, transparent);
 }
 .os-fav-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -341,10 +342,19 @@ html[data-theme="light"] #root {
   height: auto;
   padding: 0.45rem 0.3rem 0.4rem;
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
+  background: transparent;
 }
-.os-fav-tile:hover {
+.os-fav-tile:hover,
+.os-fav-tile--active,
+.os-fav-tile--drop {
   background: color-mix(in srgb, var(--color-base-content) 12%, transparent);
+}
+.os-fav-tile__badge {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  z-index: 1;
+  max-width: calc(100% - 0.3rem);
 }
 .os-fav-tile__name {
   max-width: 100%;

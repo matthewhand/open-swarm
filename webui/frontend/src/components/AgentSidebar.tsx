@@ -1167,11 +1167,40 @@ export default function AgentSidebar({
           {visiblePins.map((pin) => {
             const live = agents.find((agent) => agent.id === pin.id)
             const pinName = live ? agentLabel(live) : pin.name || pin.id
+            const role = live ? agentRole(live) : 'default'
+            const badge = live ? roleBadgeLabel(role) : ''
+            const pinActive = Boolean(selectedId && selectedId === pin.id)
             const pinClass = `os-fav-tile ${
               draggingId === pin.id ? 'os-fav-tile--dragging' : ''
-            } ${dropTargetId === pin.id ? 'os-fav-tile--drop' : ''}`
+            } ${dropTargetId === pin.id ? 'os-fav-tile--drop' : ''} ${
+              pinActive ? 'os-fav-tile--active' : ''
+            }`
             const pinFace = (
               <>
+                {badge ? (
+                  <span
+                    className={`os-fav-tile__badge os-agent-role-badge ${roleCssClass(role)}`}
+                    data-role={role}
+                    data-definition-id={pin.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${role} settings`}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      openDefinition('role', pin.id, { blueprintId: pin.id })
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        openDefinition('role', pin.id, { blueprintId: pin.id })
+                      }
+                    }}
+                  >
+                    {badge}
+                  </span>
+                ) : null}
                 <AgentAvatar
                   src={live?.avatar_path}
                   size="lg"
