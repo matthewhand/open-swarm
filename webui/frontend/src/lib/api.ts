@@ -788,6 +788,16 @@ export function fetchCliAgents(): Promise<CliAgentsInfo> {
   return apiGet<CliAgentsInfo>('/v1/cli-agents/')
 }
 
+export interface CliModelsResponse {
+  cli: string
+  models: string[]
+  warning?: string
+}
+
+export function fetchCliModels(cli: string): Promise<CliModelsResponse> {
+  return apiGet<CliModelsResponse>(`/v1/cli-agents/${encodeURIComponent(cli)}/models/`)
+}
+
 /** A 0..1 capability/priority vector over inference traits. */
 export type TraitVector = Record<string, number>
 

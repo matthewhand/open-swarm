@@ -48,21 +48,33 @@ export function discoverChatClis(
 ): string[] {
   const seen = new Set<string>()
   const out: string[] = []
-  const push = (name: string | null | undefined) => {
-    const trimmed = (name ?? '').trim()
+  const push = (name: unknown) => {
+    const raw =
+      typeof name === 'string'
+        ? name
+        : (name as { name?: string; id?: string; cli?: string } | null | undefined)?.name ??
+          (name as { name?: string; id?: string; cli?: string } | null | undefined)?.id ??
+          (name as { name?: string; id?: string; cli?: string } | null | undefined)?.cli
+    if (typeof raw !== 'string') return
+    const trimmed = raw.trim()
     if (!trimmed || trimmed === MANAGE_CLI_VALUE || seen.has(trimmed)) return
     seen.add(trimmed)
     out.push(trimmed)
   }
-  if (info) {
-    for (const name of [...(info.installed ?? []), ...(info.configured ?? [])]) {
+  const installedOrConfigured = [
+    ...(info?.installed ?? []),
+    ...(info?.configured ?? []),
+  ]
+  if (installedOrConfigured.length > 0) {
+    for (const name of installedOrConfigured) {
       push(name)
     }
-    push(info.default_cli)
+    push(info?.default_cli)
+  } else {
+    for (const name of info?.clis ?? []) {
+      push(name)
+    }
   }
-  push(selected)
-  if (out.length > 0) return out
-  for (const name of info?.clis ?? []) push(name)
   push(selected)
   return out
 }

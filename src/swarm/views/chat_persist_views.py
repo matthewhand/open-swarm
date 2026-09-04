@@ -133,9 +133,9 @@ def _sync_django_and_memory(user, messages, conversation_ids: list[str]) -> None
 
 @login_required
 @ensure_csrf_cookie
-@require_http_methods(["GET", "PATCH"])
+@require_http_methods(["GET", "POST", "PATCH"])
 def chat_thread(request):
-    """Hydrate (GET) or edit (PATCH) the persisted transcript for one agent."""
+    """Hydrate (GET), append (POST), or edit (PATCH) the persisted transcript for one agent."""
     from swarm.core.agent_settings import is_new_chat_per_task
     from swarm.core.session_policy import list_active_task_sessions
 
@@ -144,7 +144,7 @@ def chat_thread(request):
     user_key = _user_key(request.user)
     conversation_id = chat_store.conversation_id_for(request.user, agent)
     requested_cid = (request.GET.get("conversation_id") or "").strip()
-    if request.method == "PATCH":
+    if request.method in ("PATCH", "POST"):
         body = _json_body(request)
         if isinstance(body.get("conversation_id"), str) and body["conversation_id"].strip():
             requested_cid = body["conversation_id"].strip()
@@ -203,6 +203,34 @@ def chat_thread(request):
     }
     if request.method == "GET":
         return JsonResponse(payload)
+
+    if request.method == "POST":
+        body = _json_body(request)
+        msg = body.get("message")
+        if isinstance(msg, dict) and msg.get("content"):
+            current_messages = list(messages or [])
+            new_row = {
+                "role": str(msg.get("role") or "status"),
+                "content": str(msg.get("content") or ""),
+            }
+            current_messages.append(new_row)
+            try:
+                chat_store.save(
+                    user_key,
+                    agent,
+                    current_messages,
+                    conversation_id=conversation_id,
+                )
+            except OSError:
+                logger.exception("Failed to append chat JSON for %s/%s", user_key, agent)
+            _sync_django_and_memory(
+                request.user,
+                current_messages,
+                [conversation_id, chat_store.conversation_id_for(request.user, agent)],
+            )
+            payload["messages"] = _public_messages(current_messages)
+            return JsonResponse(payload)
+        return JsonResponse({"error": "message must be provided."}, status=400)
 
     if not can_edit_agent_messages(agent_raw or agent):
         return JsonResponse(
