@@ -21,6 +21,7 @@ import {
   openAgentEditor,
   type AgentSettingsChangedDetail,
 } from '../lib/agentSettings'
+import { persistableMessages, putAgentChatSession } from '../lib/agentChatSessions'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
@@ -256,6 +257,44 @@ const ChatPage = () => {
   const lastUserTextRef = useRef('')
   /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
   const lastHydratedAgentRef = useRef<string | null>(null)
+  const previewSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // REQ-177: Sync active thread messages to localStorage so rail preview snippets update live.
+  // Throttled to 250ms during streaming, and immediate on turn completion / user send.
+  useEffect(() => {
+    if (!activeChatAgentId) return
+    const threadMessages = threads[threadKey]
+    if (threadMessages === undefined) return
+    const isStreaming = threadMessages.some((m) => m.streaming)
+    const sync = () => {
+      const persistable = persistableMessages(threadMessages)
+      putAgentChatSession(activeChatAgentId, {
+        conversationId,
+        messages: persistable,
+      })
+    }
+
+    if (isStreaming) {
+      if (!previewSyncTimerRef.current) {
+        previewSyncTimerRef.current = setTimeout(() => {
+          previewSyncTimerRef.current = null
+          sync()
+        }, 250)
+      }
+    } else {
+      if (previewSyncTimerRef.current) {
+        clearTimeout(previewSyncTimerRef.current)
+        previewSyncTimerRef.current = null
+      }
+      sync()
+    }
+    return () => {
+      if (previewSyncTimerRef.current) {
+        clearTimeout(previewSyncTimerRef.current)
+        previewSyncTimerRef.current = null
+      }
+    }
+  }, [activeChatAgentId, conversationId, threadKey, threads])
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],

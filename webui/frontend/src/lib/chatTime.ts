@@ -143,8 +143,57 @@ export function formatRailTimestamp(
   return `${stamp.weekday} ${stamp.day} ${stamp.month}`
 }
 
+export const PREVIEW_SNIPPET_MAX_CHARS = 100
+
+/**
+ * Normalizes whitespace and truncates preview text with an ellipsis if it exceeds maxChars.
+ */
+export function truncateSnippet(text: string, maxChars = PREVIEW_SNIPPET_MAX_CHARS): string {
+  const clean = text.replace(/\s+/g, ' ').trim()
+  if (clean.length <= maxChars) return clean
+  return `${clean.slice(0, maxChars).trimEnd()}…`
+}
+
+/**
+ * REQ-177: Selects the most recent message from a thread to display in the sidepane rail.
+ * Preference order:
+ * 1. Latest assistant reply with non-empty text (shows the agent's latest response).
+ * 2. Latest user message with non-empty text if no assistant reply exists yet.
+ * 3. Returns null if thread is empty or only contains status/empty messages.
+ */
+export function selectLatestMessage(
+  messages: ReadonlyArray<{ role?: string; text?: string; content?: string; key?: string }>,
+): { role: string; text: string; key?: string } | null {
+  if (!Array.isArray(messages) || messages.length === 0) return null
+
+  // 1. Prefer latest assistant message with non-empty text
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m && m.role === 'assistant') {
+      const text = (m.text ?? m.content ?? '').trim()
+      if (text.length > 0) {
+        return { role: 'assistant', text, key: m.key }
+      }
+    }
+  }
+
+  // 2. Fallback to latest user message if no assistant message exists
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m && m.role === 'user') {
+      const text = (m.text ?? m.content ?? '').trim()
+      if (text.length > 0) {
+        return { role: 'user', text, key: m.key }
+      }
+    }
+  }
+
+  return null
+}
+
 /**
  * Resolves the last message snippet and timestamp for a rail row.
+ * Prefers live thread activity from local chat sessions (REQ-177).
  */
 export function getRowLastMessage(
   id: string,
@@ -162,19 +211,9 @@ export function getRowLastMessage(
   }
 
   const rawSnippet =
-    (agentMeta?.last_message ?? agentMeta?.lastMessage ?? agentMeta?.snippet) as string | undefined
+    (agentMeta?.last_message ?? agentMeta?.lastMessage) as string | undefined
 
-  if (sessions && sessions.length > 0) {
-    const sorted = [...sessions].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-    const top = sorted[0]
-    if (top) {
-      return {
-        snippet: rawSnippet ?? top.snippet ?? null,
-        timestamp: parsedTime ?? top.updatedAt ?? top.startedAt ?? null,
-      }
-    }
-  }
-
+  // 1. Live thread activity in local chat sessions (REQ-177)
   try {
     if (typeof localStorage !== 'undefined') {
       const rawChats = localStorage.getItem('swarm_agent_chat_sessions')
@@ -182,15 +221,17 @@ export function getRowLastMessage(
         const parsed = JSON.parse(rawChats)
         const session = parsed?.[id]
         if (session && Array.isArray(session.messages) && session.messages.length > 0) {
-          const lastMsg = session.messages[session.messages.length - 1]
-          let ts = parsedTime
-          if (!ts && typeof lastMsg.key === 'string') {
-            const match = lastMsg.key.match(/-(\d{12,})$/)
-            if (match) ts = Number(match[1])
-          }
-          return {
-            snippet: rawSnippet ?? lastMsg.text ?? null,
-            timestamp: ts ?? null,
+          const selected = selectLatestMessage(session.messages)
+          if (selected) {
+            let ts = parsedTime
+            if (!ts && typeof selected.key === 'string') {
+              const match = selected.key.match(/-(\d{12,})$/)
+              if (match) ts = Number(match[1])
+            }
+            return {
+              snippet: rawSnippet ?? truncateSnippet(selected.text),
+              timestamp: ts ?? parsedTime ?? null,
+            }
           }
         }
       }
@@ -199,8 +240,21 @@ export function getRowLastMessage(
     /* storage unavailable */
   }
 
+  // 2. Scale-out multi-session fallback
+  if (sessions && sessions.length > 0) {
+    const sorted = [...sessions].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    const top = sorted[0]
+    if (top) {
+      return {
+        snippet: rawSnippet ?? (top.snippet ? truncateSnippet(top.snippet) : null),
+        timestamp: parsedTime ?? top.updatedAt ?? top.startedAt ?? null,
+      }
+    }
+  }
+
+  // 3. Fallback to explicit metadata or placeholder description
   return {
-    snippet: rawSnippet ?? (agentMeta?.description as string) ?? null,
+    snippet: rawSnippet ?? (agentMeta?.snippet as string) ?? (agentMeta?.description as string) ?? null,
     timestamp: parsedTime,
   }
 }
