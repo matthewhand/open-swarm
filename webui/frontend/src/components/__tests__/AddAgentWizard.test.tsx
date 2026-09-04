@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AddAgentWizard from '../AddAgentWizard'
 import * as api from '../../lib/api'
 import { OPENMOUSBOT_LABEL } from '../../lib/remotesCatalog'
+import * as agentEdits from '../../lib/agentEdits'
 
 function renderWizard(props: Partial<Parameters<typeof AddAgentWizard>[0]> = {}) {
   const queryClient = new QueryClient({
@@ -14,6 +15,7 @@ function renderWizard(props: Partial<Parameters<typeof AddAgentWizard>[0]> = {})
   })
   const onClose = vi.fn()
   const onCreated = vi.fn()
+  const onSelectAgent = vi.fn()
 
   const view = render(
     <QueryClientProvider client={queryClient}>
@@ -21,21 +23,32 @@ function renderWizard(props: Partial<Parameters<typeof AddAgentWizard>[0]> = {})
         isOpen={true}
         onClose={onClose}
         onCreated={onCreated}
+        onSelectAgent={onSelectAgent}
         {...props}
       />
     </QueryClientProvider>,
   )
 
-  return { ...view, onClose, onCreated, queryClient }
+  return { ...view, onClose, onCreated, onSelectAgent, queryClient }
 }
 
-describe('AddAgentWizard (REQ-109)', () => {
+describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    localStorage.clear()
+    vi.spyOn(api, 'fetchBlueprints').mockResolvedValue({ object: 'list', data: [] })
+    vi.spyOn(api, 'fetchCustomBlueprints').mockResolvedValue({ object: 'list', data: [] })
+    vi.spyOn(api, 'fetchCliAgents').mockResolvedValue({
+      clis: [],
+      native_consensus: {},
+      catalog: {},
+      rail: [],
+    })
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
   })
 
   it('renders three agent kinds on step 1 with OpenMousBot copy for remote', () => {
@@ -51,20 +64,35 @@ describe('AddAgentWizard (REQ-109)', () => {
     expect(screen.queryByText(/^OMB$/)).not.toBeInTheDocument()
   })
 
-  it('closes wizard when Cancel button is clicked without creating', () => {
+  it('shows manage surface on choosing CLI or API, with empty state when none exist', () => {
+    renderWizard()
+
+    // Select CLI kind -> shows manage surface
+    fireEvent.click(screen.getByTestId('kind-option-cli'))
+    expect(screen.getByTestId('manage-agent-surface')).toBeInTheDocument()
+    expect(screen.getByText(/No CLI agents yet/i)).toBeInTheDocument()
+    expect(screen.getByTestId('empty-add-btn')).toBeInTheDocument()
+  })
+
+  it('navigates to configure form from empty manage state and cancels back', () => {
     const { onClose, onCreated } = renderWizard()
 
-    // Select CLI kind to see form
+    // Select CLI kind to see manage surface
     fireEvent.click(screen.getByTestId('kind-option-cli'))
+    expect(screen.getByTestId('empty-add-btn')).toBeInTheDocument()
+
+    // Click Add CLI Agent
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
     expect(screen.getByTestId('add-agent-form')).toBeInTheDocument()
 
-    // Click Cancel
+    // Click Cancel returns to manage surface (Cancel leaves no changes)
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('manage-agent-surface')).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
     expect(onCreated).not.toHaveBeenCalled()
   })
 
-  it('creates a CLI agent on happy-path submit', async () => {
+  it('creates a CLI agent with optional Folder field on happy-path submit', async () => {
     const createSpy = vi.spyOn(api, 'createCustomBlueprint').mockResolvedValue({
       id: 'custom_cli_agent',
       name: 'My CLI Tool',
@@ -72,16 +100,21 @@ describe('AddAgentWizard (REQ-109)', () => {
       category: 'cli',
       tags: ['cli'],
       requirements: '',
-      code: '# CLI agent: My CLI Tool\n',
+      code: '# CLI agent: My CLI Tool\n# Command: custom-tool\n# Folder: /home/dev/tool\n',
       required_mcp_servers: [],
       env_vars: [],
     })
 
     const { onCreated, onClose } = renderWizard()
 
-    // Select CLI
+    // Select CLI -> manage surface -> Add new
     fireEvent.click(screen.getByTestId('kind-option-cli'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
     expect(screen.getByTestId('input-cli-name')).toBeInTheDocument()
+
+    // REQ-167: Folder field rendered with help text
+    expect(screen.getByTestId('input-cli-folder')).toBeInTheDocument()
+    expect(screen.getByText(/Working directory for this CLI agent/i)).toBeInTheDocument()
 
     // Fill in inputs
     fireEvent.change(screen.getByTestId('input-cli-name'), {
@@ -89,6 +122,9 @@ describe('AddAgentWizard (REQ-109)', () => {
     })
     fireEvent.change(screen.getByTestId('input-cli-command'), {
       target: { value: 'custom-tool' },
+    })
+    fireEvent.change(screen.getByTestId('input-cli-folder'), {
+      target: { value: '/home/dev/tool' },
     })
 
     // Submit
@@ -99,6 +135,7 @@ describe('AddAgentWizard (REQ-109)', () => {
         expect.objectContaining({
           name: 'My CLI Tool',
           category: 'cli',
+          code: expect.stringContaining('# Folder: /home/dev/tool'),
         }),
       )
       expect(onCreated).toHaveBeenCalledWith({
@@ -108,6 +145,21 @@ describe('AddAgentWizard (REQ-109)', () => {
       })
       expect(onClose).toHaveBeenCalled()
     })
+  })
+
+  it('shows inline error on invalid folder path format', () => {
+    renderWizard()
+
+    fireEvent.click(screen.getByTestId('kind-option-cli'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
+
+    // Type invalid folder path with wildcard character
+    fireEvent.change(screen.getByTestId('input-cli-folder'), {
+      target: { value: '/invalid/*/path' },
+    })
+
+    expect(screen.getByTestId('folder-error')).toBeInTheDocument()
+    expect(screen.getByTestId('submit-create-agent')).toBeDisabled()
   })
 
   it('creates an API agent on happy-path submit', async () => {
@@ -125,8 +177,9 @@ describe('AddAgentWizard (REQ-109)', () => {
 
     const { onCreated, onClose } = renderWizard()
 
-    // Select API
+    // Select API -> manage surface -> Add new
     fireEvent.click(screen.getByTestId('kind-option-api'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
     expect(screen.getByTestId('input-api-name')).toBeInTheDocument()
 
     // Fill in inputs
@@ -156,6 +209,111 @@ describe('AddAgentWizard (REQ-109)', () => {
     })
   })
 
+  it('lists existing agents with Open and Edit actions', async () => {
+    vi.spyOn(api, 'fetchCustomBlueprints').mockResolvedValue({
+      object: 'list',
+      data: [
+        {
+          id: 'custom_cli_1',
+          name: 'My Custom CLI',
+          description: 'CLI tool',
+          category: 'cli',
+          tags: ['cli'],
+          requirements: '',
+          code: '# CLI agent: My Custom CLI\n# Command: my-cli\n# Folder: /tmp/my-cli\n',
+          required_mcp_servers: [],
+          env_vars: [],
+        },
+      ],
+    })
+
+    const { onSelectAgent, onClose } = renderWizard()
+
+    fireEvent.click(screen.getByTestId('kind-option-cli'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('manage-agent-list')).toBeInTheDocument()
+      expect(screen.getByText('My Custom CLI')).toBeInTheDocument()
+      expect(screen.getByTestId('open-agent-custom_cli_1')).toBeInTheDocument()
+      expect(screen.getByTestId('edit-agent-custom_cli_1')).toBeInTheDocument()
+    })
+
+    // Click Open -> selects agent and closes
+    fireEvent.click(screen.getByTestId('open-agent-custom_cli_1'))
+    expect(onSelectAgent).toHaveBeenCalledWith('custom_cli_1')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('edits an existing agent and saves changes', async () => {
+    vi.spyOn(api, 'fetchCustomBlueprints').mockResolvedValue({
+      object: 'list',
+      data: [
+        {
+          id: 'custom_cli_1',
+          name: 'My Custom CLI',
+          description: 'CLI tool',
+          category: 'cli',
+          tags: ['cli'],
+          requirements: '',
+          code: '# CLI agent: My Custom CLI\n# Command: my-cli\n# Folder: /tmp/my-cli\n',
+          required_mcp_servers: [],
+          env_vars: [],
+        },
+      ],
+    })
+
+    const updateSpy = vi.spyOn(api, 'updateCustomBlueprint').mockResolvedValue({
+      id: 'custom_cli_1',
+      name: 'Updated CLI Tool',
+      description: 'Updated description',
+      category: 'cli',
+      tags: ['cli'],
+      requirements: '',
+      code: '# CLI agent: Updated CLI Tool\n# Command: updated-cli\n# Folder: /home/repo\n',
+      required_mcp_servers: [],
+      env_vars: [],
+    })
+
+    renderWizard()
+
+    fireEvent.click(screen.getByTestId('kind-option-cli'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-agent-custom_cli_1')).toBeInTheDocument()
+    })
+
+    // Click Edit
+    fireEvent.click(screen.getByTestId('edit-agent-custom_cli_1'))
+    expect(screen.getByTestId('add-agent-form')).toBeInTheDocument()
+    expect(screen.getByTestId('input-cli-name')).toHaveValue('My Custom CLI')
+
+    // Modify fields
+    fireEvent.change(screen.getByTestId('input-cli-name'), {
+      target: { value: 'Updated CLI Tool' },
+    })
+    fireEvent.change(screen.getByTestId('input-cli-command'), {
+      target: { value: 'updated-cli' },
+    })
+    fireEvent.change(screen.getByTestId('input-cli-folder'), {
+      target: { value: '/home/repo' },
+    })
+
+    // Save changes
+    fireEvent.click(screen.getByTestId('submit-create-agent'))
+
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith(
+        'custom_cli_1',
+        expect.objectContaining({
+          name: 'Updated CLI Tool',
+          code: expect.stringContaining('# Folder: /home/repo'),
+        }),
+      )
+      // Returns to manage surface
+      expect(screen.getByTestId('manage-agent-surface')).toBeInTheDocument()
+    })
+  })
+
   it('connects a Remote agent on happy-path submit', async () => {
     const createRemoteSpy = vi.spyOn(api, 'createRemote').mockResolvedValue({
       id: 'omb-remote-1',
@@ -169,7 +327,7 @@ describe('AddAgentWizard (REQ-109)', () => {
 
     const { onCreated, onClose } = renderWizard()
 
-    // Select Remote
+    // Select Remote -> configure form
     fireEvent.click(screen.getByTestId('kind-option-remote'))
     expect(screen.getByTestId('input-remote-url')).toBeInTheDocument()
 
