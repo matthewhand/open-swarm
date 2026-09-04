@@ -10,6 +10,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SPA_APP = REPO / "webui" / "frontend" / "src" / "App.tsx"
 SETTINGS_SHEET = REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx"
+REMOTES_LIB = REPO / "webui" / "frontend" / "src" / "lib" / "remotes.ts"
 SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 SEARCH = REPO / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 DJANGO_SETTINGS = REPO / "src" / "swarm" / "templates" / "settings_dashboard.html"
@@ -32,6 +33,9 @@ def test_settings_remotes_are_opt_in_not_live_lan():
     """REQ-59: remotes are opt-in; no default kind cards; no live LAN hosts in the sheet."""
     sheet = SETTINGS_SHEET.read_text(encoding="utf-8")
     assert "Add remote" in sheet
+    assert "fetchRemotes" in sheet
+    assert "RemoteOperatePane" in sheet
+    assert "OpenMousBot" in REMOTES_LIB.read_text(encoding="utf-8")
     assert "placeholder remote" not in sheet
     assert "remotes API has not landed" not in sheet
     assert "label: 'OMB'" not in sheet
@@ -53,8 +57,8 @@ def test_search_palette_has_bots_and_actions_tabs():
     for tab in ("All", "Messages", "Bots", "Groups", "Files", "Links", "Routines", "Actions"):
         assert f"'{tab}'" in search
     assert "Toggle theme" in search
-    assert "/blueprint-library/" in search
-    assert "/teams/launch/" in search
+    assert "overlay: 'blueprints'" in search
+    assert "overlay: 'teams'" in search
 
 
 def test_django_operator_dump_is_not_the_spa_remotes_sheet():
