@@ -553,7 +553,16 @@ button.os-agent-row {
 .os-py-fn { color: #82aaff; }
 
 .os-hidden-bots {
-  margin-top: 0.35rem;
+  margin: 0 0.5rem 0.15rem;
+  border-radius: 0.45rem;
+  transition: background-color 0.15s ease;
+}
+.os-hidden-bots--empty {
+  min-height: 2.15rem;
+}
+.os-hidden-bots--empty.os-hidden-bots--active,
+.os-hidden-bots--empty[data-drag-over] {
+  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
 }
 .os-hidden-bots__action {
   display: flex;

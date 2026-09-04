@@ -376,23 +376,50 @@ describe('AgentSidebar Grok rail', () => {
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     renderSidebar()
     await screen.findByRole('navigation', { name: 'Agent list' })
-    expect(screen.queryByRole('region', { name: /Hidden Bots/i })).not.toBeInTheDocument()
-    expect(screen.queryByText(/drop here to hide/i)).not.toBeInTheDocument()
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
+    expect(zone).toHaveAttribute('data-empty', 'true')
+    expect(zone).not.toHaveTextContent(/drop here to hide/i)
+    expect(zone).toHaveTextContent('')
     expect(screen.queryByRole('button', { name: /Hidden Bots/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
+  })
+
+  it('reveals a light empty drop target on drag-over and hides on drop', async () => {
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
+    expect(zone).toHaveAttribute('data-empty', 'true')
+    expect(screen.queryByText(/drop here to hide/i)).not.toBeInTheDocument()
+
+    fireEvent.dragStart(codey, { dataTransfer: mockDataTransfer() })
+    fireEvent.dragOver(zone, { dataTransfer: mockDataTransfer() })
+    expect(zone).toHaveAttribute('data-drag-over', 'true')
+    expect(zone).toHaveClass('os-hidden-bots--active')
+    expect(screen.queryByText(/drop here to hide/i)).not.toBeInTheDocument()
+
+    dragTo(codey, zone)
+
+    await waitFor(() => {
+      expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    })
+    expect(storedHidden()).toEqual(['codey'])
+    expect(hiddenBotsButton(1)).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Hidden Bots' })).toHaveAttribute('data-empty', 'false')
   })
 
   it('shows Hidden Bots count and swaps to a chevron on hover', async () => {
     renderSidebar()
     await screen.findByRole('navigation', { name: 'Agent list' })
-    const trigger = await screen.findByRole('button', { name: 'Hidden Bots 2' })
-    expect(trigger).toHaveTextContent('Hidden Bots')
-    expect(trigger).toHaveTextContent('2')
+    const trigger = await screen.findByTestId('os-hidden-bots-button')
+    expect(trigger).toHaveAccessibleName(/Hidden Bots 2/)
+    expect(within(trigger).getByText('Hidden Bots')).toBeInTheDocument()
+    expect(within(trigger).getByTestId('os-hidden-bots-count')).toHaveTextContent('2')
     fireEvent.mouseEnter(trigger)
-    expect(trigger).toHaveTextContent('>')
-    expect(trigger).not.toHaveTextContent('2')
+    expect(within(trigger).getByTestId('os-hidden-bots-tail')).toHaveTextContent('>')
     fireEvent.mouseLeave(trigger)
-    expect(trigger).toHaveTextContent('2')
+    expect(within(trigger).getByTestId('os-hidden-bots-count')).toHaveTextContent('2')
   })
 
   it('drags a support agent onto Hidden and persists the id', async () => {
@@ -441,15 +468,14 @@ describe('AgentSidebar Grok rail', () => {
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
   })
 
-  it('hides role agents (gate, skeptic) via right-click Hide', async () => {
+  it('hides role agents (gate, skeptic) via the empty Hidden Bots drop slot', async () => {
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
 
-    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Gate/ }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Hide from sidebar/i }))
-    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Skeptic/ }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Hide from sidebar/i }))
+    dragTo(await within(list).findByRole('link', { name: /Gate/ }), zone)
+    dragTo(await within(list).findByRole('link', { name: /Skeptic/ }), zone)
 
     await waitFor(() => {
       expect(within(list).queryByRole('link', { name: /Gate/ })).not.toBeInTheDocument()

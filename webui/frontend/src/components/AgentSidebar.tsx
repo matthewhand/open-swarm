@@ -1306,70 +1306,73 @@ export default function AgentSidebar({
               </ul>
             )}
           </div>
-
-          {hiddenCount > 0 ? (
-            <div
-              className={`os-hide-drop os-hide-drop--has-hidden ${hideDropActive ? 'os-hide-drop--active' : ''}`}
-              data-testid="hidden-bots-row"
-              data-drag-over={hideDropActive ? 'true' : undefined}
-              role="region"
-              aria-label="Hidden Bots"
-              onDragEnter={(event) => {
-                event.preventDefault()
-                hideDropDepth.current += 1
-                setHideDropActive(true)
-              }}
-              onDragOver={(event) => {
-                event.preventDefault()
-                try {
-                  event.dataTransfer.dropEffect = 'move'
-                } catch {
-                  /* synthetic events may omit dataTransfer */
-                }
-                setHideDropActive(true)
-              }}
-              onDragLeave={() => {
-                hideDropDepth.current -= 1
-                if (hideDropDepth.current <= 0) {
-                  hideDropDepth.current = 0
-                  setHideDropActive(false)
-                }
-              }}
-              onDrop={dropHide}
-            >
-              <button
-                type="button"
-                className="os-hide-drop__action os-hidden-bots-row group"
-                aria-haspopup="dialog"
-                aria-expanded={hiddenOpen}
-                aria-label={`Hidden Bots ${hiddenCount} (${hiddenCount} hidden)`}
-                data-testid="os-hidden-bots-button"
-                onClick={() => setHiddenOpen(true)}
-                onMouseEnter={() => setHoveringHidden(true)}
-                onMouseLeave={() => setHoveringHidden(false)}
-              >
-                <span className="os-hidden-bots-label font-medium">Hidden Bots</span>
-                <span className="os-hidden-bots-tail font-mono text-xs" data-testid="os-hidden-bots-tail">
-                  <span
-                    className={`os-hidden-bots-count ${hoveringHidden ? 'hidden' : 'inline group-hover:hidden'}`}
-                    data-testid="os-hidden-bots-count"
-                  >
-                    {hiddenCount}
-                  </span>
-                  <span
-                    className={`os-hidden-bots-chevron ${hoveringHidden ? 'inline' : 'hidden group-hover:inline'}`}
-                    aria-hidden="true"
-                    data-testid="os-hidden-bots-chevron"
-                  >
-                    &gt;
-                  </span>
-                </span>
-              </button>
-            </div>
-          ) : null}
         </nav>
 
-        <div className="mt-auto border-t border-base-300/70 px-3 py-3">
+        <div
+          className={`os-hidden-bots ${hiddenCount === 0 ? 'os-hidden-bots--empty' : 'os-hide-drop--has-hidden'} ${
+            hideDropActive ? 'os-hidden-bots--active' : ''
+          }`}
+          data-testid="hidden-bots-row"
+          data-empty={hiddenCount === 0 ? 'true' : 'false'}
+          data-drag-over={hideDropActive ? 'true' : undefined}
+          role="region"
+          aria-label="Hidden Bots"
+          onDragEnter={(event) => {
+            event.preventDefault()
+            hideDropDepth.current += 1
+            setHideDropActive(true)
+          }}
+          onDragOver={(event) => {
+            event.preventDefault()
+            try {
+              event.dataTransfer.dropEffect = 'move'
+            } catch {
+              /* synthetic events may omit dataTransfer */
+            }
+            setHideDropActive(true)
+          }}
+          onDragLeave={() => {
+            hideDropDepth.current -= 1
+            if (hideDropDepth.current <= 0) {
+              hideDropDepth.current = 0
+              setHideDropActive(false)
+            }
+          }}
+          onDrop={dropHide}
+        >
+          {hiddenCount > 0 ? (
+            <button
+              type="button"
+              className="os-hide-drop__action os-hidden-bots-row group"
+              aria-haspopup="dialog"
+              aria-expanded={hiddenOpen}
+              aria-label={`Hidden Bots ${hiddenCount} (${hiddenCount} hidden)`}
+              data-testid="os-hidden-bots-button"
+              onClick={() => setHiddenOpen(true)}
+              onMouseEnter={() => setHoveringHidden(true)}
+              onMouseLeave={() => setHoveringHidden(false)}
+            >
+              <span className="os-hidden-bots-label font-medium">Hidden Bots</span>
+              <span className="os-hidden-bots-tail font-mono text-xs" data-testid="os-hidden-bots-tail">
+                <span
+                  className={`os-hidden-bots-count ${hoveringHidden ? 'hidden' : 'inline group-hover:hidden'}`}
+                  data-testid="os-hidden-bots-count"
+                >
+                  {hiddenCount}
+                </span>
+                <span
+                  className={`os-hidden-bots-chevron ${hoveringHidden ? 'inline' : 'hidden group-hover:inline'}`}
+                  aria-hidden="true"
+                  data-testid="os-hidden-bots-chevron"
+                >
+                  &gt;
+                </span>
+              </span>
+            </button>
+          ) : null}
+        </div>
+
+        <div className="border-t border-base-300/70 px-3 py-3">
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-sm text-base-content/60 hover:bg-base-300/30 hover:text-base-content"
