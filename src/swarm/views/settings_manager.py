@@ -94,6 +94,16 @@ class SettingsManager:
                 'icon': '🔌',
                 'settings': {}
             },
+            'remotes': {
+                'title': 'Remote Harnesses',
+                'description': (
+                    'Hermes, OpenMausBot, Rakazo, and nested open-swarm as Team members '
+                    '(handoff/as_tool). Persist base URL + auth. Not the /teams/ '
+                    'profile-alias registry.'
+                ),
+                'icon': '🛰️',
+                'settings': {}
+            },
             'database': {
                 'title': 'Database',
                 'description': 'Database connection and configuration',
@@ -146,6 +156,9 @@ class SettingsManager:
 
         # MCP server settings
         self._collect_mcp_settings()
+
+        # Remote harnesses (Hermes / OMB / Rakazo / nested swarm)
+        self._collect_remotes_settings()
 
         # Database settings
         self._collect_database_settings()
@@ -328,6 +341,38 @@ class SettingsManager:
                     'sensitive': True,
                 }
 
+            settings_block = config.get("settings") if isinstance(config.get("settings"), dict) else {}
+            llm_settings["DEFAULT_LLM_PROFILE"] = {
+                "value": settings_block.get("default_llm_profile") or settings_block.get("default_llm") or "default",
+                "env_var": "DEFAULT_LLM",
+                "type": "string",
+                "description": (
+                    "SPA Settings default inference profile "
+                    "(settings.default_llm_profile). Chat / server default uses this."
+                ),
+                "category": "profile",
+                "sensitive": False,
+            }
+            llm_settings["OVERRIDE_PER_TASK"] = {
+                "value": bool(settings_block.get("override_per_task", False)),
+                "env_var": None,
+                "type": "boolean",
+                "description": "When true, map task classes to profiles instead of using Default for everything.",
+                "category": "profile",
+                "sensitive": False,
+            }
+            llm_settings["TASK_LLM_PROFILES"] = {
+                "value": settings_block.get("task_llm_profiles") or {},
+                "env_var": None,
+                "type": "object",
+                "description": (
+                    "Task class → model id map (orchestration / auxiliary / delegation). "
+                    "Roles are task classes, not required model ids."
+                ),
+                "category": "profile",
+                "sensitive": False,
+            }
+
             # Environment variables for common LLM providers
             env_llm_settings = {
                 'OPENAI_API_KEY': {
@@ -483,6 +528,64 @@ class SettingsManager:
             }
 
         self.settings_groups['mcp_servers']['settings'] = mcp_settings
+
+    def _collect_remotes_settings(self):
+        """Collect Hermes / OMB / Rakazo / nested-swarm harness settings (secrets redacted)."""
+        try:
+            from swarm.core import remotes as remotes_core
+
+            remote_settings: dict[str, Any] = {}
+            placed = remotes_core.load_placed_members()
+            remote_settings["TEAM_MEMBERS"] = {
+                "value": placed,
+                "env_var": None,
+                "type": "list",
+                "description": (
+                    "Remotes placed in the handoff Team (see/talk via as_tool). "
+                    "Not /teams/ LLM-profile aliases (Profiles). "
+                    "PATCH /v1/agent-team/ or swarm-cli remotes place|unplace."
+                ),
+                "category": "remote",
+                "sensitive": False,
+            }
+            for spec in remotes_core.load_all_remotes().values():
+                pub = spec.public_dict()
+                remote_settings[spec.id.upper()] = {
+                    "value": {
+                        "kind": pub.get("kind") or spec.id,
+                        "configured": pub.get("configured", False),
+                        "base_url": pub["base_url"],
+                        "ui_url": pub["ui_url"],
+                        "api_key_env": pub.get("api_key_env") or "",
+                        "session_cookie_env": pub.get("session_cookie_env") or "",
+                        "api_key": "redacted" if pub["api_key_set"] else "Not Set",
+                        "cookie": "redacted" if pub["cookie_set"] else "Not Set",
+                        "host_label": pub["host_label"],
+                        "source": pub["source"],
+                    },
+                    "env_var": {
+                        "hermes": "HERMES_BASE_URL / HERMES_API_KEY",
+                        "omb": "OMB_BASE_URL / OMB_API_KEY",
+                        "rakazo": "RAKAZO_BASE_URL / RAKAZO_API_KEY / RAKAZO_SESSION_COOKIE",
+                        "swarm": "SWARM_REMOTE_BASE_URL / SWARM_REMOTE_API_KEY",
+                    }.get(spec.id),
+                    "type": "object",
+                    "description": spec.notes,
+                    "category": "remote",
+                    "sensitive": True,
+                }
+        except Exception as e:
+            remote_settings = {
+                "CONFIG_ERROR": {
+                    "value": f"Error loading remotes: {e}",
+                    "env_var": None,
+                    "type": "error",
+                    "description": "Remote harness configuration loading error",
+                    "category": "error",
+                    "sensitive": False,
+                }
+            }
+        self.settings_groups["remotes"]["settings"] = remote_settings
 
     def _collect_database_settings(self):
         """Collect database settings"""

@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom';
+import { resetChatConnection } from './lib/chatConnection';
+
+afterEach(() => {
+    resetChatConnection();
+});
 
 if (!HTMLDialogElement.prototype.showModal) {
     HTMLDialogElement.prototype.showModal = function () {

@@ -32,12 +32,22 @@ services:
       # Trim to only the dirs for CLIs you actually enable below.
       PATH: "${HOME}/.nvm/versions/node/v22.22.3/bin:${HOME}/.local/bin:${HOME}/.opencode/bin:/usr/local/bin:/usr/bin:/bin"
 
+      # REQ-45 runtime banner (where the *app* runs — not the browser provider).
+      # Mapping $HOME or SWARM_SANDBOX_ROOT below → sandbox-home (warning).
+      # Leave them commented → keep base compose sandbox-isolated (green/info).
+      # Native / no-container harness: SWARM_RUNTIME_MODE=bare-metal
+      # SWARM_RUNTIME_MODE: "sandbox-home"
+
       # Per-CLI env keys (only if you use API-key auth instead of device login):
       # ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"   # claude
       # GEMINI_API_KEY:    "${GEMINI_API_KEY}"      # gemini (or GOOGLE_API_KEY)
       # OPENAI_API_KEY:    "${OPENAI_API_KEY}"      # codex
 
     volumes:
+      # REQ-45 sandbox-home: map $HOME or SWARM_SANDBOX_ROOT if the banner
+      # should warn about full tree access. Leave commented for isolated.
+      # - "${SWARM_SANDBOX_ROOT:-${HOME}}:${SWARM_SANDBOX_ROOT:-${HOME}}"
+
       # ── claude (Claude Code) ──────────────────────────────────────────────
       # Launcher in ~/.local/bin, login/state in ~/.claude.
       # - "${HOME}/.local/bin:${HOME}/.local/bin:ro"

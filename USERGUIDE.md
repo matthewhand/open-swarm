@@ -25,8 +25,9 @@ here is verified against `swarm-cli --help`.
 > Session vs Bearer, websocket **4401**, and Explorer bridge:
 > **[docs/AUTH.md](./docs/AUTH.md)**.
 > **`/v1/teams` / Django `/teams/`** register **LLM-profile aliases**
-> (`id`/`description`/`llm_profile`), not multi-agent team graphs — see
-> [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
+> (prefer **Profiles**: `id`/`description`/`llm_profile`). A **Team** is
+> API/CLI/remote members that see/talk via handoff (`/v1/agent-team/`) —
+> see [docs/GLOSSARY.md](./docs/GLOSSARY.md). Regenerate tour images with
 > `scripts/capture_user_journey.py`.
 
 ---
@@ -48,7 +49,8 @@ swarm-cli list
 | `uninstall <name>` | Remove a compiled blueprint executable from the user bin directory |
 | `add` / `delete` | Add or remove a blueprint from the user blueprint library |
 | `config` | Manage LLM profiles and MCP servers (`list` \| `add` \| `remove`) |
-| `cli-agents` / `agents` | Autodiscover configured agentic CLIs (`--check-auth`, `--init`, `--smoke`, `--suggest`, …) |
+| `cli-agents` / `agents` | Autodiscover configured agentic CLIs (`--check-auth`, `--init`, `--smoke`, `--suggest`, `--list-models`, …) |
+| `list-models` | Probe a catalogued CLI for the models it actually offers (`{cli, models: [...]}`) |
 | `skills` | List reusable `SKILL.md` capabilities (apply via `cli_agent` `skill=` param) |
 | `wizard` | Scaffold a new team blueprint (supports `--non-interactive`) |
 | `moa` | Mixture of Agents (`--backend fake\|grok\|acpx`; `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for scripted consensus→team — not a live Runner) |
@@ -336,6 +338,8 @@ swarm-cli config add --section llm --name auxiliary --json \
   '{"provider":"openai","model":"auxiliary","base_url":"${LITELLM_BASE_URL}","api_key":"${LITELLM_API_KEY}","speed":0.9,"cost":0.9}'
 ```
 
+In the SPA, **Settings → LLM profiles** is the picker (not the Django operator dump). Default is any connected CLI / API / remote id — `gpt-5.6-terra` is fine. If you never pick, swarm auto-assigns auxiliary (cheap/fast), orchestration (mid/chat), and delegation (smart/expensive) from the connected catalog (REQ-44 `{cli, models}` when that helper is present; otherwise `/v1/models` + fixtures — no CLI `--help` scrape). **Override per task** off keeps every job on Default; on routes code summary to auxiliary and design/coding to delegation. Missing ids warn and fall back to Default.
+
 **Honest notes:**
 
 * Profile **names** are config keys; the gateway **slug** is the `model` field.
@@ -384,6 +388,8 @@ swarm-cli cli-agents --check-auth        # also run each CLI's auth_check
 swarm-cli cli-agents --suggest           # propose config for installed-but-unconfigured CLIs
 swarm-cli cli-agents --smoke             # one trivial one-shot per installed CLI (uses quota)
 swarm-cli cli-agents --json              # machine-readable (combine with the flags above)
+swarm-cli cli-agents --list-models       # live {cli, models} for each catalog CLI
+swarm-cli list-models grok               # one CLI; omit the name to probe all
 swarm-cli cli-agents --config ./swarm_config.json
 
 # Generate a starter swarm_config wiring cli_agents + fusion/orchestrator/map

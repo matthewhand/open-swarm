@@ -9,41 +9,64 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Book, Mic, Plus, Settings, Users } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Layers, Mic, PanelLeft, Plus, Settings } from 'lucide-react'
+import AgentAvatar from '../components/AgentAvatar'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
-import { fetchBlueprints } from '../lib/api'
+import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
+import {
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+  openAgentEditor,
+  type AgentSettingsChangedDetail,
+} from '../lib/agentSettings'
+import { useRailChrome } from '../components/RailChrome'
+import { ComputerControlStub } from '../components/ComputerControlStub'
+import { RemoteSelect } from '../components/RemoteSelect'
+import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
-  agentThreadQueryKey,
+  compactAgentThread,
   conversationIdForAgent,
+  conversationIdForTask,
   fetchAgentThread,
-  type AgentThread,
+  type ConversationSummary,
 } from '../lib/agentChat'
-import { chatBubbleClassName, workingLabel } from '../lib/chatBubble'
 import {
-  AGENT_RENAME_EVENT,
-  catalogAgentName,
-  saveAgentNameOverride,
-} from '../lib/agentNames'
-import { decorateConversationRows } from '../lib/chatLog'
-import { loadLastRead, saveLastRead } from '../lib/chatLastRead'
-import { parseCreatedAtMs } from '../lib/chatTime'
-import {
-  hopFromAssistantName,
-  parseHandoffAssistant,
-  type ChatItem,
-} from '../lib/interBot'
-import { ChatComposerDock } from '../components/ChatComposerDock'
-import { ChatGapLabel, ChatNewRule } from '../components/ChatLogMarkers'
-import InterBotLine from '../components/InterBotLine'
+  buildDisplayItems,
+  contextTextsForMeter,
+  summariesById,
+} from '../lib/chatCompact'
 import {
   buildChatWsFrame,
   buildChatWsUrl,
+  buildToolDecisionFrame,
   parseChatWsMessage,
   type ChatWsEvent,
 } from '../lib/chatWs'
+import { ToolCallPopup } from '../components/ToolCallPopup'
+import {
+  isToolAlwaysAllowed,
+  rememberAlwaysAllow,
+  upsertToolCall,
+  type ToolCallState,
+} from '../lib/safety'
+import { notifyGenerationComplete } from '../lib/railOrder'
+import {
+  ALL_MEMBERS_TARGET,
+  MANAGE_TEAMS_HREF,
+  MANAGE_TEAMS_VALUE,
+  fetchTeamRosters,
+  memberOptionLabel,
+  teamHideId,
+  teamThreadId,
+} from '../lib/teamRosters'
+import { fetchConfiguredRemotes } from '../lib/remotesCatalog'
+import {
+  publishChatConnection,
+  type ChatConnectionStatus,
+} from '../lib/chatConnection'
 import {
   reconnectBackoffMs,
   shouldAutoReconnect,
@@ -58,25 +81,28 @@ import {
 import { renderSafeMarkdown } from '../lib/markdown'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
+import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
 import {
   agentLabel,
   defaultBlueprintId,
   SUPPORT_AGENT_ID,
-  supportFirstAgents,
 } from '../lib/supportAgent'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
 
-type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed'
+type ConnectionStatus = ChatConnectionStatus
 
-type ChatMessage = Extract<ChatItem, { type: 'message' }>
-
-const OPERATOR_LINKS = [
-  { href: '/blueprint-library/', label: 'Blueprints', icon: Book },
-  { href: '/teams/launch/', label: 'Teams', icon: Users },
-  { href: '/settings/', label: 'Settings', icon: Settings },
-] as const
+interface ChatMessage {
+  /** Stable key; for assistant messages this is the server-issued container id. */
+  key: string
+  role: 'user' | 'assistant' | 'status'
+  text: string
+  /** True while the assistant message is still streaming. */
+  streaming: boolean
+  tools?: ToolCallState[]
+}
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
 export function chatLoginNext(searchParams: URLSearchParams): string {
@@ -93,50 +119,66 @@ export {
   formatElapsed,
   formatTokenCount,
 } from '../lib/chatMeter'
-export {
-  CHAT_BUBBLE_COMPLETE,
-  CHAT_BUBBLE_STREAMING,
-  chatBubbleClassName,
-  workingLabel,
-} from '../lib/chatBubble'
 
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast } = useToast()
-  const selectedBlueprint = defaultBlueprintId(searchParams.get('blueprint'))
+  const { narrow, railOpen, openRail } = useRailChrome()
+  const teamFromUrl = searchParams.get('team') ?? ''
+  const remoteFromUrl = searchParams.get('remote') ?? ''
+  const sessionFromUrl = searchParams.get('session') ?? ''
+  const selectedBlueprint = teamFromUrl || remoteFromUrl
+    ? ''
+    : defaultBlueprintId(searchParams.get('blueprint'))
+  const [newChatPerTask, setNewChatPerTask] = useState(() =>
+    teamFromUrl || remoteFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
+  )
 
-  const queryClient = useQueryClient()
-  const [threads, setThreads] = useState<Record<string, ChatItem[]>>({})
+  const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
+  const [summariesByThread, setSummariesByThread] = useState<
+    Record<string, ConversationSummary[]>
+  >({})
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
+  const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
   const [authRejected, setAuthRejected] = useState(false)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
+  const [, setEditsTick] = useState(0)
+  const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
-    conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+    teamFromUrl
+      ? teamThreadId(teamFromUrl)
+      : remoteFromUrl
+        ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+        : sessionFromUrl ||
+          conversationIdForTask(agentIdFromBlueprint(selectedBlueprint), {
+            newChatPerTask: loadLocalNewChatPerTask(
+              defaultBlueprintId(searchParams.get('blueprint')),
+            ),
+          }),
   )
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : remoteFromUrl
+      ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+      : sessionFromUrl
+        ? `${selectedBlueprint}::${sessionFromUrl}`
+        : newChatPerTask
+          ? conversationId
+          : selectedBlueprint
 
-  const threadItems = useMemo(
-    () => threads[selectedBlueprint] ?? [],
-    [threads, selectedBlueprint],
+  const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const summaries = useMemo(
+    () => summariesByThread[threadKey] ?? [],
+    [summariesByThread, threadKey],
   )
-  const messages = useMemo(
-    () => threadItems.filter((item): item is ChatMessage => item.type === 'message'),
-    [threadItems],
+  const displayItems = useMemo(
+    () => buildDisplayItems(messages, summaries),
+    [messages, summaries],
   )
-  const sessionReadCount = useMemo(
-    () => loadLastRead(agentIdFromBlueprint(selectedBlueprint), conversationId)?.messageCount ?? null,
-    [conversationId, selectedBlueprint],
-  )
-  const conversationRows = useMemo(
-    () =>
-      decorateConversationRows(threadItems, {
-        lastReadMessageCount: sessionReadCount,
-        nowMs,
-      }),
-    [nowMs, sessionReadCount, threadItems],
-  )
+  const summaryMap = useMemo(() => summariesById(summaries), [summaries])
 
   const wsRef = useRef<WebSocket | null>(null)
   const conversationIdRef = useRef(conversationId)
@@ -155,109 +197,206 @@ const ChatPage = () => {
   const toastedOutageRef = useRef(false)
   const streamStartedAtRef = useRef<number | null>(null)
   const lastUserTextRef = useRef('')
-  /** Last hydrated agent; used to clear bubbles only when the user switches. */
+  /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
   const lastHydratedAgentRef = useRef<string | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
     queryFn: fetchBlueprints,
   })
-  const blueprints = supportFirstAgents(blueprintsQuery.data?.data ?? [])
+  const cliQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
+  })
+  const teamsQuery = useQuery({
+    queryKey: ['team-rosters'],
+    queryFn: fetchTeamRosters,
+  })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchConfiguredRemotes,
+    retry: 1,
+  })
+  const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const cliAgents = cliQuery.data?.rail ?? []
+  const teams = teamsQuery.data ?? []
+  const remotes = remotesQuery.data ?? []
+  const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const selectedRemote = remotes.find((remote) => remote.id === remoteFromUrl) ?? null
+  const selectedRemoteSession = selectedRemote?.agents.find((agent) => agent.id === sessionFromUrl)
+  const selectedTeamSession = selectedTeam?.members.find((member) => member.id === sessionFromUrl)
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
-  const catalogName = selectedAgent
-    ? catalogAgentName(selectedAgent)
-    : selectedBlueprint === SUPPORT_AGENT_ID
-      ? 'Support'
-      : selectedBlueprint
-  const [nameTick, setNameTick] = useState(0)
-  const selectedAgentName = useMemo(() => {
-    return selectedAgent ? agentLabel(selectedAgent) : agentLabel({ id: selectedBlueprint, name: catalogName })
-  }, [catalogName, nameTick, selectedAgent, selectedBlueprint])
-  const [nameDraft, setNameDraft] = useState(selectedAgentName)
-  const skipNameCommitRef = useRef(false)
+  const runtimeBlueprint = teamFromUrl ? '' : assignedBlueprintId(selectedBlueprint)
+  const selectedAgentName = teamFromUrl
+    ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
+    : remoteFromUrl
+      ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
+      : selectedCli
+        ? selectedCli.name
+        : selectedAgent
+          ? agentLabel(selectedAgent)
+          : selectedBlueprint === SUPPORT_AGENT_ID
+            ? 'Support'
+            : selectedBlueprint
   const signInHref = chatLoginHref(searchParams)
 
   useEffect(() => {
-    setNameDraft(selectedAgentName)
-  }, [selectedAgentName])
-
-  useEffect(() => {
-    const onRename = () => setNameTick((n) => n + 1)
-    window.addEventListener(AGENT_RENAME_EVENT, onRename)
-    return () => window.removeEventListener(AGENT_RENAME_EVENT, onRename)
-  }, [])
-
-  const commitAgentName = useCallback(() => {
-    const next = saveAgentNameOverride(selectedBlueprint, nameDraft, catalogName)
-    setNameDraft(next)
-    setNameTick((n) => n + 1)
-  }, [catalogName, nameDraft, selectedBlueprint])
-
-  useEffect(() => {
+    // REQ-28: a selected composition team uses ?team=; do not clobber it
+    // with the Support default (REQ-23 owns send-to-all).
+    if (searchParams.get('team') || searchParams.get('remote')) return
     if (!searchParams.get('blueprint')) {
       setSearchParams({ blueprint: SUPPORT_AGENT_ID }, { replace: true })
     }
   }, [searchParams, setSearchParams])
 
+  useEffect(() => {
+    if (teamFromUrl && sessionFromUrl) {
+      setMemberTarget(sessionFromUrl)
+      return
+    }
+    setMemberTarget(ALL_MEMBERS_TARGET)
+  }, [teamFromUrl, sessionFromUrl])
+
+  useEffect(() => {
+    const onEdits = () => setEditsTick((tick) => tick + 1)
+    window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+  }, [])
+
+  useEffect(() => {
+    if (teamFromUrl) {
+      setNewChatPerTask(false)
+      return
+    }
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    setNewChatPerTask(loadLocalNewChatPerTask(agent))
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<AgentSettingsChangedDetail>).detail
+      if (detail?.agentId && detail.agentId === agent) {
+        setNewChatPerTask(detail.new_chat_per_task)
+      }
+    }
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+  }, [selectedBlueprint, teamFromUrl])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
+  // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
   useEffect(() => {
+    if (teamFromUrl) {
+      const key = teamThreadId(teamFromUrl)
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+    if (remoteFromUrl) {
+      const key = `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
+      const switched =
+        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+      lastHydratedAgentRef.current = key
+      setConversationId(key)
+      userKeyCounterRef.current = 0
+      if (switched) {
+        setThreads((prev) => ({ ...prev, [key]: [] }))
+        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
+      }
+      return
+    }
+
     const agent = agentIdFromBlueprint(selectedBlueprint)
+    const fresh = !sessionFromUrl && newChatPerTask
+    const nextId = fresh
+      ? conversationIdForTask(agent, { newChatPerTask: true })
+      : sessionFromUrl || conversationIdForAgent(agent)
+    const hydrateKey = sessionFromUrl
+      ? `${agent}::${sessionFromUrl}`
+      : fresh
+        ? nextId
+        : agent
     const switched =
       lastHydratedAgentRef.current !== null &&
-      lastHydratedAgentRef.current !== agent
-    lastHydratedAgentRef.current = agent
-    setConversationId(conversationIdForAgent(agent))
+      lastHydratedAgentRef.current !== hydrateKey
+    lastHydratedAgentRef.current = hydrateKey
+    setConversationId(nextId)
     userKeyCounterRef.current = 0
     if (switched) {
-      setThreads((prev) => ({ ...prev, [selectedBlueprint]: [] }))
+      setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: [] }))
+    }
+    if (fresh) {
+      // New empty session — do not restore a prior transcript.
+      return
     }
     let cancelled = false
     ;(async () => {
-      const thread = await fetchAgentThread(agent)
+      const thread = await fetchAgentThread(agent, sessionFromUrl || undefined)
       if (cancelled) return
+      setSummariesByThread((prev) => ({
+        ...prev,
+        [threadKey]: thread.summaries,
+      }))
       if (thread.messages.length === 0) return
       setThreads((prev) => ({
         ...prev,
-        [selectedBlueprint]: thread.messages.map((message, index) => {
-          const handoff = parseHandoffAssistant(message.content)
-          if (handoff) {
-            const key = `hist-hop-${index}`
-            return { type: 'hop' as const, key, hop: hopFromAssistantName(key, handoff, false) }
-          }
-          return {
-            type: 'message' as const,
-            key: `hist-${index}-${message.role}`,
-            role: message.role,
-            text: message.content,
-            streaming: false,
-            createdAtMs: parseCreatedAtMs(message.ts),
-          }
-        }),
+        [threadKey]: thread.messages.map((message, index) => ({
+          key: `hist-${index}-${message.role}`,
+          role: message.role,
+          text: message.content,
+          streaming: false,
+        })),
       }))
     })()
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey])
 
-  useEffect(() => {
-    if (messages.length === 0) return
-    saveLastRead(agentIdFromBlueprint(selectedBlueprint), conversationId, messages.length)
-  }, [conversationId, messages.length, selectedBlueprint])
-
-  const rememberThreadLine = useCallback(
-    (role: 'user' | 'assistant', content: string) => {
-      const agent = agentIdFromBlueprint(selectedBlueprint)
-      queryClient.setQueryData<AgentThread>(agentThreadQueryKey(agent), (prev) => ({
-        agent_id: prev?.agent_id ?? agent,
-        conversation_id: prev?.conversation_id ?? conversationIdForAgent(agent),
-        messages: [...(prev?.messages ?? []), { role, content }],
-      }))
-      void queryClient.invalidateQueries({ queryKey: agentThreadQueryKey(agent) })
+  const attachToolToThread = useCallback(
+    (tool: ToolCallState) => {
+      setThreads((prev) => {
+        const current = prev[threadKey] ?? []
+        const targetIndex = [...current]
+          .reverse()
+          .findIndex((message) => message.role === 'assistant')
+        const index = targetIndex === -1 ? -1 : current.length - 1 - targetIndex
+        if (index === -1) {
+          return {
+            ...prev,
+            [threadKey]: [
+              ...current,
+              {
+                key: `tool-host-${tool.id}`,
+                role: 'assistant' as const,
+                text: '',
+                streaming: true,
+                tools: [tool],
+              },
+            ],
+          }
+        }
+        const next = [...current]
+        const host = next[index]!
+        next[index] = { ...host, tools: upsertToolCall(host.tools ?? [], tool) }
+        return { ...prev, [threadKey]: next }
+      })
     },
-    [queryClient, selectedBlueprint],
+    [threadKey],
   )
+
+  const sendToolDecision = useCallback((id: string, decision: 'allow' | 'always' | 'deny') => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(buildToolDecisionFrame(id, decision))
+  }, [])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -265,8 +404,42 @@ const ChatPage = () => {
         console.warn('Unrecognised chat websocket frame:', event.raw)
         return
       }
+      if (event.kind === 'tool_status') {
+        attachToolToThread({
+          id: event.id,
+          name: event.name,
+          status: event.status,
+          agentId: event.agentId,
+          needsApproval: false,
+        })
+        return
+      }
+      if (event.kind === 'tool_approval') {
+        const agentId = event.agentId || selectedBlueprint || threadKey
+        if (isToolAlwaysAllowed(agentId, event.name)) {
+          sendToolDecision(event.id, 'always')
+          attachToolToThread({
+            id: event.id,
+            name: event.name,
+            status: 'allowed',
+            agentId,
+            needsApproval: false,
+            concerned: true,
+          })
+          return
+        }
+        attachToolToThread({
+          id: event.id,
+          name: event.name,
+          status: 'running',
+          agentId,
+          needsApproval: true,
+          concerned: true,
+        })
+        return
+      }
       setThreads((prev) => {
-        const current = prev[selectedBlueprint] ?? []
+        const current = prev[threadKey] ?? []
         let next = current
         switch (event.kind) {
           case 'user_echo':
@@ -274,80 +447,46 @@ const ChatPage = () => {
             next = [
               ...current,
               {
-                type: 'message',
                 key: `user-${userKeyCounterRef.current}-${Date.now()}`,
                 role: 'user',
                 text: event.text,
                 streaming: false,
-                createdAtMs: Date.now(),
               },
             ]
             break
           case 'assistant_start':
-            if (current.some((item) => item.key === event.id)) return prev
+            if (current.some((m) => m.key === event.id)) return prev
+            next = [...current, { key: event.id, role: 'assistant', text: '', streaming: true }]
+            break
+          case 'assistant_chunk':
+            next = current.map((m) =>
+              m.key === event.id ? { ...m, text: m.text + event.text } : m,
+            )
+            break
+          case 'assistant_final':
+            next = current.map((m) =>
+              m.key === event.id ? { ...m, text: event.text, streaming: false } : m,
+            )
+            break
+          case 'status':
             next = [
               ...current,
               {
-                type: 'message',
-                key: event.id,
-                role: 'assistant',
-                text: '',
-                streaming: true,
-                createdAtMs: Date.now(),
+                key: `status-${current.length}-${Date.now()}`,
+                role: 'status',
+                text: event.text,
+                streaming: false,
               },
             ]
             break
-          case 'assistant_chunk':
-            next = current.map((item) =>
-              item.type === 'message' && item.key === event.id
-                ? { ...item, text: item.text + event.text }
-                : item,
-            )
-            break
-          case 'assistant_final': {
-            const handoff = parseHandoffAssistant(event.text)
-            if (handoff) {
-              next = current.filter((item) => item.key !== event.id)
-              next = [
-                ...next,
-                { type: 'hop', key: event.id, hop: hopFromAssistantName(event.id, handoff, false) },
-              ]
-              break
-            }
-            next = current.map((item) =>
-              item.type === 'message' && item.key === event.id
-                ? { ...item, text: event.text, streaming: false }
-                : item,
-            )
-            break
-          }
-          case 'interbot_hop': {
-            const hop = hopFromAssistantName(event.id, event.name, event.pending, event.agentId)
-            const existing = current.findIndex((item) => item.key === event.id || (item.type === 'hop' && item.hop.id === event.id))
-            if (existing >= 0) {
-              next = current.map((item, index) =>
-                index === existing ? { type: 'hop', key: event.id, hop } : item,
-              )
-            } else {
-              next = [...current, { type: 'hop', key: event.id, hop }]
-            }
-            break
-          }
         }
-        return { ...prev, [selectedBlueprint]: next }
+        return { ...prev, [threadKey]: next }
       })
-      const addedMessage =
-        event.kind === 'user_echo' || event.kind === 'assistant_start'
-      if (addedMessage && !pinnedToBottomRef.current) {
-        setNewMessageCount((current) => current + 1)
-        setNewCountDismissed(false)
-      }
-      if (event.kind === 'user_echo') rememberThreadLine('user', event.text)
-      if (event.kind === 'assistant_final' && !parseHandoffAssistant(event.text)) {
-        rememberThreadLine('assistant', event.text)
+      if (event.kind === 'assistant_final') {
+        notifyGenerationComplete(teamFromUrl ? teamHideId(teamFromUrl) : selectedBlueprint)
       }
     },
-    [rememberThreadLine, selectedBlueprint],
+    [attachToolToThread, selectedBlueprint, sendToolDecision, teamFromUrl, threadKey],
   )
 
   useEffect(() => {
@@ -363,7 +502,9 @@ const ChatPage = () => {
 
     let ws: WebSocket
     try {
-      ws = new WebSocket(buildChatWsUrl(conversationId, selectedBlueprint || undefined))
+      ws = new WebSocket(
+        buildChatWsUrl(conversationId, teamFromUrl ? undefined : runtimeBlueprint || undefined),
+      )
     } catch {
       setStatus('failed')
       const attempt = backoffAttemptRef.current
@@ -418,35 +559,17 @@ const ChatPage = () => {
       ws.close()
       if (wsRef.current === ws) wsRef.current = null
     }
-  }, [connectAttempt, handleWsEvent, conversationId, selectedBlueprint])
-
-  const pinnedToBottomRef = useRef(true)
-  const [pinnedToBottom, setPinnedToBottom] = useState(true)
-  const [newMessageCount, setNewMessageCount] = useState(0)
-  const [newCountDismissed, setNewCountDismissed] = useState(false)
-  const prevMessageCountRef = useRef(0)
-
-  const jumpToBottom = useCallback(() => {
-    pinnedToBottomRef.current = true
-    setPinnedToBottom(true)
-    setNewMessageCount(0)
-    setNewCountDismissed(false)
-    listEndRef.current?.scrollIntoView({ block: 'end' })
-  }, [])
+  }, [connectAttempt, handleWsEvent, conversationId, runtimeBlueprint, teamFromUrl])
 
   useEffect(() => {
-    pinnedToBottomRef.current = true
-    setPinnedToBottom(true)
-    setNewMessageCount(0)
-    setNewCountDismissed(false)
-    prevMessageCountRef.current = 0
-  }, [selectedBlueprint])
+    publishChatConnection(status)
+  }, [status])
 
+  const pinnedToBottomRef = useRef(true)
   useEffect(() => {
     if (pinnedToBottomRef.current) {
       listEndRef.current?.scrollIntoView({ block: 'end' })
     }
-    prevMessageCountRef.current = messages.length
   }, [messages])
 
   useEffect(() => {
@@ -513,9 +636,37 @@ const ChatPage = () => {
       const trimmed = text.trim()
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
       lastUserTextRef.current = trimmed
-      ws.send(buildChatWsFrame(trimmed, selectedBlueprint || undefined))
+      // Team compose adds params { team, target: "all" | memberId }.
+      if (teamFromUrl) {
+        ws.send(
+          buildChatWsFrame(trimmed, undefined, {
+            team: teamFromUrl,
+            target: memberTarget || ALL_MEMBERS_TARGET,
+          }),
+        )
+        return
+      }
+      ws.send(
+        buildChatWsFrame(
+          trimmed,
+          runtimeBlueprint || selectedBlueprint || undefined,
+          selectedCli
+            ? { cli: selectedCli.cli }
+            : newChatPerTask
+              ? { new_session: messages.length === 0 }
+              : undefined,
+        ),
+      )
     },
-    [selectedBlueprint],
+    [
+      runtimeBlueprint,
+      selectedBlueprint,
+      selectedCli,
+      teamFromUrl,
+      memberTarget,
+      newChatPerTask,
+      messages.length,
+    ],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -571,18 +722,6 @@ const ChatPage = () => {
   }, [plusOpen])
 
   const streamingMessage = messages.find((message) => message.streaming)
-  const workingAgents = useMemo(() => {
-    const marks = new Map<string, { id: string; name: string }>()
-    if (streamingMessage) {
-      marks.set(selectedBlueprint, { id: selectedBlueprint, name: selectedAgentName })
-    }
-    for (const item of threadItems) {
-      if (item.type === 'hop' && item.hop.pending) {
-        marks.set(item.hop.agentId, { id: item.hop.agentId, name: item.hop.name })
-      }
-    }
-    return [...marks.values()]
-  }, [selectedAgentName, selectedBlueprint, streamingMessage, threadItems])
   useEffect(() => {
     if (!streamingMessage) {
       streamStartedAtRef.current = null
@@ -595,7 +734,36 @@ const ChatPage = () => {
     return () => window.clearInterval(timer)
   }, [streamingMessage])
 
-  const tokenCount = estimateTokensInContext(messages.map((message) => message.text))
+  const handleCompact = useCallback(async () => {
+    setPlusOpen(false)
+    if (messages.length === 0) {
+      addToast({
+        type: 'info',
+        title: 'Compact',
+        message: 'Nothing to compact yet.',
+      })
+      return
+    }
+    try {
+      const result = await compactAgentThread({
+        conversationId,
+        agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        })),
+      })
+      setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Compact failed',
+        message: 'Could not compact this chat. Sign in and try again.',
+      })
+    }
+  }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
+
+  const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
   const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
   const streamElapsed =
     streamingMessage && streamStartedAtRef.current != null
@@ -615,55 +783,119 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <h1 className="os-chat-header__start min-w-0">
-          <label className="sr-only" htmlFor="os-agent-name">
-            Agent name
-          </label>
-          <input
-            id="os-agent-name"
-            className="os-chat-title"
-            value={nameDraft}
-            spellCheck={false}
-            onChange={(event) => setNameDraft(event.target.value)}
-            onBlur={() => {
-              if (skipNameCommitRef.current) {
-                skipNameCommitRef.current = false
-                return
-              }
-              commitAgentName()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                event.currentTarget.blur()
-              }
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                skipNameCommitRef.current = true
-                setNameDraft(selectedAgentName)
-                event.currentTarget.blur()
-              }
-            }}
-          />
-        </h1>
-        <div className="os-chat-header__center">
-          <div
-            className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
-            role="meter"
-            aria-label="Tokens in context"
-            aria-valuemin={0}
-            aria-valuemax={CONTEXT_METER_TOKENS}
-            aria-valuenow={tokenCount}
-          >
-            <div
-              className="h-full rounded-full bg-base-content/45"
-              style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+        <div className="os-chat-header__identity flex min-w-0 items-center gap-2" data-testid="selected-agent-header">
+          {narrow ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square shrink-0"
+              aria-label="Open agent list"
+              aria-expanded={railOpen}
+              onClick={openRail}
+            >
+              <PanelLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
+          {!teamFromUrl ? (
+            <AgentAvatar
+              src={selectedAgent?.avatar_path}
+              size="lg"
+              className="os-chat-header__avatar"
             />
-          </div>
-          <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
+          ) : null}
+          <h1 className="truncate text-base font-semibold tracking-tight">
+            <button
+              type="button"
+              className="os-identity-btn truncate text-left"
+              aria-label={`Open ${selectedAgentName} definition`}
+              onClick={() => {
+                if (teamFromUrl) {
+                  openSettingsSheet({
+                    section: 'definition',
+                    definitionKind: 'team',
+                    definitionId: teamFromUrl,
+                    teamId: teamFromUrl,
+                  })
+                  return
+                }
+                const role = agentRole({
+                  id: selectedBlueprint,
+                  name: selectedAgentName,
+                  role: selectedAgent?.role,
+                })
+                openSettingsSheet({
+                  section: 'definition',
+                  definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
+                  definitionId: selectedBlueprint,
+                  blueprintId: selectedBlueprint,
+                })
+              }}
+            >
+              {selectedAgentName}
+            </button>
+          </h1>
+          {!teamFromUrl && selectedBlueprint ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              aria-label={`Edit ${selectedAgentName}`}
+              onClick={() =>
+                openAgentEditor({
+                  agentId: selectedBlueprint,
+                })
+              }
+            >
+              Edit
+            </button>
+          ) : null}
         </div>
-        <div className="os-chat-header__end">
-          <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <RemoteSelect
+            remotes={remotesQuery.data}
+            value={selectedRemoteId}
+            onChange={setSelectedRemoteId}
+            size="sm"
+            className="h-8 max-w-[10rem]"
+          />
+          {teamFromUrl ? (
+            <select
+              className="select select-sm h-8 max-w-[12rem] border border-base-300 bg-base-100"
+              value={memberTarget}
+              aria-label="Team members"
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === MANAGE_TEAMS_VALUE) {
+                  window.location.assign(MANAGE_TEAMS_HREF)
+                  return
+                }
+                setMemberTarget(value)
+              }}
+            >
+              <option value={ALL_MEMBERS_TARGET}>All members</option>
+              {(selectedTeam?.members ?? []).map((member) => (
+                <option key={member.id} value={member.id}>
+                  {memberOptionLabel(member)}
+                </option>
+              ))}
+              <option value={MANAGE_TEAMS_VALUE}>Manage Teams</option>
+            </select>
+          ) : null}
+          <div
+            className="flex items-center gap-2"
+            role="toolbar"
+            aria-label="Chat tools"
+          >
+            <ComputerControlStub />
+            <ThemeToggle />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              aria-label="Open settings"
+              aria-haspopup="dialog"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SETTINGS_EVENT))}
+            >
+              <Settings className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -680,32 +912,33 @@ const ChatPage = () => {
         tabIndex={0}
         onScroll={(e) => {
           const el = e.currentTarget
-          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48
-          pinnedToBottomRef.current = nearBottom
-          setPinnedToBottom(nearBottom)
-          if (nearBottom) {
-            setNewMessageCount(0)
-            setNewCountDismissed(false)
-          }
+          pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
         }}
       >
-        {conversationRows.length === 0 ? (
+        {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
-          conversationRows.map((row, idx) => {
-            if (row.type === 'hop-line') {
-              return <InterBotLine key={`hop-${idx}-${row.line.kind}`} line={row.line} />
+          displayItems.map((item, idx) => {
+            if (item.kind === 'summary') {
+              return (
+                <SummaryBlock
+                  key={`sum-${item.summary.id}`}
+                  summary={item.summary}
+                  byId={summaryMap}
+                />
+              )
             }
-            if (row.type === 'gap') {
-              return <ChatGapLabel key={row.key} label={row.label} />
+            const message = item.message
+            if (message.role === 'status') {
+              return (
+                <p key={message.key} className="os-chat-status" data-role="status">
+                  {message.text}
+                </p>
+              )
             }
-            if (row.type === 'new') {
-              return <ChatNewRule key={row.key} />
-            }
-            const message = row.message
-            const isLast = idx === conversationRows.length - 1
+            const isLast = idx === displayItems.length - 1
             const retryEnabled =
               SHOW_MESSAGE_ACTIONS &&
               isLast &&
@@ -721,14 +954,34 @@ const ChatPage = () => {
                   {message.role === 'user' ? 'You' : selectedAgentName}
                 </div>
                 <div
-                  className={chatBubbleClassName(message.role, message.streaming)}
-                  data-streaming={message.streaming ? 'true' : 'false'}
+                  className={`chat-bubble ${
+                    message.role === 'user'
+                      ? 'bg-neutral text-neutral-content'
+                      : 'bg-base-200 text-base-content'
+                  }`}
                 >
-                  <ChatBubbleBody
-                    text={message.text}
-                    streaming={message.streaming}
-                    agentName={selectedAgentName}
-                  />
+                  <ChatBubbleBody text={message.text} streaming={message.streaming} />
+                  {(message.tools ?? []).map((tool) => (
+                    <ToolCallPopup
+                      key={tool.id}
+                      tool={tool}
+                      onDecision={(decision) => {
+                        const agentId = tool.agentId || selectedBlueprint || threadKey
+                        if (decision === 'always') rememberAlwaysAllow(agentId, tool.name)
+                        sendToolDecision(tool.id, decision)
+                        attachToolToThread({
+                          ...tool,
+                          needsApproval: false,
+                          status:
+                            decision === 'deny'
+                              ? 'denied'
+                              : decision === 'always' || decision === 'allow'
+                                ? 'allowed'
+                                : tool.status,
+                        })
+                      }}
+                    />
+                  ))}
                 </div>
                 {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
                   <ChatMessageActions
@@ -749,15 +1002,6 @@ const ChatPage = () => {
         <div ref={listEndRef} />
       </div>
 
-      <ChatComposerDock
-        workingAgents={workingAgents}
-        scrolledUp={!pinnedToBottom}
-        newMessageCount={newMessageCount}
-        showNewPill={!pinnedToBottom && newMessageCount > 0 && !newCountDismissed}
-        onJumpToBottom={jumpToBottom}
-        onDismissNewCount={() => setNewCountDismissed(true)}
-      />
-
       <form onSubmit={handleSend} className="os-composer-wrap">
         <div className="os-composer">
           <div className="relative" ref={plusRef}>
@@ -774,25 +1018,22 @@ const ChatPage = () => {
             {plusOpen && (
               <ul
                 role="menu"
-                aria-label="Operator pages"
+                aria-label="Chat actions"
                 className="os-plus-menu"
               >
-                {OPERATOR_LINKS.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <li key={item.href} role="none">
-                      <a
-                        role="menuitem"
-                        href={item.href}
-                        className="os-plus-menu__item"
-                        onClick={() => setPlusOpen(false)}
-                      >
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                        {item.label}
-                      </a>
-                    </li>
-                  )
-                })}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="os-plus-menu__item"
+                    onClick={() => {
+                      void handleCompact()
+                    }}
+                  >
+                    <Layers className="h-4 w-4" aria-hidden="true" />
+                    Compact
+                  </button>
+                </li>
               </ul>
             )}
           </div>
@@ -821,13 +1062,53 @@ const ChatPage = () => {
         </button>
       </form>
 
-      {streamingMessage ? (
-        <footer className="os-chat-footer" aria-live="polite">
+      <footer className="os-chat-footer" aria-live="polite">
+        <div
+          className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
+          role="meter"
+          aria-label="Tokens in context"
+          aria-valuemin={0}
+          aria-valuemax={CONTEXT_METER_TOKENS}
+          aria-valuenow={tokenCount}
+        >
+          <div
+            className="h-full rounded-full bg-base-content/45"
+            style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+          />
+        </div>
+        <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
+        {streamingMessage ? (
           <span className="min-w-0 truncate">
             {selectedAgentName} · {streamElapsed ?? '0s'}
           </span>
-        </footer>
-      ) : null}
+        ) : null}
+      </footer>
+    </div>
+  )
+}
+
+function SummaryBlock({
+  summary,
+  byId,
+  depth = 0,
+}: {
+  summary: ConversationSummary
+  byId: Record<number, ConversationSummary>
+  depth?: number
+}) {
+  const parent =
+    summary.parent_summary_id != null ? byId[summary.parent_summary_id] : undefined
+  const replaced =
+    summary.replaced_count ?? summary.span.end - summary.span.start + 1
+  return (
+    <div
+      className={depth > 0 ? 'chat-summary chat-summary--nested' : 'chat-summary'}
+      data-testid="chat-summary"
+    >
+      <div className="chat-summary__label">Summary</div>
+      <div className="chat-summary__body whitespace-pre-wrap break-words">{summary.body}</div>
+      <div className="chat-summary__meta">Replaced {replaced} turns</div>
+      {parent ? <SummaryBlock summary={parent} byId={byId} depth={depth + 1} /> : null}
     </div>
   )
 }
@@ -836,33 +1117,26 @@ const ChatBubbleBody = memo(
   function ChatBubbleBody({
     text,
     streaming,
-    agentName,
   }: {
     text: string
     streaming: boolean
-    agentName: string
   }) {
-    const dots = streaming ? (
-      <span title={workingLabel(agentName)}>
-        <LoadingDots size="sm" aria-label={workingLabel(agentName)} />
-      </span>
-    ) : null
     if (text.length === 0) {
-      return streaming ? dots : <span className="opacity-60">(empty response)</span>
+      return streaming ? (
+        <LoadingDots size="sm" />
+      ) : (
+        <span className="opacity-60">(empty response)</span>
+      )
     }
     return (
-      <>
-        <div
-          data-testid="chat-md"
-          className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
-          dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
-        />
-        {dots}
-      </>
+      <div
+        data-testid="chat-md"
+        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
+        dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
+      />
     )
   },
-  (prev, next) =>
-    prev.text === next.text && prev.streaming === next.streaming && prev.agentName === next.agentName,
+  (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
 )
 
 export default ChatPage
