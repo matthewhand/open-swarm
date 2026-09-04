@@ -23,7 +23,6 @@ import {
 } from '../lib/agentSettings'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import KeybindingTips from '../components/KeybindingTips'
 import { RemoteSelect } from '../components/RemoteSelect'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
@@ -1706,6 +1705,15 @@ const ChatPage = () => {
                 ↵
               </kbd>
             ) : null}
+            {!composerFocused && input ? (
+              <kbd
+                className="os-composer__hint kbd kbd-xs"
+                data-testid="composer-clear-hint"
+                title="Esc to clear"
+              >
+                Esc
+              </kbd>
+            ) : null}
             <button
               type="button"
               className="os-composer__icon"
@@ -1716,7 +1724,6 @@ const ChatPage = () => {
             </button>
           </div>
         </div>
-        {messages.length === 0 ? <KeybindingTips /> : null}
         <button type="submit" className="sr-only" disabled={!canSend}>
           Send
         </button>

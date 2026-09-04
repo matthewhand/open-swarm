@@ -62,6 +62,11 @@ describe('SearchPalette', () => {
     expect(overlay).toHaveClass('os-search-overlay--centered')
     const input = screen.getByRole('combobox', { name: 'Search' })
     expect(input).toHaveAttribute('placeholder', 'Search')
+    expect(document.querySelector('.os-search-palette__kbd')).toBeTruthy()
+    fireEvent.change(input, { target: { value: 'codey' } })
+    expect(document.querySelector('.os-search-palette__kbd')).toBeNull()
+    fireEvent.change(input, { target: { value: '' } })
+    expect(document.querySelector('.os-search-palette__kbd')).toBeTruthy()
 
     for (const tab of SEARCH_PALETTE_TABS) {
       expect(screen.getByRole('tab', { name: tab })).toBeInTheDocument()

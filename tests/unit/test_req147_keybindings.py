@@ -9,7 +9,6 @@ CMD_PALETTE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "experimental" / "C
 SIDEBAR_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 SEARCH_PALETTE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 CHAT_PAGE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
-KEYBINDING_TIPS_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "KeybindingTips.tsx"
 KEYBINDING_TIPS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "keybindingTips.ts"
 
 
@@ -59,17 +58,15 @@ def test_search_palette_footer_tips():
     assert "os-search-palette__kbd" in palette
 
 
-def test_first_load_tips_under_composer():
+def test_in_field_unfocused_hints_replace_overlay():
     chat = CHAT_PAGE_TSX.read_text(encoding="utf-8")
-    tips = KEYBINDING_TIPS_TSX.read_text(encoding="utf-8")
-    persist = KEYBINDING_TIPS_TS.read_text(encoding="utf-8")
+    labels = KEYBINDING_TIPS_TS.read_text(encoding="utf-8")
+    palette = SEARCH_PALETTE_TSX.read_text(encoding="utf-8")
 
-    assert "KeybindingTips" in chat
     assert "composer-send-hint" in chat
-    assert "first-load-tips" in tips
-    assert "Search" in tips
-    assert "Pins" in tips
-    assert "Clear" in tips
-    assert "swarm_keybinding_tips_dismissed" in persist
-    assert 'className="os-keybinding-tips"' in tips
-    assert "os-keybinding-tips alert" not in tips
+    assert "composer-clear-hint" in chat
+    assert "KeybindingTips" not in chat
+    assert "first-load-tips" not in chat
+    assert "searchShortcutLabel" in labels
+    assert "!query.trim()" in palette
+    assert "os-search-palette__kbd" in palette

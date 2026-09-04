@@ -19,6 +19,7 @@ import { agentMarkIndex } from '../lib/hiddenAgents'
 import { exampleRoleAgents } from '../lib/agentRoles'
 import { agentLabel } from '../lib/supportAgent'
 import { dispatchToggleTheme } from '../lib/theme'
+import { searchShortcutLabel } from '../lib/keybindingTips'
 
 export const SEARCH_PALETTE_TABS = [
   'All',
@@ -254,11 +255,9 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
             autoComplete="off"
             className="os-search-palette__input"
           />
-          <kbd className="os-search-palette__kbd kbd kbd-xs">
-            {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
-              ? '⌘K'
-              : 'Ctrl+K'}
-          </kbd>
+          {!query.trim() ? (
+            <kbd className="os-search-palette__kbd kbd kbd-xs">{searchShortcutLabel()}</kbd>
+          ) : null}
         </div>
 
         <div className="os-search-palette__tabs" role="tablist" aria-label="Search categories">

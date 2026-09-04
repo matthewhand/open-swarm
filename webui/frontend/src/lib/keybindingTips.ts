@@ -1,9 +1,7 @@
 /**
- * First-load keybinding tips. Dismissed state persists best-effort,
- * same pattern as the swipe hint and runtime banner.
+ * Platform-aware shortcut labels for quiet in-field hints (REQ-160 / #571).
+ * Dismissible overlay chrome is gone — Search and composer carry the tips.
  */
-
-export const KEYBINDING_TIPS_STORAGE_KEY = 'swarm_keybinding_tips_dismissed'
 
 export function isMacPlatform(): boolean {
   if (typeof navigator === 'undefined') return false
@@ -16,20 +14,4 @@ export function searchShortcutLabel(): string {
 
 export function pinsShortcutLabel(): string {
   return isMacPlatform() ? '⌥1–9' : 'Alt+1–9'
-}
-
-export function isKeybindingTipsDismissed(): boolean {
-  try {
-    return localStorage.getItem(KEYBINDING_TIPS_STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-export function dismissKeybindingTips(): void {
-  try {
-    localStorage.setItem(KEYBINDING_TIPS_STORAGE_KEY, '1')
-  } catch {
-    /* persistence is best-effort */
-  }
 }

@@ -1017,35 +1017,6 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
   pointer-events: none;
   flex-shrink: 0;
 }
-.os-keybinding-tips {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.4rem 0.15rem 0.05rem;
-  font-size: 0.7rem;
-  color: color-mix(in srgb, var(--color-base-content) 42%, transparent);
-}
-.os-keybinding-tips__dismiss {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: color-mix(in srgb, var(--color-base-content) 40%, transparent);
-  cursor: pointer;
-}
-.os-keybinding-tips__dismiss:hover,
-.os-keybinding-tips__dismiss:focus-visible {
-  color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
-  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
-}
 
 .os-plus-menu {
   position: absolute;
