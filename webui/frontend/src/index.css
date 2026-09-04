@@ -358,6 +358,13 @@ html[data-theme="light"] #root {
   color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
   border-color: color-mix(in srgb, var(--color-base-content) 12%, transparent);
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  pointer-events: none;
+}
+.os-rail-search:hover .os-rail-search__kbd,
+.os-rail-search:focus-within .os-rail-search__kbd {
+  opacity: 1;
 }
 
 .os-search-add-btn {
@@ -1007,6 +1014,22 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
 .os-composer__icon:hover {
   background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
 }
+.os-composer__hint {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+  border-color: color-mix(in srgb, var(--color-base-content) 12%, transparent);
+  pointer-events: none;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+.os-composer:hover .os-composer__hint,
+.os-composer:focus-within .os-composer__hint {
+  opacity: 1;
+}
 
 .os-plus-menu {
   position: absolute;
@@ -1239,6 +1262,13 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
   color: color-mix(in srgb, currentColor 60%, transparent);
   border-color: color-mix(in srgb, currentColor 12%, transparent);
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  pointer-events: none;
+}
+.os-search-palette__field:hover .os-search-palette__kbd,
+.os-search-palette__field:focus-within .os-search-palette__kbd {
+  opacity: 1;
 }
 .os-search-palette__footer {
   display: flex;

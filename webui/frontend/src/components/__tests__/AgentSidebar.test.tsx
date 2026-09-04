@@ -209,7 +209,9 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
 
     const search = screen.getByRole('searchbox', { name: 'Search' })
-    expect(search.getAttribute('placeholder')).toMatch(/^Search/)
+    expect(search).toHaveAttribute('placeholder', 'Search')
+    const kbd = search.closest('.os-rail-search')?.querySelector('.os-rail-search__kbd')
+    expect(kbd?.textContent === '⌘K' || kbd?.textContent === 'Ctrl+K').toBe(true)
     fireEvent.focus(search)
     fireEvent.click(search)
     expect(onOpenSearch).toHaveBeenCalled()

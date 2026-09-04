@@ -1237,7 +1237,7 @@ const ChatPage = () => {
       ? formatElapsed(nowMs - streamStartedAtRef.current)
       : null
 
-  const composerPlaceholder = status === 'open' ? 'Message …' : 'Message …'
+  const composerPlaceholder = 'Message …'
 
   const statusLabel = useMemo(() => {
     if (status === 'open') return ''
@@ -1693,6 +1693,23 @@ const ChatPage = () => {
               aria-expanded={isSlashOpen}
               aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
             />
+            {!input ? (
+              <kbd
+                className="os-composer__hint kbd kbd-xs"
+                data-testid="composer-send-hint"
+                title="Enter to send"
+              >
+                ↵
+              </kbd>
+            ) : (
+              <kbd
+                className="os-composer__hint kbd kbd-xs"
+                data-testid="composer-clear-hint"
+                title="Esc to clear"
+              >
+                Esc
+              </kbd>
+            )}
             <button
               type="button"
               className="os-composer__icon"

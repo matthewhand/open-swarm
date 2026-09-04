@@ -1202,6 +1202,28 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).toBeInTheDocument()
   })
 
+  it('ghosts composer shortcut chips until hover or focus, swapping Enter/Esc by draft', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    expect(screen.queryByTestId('first-load-tips')).not.toBeInTheDocument()
+    const sendHint = screen.getByTestId('composer-send-hint')
+    expect(sendHint).toHaveClass('os-composer__hint')
+    expect(composer.closest('.os-composer')).toContainElement(sendHint)
+
+    fireEvent.focus(composer)
+    expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
+    fireEvent.change(composer, { target: { value: 'draft' } })
+    expect(screen.queryByTestId('composer-send-hint')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-clear-hint')).toBeInTheDocument()
+
+    fireEvent.change(composer, { target: { value: '' } })
+    expect(screen.getByTestId('composer-send-hint')).toBeInTheDocument()
+  })
+
   it('shows a Blobs header avatar by default and falls back to bland when opted in', async () => {
     renderChat('/chat?blueprint=codey')
     await act(async () => {

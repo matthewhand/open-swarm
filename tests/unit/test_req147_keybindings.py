@@ -8,6 +8,9 @@ FLAGS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "experimental" / "flags.ts
 CMD_PALETTE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "experimental" / "CommandPalette.tsx"
 SIDEBAR_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 SEARCH_PALETTE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
+CHAT_PAGE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
+KEYBINDING_TIPS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "keybindingTips.ts"
+INDEX_CSS = REPO_ROOT / "webui" / "frontend" / "src" / "index.css"
 
 
 def test_app_binds_global_cmd_k_search():
@@ -39,13 +42,13 @@ def test_sidebar_alt_pins_and_tips():
     # Hover shortcut badge on favourite tiles
     assert "os-fav-tile__shortcut" in sidebar
 
-    # Search placeholder / affordance displays ⌘K / Ctrl+K
+    # Single in-field ⌘K / Ctrl+K chip — do not also append it to the Search label
     assert "searchShortcutLabel" in sidebar
     assert "os-rail-search__kbd" in sidebar
-
-    # Dismissible first-load tips
-    assert "first-load-tips" in sidebar
-    assert "swarm_keybinding_tips_dismissed" in sidebar
+    assert 'placeholder="Search"' in sidebar
+    assert "Search ${searchShortcut}" not in sidebar
+    assert "first-load-tips" not in sidebar
+    assert "os-keybinding-tips alert" not in sidebar
 
 
 def test_search_palette_footer_tips():
@@ -56,3 +59,23 @@ def test_search_palette_footer_tips():
     assert "Select" in palette
     assert "Close" in palette
     assert "os-search-palette__kbd" in palette
+
+
+def test_in_field_unfocused_hints_replace_overlay():
+    chat = CHAT_PAGE_TSX.read_text(encoding="utf-8")
+    labels = KEYBINDING_TIPS_TS.read_text(encoding="utf-8")
+    palette = SEARCH_PALETTE_TSX.read_text(encoding="utf-8")
+    css = INDEX_CSS.read_text(encoding="utf-8")
+
+    assert "composer-send-hint" in chat
+    assert "composer-clear-hint" in chat
+    assert "KeybindingTips" not in chat
+    assert "first-load-tips" not in chat
+    assert "searchShortcutLabel" in labels
+    assert "!query.trim()" in palette
+    assert "os-search-palette__kbd" in palette
+    assert ".os-rail-search:hover .os-rail-search__kbd" in css
+    assert ".os-rail-search:focus-within .os-rail-search__kbd" in css
+    assert ".os-composer:hover .os-composer__hint" in css
+    assert ".os-composer:focus-within .os-composer__hint" in css
+    assert ".os-search-palette__field:hover .os-search-palette__kbd" in css
