@@ -9,7 +9,8 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Search, Users, X } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Users, X } from 'lucide-react'
+import AddAgentWizard, { type AgentKind } from './AddAgentWizard'
 import {
   fetchBlueprints,
   fetchCliAgents,
@@ -239,6 +240,19 @@ export default function AgentSidebar({
     typeof navigator !== 'undefined' &&
     /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
   const searchShortcutLabel = isMac ? '⌘K' : 'Ctrl+K'
+  const [addWizardOpen, setAddWizardOpen] = useState(false)
+  const handleAgentCreated = useCallback(
+    (created: { id: string; name: string; kind: AgentKind }) => {
+      setAddWizardOpen(false)
+      if (created.kind === 'remote') {
+        navigate(`/chat?remote=${encodeURIComponent(created.id)}`)
+      } else {
+        navigate(`/chat?blueprint=${encodeURIComponent(created.id)}`)
+      }
+      onClose?.()
+    },
+    [navigate, onClose],
+  )
   const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
 
   useEffect(() => {
@@ -1249,35 +1263,40 @@ export default function AgentSidebar({
           </div>
         </div>
 
-        <div
-          className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''} ${
-            visiblePins.length === 0 &&
-            !dropActive &&
-            !(draggingId && !isPinnedId(draggingId))
-              ? 'os-fav-grid--bare'
-              : ''
-          } ${visiblePins.length === 0 ? 'os-fav-grid--empty' : ''}`}
-          aria-label="Pinned agents"
-          data-fav-layout="2-up"
-          data-testid="agent-fav-grid"
-          data-fav-empty={visiblePins.length === 0 ? 'true' : 'false'}
-          onDragOver={(event) => {
-            event.preventDefault()
-            try {
-              event.dataTransfer.dropEffect = 'move'
-            } catch {
-              /* synthetic events may omit dataTransfer */
-            }
-            setDropActive(true)
-          }}
-          onDragLeave={() => setDropActive(false)}
-          onDrop={dropPin}
-        >
-          {visiblePins.length === 0 ? (
-            <div className="os-fav-grid__hint" data-testid="fav-empty-hint">
-              {dropActive || (draggingId && !isPinnedId(draggingId)) ? 'drop' : '+'}
-            </div>
-          ) : null}
+        <div className="os-fav-section" data-testid="fav-section">
+          <div
+            className={`os-fav-grid ${dropActive ? 'os-fav-grid--active' : ''} ${
+              visiblePins.length === 0 &&
+              !dropActive &&
+              !(draggingId && !isPinnedId(draggingId))
+                ? 'os-fav-grid--bare'
+                : ''
+            } ${visiblePins.length === 0 ? 'os-fav-grid--empty' : ''}`}
+            aria-label="Pinned agents"
+            data-fav-layout="2-up"
+            data-testid="agent-fav-grid"
+            data-fav-empty={visiblePins.length === 0 ? 'true' : 'false'}
+            onDragOver={(event) => {
+              event.preventDefault()
+              try {
+                event.dataTransfer.dropEffect = 'move'
+              } catch {
+                /* synthetic events may omit dataTransfer */
+              }
+              setDropActive(true)
+            }}
+            onDragLeave={() => setDropActive(false)}
+            onDrop={dropPin}
+          >
+            {visiblePins.length === 0 ? (
+              <div
+                className="os-fav-grid__hint cursor-pointer"
+                data-testid="fav-empty-hint"
+                onClick={() => setAddWizardOpen(true)}
+              >
+                {dropActive || (draggingId && !isPinnedId(draggingId)) ? 'drop' : '+'}
+              </div>
+            ) : null}
           {visiblePins.map((pin, pinIdx) => {
             const live = agents.find((agent) => agent.id === pin.id)
             const pinName = live ? agentLabel(live) : pin.name || pin.id
@@ -1379,6 +1398,17 @@ export default function AgentSidebar({
               </Link>
             )
           })}
+          </div>
+          <button
+            type="button"
+            className="os-fav-add-btn"
+            aria-label="Add agent"
+            title="Add agent"
+            data-testid="add-agent-button"
+            onClick={() => setAddWizardOpen(true)}
+          >
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
@@ -1696,6 +1726,11 @@ export default function AgentSidebar({
           </button>
         </div>
       )}
+      <AddAgentWizard
+        isOpen={addWizardOpen}
+        onClose={() => setAddWizardOpen(false)}
+        onCreated={handleAgentCreated}
+      />
     </>
   )
 }

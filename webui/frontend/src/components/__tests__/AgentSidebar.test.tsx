@@ -718,6 +718,22 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedRailOrder()).not.toContain('codey')
   })
 
+  it('REQ-109: displays + button beside favourites and opens Add agent wizard', async () => {
+    renderSidebar()
+    const addBtn = await screen.findByRole('button', { name: 'Add agent' })
+    expect(addBtn).toBeInTheDocument()
+    expect(addBtn).toHaveAttribute('data-testid', 'add-agent-button')
+
+    // Click + button to open wizard
+    fireEvent.click(addBtn)
+
+    expect(await screen.findByTestId('add-agent-wizard')).toBeInTheDocument()
+    expect(screen.getByText('Add Agent')).toBeInTheDocument()
+    expect(screen.getByTestId('kind-option-cli')).toBeInTheDocument()
+    expect(screen.getByTestId('kind-option-api')).toBeInTheDocument()
+    expect(screen.getByTestId('kind-option-remote')).toBeInTheDocument()
+  })
+
   it('keeps a scale-out agent as one stacked row and opens a session picker', async () => {
     const running: AgentSession[] = [1, 2, 3, 4].map((n) => ({
       id: `run-${n}`,
