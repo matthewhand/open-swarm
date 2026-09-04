@@ -3,8 +3,9 @@
  *
  * REQ-94: pin is a move, not a copy. The rail list excludes these ids so
  * an agent is never listed in both the favourite grid and the rows below.
- * Unpin restores the row (rail order is unchanged). IDs live in
- * localStorage so a reload keeps the unlabeled tile grid and the exclusion.
+ * Unpin restores the row (rail order is unchanged). IDs cache in localStorage.
+ * REQ-144 also persists the ordered list on GET/PATCH /v1/preferences/
+ * (server wins after a one-time local import).
  */
 
 export const PINNED_AGENTS_STORAGE_KEY = 'swarm_pinned_agents'

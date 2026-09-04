@@ -67,6 +67,7 @@ import {
   unpinAgent,
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
+import { hydrateRailPrefs, saveUserPrefs } from '../lib/userPrefs'
 import {
   loadAllAgentSessions,
   SCALE_OUT_SESSIONS_EVENT,
@@ -255,6 +256,16 @@ export default function AgentSidebar({
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const hideDropDepth = useRef(0)
+  const prefsHydrated = useRef(false)
+  const skipPrefsSave = useRef(true)
+  const [prefsReady, setPrefsReady] = useState(false)
+  const [tipsDismissed, setTipsDismissed] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('swarm_keybinding_tips_dismissed'))
+    } catch {
+      return false
+    }
+  })
   const isMac = isMacPlatform()
   const searchShortcut = searchShortcutLabel()
   const [addWizardOpen, setAddWizardOpen] = useState(false)
@@ -450,6 +461,37 @@ export default function AgentSidebar({
     if (hiddenIds !== null || blueprintsQuery.isPending) return
     setHiddenIds(loadOrSeedHiddenAgentIds(agents))
   }, [hiddenIds, blueprintsQuery.isPending, agents])
+
+  useEffect(() => {
+    if (prefsHydrated.current || blueprintsQuery.isPending) return
+    let cancelled = false
+    void hydrateRailPrefs(agents).then((next) => {
+      if (cancelled) return
+      prefsHydrated.current = true
+      skipPrefsSave.current = true
+      setPins(next.pins)
+      setHiddenIds(next.hidden)
+      setPrefsReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [blueprintsQuery.isPending, agents])
+
+  useEffect(() => {
+    if (!prefsReady) return
+    if (skipPrefsSave.current) {
+      skipPrefsSave.current = false
+      return
+    }
+    const handle = window.setTimeout(() => {
+      void saveUserPrefs({
+        favourites: pins,
+        hidden_agents: resolvedHiddenIds,
+      })
+    }, 300)
+    return () => window.clearTimeout(handle)
+  }, [pins, resolvedHiddenIds, prefsReady])
 
   useEffect(() => {
     const onSettings = () => setSettingsTick((n) => n + 1)

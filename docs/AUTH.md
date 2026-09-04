@@ -90,6 +90,18 @@ Anonymous websocket connects are **accept-then-close** with code **4401** (`WS_A
 
 Login: `/login/` and `/accounts/login/` → `custom_login`. POST is **not** CSRF-exempt; `next` is open-redirect hardened (rooted relative paths only).
 
+### UI preferences (REQ-144) — guest vs logged-in
+
+`GET`/`PATCH` `/v1/preferences/` stores **Favourites** (ordered `{id,name}` list) and **Hidden Bots** (agent ids) in a first-party `UserPreference` row (JSON bag + registry; no `django-dynamic-preferences` package). SQLite/Postgres; no Neon; no secrets in the bag.
+
+| Caller | Identity | Cross-browser |
+|---|---|---|
+| Form-login session (incl. LAN `swarm-anon-preview`) | `user:<username>` + FK to that User | Same account → same favourites/hidden set |
+| REST Bearer / `X-API-Key` | `token:<sha256-prefix>` (no User row) | Same token → same bag |
+| Unauthenticated guest | `session:<django-session-key>` | Same browser session only. A new browser without that cookie starts empty, then may **import-once** from `localStorage` if the server bag is still empty. Cross-device sync requires login. |
+
+SPA rail chrome loads prefs on session start and PATCHes on pin/hide (debounced). After the first successful server write, **server wins** over a stale local cache. Extra knobs (theme, …) can join the same `values` JSON later without a new table.
+
 ---
 
 ## 3. Bearer does **not** auth websockets
