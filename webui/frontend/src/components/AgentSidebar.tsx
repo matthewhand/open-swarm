@@ -1157,6 +1157,7 @@ export default function AgentSidebar({
           ) : visibleCount === 0 ? (
             <p className="px-2 py-3 text-sm text-base-content/45">No agents yet.</p>
           ) : (
+            <ul className="space-y-0.5">
               {orderedRows.map((row, index) => (
                 <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
                   {row.kind === 'team'

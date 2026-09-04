@@ -3,6 +3,7 @@ import {
   STACK_FACE_LIMIT,
   STACK_PULSE_MS,
   isAvatarStack,
+  parseStartedAt,
   selectStackedFaces,
   stackAnimationDelayMs,
   type StackFace,
@@ -34,5 +35,11 @@ describe('avatarStack', () => {
     expect(isAvatarStack(1, 0)).toBe(false)
     expect(isAvatarStack(2, 0)).toBe(true)
     expect(isAvatarStack(1, 1)).toBe(true)
+  })
+
+  it('parses startedAt from a number, ISO string, or fallback index', () => {
+    expect(parseStartedAt(1500, 9)).toBe(1500)
+    expect(parseStartedAt('2020-01-01T00:00:00.000Z', 9)).toBe(Date.parse('2020-01-01T00:00:00.000Z'))
+    expect(parseStartedAt(undefined, 4)).toBe(4)
   })
 })
