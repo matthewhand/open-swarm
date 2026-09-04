@@ -96,16 +96,21 @@ export function AgentMessageBubble({
     )
   }
 
+  const speaker = isUser ? 'You' : message.agent || agent?.name || 'Assistant'
+
   if (message.kind === 'review' && message.oversightRole) {
-    const meta = roleMeta(message.oversightRole)
+    const meta = roleMeta(message.oversightRole) || { label: message.oversightRole }
     return (
-      <div className={`flex gap-2 group ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`flex gap-2 group ${isUser ? 'justify-end' : 'justify-start'}`}
+        data-message-role={message.role}
+        aria-label={`${speaker} message`}
+      >
         {!isUser && agent && <AgentAvatar agent={agent} size={32} />}
         <div className="relative max-w-[80%]">
           <div className="rounded-sm border-l-4 border-primary bg-base-200 px-3.5 py-2 text-sm whitespace-pre-wrap">
             <div className="text-[11px] font-bold uppercase tracking-wider text-primary/80 mb-0.5">
               {meta.label}
-              {message.agent ? ` · ${message.agent}` : ''}
             </div>
             {message.text}
           </div>
@@ -216,7 +221,11 @@ export function AgentMessageBubble({
   }
 
   return (
-    <div className={`flex gap-2 group ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div
+      className={`flex gap-2 group ${isUser ? 'justify-end' : 'justify-start'}`}
+      data-message-role={message.role}
+      aria-label={`${speaker} message`}
+    >
       {!isUser && agent && <AgentAvatar agent={agent} size={32} />}
       <div className="relative max-w-[80%]">
         <div
@@ -224,9 +233,6 @@ export function AgentMessageBubble({
             isUser ? 'bg-primary text-primary-content whitespace-pre-wrap' : 'bg-base-200'
           }`}
         >
-          {!isUser && message.agent && (
-            <div className="text-[11px] font-semibold opacity-70 mb-0.5">{message.agent}</div>
-          )}
           {isUser ? (
             message.text
           ) : (
