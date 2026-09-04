@@ -466,7 +466,7 @@ html[data-theme="light"] #root {
 }
 .os-fav-tile__shortcut {
   position: absolute;
-  bottom: 0.2rem;
+  top: 0.25rem;
   right: 0.25rem;
   font-size: 0.6rem;
   font-weight: 600;
@@ -477,8 +477,10 @@ html[data-theme="light"] #root {
   opacity: 0;
   transition: opacity 0.15s ease-in-out;
   pointer-events: none;
+  z-index: 10;
 }
-.os-fav-tile:hover .os-fav-tile__shortcut {
+.os-fav-tile:hover .os-fav-tile__shortcut,
+.os-fav-tile:focus-within .os-fav-tile__shortcut {
   opacity: 1;
 }
 
