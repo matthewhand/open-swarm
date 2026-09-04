@@ -637,6 +637,22 @@ button.os-agent-row {
   overscroll-behavior: contain;
 }
 
+/* REQ-140: Navbar Edit icon hidden until hover on desktop; always visible on mobile/touch */
+.os-navbar-edit-btn {
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .os-chat-header__identity .os-navbar-edit-btn {
+    opacity: 0;
+  }
+  .os-chat-header__identity:hover .os-navbar-edit-btn,
+  .os-chat-header__identity:focus-within .os-navbar-edit-btn {
+    opacity: 1;
+  }
+}
+
 .os-rail-hostname-row {
   display: flex;
   align-items: center;
