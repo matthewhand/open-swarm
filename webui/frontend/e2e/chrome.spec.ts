@@ -43,11 +43,45 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ object: 'list', data: [] }),
     })
   })
+  await page.route('**/v1/llm-profiles**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'llm_profiles',
+        profiles: [],
+        default_llm_profile: 'default',
+        default_is_auto: true,
+        override_per_task: false,
+        task_llm_profiles: {},
+        auto_picks: { default: 'default' },
+        warnings: [],
+        routes: {},
+        task_classes: ['orchestration', 'auxiliary', 'delegation'],
+      }),
+    })
+  })
   await page.route('**/v1/teams**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ object: 'list', data: [] }),
+    })
+  })
+  await page.route('**/v1/remotes**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'list',
+        kinds: [
+          { id: 'hermes', label: 'Hermes' },
+          { id: 'omb', label: 'OpenMousBot' },
+          { id: 'rakazo', label: 'Rakazo' },
+        ],
+        configured: [],
+        data: [],
+      }),
     })
   })
   await page.route('**/health**', async (route) => {
@@ -68,7 +102,7 @@ test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ pa
   const rail = page.getByRole('navigation', { name: 'Agent list' })
   await expect(rail.getByRole('link', { name: /Support/ })).toBeVisible()
   await expect(rail.getByRole('link', { name: /Codey/ })).toBeVisible()
-  await expect(rail.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(rail.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(rail.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /2 hidden/i })).toBeVisible()
   await expect(page.getByLabel('Pinned agents')).toBeVisible()
@@ -122,13 +156,13 @@ test('left-rail Search opens the command palette overlay, not an in-place filter
   await expect(palette).toHaveCount(0)
 })
 
-test('legacy /agents lands on chat chrome with query', async ({ page }) => {
+test('/agents is Agent Router (not redirected to /chat)', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
-  await page.goto('/agents?blueprint=codey')
-  await expect(page).toHaveURL(/\/chat\/?\?blueprint=codey/)
-  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
+  await page.goto('/agents')
+  await expect(page).toHaveURL(/\/agents\/?$/)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
@@ -268,7 +302,7 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
 
   const list = page.getByRole('navigation', { name: 'Agent list' })
   await expect(list.getByRole('link', { name: /Support/ })).toBeVisible()
-  await expect(list.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
@@ -277,19 +311,21 @@ test('first load seeds Hidden with gate and skeptic; Unhide persists', async ({ 
   await page.getByRole('button', { name: /2 hidden/i }).click()
   const dialog = page.getByRole('dialog', { name: /Hidden agents/i })
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: /Unhide Gate/i }).click()
-  await expect(list.getByRole('link', { name: /Gate/ })).toBeVisible()
+  await dialog.getByRole('button', { name: /Unhide Safety/i }).click()
+  await expect(list.getByRole('link', { name: /Safety/ })).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_hidden_agents')))
     .toBe(JSON.stringify(['skeptic']))
 
   await page.reload()
-  await expect(list.getByRole('link', { name: /Gate/ })).toBeVisible()
+  await expect(list.getByRole('link', { name: /Safety/ })).toBeVisible()
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /1 hidden/i })).toBeVisible()
 })
 
-test('hover-edit on a role agent opens the modal-end Blueprint editor', async ({ page }) => {
+test('hover-edit opens an agent-scoped editor; Blueprint picker persists; Edit blueprint lands on the list', async ({
+  page,
+}) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
@@ -299,19 +335,33 @@ test('hover-edit on a role agent opens the modal-end Blueprint editor', async ({
   const support = list.getByRole('link', { name: /Support/ })
   await expect(support).toBeVisible()
   // REQ-26 seeds gate/skeptic as Hidden on first load; Support stays visible.
-  await expect(list.getByRole('link', { name: /Gate/ })).toHaveCount(0)
+  await expect(list.getByRole('link', { name: /Safety/ })).toHaveCount(0)
   await expect(list.getByRole('link', { name: /Skeptic/ })).toHaveCount(0)
 
   await support.hover()
-  const edit = page.getByRole('button', { name: 'Edit Support blueprint' })
+  const edit = page.getByRole('button', { name: 'Edit Support' })
   await expect(edit).toBeVisible()
   await edit.click()
 
+  const editor = page.getByRole('dialog', { name: /Edit / })
+  await expect(editor).toBeVisible()
+  await expect(editor).toHaveClass(/modal-end/)
+  await expect(editor.getByRole('button', { name: 'Remotes' })).toHaveCount(0)
+  await expect(editor.getByRole('button', { name: 'System' })).toHaveCount(0)
+  await expect(editor.getByRole('navigation', { name: 'Settings sections' })).toHaveCount(0)
+  const picker = editor.getByLabel('Blueprint')
+  await expect(picker).toBeVisible()
+  await picker.selectOption('codey')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_agent_edits')))
+    .toContain('"blueprintId":"codey"')
+
+  await editor.getByRole('button', { name: /Edit blueprint/ }).click()
   const sheet = page.getByRole('dialog', { name: 'Settings' })
   await expect(sheet).toBeVisible()
-  await expect(sheet).toHaveClass(/modal-end/)
-  await expect(sheet.getByRole('heading', { name: 'Blueprint' })).toBeVisible()
-  await expect(sheet.locator('.os-code-python')).toContainText('Socratic')
+  await expect(sheet.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Blueprints' })).toHaveClass(/menu-active/)
+  const blueprints = sheet.getByRole('listbox', { name: 'Blueprints' })
+  await expect(blueprints.getByRole('option', { name: 'Codey' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('dialog', { name: /Teams/i })).toHaveCount(0)
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

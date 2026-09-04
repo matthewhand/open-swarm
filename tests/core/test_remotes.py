@@ -52,6 +52,7 @@ def _cfg(host: str, port: int) -> dict:
             "hermes": {"base_url": base, "api_key": "hermes-secret"},
             "omb": {"base_url": base, "api_key": "omb-secret"},
             "rakazo": {"base_url": base, "api_key": "rkz", "cookie": "sid=abc"},
+            "swarm": {"base_url": base, "api_key": "CHANGE_ME"},
         },
     }
 
@@ -59,9 +60,13 @@ def _cfg(host: str, port: int) -> dict:
 def test_team_members_are_handoff_not_profile_aliases():
     members = remotes_core.list_team_members({"llm": {}, "remotes": {}})
     ids = {m["id"] for m in members}
-    assert ids == {"hermes", "omb", "rakazo"}
+    assert ids == {"hermes", "omb", "rakazo", "swarm"}
     assert all(m["via"] == "as_tool" for m in members)
-    assert all(m["placed"] is True for m in members)
+    placed = {m["id"]: m["placed"] for m in members}
+    assert placed["hermes"] is True
+    assert placed["omb"] is True
+    assert placed["rakazo"] is True
+    assert placed["swarm"] is False  # catalog only until explicitly placed
     assert "DynamicTeam" not in remotes_core.TEAM_VOCABULARY["team"]
     assert "/teams/" in remotes_core.TEAM_VOCABULARY["not_teams_page"]
 
@@ -97,6 +102,8 @@ def test_place_unplace_persist(tmp_path: Path, monkeypatch):
     assert members == []
     with pytest.raises(remotes_core.RemoteError):
         remotes_core.place_team_member("not-a-harness", config_path=cfg)
+    members, _ = remotes_core.place_team_member("swarm", config_path=cfg)
+    assert members == ["swarm"]
 
 
 def test_unknown_remote_raises():
@@ -108,6 +115,37 @@ def test_alias_openmausbot():
     spec = remotes_core.load_remote("openmausbot", {"llm": {}, "remotes": {}})
     assert spec.id == "omb"
     assert spec.base_url.endswith(":8802")
+    assert remotes_core.kind_label("omb") == "OpenMousBot"
+    assert remotes_core.kind_label("openmousbot") == "OpenMousBot"
+    assert remotes_core.load_remote("openmousbot", {"llm": {}, "remotes": {}}).id == "omb"
+    assert all(kind["label"] != "OMB" for kind in remotes_core.list_remote_kinds())
+    assert any(kind["id"] == "omb" and kind["label"] == "OpenMousBot" for kind in remotes_core.list_remote_kinds())
+
+
+def test_configured_catalog_starts_empty_then_add_and_remove(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    monkeypatch.delenv("HERMES_BASE_URL", raising=False)
+    monkeypatch.delenv("OMB_BASE_URL", raising=False)
+    monkeypatch.delenv("RAKAZO_BASE_URL", raising=False)
+    empty = remotes_core.list_configured_remotes({"llm": {}, "remotes": {}})
+    assert empty == []
+    spec, path = remotes_core.persist_remote(
+        "omb",
+        base_url="http://127.0.0.1:8802",
+        api_key="${API_KEY}",
+        config_path=cfg,
+    )
+    assert path == cfg
+    assert spec.id == "omb"
+    assert spec.public_dict()["label"] == "OpenMousBot"
+    listed = remotes_core.list_configured_remotes(json.loads(cfg.read_text(encoding="utf-8")))
+    assert [item.id for item in listed] == ["omb"]
+    rid, _ = remotes_core.delete_remote("omb", config_path=cfg)
+    assert rid == "omb"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert "omb" not in (data.get("remotes") or {})
+    assert remotes_core.list_configured_remotes(data) == []
 
 
 def test_alias_openmousbot_and_label():
@@ -310,3 +348,89 @@ def test_operate_unknown_op():
     result = remotes_core.operate("hermes", "explode", config={"remotes": {"hermes": {"base_url": "http://127.0.0.1:1"}}})
     assert result.ok is False
     assert "Unknown op" in result.detail
+
+
+def test_alias_open_swarm():
+    spec = remotes_core.load_remote("open-swarm", {"llm": {}, "remotes": {}})
+    assert spec.id == "swarm"
+    assert spec.base_url == "http://127.0.0.1:9"
+    assert spec.public_dict()["member"]["talk"] == "consult_swarm"
+
+
+def test_register_swarm_remote(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    monkeypatch.delenv("SWARM_REMOTE_BASE_URL", raising=False)
+    monkeypatch.delenv("SWARM_REMOTE_API_KEY", raising=False)
+    spec, path = remotes_core.persist_remote(
+        "swarm",
+        base_url="http://127.0.0.1:9",
+        api_key="${CHANGE_ME}",
+        config_path=cfg,
+    )
+    assert path == cfg
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["swarm"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["swarm"]["api_key"] == "${CHANGE_ME}"
+    assert spec.base_url == "http://127.0.0.1:9"
+    pub = spec.public_dict()
+    assert pub["api_key_set"] is False
+    assert "api_key" not in pub
+
+
+def test_refuse_self_listen_url_as_swarm_remote(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    monkeypatch.setenv("PORT", "8000")
+    monkeypatch.delenv("SWARM_LISTEN_URL", raising=False)
+    with pytest.raises(remotes_core.RemoteError, match="own remote"):
+        remotes_core.persist_remote(
+            "swarm",
+            base_url="http://127.0.0.1:8000",
+            api_key="${CHANGE_ME}",
+            config_path=cfg,
+        )
+    with pytest.raises(remotes_core.RemoteError, match="own remote"):
+        remotes_core.persist_remote(
+            "swarm",
+            base_url="http://localhost:8000/",
+            config_path=cfg,
+        )
+
+
+def test_swarm_list_and_send_stub_child(http_router):
+    host, port, router = http_router
+    router.routes = {
+        ("GET", "/v1/blueprints/"): (
+            200,
+            {"object": "list", "data": [{"id": "echo", "object": "blueprint", "name": "echo"}]},
+        ),
+        ("POST", "/v1/chat/completions/"): (
+            200,
+            {
+                "id": "chatcmpl-1",
+                "object": "chat.completion",
+                "choices": [{"message": {"role": "assistant", "content": "pong"}}],
+            },
+        ),
+    }
+    listed = remotes_core.operate("swarm", "list", config=_cfg(host, port))
+    assert listed.ok is True
+    assert listed.data["agents"][0]["id"] == "echo"
+    sent = remotes_core.operate(
+        "swarm", "send", prompt="ping", target="echo", config=_cfg(host, port)
+    )
+    assert sent.ok is True
+    assert sent.data["model"] == "echo"
+    assert sent.data["response"]["choices"][0]["message"]["content"] == "pong"
+
+
+def test_swarm_missing_child_is_clean_error():
+    spec_cfg = {"remotes": {"swarm": {"base_url": "http://127.0.0.1:9", "api_key": "CHANGE_ME"}}}
+    listed = remotes_core.operate("swarm", "list", config=spec_cfg, timeout=0.4)
+    assert listed.ok is False
+    assert listed.detail
+    assert "hang" not in listed.detail.lower()
+    health = remotes_core.check_health("swarm", config=spec_cfg, timeout=0.4)
+    assert health.ok is False
+    assert health.state == "DOWN"

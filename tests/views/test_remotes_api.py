@@ -27,42 +27,42 @@ def _spec(rid: str = "hermes") -> RemoteSpec:
 
 
 class TestRemotesList:
-    @patch("swarm.views.remotes_api.remotes_core.is_configured", return_value=True)
-    @patch("swarm.views.remotes_api.remotes_core.kind_catalog")
-    @patch("swarm.views.remotes_api.remotes_core.load_configured_remotes")
-    def test_list(self, mock_load, mock_kinds, _mock_cfg, api_client):
+    @patch("swarm.views.remotes_api.remotes_core.list_team_members")
+    @patch("swarm.views.remotes_api.remotes_core.list_configured_remotes")
+    @patch("swarm.views.remotes_api.remotes_core.load_all_remotes")
+    def test_list(self, mock_load, mock_configured, mock_members, api_client):
         mock_load.return_value = {"hermes": _spec()}
-        mock_kinds.return_value = [
-            {"id": "hermes", "label": "Hermes"},
-            {"id": "omb", "label": "OpenMousBot"},
-        ]
+        mock_configured.return_value = []
+        mock_members.return_value = [{"id": "hermes", "talk": "consult_hermes", "placed": False}]
         resp = api_client.get("/v1/remotes/")
         assert resp.status_code == 200
         data = resp.json()
         assert data["object"] == "list"
         assert data["data"][0]["id"] == "hermes"
         assert data["data"][0]["api_key_set"] is False
-        assert data["kinds"][1]["label"] == "OpenMousBot"
-        assert all(k.get("label") != "OMB" for k in data["kinds"])
+        assert data["configured"] == []
+        assert any(k["id"] == "omb" and k["label"] == "OpenMousBot" for k in data["kinds"])
+        assert all(k["label"] != "OMB" for k in data["kinds"])
         assert "team_members" in data
         assert data["vocabulary"]["not_teams_page"]
         assert any(m["talk"] == "consult_hermes" for m in data["team_members"])
 
-    @patch("swarm.views.remotes_api.remotes_core.add_remote")
-    def test_add_openmousbot(self, mock_add, api_client):
-        mock_add.return_value = (_spec("omb"), "/tmp/swarm_config.json")
+    @patch("swarm.views.remotes_api.remotes_core.persist_remote")
+    def test_create(self, mock_persist, api_client):
+        spec = _spec("omb")
+        spec.title = "OpenMousBot"
+        mock_persist.return_value = (spec, "/tmp/swarm_config.json")
         resp = api_client.post(
             "/v1/remotes/",
-            {"kind": "omb", "base_url": "http://127.0.0.1:9", "api_key_env": "OMB_API_KEY"},
+            {"kind": "omb", "base_url": "http://127.0.0.1:8802"},
             format="json",
         )
         assert resp.status_code == 201
-        mock_add.assert_called_once()
-        assert resp.json()["persisted_to"] == "/tmp/swarm_config.json"
-
-    def test_add_requires_kind(self, api_client):
-        resp = api_client.post("/v1/remotes/", {"base_url": "http://127.0.0.1:9"}, format="json")
-        assert resp.status_code == 400
+        mock_persist.assert_called_once()
+        body = resp.json()
+        assert body["id"] == "omb"
+        assert body["label"] == "OpenMousBot"
+        assert body["persisted_to"] == "/tmp/swarm_config.json"
 
 
 class TestRemoteDetail:
@@ -95,13 +95,33 @@ class TestRemoteDetail:
         resp = api_client.patch("/v1/remotes/hermes/", {}, format="json")
         assert resp.status_code == 400
 
-    @patch("swarm.views.remotes_api.remotes_core.remove_remote")
-    def test_delete(self, mock_remove, api_client):
-        mock_remove.return_value = ("omb", "/tmp/swarm_config.json")
+    @patch("swarm.views.remotes_api.remotes_core.delete_remote")
+    def test_delete(self, mock_delete, api_client):
+        mock_delete.return_value = ("omb", "/tmp/swarm_config.json")
         resp = api_client.delete("/v1/remotes/omb/")
         assert resp.status_code == 200
-        assert resp.json()["removed"] is True
-        mock_remove.assert_called_once()
+        assert resp.json()["deleted"] is True
+        mock_delete.assert_called_once()
+
+    @patch("swarm.views.remotes_api.remotes_core.delete_remote")
+    def test_delete_missing(self, mock_delete, api_client):
+        mock_delete.side_effect = RemoteError("Remote 'omb' is not configured")
+        resp = api_client.delete("/v1/remotes/omb/")
+        assert resp.status_code == 404
+
+    @patch("swarm.views.remotes_api.remotes_core.persist_remote")
+    def test_patch_swarm_refuses_self(self, mock_persist, api_client):
+        mock_persist.side_effect = RemoteError(
+            "Refusing to nest this server as its own remote "
+            "(base_url http://127.0.0.1:8000 matches this process listen URL)."
+        )
+        resp = api_client.patch(
+            "/v1/remotes/swarm/",
+            {"base_url": "http://127.0.0.1:8000", "api_key": "${CHANGE_ME}"},
+            format="json",
+        )
+        assert resp.status_code == 400
+        assert "own remote" in resp.json()["error"]
 
 
 class TestRemoteHealth:
@@ -130,6 +150,24 @@ class TestRemoteOperate:
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
         mock_op.assert_called_once()
+
+    @patch("swarm.views.remotes_api.remotes_core.operate")
+    def test_swarm_send(self, mock_op, api_client):
+        mock_op.return_value = OperateResult(
+            remote="swarm",
+            op="send",
+            ok=True,
+            detail="sent nested swarm turn",
+            data={"model": "echo"},
+        )
+        resp = api_client.post(
+            "/v1/remotes/swarm/operate/",
+            {"op": "send", "prompt": "ping", "target": "echo"},
+            format="json",
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+        assert resp.json()["remote"] == "swarm"
 
 
 class TestAgentTeam:

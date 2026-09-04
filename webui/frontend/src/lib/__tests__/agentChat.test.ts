@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_AGENT_ID,
+  activeTaskSessionCount,
   agentIdFromBlueprint,
   compactAgentThread,
   conversationIdForAgent,
+  conversationIdForTask,
   fetchAgentThread,
+  listTaskSessions,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -27,6 +30,20 @@ describe('conversationIdForAgent', () => {
     expect(first).toBe(second)
     expect(conversationIdForAgent('other')).not.toBe(first)
   })
+
+  it('reuses the stored id when new chat per task is off', () => {
+    const reused = conversationIdForTask('codey', { newChatPerTask: false })
+    expect(reused).toBe(conversationIdForAgent('codey'))
+  })
+
+  it('mints a new session per task when on, without sharing transcripts', () => {
+    const one = conversationIdForTask('worker', { newChatPerTask: true, taskId: 'alpha' })
+    const two = conversationIdForTask('worker', { newChatPerTask: true, taskId: 'beta' })
+    expect(one).not.toBe(two)
+    expect(one).not.toBe(conversationIdForAgent('worker'))
+    expect(listTaskSessions('worker')).toEqual(expect.arrayContaining([one, two]))
+    expect(activeTaskSessionCount('worker')).toBeGreaterThanOrEqual(2)
+  })
 })
 
 describe('fetchAgentThread', () => {
@@ -46,6 +63,7 @@ describe('fetchAgentThread', () => {
           conversation_id: 'agt-1-jeeves',
           messages: [
             { role: 'user', content: 'hi' },
+            { role: 'status', content: 'Started a new grok session.' },
             { role: 'assistant', content: 'hello' },
           ],
         }),
@@ -54,6 +72,7 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('jeeves')
     expect(thread.messages).toEqual([
       { role: 'user', content: 'hi' },
+      { role: 'status', content: 'Started a new grok session.' },
       { role: 'assistant', content: 'hello' },
     ])
     expect(thread.conversation_id).toBe('agt-1-jeeves')
@@ -87,6 +106,22 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('jeeves')
     expect(thread.summaries).toHaveLength(1)
     expect(thread.summaries[0].body).toBe('digest')
+  })
+
+  it('requests a specific conversation id for a scale-out session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        agent_id: 'codey',
+        conversation_id: 'sess-worker-2',
+        messages: [],
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const thread = await fetchAgentThread('codey', 'sess-worker-2')
+    expect(thread.conversation_id).toBe('sess-worker-2')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('conversation_id=sess-worker-2')
   })
 
   it('returns an empty thread when fetch fails', async () => {
