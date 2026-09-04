@@ -56,4 +56,29 @@ describe('railOrder persistence', () => {
       'codey',
     ])
   })
+
+  it('REQ-128: maintains stable relative order among ties and allows manual reorder override', () => {
+    const start = ['alpha', 'beta', 'gamma', 'delta']
+    // Gamma completes -> moves to index 0
+    const afterGamma = bumpRailIdToTop(start, 'gamma')
+    expect(afterGamma).toEqual(['gamma', 'alpha', 'beta', 'delta'])
+
+    // Beta completes next -> moves to index 0, gamma stays in front of alpha/delta
+    const afterBeta = bumpRailIdToTop(afterGamma, 'beta')
+    expect(afterBeta).toEqual(['beta', 'gamma', 'alpha', 'delta'])
+
+    // Re-bumping beta is idempotent
+    expect(bumpRailIdToTop(afterBeta, 'beta')).toEqual(afterBeta)
+
+    // Empty or missing ID leaves order untouched
+    expect(bumpRailIdToTop(afterBeta, '')).toEqual(afterBeta)
+
+    // Manual drag reordering overrides rail order until next completion
+    const reordered = moveRailId(afterBeta, 'delta', 'beta')
+    expect(reordered).toEqual(['delta', 'beta', 'gamma', 'alpha'])
+
+    // Subsequent generation completion moves the completed agent back to index 0
+    const afterAlpha = bumpRailIdToTop(reordered, 'alpha')
+    expect(afterAlpha).toEqual(['alpha', 'delta', 'beta', 'gamma'])
+  })
 })

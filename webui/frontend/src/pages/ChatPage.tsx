@@ -65,7 +65,7 @@ import {
   teamHideId,
   teamThreadId,
 } from '../lib/teamRosters'
-import { fetchConfiguredRemotes } from '../lib/remotesCatalog'
+import { fetchConfiguredRemotes, remoteHideId } from '../lib/remotesCatalog'
 import {
   publishChatConnection,
   type ChatConnectionStatus,
@@ -136,6 +136,15 @@ const ChatPage = () => {
   const selectedBlueprint = teamFromUrl || remoteFromUrl
     ? ''
     : defaultBlueprintId(searchParams.get('blueprint'))
+  const activeChatAgentId = useMemo(
+    () =>
+      teamFromUrl
+        ? teamHideId(teamFromUrl)
+        : remoteFromUrl
+        ? remoteHideId(remoteFromUrl)
+        : selectedBlueprint,
+    [teamFromUrl, remoteFromUrl, selectedBlueprint],
+  )
   const [newChatPerTask, setNewChatPerTask] = useState(() =>
     teamFromUrl || remoteFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
   )
@@ -537,10 +546,12 @@ const ChatPage = () => {
         return { ...prev, [threadKey]: next }
       })
       if (event.kind === 'assistant_final') {
-        notifyGenerationComplete(teamFromUrl ? teamHideId(teamFromUrl) : selectedBlueprint)
+        if (activeChatAgentId) {
+          notifyGenerationComplete(activeChatAgentId)
+        }
       }
     },
-    [attachToolToThread, selectedBlueprint, sendToolDecision, teamFromUrl, threadKey],
+    [activeChatAgentId, attachToolToThread, sendToolDecision, threadKey],
   )
 
   useEffect(() => {
@@ -589,6 +600,14 @@ const ChatPage = () => {
       const rejected = event.code === WS_AUTH_REQUIRED_CODE
       setAuthRejected(rejected)
       setStatus(opened ? 'closed' : 'failed')
+      setThreads((prev) => {
+        const current = prev[threadKey]
+        if (!current || !current.some((m) => m.streaming)) return prev
+        return {
+          ...prev,
+          [threadKey]: current.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
+        }
+      })
 
       const attempt = backoffAttemptRef.current
       if (shouldAutoReconnect(event.code, intentionalCloseRef.current, attempt)) {
@@ -817,6 +836,17 @@ const ChatPage = () => {
   }, [plusOpen])
 
   const streamingMessage = messages.find((message) => message.streaming)
+  const wasStreamingRef = useRef(false)
+  useEffect(() => {
+    if (streamingMessage) {
+      wasStreamingRef.current = true
+    } else if (wasStreamingRef.current) {
+      wasStreamingRef.current = false
+      if (activeChatAgentId) {
+        notifyGenerationComplete(activeChatAgentId)
+      }
+    }
+  }, [streamingMessage, activeChatAgentId])
   useEffect(() => {
     if (!streamingMessage) {
       streamStartedAtRef.current = null

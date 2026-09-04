@@ -698,6 +698,26 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedRailOrder()).toEqual([])
   })
 
+  it('REQ-128: does not duplicate favourite agents into the list when generation finishes', async () => {
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([{ id: 'codey', name: 'Codey' }]),
+    )
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const grid = screen.getByLabelText('Pinned agents')
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+
+    // Fire generation complete for the pinned favourite agent
+    fireEvent(window, new CustomEvent(GENERATION_COMPLETE_EVENT, { detail: { agentId: 'codey' } }))
+
+    // Favourites stay unchanged in the pin grid, not duplicated into the list
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(storedRailOrder()).not.toContain('codey')
+  })
+
   it('keeps a scale-out agent as one stacked row and opens a session picker', async () => {
     const running: AgentSession[] = [1, 2, 3, 4].map((n) => ({
       id: `run-${n}`,
