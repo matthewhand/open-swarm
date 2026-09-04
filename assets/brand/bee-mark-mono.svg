@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Open Swarm bee">
+  <!--
+    Mono master. Same silhouette as bee-mark.svg. fill="currentColor"
+    (defaults to black) so the mark inherits UI colour, including DaisyUI
+    dark rail #111111 when currentColor is light.
+  -->
+  <title>Open Swarm bee</title>
+  <g fill="currentColor" stroke="currentColor">
+    <!-- Wings as solid lobes (hollow outlines vanish at 16px) -->
+    <ellipse cx="24" cy="20.5" rx="17" ry="10.5" transform="rotate(-32 24 20.5)" stroke-width="2.4"/>
+    <ellipse cx="36" cy="17" rx="14" ry="8.5" transform="rotate(-16 36 17)" stroke-width="2.4"/>
+
+    <g fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 45 L10 54"/>
+      <path d="M20 47 L18 55"/>
+      <path d="M28 47 L30 55"/>
+      <path d="M36 45 L42 53"/>
+    </g>
+
+    <ellipse cx="22.5" cy="38" rx="16.5" ry="11" stroke-width="2.5"/>
+    <path d="M6.2 38 L11.4 34.6 V41.4 Z" stroke="none"/>
+    <ellipse cx="40" cy="36.5" rx="9.2" ry="8.4" stroke-width="2.5"/>
+    <circle cx="51.2" cy="35.2" r="6.6" stroke="none"/>
+
+    <g fill="none" stroke-width="2.5" stroke-linecap="round">
+      <path d="M53 29.4 Q58 22 62 18.5"/>
+      <path d="M50.6 29 Q53.5 20.5 57.5 15.5"/>
+    </g>
+    <circle cx="62" cy="18.5" r="1.7" stroke="none"/>
+    <circle cx="57.5" cy="15.5" r="1.7" stroke="none"/>
+  </g>
+</svg>

@@ -64,6 +64,33 @@ def _safe_post_login_redirect(request, next_url: str | None) -> str:
     return candidate
 
 
+# REQ-106: root browser/PWA icon files live in assets/brand/ (not dist/).
+BRAND_ROOT_FILES = {
+    "favicon.ico": "image/x-icon",
+    "favicon-16.png": "image/png",
+    "favicon-32.png": "image/png",
+    "apple-touch-icon.png": "image/png",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+    "manifest.json": "application/manifest+json",
+}
+
+
+def brand_dir() -> Path:
+    return Path(settings.BASE_DIR).parent / "assets" / "brand"
+
+
+def brand_root_file(request, filename: str):
+    """Serve a checked-in brand raster at a well-known root URL (no collectstatic)."""
+    ctype = BRAND_ROOT_FILES.get(filename)
+    if not ctype:
+        return HttpResponse("Not Found", status=404)
+    path = brand_dir() / filename
+    if not path.is_file():
+        return HttpResponse("Not Found", status=404)
+    return asgi_file_response(path, ctype)
+
+
 def asgi_file_response(path: Path, content_type: str) -> HttpResponse:
     """Buffer a file into HttpResponse.
 
