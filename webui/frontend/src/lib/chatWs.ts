@@ -48,6 +48,13 @@ export type ChatWsEvent =
       agentId?: string
     }
   | { kind: 'status'; text: string }
+  | {
+      kind: 'interbot_hop'
+      id: string
+      agentId: string
+      name: string
+      pending: boolean
+    }
   | { kind: 'unknown'; raw: string }
 
 const OOB_CHUNK_PREFIX = 'beforeend:#'
@@ -98,6 +105,16 @@ export function newConversationId(): string {
     return crypto.randomUUID()
   } catch {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  }
+}
+
+function parseInterbotHop(el: Element): ChatWsEvent {
+  return {
+    kind: 'interbot_hop',
+    id: el.id,
+    agentId: el.getAttribute('data-agent-id') ?? '',
+    name: el.getAttribute('data-agent-name') ?? '',
+    pending: el.getAttribute('data-pending') === 'true',
   }
 }
 
@@ -172,10 +189,17 @@ export function parseChatWsMessage(raw: string): ChatWsEvent {
     if (child?.classList.contains('chat-status-line')) {
       return { kind: 'status', text: (child.textContent ?? '').trim() }
     }
+    if (child?.classList.contains('os-interbot-hop')) {
+      return parseInterbotHop(child)
+    }
     if (child?.id.startsWith(ASSISTANT_ID_PREFIX)) {
       return { kind: 'assistant_start', id: child.id }
     }
     return { kind: 'unknown', raw }
+  }
+
+  if (root.classList.contains('os-interbot-hop')) {
+    return parseInterbotHop(root)
   }
 
   // 4. Final replacement of the assistant message container.

@@ -12,6 +12,12 @@ import os
 from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as fusion
+from swarm.blueprints.common.support_blueprint import (
+    CLICK_BUBBLE_TO_EDIT,
+    resolve_session_kind,
+    support_turn_context,
+    support_turn_reply,
+)
 from swarm.core.blueprint_base import BlueprintBase
 from swarm.core.support_context import (
     create_paths_markdown,
@@ -151,7 +157,17 @@ class SupportBlueprint(BlueprintBase):
         "env_vars": [],
     }
 
-    def create_starting_agent(self, mcp_servers=None):
+    def set_params(self, params: dict[str, Any] | None) -> None:
+        self._params = dict(params or {})
+
+    def system_prompt(self, messages: list[dict[str, Any]] | None = None) -> str:
+        """Skill-injected system/prompt for this turn (includes the fixture)."""
+        params = getattr(self, "_params", {}) or {}
+        session_kind = resolve_session_kind(params, messages)
+        live = model_context_block(live_context())
+        return support_turn_context(session_kind, live)
+
+    def create_starting_agent(self, mcp_servers=None):  # noqa: ARG002
         """Coordinator + as_tool specialists (no Grok/OMB/Rakazo seats)."""
         try:
             from agents import Agent
@@ -198,7 +214,9 @@ class SupportBlueprint(BlueprintBase):
             logger.debug("Support as_tool wiring skipped: %s", exc)
         return coordinator
 
-    def _deterministic_reply(self, user_text: str) -> str:
+    def _deterministic_reply(self, user_text: str, session_kind: str = "api") -> str:
+        if session_kind in ("cli", "remote"):
+            return support_turn_reply(None, session_kind)
         if not user_text:
             return create_paths_markdown()
         lowered = user_text.lower()
@@ -209,15 +227,18 @@ class SupportBlueprint(BlueprintBase):
         return "\n".join(parts)
 
     async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> Any:
+        params = getattr(self, "_params", {}) or {}
+        session_kind = resolve_session_kind(params, messages)
         user_text = fusion.render_prompt(messages).strip()
         # Chat-load / empty turn and test mode never hit a live model.
         if os.environ.get("SWARM_TEST_MODE") or not user_text:
-            yield fusion.message_chunk(self._deterministic_reply(user_text), final=True)
+            yield fusion.message_chunk(
+                self._deterministic_reply(user_text, session_kind), final=True
+            )
             return
 
-        ctx = live_context()
         injected = [
-            {"role": "system", "content": model_context_block(ctx)},
+            {"role": "system", "content": self.system_prompt(messages)},
             *list(messages or []),
         ]
         try:
@@ -226,8 +247,11 @@ class SupportBlueprint(BlueprintBase):
             agent = self.create_starting_agent(kwargs.get("mcp_servers") or [])
             result = await Runner.run(agent, fusion.render_prompt(injected))
             response = getattr(result, "final_output", None) or str(result)
-            yield fusion.message_chunk(str(response), final=True)
+            text = str(response)
+            if session_kind in ("cli", "remote") and CLICK_BUBBLE_TO_EDIT in text.lower():
+                text = support_turn_reply(messages, session_kind)
+            yield fusion.message_chunk(text, final=True)
         except Exception as exc:
             logger.warning("Support LLM path failed; falling back to welcome: %s", exc)
-            fallback = self._deterministic_reply(user_text)
+            fallback = self._deterministic_reply(user_text, session_kind)
             yield fusion.message_chunk(fallback, final=True)

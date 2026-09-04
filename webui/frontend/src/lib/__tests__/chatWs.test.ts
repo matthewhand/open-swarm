@@ -38,6 +38,18 @@ describe('buildChatWsFrame', () => {
     expect(buildChatWsFrame('hi', undefined)).toBe('{"message":"hi"}')
   })
 
+  it('includes Support skill extras in params', () => {
+    expect(
+      JSON.parse(
+        buildChatWsFrame('hi', 'support', { skill: 'support-session-ownership' }),
+      ),
+    ).toEqual({
+      message: 'hi',
+      blueprint: 'support',
+      params: { skill: 'support-session-ownership' },
+    })
+  })
+
   it('includes team send-to-all / member params on the send path', () => {
     expect(
       JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'all' })),
