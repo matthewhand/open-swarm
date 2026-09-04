@@ -42,12 +42,12 @@ def test_django_sidebar_styles_roles_not_diamonds():
 
 
 def test_spa_role_looks_are_distinct():
+    """REQ-67: role colour lives on the badge; briefing chips live on the pill."""
     css = SPA_CSS.read_text(encoding="utf-8")
-    assert ".os-agent-row--support" in css
-    assert ".os-agent-row--gate" in css
-    assert ".os-agent-row--skeptic" in css
+    assert ".os-agent-role-badge" in css
     assert ".os-code-python" in css
-    assert ".os-handoff-chip" in css
-    assert ".os-handoff-chip--system" in css
-    assert ".os-briefing-popover" in css
-    assert ".os-support-chips" in css
+    pill = (REPO / "webui" / "frontend" / "src" / "components" / "SupportBriefingPill.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "os-handoff-chip" in pill
+    assert "os-handoff-chip--system" in pill

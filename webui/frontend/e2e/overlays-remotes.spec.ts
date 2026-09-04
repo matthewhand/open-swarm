@@ -29,10 +29,10 @@ const REMOTE_ROSTER = {
       id: 'harness-team',
       object: 'team_roster',
       name: 'Harness Team',
-      description: 'Hermes / OMB / Rakazo as Team members (PR #318)',
+      description: 'Hermes / OpenMousBot / Rakazo as Team members (PR #318)',
       members: [
         { id: 'hermes', name: 'Hermes', kind: 'remote', role: 'default' },
-        { id: 'omb', name: 'OMB', kind: 'remote', role: 'default' },
+        { id: 'omb', name: 'OpenMousBot', kind: 'remote', role: 'default' },
         { id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' },
       ],
     },
@@ -93,9 +93,9 @@ async function stubChromeApis(page: import('@playwright/test').Page) {
   await page.route('**/v1/remotes**', async (route) => {
     remotesHits.push(route.request().url())
     await route.fulfill({
-      status: 599,
+      status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ error: 'REQ-72 tests must not hit remotes' }),
+      body: JSON.stringify({ object: 'list', kinds: [], configured: [], data: [] }),
     })
   })
   return remotesHits
@@ -142,23 +142,19 @@ test('settings / search / plugins overlays keep chat mounted (REQ-72 / #364 / #3
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
-test('settings remotes panes stay placeholders and never fetch /v1/remotes (PR #320 / #318)', async ({
+test('settings remotes are opt-in; chat stays mounted (REQ-59 / REQ-48)', async ({
   page,
 }) => {
-  const remotesHits = await stubChromeApis(page)
+  await stubChromeApis(page)
   await page.goto('/chat')
   await page.getByRole('button', { name: 'Open settings' }).click()
   const sheet = page.getByRole('dialog', { name: 'Settings' })
   await expect(sheet).toBeVisible()
-
-  for (const label of ['Hermes', 'OMB', 'Rakazo'] as const) {
-    await sheet.getByRole('button', { name: label }).click()
-    await expect(sheet.getByRole('heading', { name: label })).toBeVisible()
-    await expect(sheet).toContainText(`${label} is a placeholder remote`)
-    await expect(sheet).toContainText(/remotes API has not landed/i)
-  }
-
-  expect(remotesHits, 'settings remotes panes must not call /v1/remotes').toEqual([])
+  await sheet.getByRole('button', { name: 'Remotes' }).click()
+  await expect(sheet.getByRole('button', { name: /Add remote/i })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'Hermes' })).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: 'OMB' })).toHaveCount(0)
+  await expect(sheet.getByText(/placeholder remote/i)).toHaveCount(0)
   await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
 })
 
@@ -183,7 +179,7 @@ test('Search Bots tab lists agents; Actions stay operator links (REQ-17 / #322)'
   await expect(palette.getByRole('option', { name: /Settings/ })).toBeVisible()
 })
 
-test('team dropdown lists Hermes/OMB/Rakazo as kind=remote members (PR #318 / REQ-23)', async ({
+test('team dropdown lists configured remotes as kind=remote members (PR #318 / REQ-23)', async ({
   page,
 }) => {
   await stubChromeApis(page)
@@ -197,7 +193,7 @@ test('team dropdown lists Hermes/OMB/Rakazo as kind=remote members (PR #318 / RE
   await expect(dropdown.locator('option')).toHaveText([
     'All members',
     'Hermes (remote/default)',
-    'OMB (remote/default)',
+    'OpenMousBot (remote/default)',
     'Rakazo (remote/default)',
     'Manage Teams',
   ])

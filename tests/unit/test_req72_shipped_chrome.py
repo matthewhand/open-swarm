@@ -28,14 +28,13 @@ def test_spa_mounts_overlays_as_siblings_of_chat_routes():
     assert "Navigate to=\"/settings\"" not in app
 
 
-def test_settings_remotes_panes_are_placeholders_not_live_lan():
-    """#320 / #318: Hermes / OMB / Rakazo settings panes do not call remotes."""
+def test_settings_remotes_are_opt_in_not_live_lan():
+    """REQ-59: remotes are opt-in; no default kind cards; no live LAN hosts in the sheet."""
     sheet = SETTINGS_SHEET.read_text(encoding="utf-8")
-    for label in ("Hermes", "OMB", "Rakazo"):
-        assert label in sheet
-    assert "placeholder remote" in sheet
-    assert "remotes API has not landed" in sheet
-    assert "/v1/remotes" not in sheet
+    assert "Add remote" in sheet
+    assert "placeholder remote" not in sheet
+    assert "remotes API has not landed" not in sheet
+    assert "label: 'OMB'" not in sheet
     assert ":8001" not in sheet
     assert "10.0.0.30" not in sheet
 
