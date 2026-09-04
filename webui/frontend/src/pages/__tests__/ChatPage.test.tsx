@@ -1002,11 +1002,67 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const notice = await screen.findByText('Started a new grok session.')
+    const notice = await screen.findByTestId('chat-status')
+    expect(notice).toHaveTextContent('Started a new grok session.')
     expect(notice).toHaveAttribute('data-role', 'status')
-    expect(notice.closest('.chat-start')).toBeNull()
-    expect(notice.closest('.chat-end')).toBeNull()
-    expect(notice.closest('.chat-bubble')).toBeNull()
+    expect(notice).toHaveClass('os-chat-status')
+    expect(notice.className).not.toMatch(/chat-start|chat-end/)
+    expect(notice.querySelector('.chat-bubble')).toBeNull()
+    expect(notice.querySelector('span')).toHaveTextContent('Started a new grok session.')
+    expect(screen.getByText('hello').closest('.chat-end')).toBeTruthy()
+    expect(screen.getByText('hi').closest('.chat-start')).toBeTruthy()
+  })
+
+  it('renders info and system thread rows as centred status chrome', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'agt-1-cli',
+              messages: [
+                { role: 'info', content: 'Connecting…' },
+                { role: 'system', content: 'Session ready.' },
+                { role: 'user', content: 'ping' },
+                { role: 'assistant', content: 'pong' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const lines = await screen.findAllByTestId('chat-status')
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toHaveTextContent('Connecting…')
+    expect(lines[1]).toHaveTextContent('Session ready.')
+    for (const line of lines) {
+      expect(line).toHaveClass('os-chat-status')
+      expect(line.className).not.toMatch(/chat-start|chat-end/)
+      expect(line.querySelector('.chat-bubble')).toBeNull()
+    }
+    expect(screen.getByText('ping').closest('.chat-end')).toBeTruthy()
+    expect(screen.getByText('pong').closest('.chat-start')).toBeTruthy()
   })
 })
 

@@ -6,8 +6,14 @@
  */
 
 export const STATUS_ROLE = 'status' as const
+export const INFO_ROLE = 'info' as const
+export const SYSTEM_ROLE = 'system' as const
 
-export type ChatTranscriptRole = 'user' | 'assistant' | typeof STATUS_ROLE
+/** Transcript roles that render as centred chrome, never a speaker bubble. */
+export const STATUS_CHROME_ROLES = [STATUS_ROLE, INFO_ROLE, SYSTEM_ROLE] as const
+export type StatusChromeRole = (typeof STATUS_CHROME_ROLES)[number]
+
+export type ChatTranscriptRole = 'user' | 'assistant' | StatusChromeRole
 
 export type DropdownKind = 'team' | 'cli' | 'model' | 'mode'
 
@@ -52,8 +58,15 @@ export function shouldRecordDropdownChange(from: string, to: string): boolean {
   return true
 }
 
-export function isStatusRole(role: string | undefined): boolean {
-  return role === STATUS_ROLE
+export function isStatusRole(role: string | undefined): role is StatusChromeRole {
+  return role === STATUS_ROLE || role === INFO_ROLE || role === SYSTEM_ROLE
+}
+
+/** Persist/render chrome lines as `status` so one presentation path covers the family. */
+export function asTranscriptRole(role: string | undefined): ChatTranscriptRole {
+  if (role === 'user' || role === 'assistant') return role
+  if (isStatusRole(role)) return STATUS_ROLE
+  return 'assistant'
 }
 
 export function modeLabel(mode: string): string {

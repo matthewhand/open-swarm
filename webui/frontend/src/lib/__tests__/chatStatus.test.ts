@@ -1,11 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   FALLBACK_CLIS,
+  INFO_ROLE,
   MANAGE_CLI_VALUE,
   MANAGE_MODEL_VALUE,
   MODE_CLI,
   MODE_REMOTE,
   STATUS_ROLE,
+  SYSTEM_ROLE,
+  asTranscriptRole,
   formatDropdownStatus,
   isCliAgentContext,
   isStatusRole,
@@ -50,6 +56,26 @@ describe('cli context helpers', () => {
     expect(modeLabel(MODE_REMOTE)).toBe('Remote')
     expect(modeLabel(MODE_CLI)).toBe('CLI')
     expect(isStatusRole(STATUS_ROLE)).toBe(true)
+    expect(isStatusRole(INFO_ROLE)).toBe(true)
+    expect(isStatusRole(SYSTEM_ROLE)).toBe(true)
     expect(isStatusRole('assistant')).toBe(false)
+    expect(asTranscriptRole('info')).toBe(STATUS_ROLE)
+    expect(asTranscriptRole('system')).toBe(STATUS_ROLE)
+    expect(asTranscriptRole('user')).toBe('user')
+  })
+})
+
+describe('os-chat-status chrome (REQ-143)', () => {
+  it('centres status lines across the chat pane without a leftover max-width trap', () => {
+    const cssPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../index.css')
+    const css = readFileSync(cssPath, 'utf8')
+    const blocks = [...css.matchAll(/\.os-chat-status\s*\{([^}]+)\}/g)].map((m) => m[1])
+    expect(blocks).toHaveLength(1)
+    const rule = blocks[0] ?? ''
+    expect(rule).toMatch(/display:\s*flex/)
+    expect(rule).toMatch(/justify-content:\s*center/)
+    expect(rule).toMatch(/text-align:\s*center/)
+    expect(rule).toMatch(/width:\s*100%/)
+    expect(rule).toMatch(/max-width:\s*none/)
   })
 })

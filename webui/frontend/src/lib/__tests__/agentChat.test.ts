@@ -79,6 +79,31 @@ describe('fetchAgentThread', () => {
     expect(thread.summaries).toEqual([])
   })
 
+  it('normalises info/system thread rows to status chrome', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'jeeves',
+          conversation_id: 'agt-1-jeeves',
+          messages: [
+            { role: 'info', content: 'Connecting…' },
+            { role: 'system', content: 'Session ready.' },
+            { role: 'user', content: 'hi' },
+          ],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('jeeves')
+    expect(thread.messages).toEqual([
+      { role: 'status', content: 'Connecting…' },
+      { role: 'status', content: 'Session ready.' },
+      { role: 'user', content: 'hi' },
+    ])
+  })
+
   it('returns summaries from the thread endpoint', async () => {
     vi.stubGlobal(
       'fetch',
