@@ -8,9 +8,9 @@
  * REQ-24: any conversation/agent row can be hidden, including role-assigned
  * seats (support, gate, skeptic). Hide is not exempt by role.
  *
- * Hide wins for the visible list. The rail also unpins favourite tiles when
- * an agent is hidden (removed from the list AND the pin grid). Unhide restores
- * the conversation row only — it does not re-pin.
+ * Hide wins for the visible list. A favourite tile leaves the pin grid while
+ * hidden, but the pin stays in `swarm_pinned_agents` so Unhide restores the
+ * same favourite slot. Never-favourited agents return to the list only.
  *
  * REQ-26: first visit (no `swarm_hidden_agents` key) seeds gate + skeptic.
  * An existing key — including `[]` after Unhide — is user customization.

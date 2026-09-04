@@ -169,6 +169,10 @@ function storedHidden(): string[] {
   return JSON.parse(localStorage.getItem(HIDDEN_AGENTS_STORAGE_KEY) || '[]')
 }
 
+function hiddenBotsButton(count: number) {
+  return screen.getByRole('button', { name: `Hidden Bots ${count} (${count} hidden)` })
+}
+
 function storedRailOrder(): string[] {
   return JSON.parse(localStorage.getItem(RAIL_ORDER_STORAGE_KEY) || '[]')
 }
@@ -272,7 +276,7 @@ describe('AgentSidebar Grok rail', () => {
     await waitFor(() => {
       expect(storedHidden()).toEqual(['gate', 'skeptic'])
     })
-    fireEvent.click(screen.getByRole('button', { name: /2 hidden/i }))
+    fireEvent.click(hiddenBotsButton(2))
     const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
     expect(within(dialog).getByText('Gate')).toBeInTheDocument()
     expect(within(dialog).getByText('Skeptic')).toBeInTheDocument()
@@ -314,14 +318,14 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'codey'])
     expect(screen.queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /3 hidden/i }))
+    fireEvent.click(hiddenBotsButton(3))
     const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
     fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
     await waitFor(() => {
       expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic'])
-    expect(screen.getByRole('button', { name: /2 hidden/i })).toBeInTheDocument()
+    expect(hiddenBotsButton(2)).toBeInTheDocument()
   })
 
   it('opens the agent-scoped editor from the context menu', async () => {
@@ -368,28 +372,66 @@ describe('AgentSidebar Grok rail', () => {
     expect(localStorage.getItem(HOSTNAME_STORAGE_KEY)).toBe('lab-box')
   })
 
-  it('always shows a Hidden drop zone, including when empty', async () => {
+  it('leaves the Hidden Bots area blank until something is hidden', async () => {
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     renderSidebar()
     await screen.findByRole('navigation', { name: 'Agent list' })
-    const zone = screen.getByRole('region', { name: 'Hidden' })
-    expect(zone).toHaveClass('os-drop-target')
-    expect(zone).toHaveTextContent(/drop here to hide/i)
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
+    expect(zone).toHaveAttribute('data-empty', 'true')
+    expect(zone).not.toHaveTextContent(/drop here to hide/i)
+    expect(zone).toHaveTextContent('')
+    expect(screen.queryByRole('button', { name: /Hidden Bots/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^\d+ hidden$/i })).not.toBeInTheDocument()
+  })
+
+  it('reveals a light empty drop target on drag-over and hides on drop', async () => {
+    localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
+    expect(zone).toHaveAttribute('data-empty', 'true')
+    expect(screen.queryByText(/drop here to hide/i)).not.toBeInTheDocument()
+
+    fireEvent.dragStart(codey, { dataTransfer: mockDataTransfer() })
+    fireEvent.dragOver(zone, { dataTransfer: mockDataTransfer() })
+    expect(zone).toHaveAttribute('data-drag-over', 'true')
+    expect(zone).toHaveClass('os-hidden-bots--active')
+    expect(screen.queryByText(/drop here to hide/i)).not.toBeInTheDocument()
+
+    dragTo(codey, zone)
+
+    await waitFor(() => {
+      expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    })
+    expect(storedHidden()).toEqual(['codey'])
+    expect(hiddenBotsButton(1)).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Hidden Bots' })).toHaveAttribute('data-empty', 'false')
+  })
+
+  it('shows Hidden Bots count and swaps to a chevron on hover', async () => {
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    const trigger = await screen.findByTestId('os-hidden-bots-button')
+    expect(trigger).toHaveAccessibleName(/Hidden Bots 2/)
+    expect(within(trigger).getByText('Hidden Bots')).toBeInTheDocument()
+    expect(within(trigger).getByTestId('os-hidden-bots-count')).toHaveTextContent('2')
+    fireEvent.mouseEnter(trigger)
+    expect(within(trigger).getByTestId('os-hidden-bots-tail')).toHaveTextContent('>')
+    fireEvent.mouseLeave(trigger)
+    expect(within(trigger).getByTestId('os-hidden-bots-count')).toHaveTextContent('2')
   })
 
   it('drags a support agent onto Hidden and persists the id', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const support = await within(list).findByRole('link', { name: /Support/ })
-    const zone = screen.getByRole('region', { name: 'Hidden' })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
 
     fireEvent.dragStart(support, { dataTransfer: mockDataTransfer() })
     expect(support).toHaveClass('os-agent-row--dragging')
     fireEvent.dragOver(zone, { dataTransfer: mockDataTransfer() })
     expect(zone).toHaveAttribute('data-drag-over', 'true')
-    expect(zone).toHaveClass('os-drop-target')
 
     dragTo(support, zone)
 
@@ -397,7 +439,7 @@ describe('AgentSidebar Grok rail', () => {
       expect(within(list).queryByRole('link', { name: /Support/ })).not.toBeInTheDocument()
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'support'])
-    expect(screen.getByRole('button', { name: /3 hidden/i })).toBeInTheDocument()
+    expect(hiddenBotsButton(3)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
   })
 
@@ -405,7 +447,7 @@ describe('AgentSidebar Grok rail', () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const codey = await within(list).findByRole('link', { name: /Codey/ })
-    const zone = screen.getByRole('region', { name: 'Hidden' })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
 
     dragTo(codey, zone)
 
@@ -415,22 +457,22 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'codey'])
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /3 hidden/i }))
+    fireEvent.click(hiddenBotsButton(3))
     const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
     fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
     await waitFor(() => {
       expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic'])
-    expect(screen.getByRole('button', { name: /2 hidden/i })).toBeInTheDocument()
+    expect(hiddenBotsButton(2)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
   })
 
-  it('hides role agents (gate, skeptic) via the Hidden drop zone', async () => {
+  it('hides role agents (gate, skeptic) via the empty Hidden Bots drop slot', async () => {
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
-    const zone = screen.getByRole('region', { name: 'Hidden' })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
 
     dragTo(await within(list).findByRole('link', { name: /Gate/ }), zone)
     dragTo(await within(list).findByRole('link', { name: /Skeptic/ }), zone)
@@ -440,6 +482,7 @@ describe('AgentSidebar Grok rail', () => {
       expect(within(list).queryByRole('link', { name: /Skeptic/ })).not.toBeInTheDocument()
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic'])
+    expect(hiddenBotsButton(2)).toBeInTheDocument()
   })
 
   it('no-ops when a row is dropped onto itself', async () => {
@@ -451,7 +494,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(storedHidden()).toEqual(['gate', 'skeptic'])
   })
 
-  it('removes a pinned favourite from the pin grid when hidden', async () => {
+  it('hides a pinned favourite from the grid but keeps the pin for Unhide', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const codey = await within(list).findByRole('link', { name: /Codey/ })
@@ -462,14 +505,69 @@ describe('AgentSidebar Grok rail', () => {
     expect(tile).toBeInTheDocument()
     expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
-    dragTo(tile, screen.getByRole('region', { name: 'Hidden' }))
+    dragTo(tile, screen.getByRole('region', { name: 'Hidden Bots' }))
 
     await waitFor(() => {
       expect(within(list).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
     })
     expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
-    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'codey', name: 'Codey' },
+    ])
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'codey'])
+  })
+
+  it('restores a favourite pin after hide then unhide, including after remount', async () => {
+    const first = renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Codey/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+    const grid = screen.getByLabelText('Pinned agents')
+    expect(within(grid).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+
+    fireEvent.contextMenu(within(grid).getByRole('link', { name: 'Codey' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Hide from sidebar/i }))
+    await waitFor(() => {
+      expect(within(grid).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    })
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'codey', name: 'Codey' },
+    ])
+
+    first.unmount()
+    renderSidebar()
+    const listAfter = await screen.findByRole('navigation', { name: 'Agent list' })
+    const gridAfter = screen.getByLabelText('Pinned agents')
+    const unhideTrigger = await screen.findByRole('button', {
+      name: 'Hidden Bots 3 (3 hidden)',
+    })
+    expect(within(gridAfter).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
+    expect(within(listAfter).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+
+    fireEvent.click(unhideTrigger)
+    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
+    await waitFor(() => {
+      expect(within(gridAfter).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
+    })
+    expect(within(listAfter).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
+      { id: 'codey', name: 'Codey' },
+    ])
+  })
+
+  it('does not pin on unhide when the agent was never favourited', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Codey/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Hide from sidebar/i }))
+    fireEvent.click(hiddenBotsButton(3))
+    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
+    await waitFor(() => {
+      expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
+    })
+    expect(within(screen.getByLabelText('Pinned agents')).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
   })
 
   it('lists persisted Herdr members (kind=herdr) so Teams/sidepane can pick them', async () => {
@@ -908,7 +1006,7 @@ describe('AgentSidebar teams', () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const team = await within(list).findByRole('link', { name: /Demo Team \(team\)/ })
-    const zone = screen.getByRole('region', { name: 'Hidden' })
+    const zone = screen.getByRole('region', { name: 'Hidden Bots' })
     dragTo(team, zone)
 
     await waitFor(() => {
@@ -916,7 +1014,7 @@ describe('AgentSidebar teams', () => {
     })
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'team:demo-team'])
 
-    fireEvent.click(screen.getByRole('button', { name: /3 hidden/i }))
+    fireEvent.click(hiddenBotsButton(3))
     const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
     expect(within(dialog).getByText('Demo Team')).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Demo Team/i }))
