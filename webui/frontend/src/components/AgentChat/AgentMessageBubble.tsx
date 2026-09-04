@@ -2,7 +2,17 @@ import { useState } from 'react'
 import { Check, Copy, FoldVertical, RotateCcw, ScrollText } from 'lucide-react'
 import type { Agent, ChatMessage } from '../../types/agent'
 import { AgentAvatar } from '../AgentSidebar/AgentAvatar'
+import { useToast } from '../DaisyUI'
 import { roleMeta } from '../../lib/agent-roles'
+import {
+  COPY_EMPTY_MESSAGE,
+  COPY_EMPTY_TITLE,
+  COPY_FAILED_MESSAGE,
+  COPY_FAILED_TITLE,
+  copyButtonLabel,
+  copyTextToClipboard,
+  messageHasCopyableText,
+} from '../../lib/clipboard'
 import { renderSafeMarkdown } from '../../lib/markdown'
 
 interface AgentMessageBubbleProps {
@@ -15,15 +25,6 @@ interface AgentMessageBubbleProps {
   onCompactToHere?: () => void
   onRegenerateSummary?: (steer: string) => void
   onResolveApproval?: (status: 'approved' | 'rejected') => void
-}
-
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    return false
-  }
 }
 
 export function AgentMessageBubble({
@@ -42,12 +43,21 @@ export function AgentMessageBubble({
   const [copied, setCopied] = useState(false)
   const [originalOpen, setOriginalOpen] = useState(false)
   const [steer, setSteer] = useState('')
+  const { error } = useToast()
+  const canCopy = messageHasCopyableText(message.text)
 
   const handleCopy = async () => {
-    const ok = await copyText(message.text)
-    if (!ok) return
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1500)
+    const result = await copyTextToClipboard(message.text)
+    if (result === 'copied') {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+      return
+    }
+    if (result === 'empty') {
+      error(COPY_EMPTY_TITLE, COPY_EMPTY_MESSAGE)
+      return
+    }
+    error(COPY_FAILED_TITLE, COPY_FAILED_MESSAGE)
   }
 
   if (message.kind === 'approval') {
@@ -103,8 +113,9 @@ export function AgentMessageBubble({
             <button
               type="button"
               className="btn btn-ghost btn-xs btn-circle"
-              aria-label={copied ? 'Copied' : 'Copy message'}
-              title="Copy to clipboard"
+              aria-label={copyButtonLabel(copied, canCopy)}
+              title={canCopy ? 'Copy to clipboard' : COPY_EMPTY_TITLE}
+              disabled={!canCopy}
               onClick={handleCopy}
             >
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -127,8 +138,11 @@ export function AgentMessageBubble({
               <button
                 type="button"
                 className="btn btn-ghost btn-xs btn-square"
-                aria-label={copied ? 'Copied' : 'Copy summary'}
-                title="Copy summary"
+                aria-label={
+                  !canCopy ? COPY_EMPTY_TITLE : copied ? 'Copied' : 'Copy summary'
+                }
+                title={canCopy ? 'Copy summary' : COPY_EMPTY_TITLE}
+                disabled={!canCopy}
                 onClick={handleCopy}
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -235,8 +249,9 @@ export function AgentMessageBubble({
           <button
             type="button"
             className="btn btn-ghost btn-xs btn-circle"
-            aria-label={copied ? 'Copied' : 'Copy message'}
-            title="Copy to clipboard"
+            aria-label={copyButtonLabel(copied, canCopy)}
+            title={canCopy ? 'Copy to clipboard' : COPY_EMPTY_TITLE}
+            disabled={!canCopy}
             onClick={handleCopy}
           >
             {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}

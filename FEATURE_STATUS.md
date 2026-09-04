@@ -77,6 +77,7 @@ Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts `/` + `/chat` as Grok-Bot 
 | Computer control chrome stub (REQ-27b) | 🔲 | SPA Grok chat header **Chat tools** toolbar (top-right): Monitor icon labeled **Computer control** opens a DaisyUI WIP modal (OpenMousBot/Rakazo remote later). Icon may look muted; stays clickable. No driver/E2B/CUA/xdotool/CDP; not attached to agent tools; no enable-that-drives-a-machine. `webui/frontend/src/components/ComputerControlStub.tsx`; tests in `ComputerControlStub.test.tsx`, `ChatPage.test.tsx`, `e2e/chrome.spec.ts`. |
 | Agent sidepane hide | ✅ | SPA `AgentSidebar` lists `/v1/blueprints` agents (Support first); first load seeds Hidden with gate + skeptic catalog ids (REQ-26) unless `localStorage.swarm_hidden_agents` already exists. Native HTML5 drag from any rail row — including role seats support/gate/skeptic — onto the end-of-list **Hidden** drop zone (`os-drop-target`, `data-drag-over`; empty state still shows “drop here to hide”). Persist `localStorage.swarm_hidden_agents` (no hide-all). Hide wins: the row leaves the conversation list **and** the favourite pin grid. Context-menu **Hide from sidebar** remains for a11y; **N hidden** popup is Unhide-only. Pin/Unpin + drag onto the favourite grid (`localStorage.swarm_pinned_agents`). |
 | Teams in AGENTS sidepane (REQ-23) | ✅ | Team rows mix with agents after Support (Users icon + Team badge). Click opens `/chat?team=<id>` as that team's thread. Unlabeled dropdown: **All members**, then `name (kind/role)`, last **Manage Teams**. Send params `{team, target: "all"\|memberId}`; consumer stubs the runtime. Data from `team_rosters.json` / `GET /v1/team-rosters/` — **not** Django LLM-alias `/v1/teams/`. Empty/missing → one demo-team stub. |
+| Stacked team/remote avatars (REQ-68) | ✅ | Shared `AvatarStack` + `SessionPicker` (`webui/frontend/src/components/AvatarStack.tsx`). Team and configured-remote rows show max 3 most-recent faces + remainder; every stacked face is animated with `started_at` stagger. OpenMousBot label, not OMB. Single-agent remote is one avatar. Click opens a search-palette picker filtered to that group. GET `/v1/remotes/` list only (no health/operate / live LAN). #394 should reuse the widget. Tests: `avatarStack.test.ts`, `AgentSidebar.test.tsx`. |
 | TeamsPage / BlueprintsPage / SettingsPage | 🗑 deleted | Deleted from the SPA tree (ADR-001). Canonical UI: `/teams/launch/`, `/blueprint-library/`, `/settings/`. Bare paths redirect to Django; SPA `*` → `/`. |
 | BuilderPage / AgentCreatorPage | 🗑 deleted | Removed (same cut). Do not remount. Canonical creator UI is Django `/agent-creator/`. |
 | Orphan Builder React panels | 🗑 deleted | Inference/Skills/Trait/ToolCapabilities/BlueprintToolsBadges/CodeViewer/ApiAccess/ConfigSnippet/InfoTip + unused AuthContext removed; `@uiw/react-codemirror` deps dropped. Pure helpers remain in `src/lib/{inferenceProfile,skills,toolCapabilities}.ts`. |
@@ -171,18 +172,20 @@ deferred to the release PR.
 
 ## 11b. Remote harnesses (Hermes / OMB / Rakazo / swarm) — ✅ config+health · 🟡 operate
 
-Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone.
+Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; not a concurrent Grok/OMB/Rakazo seat clone. Catalog is **opt-in** (REQ-59/61): Settings shows no kind cards until + Add remote.
 
 | Feature | Status | Evidence |
 |---|---|---|
-| Persist base URL + auth | ✅ | `swarm.core.remotes.persist_remote`; `swarm-cli remotes set`; `PATCH /v1/remotes/<id>/`; Settings group **Remote Harnesses** |
-| Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops |
-| Hermes operate | ✅ | `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`, `POST /v1/runs` (Bearer `API_SERVER_KEY`) |
+| Opt-in catalog | ✅ | `load_added_remotes`; `GET /v1/remotes/` `data: []` until add; Settings empty + **Add remote**; unused kinds are not default cards |
+| Persist base URL + api-key-env name | ✅ | `add_remote` / `persist_remote`; `POST /v1/remotes/`; `swarm-cli remotes set --api-key-env`; never persist a live token |
+| Health/version per remote | ✅ | `check_health` — TCP + HTTP, one shot, honest DOWN; `POST /v1/remotes/<id>/health/` never crash-loops; missing remote is 404 / not probed |
+| Hermes kind complete (REQ-61) | ✅ | After add, Settings health / list / send. List: `GET /v1/models`, `GET /api/sessions`, `GET /api/jobs`. Send: `POST /v1/runs` `{"input":…}` |
 | OMB operate | ✅ | `GET /api/health`, `GET /api/bots`, `POST /api/bots/{id}/messages` (HTTP only; no OMB source clone) |
 | Rakazo operate | 🟡 | `GET /health` public; `POST /rpc/bots/list` + `/rpc/threads/send` need Better Auth session — honest 401 + gap flag |
 | Nested swarm operate (REQ-57) | ✅ | Catalog id `swarm` (alias `open-swarm`). List `GET /v1/blueprints/`; send `POST /v1/chat/completions/`. Default stub `http://127.0.0.1:9`. `persist_remote` refuses this process listen URL. Not auto-placed. |
 | Agent-as-tool Team members | ✅ | Remotes are Team members (`consult_hermes`/`consult_omb`/`consult_rakazo`/`consult_swarm`) that see/talk via as_tool — **not** `/teams/` LLM-profile aliases. `GET /v1/remotes/` returns `vocabulary` + `team_members` |
 | Place remotes in a Team | ✅ | Persist `agent_team.members`; `swarm-cli remotes team\|place\|unplace`; `GET/PATCH /v1/agent-team/`; `remote_harness` attaches `as_tool` only for **placed** members |
+| Herdr remotes kind (REQ-64) | ✅ | Opt-in `kind=herdr` — add base URL + api-key-env; appears in Settings Remotes after add. No baked LAN host. CLI `--remote` uses configured base (localhost omits flag only when user set loopback). Health `GET /health` + list `GET /agents` stubbed in tests. Missing config is a clear error. |
 
 ---
 
@@ -201,6 +204,7 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | `herdr` CLI wrapper | ✅ | `src/swarm/herdr/client.py` — workspace/agent list, agent read, `agent prompt TARGET TEXT` (one argv), wait-until idle\|working\|blocked\|done. Empty remote omits `--remote`. Tests mock the binary: `tests/herdr/test_herdr_client.py` (includes spaces in TEXT + proven `w3:p1` / `HERDR_PING_OK` → `agent_prompted`) |
 | Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. SQLite default (no DATABASE_URL / Neon) |
 | Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
+| Remotes kind + CLI `--remote` (REQ-64) | ✅ | `remotes.herdr` persist; Settings + Add; `HerdrClient.from_remote_config()`; stub HTTP health/list in `tests/core/test_herdr_remote.py` |
 
 ## Regeneration
 

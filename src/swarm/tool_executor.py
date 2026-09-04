@@ -227,6 +227,10 @@ async def handle_tool_calls(
              # Handle cases where signature cannot be inspected (e.g., built-ins)
              logger.warning(f"Could not inspect signature for tool '{tool_name}': {e}. Cannot inject context automatically.")
 
+        safety_denied = await _maybe_deny_tool(tool_name, tool_call_id, args)
+        if safety_denied is not None:
+            aggregated_response.messages.append(safety_denied)
+            continue
 
         # --- Execute the function/tool ---
         try:
@@ -252,6 +256,7 @@ async def handle_tool_calls(
                 "name": tool_name,
                 "content": result_content_json
             })
+            await _emit_tool_status(tool_call_id, tool_name, "done")
 
             # Update context variables from the result
             if processed_result.context_variables:
@@ -294,7 +299,54 @@ async def handle_tool_calls(
                 "name": tool_name,
                 "content": json.dumps({"error": f"Execution failed: {str(e)}"}) # Provide error in JSON content
             })
+            await _emit_tool_status(tool_call_id, tool_name, "error")
 
     # Return the aggregated response containing all tool result messages and potential updates
     logger.debug(f"Finished handling tool calls. {len(aggregated_response.messages)} result messages generated.")
     return aggregated_response
+
+
+async def _maybe_deny_tool(tool_name: str, tool_call_id: str, args: dict) -> dict | None:
+    """API-agent Safety pause. CLI/remote sessions skip swarm approval."""
+    try:
+        from swarm.core.safety import current_safety_session, maybe_await
+    except Exception:
+        return None
+    session = current_safety_session()
+    if session is None or not session.uses_swarm_approval():
+        return None
+    await _emit_tool_status(tool_call_id, tool_name, "running")
+    verdict = await session.approve_async(tool_name, args)
+    if verdict.approved:
+        status = "allowed" if (verdict.concerned or verdict.always_allowed) else "running"
+        if status == "allowed":
+            await _emit_tool_status(tool_call_id, tool_name, "allowed")
+        return None
+    await _emit_tool_status(tool_call_id, tool_name, "denied")
+    return {
+        "role": "tool",
+        "tool_call_id": tool_call_id,
+        "name": tool_name,
+        "content": json.dumps({"error": f"DENIED: tool call {tool_name!r} was not approved"}),
+    }
+
+
+async def _emit_tool_status(tool_call_id: str, tool_name: str, status: str) -> None:
+    try:
+        from swarm.core.safety import current_safety_session, maybe_await
+    except Exception:
+        return
+    session = current_safety_session()
+    if session is None or session.emit_fn is None or not session.uses_swarm_approval():
+        return
+    await maybe_await(
+        session.emit_fn(
+            {
+                "type": "tool_status",
+                "id": tool_call_id,
+                "name": tool_name,
+                "status": status,
+                "agent_id": session.agent_id,
+            }
+        )
+    )

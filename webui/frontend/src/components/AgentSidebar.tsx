@@ -71,6 +71,15 @@ import {
 } from '../lib/scaleOutSessions'
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
+import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
+import { selectStackedFaces } from '../lib/avatarStack'
+import {
+  sessionsForRemote,
+  sessionsForTeam,
+  stackFacesForRemote,
+  stackFacesForTeam,
+  type MemberSession,
+} from '../lib/sessionPicker'
 import {
   AGENT_SETTINGS_CHANGED_EVENT,
   loadLocalNewChatPerTask,
@@ -78,9 +87,9 @@ import {
 import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'
 import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
-import { openAgentEditor } from './AgentEditor'
 import SessionPicker from './SessionPicker'
 import { openSettingsSheet } from './SettingsSheet'
+import AvatarStack from './AvatarStack'
 import StackedAvatars from './StackedAvatars'
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
@@ -120,6 +129,7 @@ type SidebarAgent = Blueprint & {
 type RailRow =
   | { kind: 'agent'; id: string; agent: SidebarAgent }
   | { kind: 'team'; id: string; team: TeamRoster }
+  | { kind: 'remote'; id: string; remote: RemoteEntry }
 
 function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
   return agent.kind === 'herdr' || String(agent.id).startsWith('herdr:')
@@ -167,6 +177,11 @@ function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
   }
 }
 
+interface PickerState {
+  title: string
+  sessions: MemberSession[]
+}
+
 export default function AgentSidebar({
   open = false,
   narrow = false,
@@ -181,9 +196,11 @@ export default function AgentSidebar({
   const [searchParams] = useSearchParams()
   const onChat = pathname.startsWith('/chat') || pathname === '/'
   const selectedTeamId = onChat ? (searchParams.get('team') ?? '') : ''
-  const selectedId = selectedTeamId
-    ? ''
-    : defaultBlueprintId(onChat ? searchParams.get('blueprint') : '')
+  const selectedRemoteId = onChat ? (searchParams.get('remote') ?? '') : ''
+  const selectedId =
+    selectedTeamId || selectedRemoteId
+      ? ''
+      : defaultBlueprintId(onChat ? searchParams.get('blueprint') : '')
 
   const [hiddenIds, setHiddenIds] = useState<string[] | null>(() =>
     hasHiddenAgentsStorage() ? loadHiddenAgentIds() : null,
@@ -197,6 +214,7 @@ export default function AgentSidebar({
   const [dropActive, setDropActive] = useState(false)
   const [hideDropActive, setHideDropActive] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [picker, setPicker] = useState<PickerState | null>(null)
   const [, setEditsTick] = useState(0)
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const [railOrder, setRailOrder] = useState<string[]>(() => loadRailOrder())
@@ -238,6 +256,11 @@ export default function AgentSidebar({
     queryFn: fetchHerdrAgents,
     retry: 1,
   })
+  const remotesQuery = useQuery({
+    queryKey: ['configured-remotes'],
+    queryFn: fetchConfiguredRemotes,
+    retry: 1,
+  })
   const cliQuery = useQuery({
     queryKey: ['cli-agents'],
     queryFn: fetchCliAgents,
@@ -245,6 +268,7 @@ export default function AgentSidebar({
   })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
   const teams = teamsQuery.data ?? []
+  const remotes = remotesQuery.data ?? []
   const agents = useMemo<SidebarAgent[]>(() => {
     const fromBlueprints = exampleRoleAgents(catalog)
     const seen = new Set(fromBlueprints.map((a) => a.id))
@@ -338,8 +362,16 @@ export default function AgentSidebar({
     () => teams.filter((team) => resolvedHiddenIds.includes(teamHideId(team.id))),
     [teams, resolvedHiddenIds],
   )
-  const hiddenCount = hiddenAgents.length + hiddenTeams.length
-  const visibleCount = visibleAgents.length + visibleTeams.length
+  const visibleRemotes = useMemo(
+    () => remotes.filter((remote) => !resolvedHiddenIds.includes(remoteHideId(remote.id))),
+    [remotes, resolvedHiddenIds],
+  )
+  const hiddenRemotes = useMemo(
+    () => remotes.filter((remote) => resolvedHiddenIds.includes(remoteHideId(remote.id))),
+    [remotes, resolvedHiddenIds],
+  )
+  const hiddenCount = hiddenAgents.length + hiddenTeams.length + hiddenRemotes.length
+  const visibleCount = visibleAgents.length + visibleTeams.length + visibleRemotes.length
   const loadingList = blueprintsQuery.isPending && teamsQuery.isPending
   const loadFailed = blueprintsQuery.isError && teamsQuery.isError && visibleCount === 0
   const supportAgents = visibleAgents.filter((agent) => isSupportAgent(agent))
@@ -363,13 +395,18 @@ export default function AgentSidebar({
       id: teamHideId(team.id),
       team,
     }))
+    const remoteRows: RailRow[] = visibleRemotes.map((remote) => ({
+      kind: 'remote',
+      id: remoteHideId(remote.id),
+      remote,
+    }))
     const otherRows: RailRow[] = otherAgents.map((agent) => ({
       kind: 'agent',
       id: agent.id,
       agent,
     }))
-    return [...supportRows, ...cliRows, ...teamRows, ...otherRows]
-  }, [supportAgents, cliAgents, visibleRootTeams, otherAgents])
+    return [...supportRows, ...cliRows, ...teamRows, ...remoteRows, ...otherRows]
+  }, [supportAgents, cliAgents, visibleRootTeams, visibleRemotes, otherAgents])
   const orderedRows = useMemo(
     () => applyRailOrder(catalogRows, railOrder),
     [catalogRows, railOrder],
@@ -386,6 +423,21 @@ export default function AgentSidebar({
     onOpenSearch?.()
     openSearchPalette()
   }, [onOpenSearch])
+
+  const openGroupPicker = useCallback((title: string, sessions: MemberSession[]) => {
+    setPicker({ title, sessions })
+  }, [])
+
+  const closePicker = useCallback(() => setPicker(null), [])
+
+  const selectSession = useCallback(
+    (session: MemberSession) => {
+      setPicker(null)
+      navigate(session.href)
+      onClose?.()
+    },
+    [navigate, onClose],
+  )
 
   const persistVisibleOrder = useCallback((nextVisible: string[]) => {
     setRailOrder(saveRailOrder(nextVisible))
@@ -417,7 +469,6 @@ export default function AgentSidebar({
     window.addEventListener(GENERATION_COMPLETE_EVENT, onComplete)
     return () => window.removeEventListener(GENERATION_COMPLETE_EVENT, onComplete)
   }, [bumpCompleted, visibleRowIds, railOrder, persistVisibleOrder])
-
   useEffect(() => {
     if (!menu) return
     const onKey = (event: KeyboardEvent) => {
@@ -543,6 +594,12 @@ export default function AgentSidebar({
     if (fromId && fromId !== targetId) {
       reorderBefore(fromId, targetId)
     }
+    finishDrag()
+  }
+
+  const dropOnSelf = (event: ReactDragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
     finishDrag()
   }
 
@@ -782,6 +839,8 @@ export default function AgentSidebar({
     const name = team.name || team.id
     const hideId = teamHideId(team.id)
     const active = selectedTeamId === team.id
+    const sessions = sessionsForTeam(team)
+    const stacked = selectStackedFaces(stackFacesForTeam(team))
     const dragging = draggingId === hideId
     const dropping = dropTargetId === hideId
     return (
@@ -796,20 +855,34 @@ export default function AgentSidebar({
         aria-label={`${name} (team)`}
         data-agent-id={hideId}
         data-kind="team"
+        data-stack-count={String(stacked.faces.length)}
+        data-remainder={String(stacked.remainder)}
         draggable={!hidden}
         onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
         onDragEnd={finishDrag}
         onDragOver={(event) => allowRowDrop(event, hideId)}
         onDrop={(event) => dropReorder(event, hideId)}
-        onClick={pickOrClose}
+        onClick={(event) => {
+          event.preventDefault()
+          openGroupPicker(name, sessions)
+        }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
       >
-        <span
-          className="os-team-mark os-agent-team-icon mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
-          aria-hidden="true"
-        >
-          <Users className="h-3.5 w-3.5" />
-        </span>
+        {stacked.faces.length > 0 ? (
+          <AvatarStack
+            faces={stacked.faces}
+            remainder={stacked.remainder}
+            animate
+            label={`${name} members`}
+          />
+        ) : (
+          <span
+            className="os-team-mark os-agent-team-icon mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
+            aria-hidden="true"
+          >
+            <Users className="h-3.5 w-3.5" />
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
@@ -841,6 +914,64 @@ export default function AgentSidebar({
               {team.description}
             </span>
           ) : null}
+        </span>
+      </Link>
+    )
+  }
+
+  const renderRemoteRow = (remote: RemoteEntry, hidden: boolean) => {
+    const name = remote.title
+    const hideId = remoteHideId(remote.id)
+    const active = selectedRemoteId === remote.id
+    const dragging = draggingId === hideId
+    const sessions = sessionsForRemote(remote)
+    const stacked = selectStackedFaces(stackFacesForRemote(remote))
+    return (
+      <Link
+        to={`/chat?remote=${encodeURIComponent(remote.id)}`}
+        className={`os-remote-item os-agent-row os-agent-row--remote ${
+          active ? 'os-agent-row--active' : ''
+        } ${dragging ? 'os-agent-row--dragging' : ''}`}
+        aria-current={active ? 'page' : undefined}
+        aria-label={`${name} (remote)`}
+        data-agent-id={hideId}
+        data-kind="remote"
+        data-remote-id={remote.id}
+        data-stack-count={String(stacked.faces.length)}
+        data-remainder={String(stacked.remainder)}
+        draggable={!hidden}
+        onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
+        onDragEnd={finishDrag}
+        onDragOver={(event) => {
+          try {
+            event.dataTransfer.dropEffect = 'none'
+          } catch {
+            /* synthetic events may omit dataTransfer */
+          }
+        }}
+        onDrop={dropOnSelf}
+        onClick={(event) => {
+          event.preventDefault()
+          openGroupPicker(name, sessions)
+        }}
+        onContextMenu={(event) => openMenu(event, hideId, name, hidden)}
+      >
+        <AvatarStack
+          faces={stacked.faces}
+          remainder={stacked.remainder}
+          animate
+          label={`${name} members`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="block truncate text-sm font-semibold leading-5">{name}</span>
+            <span
+              className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
+              data-kind="remote"
+            >
+              Remote
+            </span>
+          </span>
         </span>
       </Link>
     )
@@ -1038,7 +1169,9 @@ export default function AgentSidebar({
                 <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
                   {row.kind === 'team'
                     ? renderTeamRow(row.team)
-                    : renderAgentRow(row.agent, false)}
+                    : row.kind === 'remote'
+                      ? renderRemoteRow(row.remote, false)
+                      : renderAgentRow(row.agent, false)}
                 </li>
               ))}
             </ul>
@@ -1165,6 +1298,19 @@ export default function AgentSidebar({
                     </button>
                   </li>
                 ))}
+                {hiddenRemotes.map((remote) => (
+                  <li key={remoteHideId(remote.id)} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">{remote.title}</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      aria-label={`Unhide ${remote.title}`}
+                      onClick={() => unhideAgent(remoteHideId(remote.id))}
+                    >
+                      Unhide
+                    </button>
+                  </li>
+                ))}
                 {hiddenAgents.map((agent) => (
                   <li key={agent.id} className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
@@ -1215,6 +1361,14 @@ export default function AgentSidebar({
           </div>
         </>
       )}
+
+      <SessionPicker
+        open={Boolean(picker)}
+        title={picker?.title ?? ''}
+        sessions={picker?.sessions ?? []}
+        onClose={closePicker}
+        onSelect={selectSession}
+      />
 
       <SessionPicker
         open={sessionPicker !== null}

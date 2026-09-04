@@ -40,6 +40,17 @@ Two primary multi-agent styles ([SWARM_WORKFLOWS.md](./SWARM_WORKFLOWS.md)):
 
 Do not call `/v1/teams` aliases “MoA teams” or “persona teams.”
 
+## Agent role (support / gate / skeptic / default)
+
+First-class field on an agent spec (`AgentConfig.role`, team `AGENT_SPECS`, `/v1/blueprints/` `role` + `agents[]`). Visual CSS: `os-agent-role-<role>` and `data-role`. Wiring (openai-agents `as_tool` / handoff only — not extra Grok seats):
+
+* **default** — ordinary worker / coordinator
+* **support** — Support seat (REQ-7). Talk about gate/skeptic; this repo wires them.
+* **gate** (`tool_gate`) — classifies a pending tool call YES/NO (dangerous). Wired → elicit on dangerous. **Unwired → all approved, never prompt.**
+* **skeptic** — reviews whether the original prompt was accomplished; on NO, findings go back to the original agent (bounded retries, default 2). On YES, stop — do not nag.
+
+See [AGENT_ROLES.md](./AGENT_ROLES.md).
+
 ## CLI Fusion
 
 Wrapping installed agentic CLIs (`grok` / `claude` / `gemini` / …) behind the OpenAI API and composing them (`cli_agent`, `cli_fusion` panel+judge, `cli_orchestrator`, `cli_map`, …). Config: `cli_agents` (+ fusion blocks) in `swarm_config.json`. Docs: [CLI_FUSION.md](./CLI_FUSION.md). Legacy product phrasing; MoA is the preferred name for read-only consensus.
@@ -55,7 +66,7 @@ An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id
 
 ## Herdr member (`kind=herdr`)
 
-A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
+A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Remotes kind** (REQ-64): add `herdr` in Settings (base URL + api-key-env); CLI `--remote` uses that configured base; missing config is an error, not a silent other-host. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
 
 ## Operator UI vs SPA Chat
 

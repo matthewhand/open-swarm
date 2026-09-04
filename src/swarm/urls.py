@@ -67,6 +67,7 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
+from swarm.views.runtime_views import BrowserControlView, RuntimeModeView
 from swarm.views.herdr_api import (
     HerdrAgentDetailAPIView,
     HerdrAgentsAPIView,
@@ -137,6 +138,12 @@ urlpatterns = [
     # Lightweight liveness probe (no auth) — used by the Fly health check.
     path("health", HealthCheckView.as_view(), name="health"),
     path("health/", HealthCheckView.as_view()),
+    # REQ-45: runtime banner (where the *app* runs) + browser-control catalog.
+    # AllowAny, no secrets / host paths. Slash twins like /health and /v1/models.
+    path("v1/runtime", RuntimeModeView.as_view(), name="runtime-mode-no-slash"),
+    path("v1/runtime/", RuntimeModeView.as_view(), name="runtime-mode"),
+    path("v1/browser-control", BrowserControlView.as_view(), name="browser-control-no-slash"),
+    path("v1/browser-control/", BrowserControlView.as_view(), name="browser-control"),
     # Session Explorer web UI (browse stateful /v1/responses sessions + delegation timelines)
     path("sessions/", session_explorer, name="session-explorer"),
     path("sessions/<str:response_id>/", session_detail, name="session-detail"),

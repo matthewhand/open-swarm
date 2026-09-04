@@ -123,7 +123,12 @@ def test_bundled_skills_are_discoverable_and_standard_compliant():
     # The repo ships these skills under <root>/skills; each must satisfy the
     # Agent Skills standard (valid name + a what+when description).
     found = skills.discover_skills()
-    for name in ("conventional-commit", "reviewing-code", "writing-changelog"):
+    for name in (
+        "conventional-commit",
+        "reviewing-code",
+        "writing-changelog",
+        "support-session-ownership",
+    ):
         assert name in found, f"missing bundled skill: {name}"
         skill = found[name]
         assert skills._NAME_RE.match(skill.name)

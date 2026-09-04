@@ -6,36 +6,67 @@ import {
   filterAgentSessions,
   type AgentSession,
 } from '../lib/scaleOutSessions'
+import type { MemberSession } from '../lib/sessionPicker'
+
+export type SessionPickerSession = (AgentSession | MemberSession) & {
+  agentId?: string
+  href?: string
+}
 
 export interface SessionPickerProps {
   open: boolean
-  agentName: string
-  sessions: readonly AgentSession[]
+  title?: string
+  agentName?: string
+  sessions: readonly (AgentSession | MemberSession)[]
   onClose: () => void
-  onSelect: (session: AgentSession) => void
+  onSelect: (session: any) => void
 }
 
 function shortcutLabel(index: number): string {
   return `⌃${index + 1}`
 }
 
+function sessionCompare(a: any, b: any): number {
+  if (typeof compareSessions === 'function' && 'startedAt' in a && 'startedAt' in b) {
+    const aRunning = a.status === 'running'
+    const bRunning = b.status === 'running'
+    if (aRunning && !bRunning) return -1
+    if (!aRunning && bRunning) return 1
+    return (b.startedAt ?? 0) - (a.startedAt ?? 0)
+  }
+  return 0
+}
+
+function sessionFilter(sessions: readonly any[], query: string): any[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return [...sessions]
+  return sessions.filter((s) => {
+    const title = (s.title || '').toLowerCase()
+    const snippet = (s.snippet || '').toLowerCase()
+    const id = (s.id || s.memberId || '').toLowerCase()
+    return title.includes(q) || snippet.includes(q) || id.includes(q)
+  })
+}
+
 /**
- * Search-palette chrome, pre-filtered to one agent's running + finished
+ * Search-palette chrome, pre-filtered to one agent, team, or remote's running + finished
  * sessions. Not a new SPA page — overlay only; chat stays mounted.
  */
 export default function SessionPicker({
   open,
+  title,
   agentName,
   sessions,
   onClose,
   onSelect,
 }: SessionPickerProps) {
+  const displayName = title || agentName || ''
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const visible = useMemo(
-    () => filterAgentSessions([...sessions].sort(compareSessions), query),
+    () => sessionFilter([...sessions].sort(sessionCompare), query),
     [query, sessions],
   )
 
@@ -92,12 +123,13 @@ export default function SessionPicker({
 
   if (!open) return null
 
-  const label = `${agentName} sessions`
+  const label = `${displayName} sessions`
 
   return (
     <div
       className="os-search-overlay"
       data-testid="os-session-picker"
+      data-session-picker="true"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
@@ -116,7 +148,7 @@ export default function SessionPicker({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search"
-            aria-label={`Filter ${agentName} sessions`}
+            aria-label={title ? 'Filter sessions' : `Filter ${displayName} sessions`}
             aria-controls="os-session-results"
             aria-activedescendant={
               visible[activeIdx] ? `os-session-row-${visible[activeIdx].id}` : undefined

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ToastProvider } from '../../components/DaisyUI'
 import AgentRouterPage from '../AgentRouterPage'
 import { useAgentStore } from '../../lib/agent-store'
 import * as agentApi from '../../lib/agent-api'
@@ -160,7 +161,9 @@ function renderPage() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AgentRouterPage />
+      <ToastProvider>
+        <AgentRouterPage />
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

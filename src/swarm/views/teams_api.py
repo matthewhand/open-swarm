@@ -13,6 +13,10 @@ see and talk via openai-agents handoff/as_tool (see ``/v1/remotes/`` +
 ``/v1/agent-team/``). Prefer **Profiles** for this alias registry. Entries
 appear in /v1/models and can be selected as OpenAI-compatible model ids.
 
+Composition rosters (members + handoff/as_tool wires) live in a separate store
+and API: team_rosters.json + /v1/team-rosters/. This module must not write that
+file or change the teams.json alias schema. See docs/TEAM_ROSTERS.md.
+
 Endpoints:
     GET    /v1/teams/          -> {"object": "list", "data": [team, ...]}
     POST   /v1/teams/          -> 201 + team

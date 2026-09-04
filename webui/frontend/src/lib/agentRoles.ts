@@ -18,6 +18,7 @@ const ROLE_ALIASES: Record<string, AgentRole> = {
   support: 'support',
   helper: 'support',
   gate: 'gate',
+  safety: 'gate',
   tool_gate: 'gate',
   'tool-gate': 'gate',
   toolgate: 'gate',
@@ -33,7 +34,7 @@ const ROLE_ALIASES: Record<string, AgentRole> = {
 export const SYNTHETIC_GATE: Blueprint = {
   id: GATE_AGENT_ID,
   object: 'blueprint',
-  name: 'Gate',
+  name: 'Safety',
   description: 'YES/NO classifier for pending tool calls.',
   abbreviation: null,
   required_mcp_servers: [],
@@ -86,13 +87,13 @@ def ask_user(question: str, choices: list[str] | None = None) -> str:
         return f"MCQ: {question} | " + " / ".join(choices)
     return f"ASK: {question}"
 `,
-  gate: `# Blueprint recipe — Gate (YES/NO)
+  gate: `# Blueprint recipe — Safety (YES/NO)
 # Role = badge + wiring on a Team member. This file is the Python/API recipe.
-# Runtime module (when present): src/swarm/core/tool_gate.py
-# Unwired gate is fail-open: every tool call is approved and the user is never asked.
+# Runtime module (when present): src/swarm/core/safety.py
+# Unwired Safety is fail-open: every tool call is approved and the user is never asked.
 
 GATE_INSTRUCTIONS = (
-    "You are a tool-call gate. Classify the pending tool call as dangerous or not. "
+    "You are Safety. Classify the pending tool call as concerning or not. "
     "Reply with a single token only: YES if the call is dangerous, NO if it is not. "
     "No punctuation, no explanation."
 )
@@ -139,7 +140,14 @@ export function agentRole(agent: {
   if (isSupportAgent({ id: agent.id || '', name: agent.name })) return 'support'
   const id = (agent.id || '').trim().toLowerCase()
   const name = (agent.name || '').trim().toLowerCase()
-  if (id === GATE_AGENT_ID || name === 'gate' || name === 'tool gate') return 'gate'
+  if (
+    id === GATE_AGENT_ID ||
+    name === 'gate' ||
+    name === 'tool gate' ||
+    name === 'safety'
+  ) {
+    return 'gate'
+  }
   if (id === SKEPTIC_AGENT_ID || name === 'skeptic') return 'skeptic'
   if (
     id === COS_AGENT_ID
@@ -205,7 +213,7 @@ function hasRole(agents: Blueprint[], role: ExampleRole): boolean {
   return agents.some((agent) => agentRole(agent) === role)
 }
 
-/** Inject Support / Gate / Skeptic seats so the three example roles are visible. */
+/** Inject Support / Safety / Skeptic seats so the three example roles are visible. */
 export function ensureExampleRoleAgents(agents: Blueprint[]): Blueprint[] {
   const next = [...agents]
   if (!next.some(isSupportAgent) && !hasRole(next, 'support')) {

@@ -25,16 +25,38 @@ from swarm.herdr.client import (
     members_from_agent_list,
     members_from_workspace_list,
 )
+from swarm.herdr.remote import (
+    API_KEY_ENV,
+    BASE_URL_ENV,
+    HEALTH_PATH,
+    HERDR_NOT_CONFIGURED,
+    KIND_ID,
+    LIST_PATH,
+    cli_remote_from_base,
+    is_localhost_base,
+    members_from_http_list,
+    not_configured_message,
+)
 
 __all__ = [
     "AGENT_PROMPTED",
+    "API_KEY_ENV",
+    "BASE_URL_ENV",
+    "HEALTH_PATH",
+    "HERDR_NOT_CONFIGURED",
+    "KIND_ID",
+    "LIST_PATH",
     "MEMBER_KIND",
     "WAIT_UNTIL_STATES",
     "HerdrBlockedError",
     "HerdrCLIError",
     "HerdrClient",
     "HerdrError",
+    "cli_remote_from_base",
     "extract_prompt_type",
+    "is_localhost_base",
     "members_from_agent_list",
+    "members_from_http_list",
     "members_from_workspace_list",
+    "not_configured_message",
 ]

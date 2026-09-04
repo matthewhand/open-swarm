@@ -57,8 +57,32 @@ def _cfg(host: str, port: int) -> dict:
     }
 
 
+def test_missing_remote_is_empty_not_default_card(monkeypatch):
+    for name in ("HERMES_BASE_URL", "OMB_BASE_URL", "RAKAZO_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    cfg = {"llm": {}, "remotes": {}}
+    assert remotes_core.load_added_remotes(cfg) == {}
+    assert remotes_core.added_remote_ids(cfg) == []
+    assert remotes_core.list_team_members(cfg) == []
+    assert remotes_core.load_placed_members(cfg) == []
+    kinds = remotes_core.list_remote_kinds()
+    assert {k["id"] for k in kinds} == {"hermes", "omb", "rakazo"}
+    hermes = next(k for k in kinds if k["id"] == "hermes")
+    assert hermes["complete"] is True
+    assert hermes["send_path"] == "/v1/runs"
+    assert "/api/sessions" in hermes["list_paths"]
+
+
 def test_team_members_are_handoff_not_profile_aliases():
-    members = remotes_core.list_team_members({"llm": {}, "remotes": {}})
+    cfg = {
+        "llm": {},
+        "remotes": {
+            "hermes": {"base_url": "http://127.0.0.1:9"},
+            "omb": {"base_url": "http://127.0.0.1:9"},
+            "rakazo": {"base_url": "http://127.0.0.1:9"},
+        },
+    }
+    members = remotes_core.list_team_members(cfg)
     ids = {m["id"] for m in members}
     assert ids == {"hermes", "omb", "rakazo", "swarm"}
     assert all(m["via"] == "as_tool" for m in members)
@@ -71,8 +95,12 @@ def test_team_members_are_handoff_not_profile_aliases():
     assert "/teams/" in remotes_core.TEAM_VOCABULARY["not_teams_page"]
 
 
-def test_placed_members_missing_key_means_all():
-    assert remotes_core.load_placed_members({"llm": {}}) == ["hermes", "omb", "rakazo"]
+def test_placed_members_missing_key_means_added(monkeypatch):
+    for name in ("HERMES_BASE_URL", "OMB_BASE_URL", "RAKAZO_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    cfg = {"llm": {}, "remotes": {"hermes": {"base_url": "http://127.0.0.1:9"}}}
+    assert remotes_core.load_placed_members(cfg) == ["hermes"]
+    assert remotes_core.load_placed_members({"llm": {}}) == []
 
 
 def test_placed_members_empty_list_is_empty_team():
@@ -88,7 +116,19 @@ def test_placed_members_empty_list_is_empty_team():
 
 def test_place_unplace_persist(tmp_path: Path, monkeypatch):
     cfg = tmp_path / "swarm_config.json"
-    cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
+    cfg.write_text(
+        json.dumps(
+            {
+                "llm": {"default": {"model": "x"}},
+                "remotes": {
+                    "hermes": {"base_url": "http://127.0.0.1:9"},
+                    "omb": {"base_url": "http://127.0.0.1:9"},
+                    "rakazo": {"base_url": "http://127.0.0.1:9"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.delenv("HERMES_BASE_URL", raising=False)
     members, path = remotes_core.unplace_team_member("rakazo", config_path=cfg)
     assert path == cfg
@@ -148,24 +188,72 @@ def test_configured_catalog_starts_empty_then_add_and_remove(tmp_path: Path, mon
     assert remotes_core.list_configured_remotes(data) == []
 
 
+def test_alias_openmousbot_and_label():
+    spec = remotes_core.load_remote("openmousbot", {"llm": {}, "remotes": {}})
+    assert spec.id == "omb"
+    pub = spec.public_dict()
+    assert pub["label"] == "OpenMousBot"
+    assert pub["title"] == "OpenMousBot"
+    assert "OMB" not in pub["label"]
+    assert remotes_core.display_label("omb") == "OpenMousBot"
+    kinds = remotes_core.kind_catalog()
+    assert any(k["id"] == "omb" and k["label"] == "OpenMousBot" for k in kinds)
+
+
+def test_configured_remotes_empty_until_add():
+    cfg = {"llm": {}, "remotes": {}}
+    assert remotes_core.load_configured_remotes(cfg) == {}
+    assert remotes_core.is_configured("omb", cfg) is False
+
+
+def test_add_and_remove_openmousbot(tmp_path: Path, monkeypatch):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
+    monkeypatch.delenv("OMB_BASE_URL", raising=False)
+    spec, path = remotes_core.add_remote(
+        "omb",
+        base_url="http://127.0.0.1:9",
+        api_key_env="OMB_API_KEY",
+        config_path=cfg,
+    )
+    assert path == cfg
+    assert spec.id == "omb"
+    assert spec.public_dict()["label"] == "OpenMousBot"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["omb"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["omb"]["api_key"] == "${OMB_API_KEY}"
+    assert data["remotes"]["omb"]["api_key_env"] == "OMB_API_KEY"
+    assert remotes_core.is_configured("omb", data)
+    rid, _ = remotes_core.remove_remote("omb", config_path=cfg)
+    assert rid == "omb"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert "omb" not in (data.get("remotes") or {})
+
+
 def test_persist_and_reload(tmp_path: Path, monkeypatch):
     cfg = tmp_path / "swarm_config.json"
     cfg.write_text(json.dumps({"llm": {"default": {"model": "x"}}}), encoding="utf-8")
     monkeypatch.delenv("HERMES_BASE_URL", raising=False)
-    spec, path = remotes_core.persist_remote(
+    spec, path = remotes_core.add_remote(
         "hermes",
-        base_url="http://10.0.0.36:8642",
-        api_key="${HERMES_API_KEY}",
+        base_url="http://127.0.0.1:9",
+        api_key_env="HERMES_API_KEY",
         config_path=cfg,
     )
     assert path == cfg
     data = json.loads(cfg.read_text(encoding="utf-8"))
     assert data["llm"]["default"]["model"] == "x"
-    assert data["remotes"]["hermes"]["base_url"] == "http://10.0.0.36:8642"
-    assert spec.base_url == "http://10.0.0.36:8642"
+    assert data["remotes"]["hermes"]["base_url"] == "http://127.0.0.1:9"
+    assert data["remotes"]["hermes"]["api_key"] == "${HERMES_API_KEY}"
+    assert data["remotes"]["hermes"]["api_key_env"] == "HERMES_API_KEY"
+    assert spec.base_url == "http://127.0.0.1:9"
     pub = spec.public_dict()
+    assert pub["kind"] == "hermes"
+    assert pub["added"] is True
+    assert pub["api_key_env"] == "HERMES_API_KEY"
     assert pub["api_key_set"] is False  # unresolved placeholder
     assert "hermes-secret" not in json.dumps(pub)
+    assert remotes_core.added_remote_ids(data) == ["hermes"]
 
 
 def test_refuse_fly_litellm_persist(tmp_path: Path):
@@ -184,6 +272,25 @@ def test_env_overrides_config(monkeypatch):
     spec = remotes_core.load_remote("omb", {"remotes": {"omb": {"base_url": "http://10.0.0.32:8802"}}})
     assert spec.base_url == "http://10.9.9.9:8802"
     assert spec.source == "env"
+
+
+def test_health_not_added_does_not_probe(monkeypatch):
+    monkeypatch.delenv("HERMES_BASE_URL", raising=False)
+    probed = []
+
+    def _boom(*_args, **_kwargs):
+        probed.append(True)
+        raise AssertionError("must not TCP-probe a missing remote")
+
+    monkeypatch.setattr(remotes_core, "_tcp_probe", _boom)
+    result = remotes_core.check_health("hermes", config={"llm": {}, "remotes": {}}, timeout=0.2)
+    assert result.ok is False
+    assert result.state == "UNKNOWN"
+    assert result.detail == "remote not added"
+    assert probed == []
+    listed = remotes_core.operate("hermes", "list", config={"llm": {}, "remotes": {}})
+    assert listed.ok is False
+    assert listed.detail == "remote not added"
 
 
 def test_health_down_closed_port():
@@ -234,15 +341,50 @@ def test_hermes_list_and_send(http_router):
 def test_omb_list_and_send_creates_bot(http_router):
     host, port, router = http_router
     router.routes = {
+        ("GET", "/api/health"): (200, {"app": "openmousbot", "ok": True}),
         ("GET", "/api/bots"): (200, {"bots": []}),
         ("POST", "/api/bots"): (201, {"bot": {"id": "b1"}}),
         ("POST", "/api/bots/b1/messages"): (202, {"ok": True}),
     }
+    health = remotes_core.check_health("omb", config=_cfg(host, port), timeout=2.0)
+    assert health.ok is True
+    assert health.state == "UP"
     listed = remotes_core.operate("omb", "list", config=_cfg(host, port))
     assert listed.ok is True
+    assert "OpenMousBot" in listed.detail
+    assert "OMB" not in listed.detail
     sent = remotes_core.operate("omb", "send", prompt="hi", config=_cfg(host, port))
     assert sent.ok is True
     assert sent.data["bot_id"] == "b1"
+    assert "OpenMousBot" in sent.detail
+
+
+def test_openmousbot_list_and_send_to_bot_id(http_router):
+    host, port, router = http_router
+    router.routes = {
+        ("GET", "/api/bots"): (200, {"bots": [{"id": "bot-9", "name": "alpha"}]}),
+        ("POST", "/api/bots/bot-9/messages"): (202, {"ok": True, "queued": True}),
+    }
+    listed = remotes_core.operate("omb", "list", config=_cfg(host, port))
+    assert listed.ok is True
+    assert listed.data["bots"][0]["id"] == "bot-9"
+    sent = remotes_core.operate(
+        "omb", "send", prompt="hello", target="bot-9", config=_cfg(host, port)
+    )
+    assert sent.ok is True
+    assert sent.data["bot_id"] == "bot-9"
+    assert sent.http_status == 202
+
+
+def test_openmousbot_health_down_is_report_not_crash():
+    result = remotes_core.check_health(
+        "omb",
+        config={"remotes": {"omb": {"base_url": "http://127.0.0.1:1"}}},
+        timeout=0.3,
+    )
+    assert result.ok is False
+    assert result.state == "DOWN"
+    assert result.remote == "omb"
 
 
 def test_rakazo_list_401_is_honest_gap(http_router):

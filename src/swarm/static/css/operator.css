@@ -410,6 +410,10 @@ body.os-login button[type="submit"]:focus-visible {
   padding: 1.25rem 1.5rem;
 }
 
+.os-avatar-theme-select {
+  max-width: 16rem;
+}
+
 .chat-retention-subhead {
   font-size: 1rem;
   margin: 1.25rem 0 0.5rem;
