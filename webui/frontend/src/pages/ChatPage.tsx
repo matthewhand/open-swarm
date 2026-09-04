@@ -60,6 +60,7 @@ import {
   type ChatWsEvent,
 } from '../lib/chatWs'
 import { ToolCallPopup } from '../components/ToolCallPopup'
+import { TokenDiagnosticsModal } from '../components/TokenDiagnosticsModal'
 import {
   isToolAlwaysAllowed,
   rememberAlwaysAllow,
@@ -1207,6 +1208,30 @@ const ChatPage = () => {
 
   const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
   const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
+  const [tokenDiagOpen, setTokenDiagOpen] = useState(false)
+
+  const userTexts = useMemo(
+    () => messages.filter((m) => m.role === 'user').map((m) => m.text),
+    [messages],
+  )
+  const assistantTexts = useMemo(
+    () => messages.filter((m) => m.role === 'assistant').map((m) => m.text),
+    [messages],
+  )
+  const inputTokens = useMemo(() => estimateTokensInContext(userTexts), [userTexts])
+  const outputTokens = useMemo(() => estimateTokensInContext(assistantTexts), [assistantTexts])
+  const toolCallsCount = useMemo(
+    () => messages.reduce((sum, m) => sum + (m.tools?.length ?? 0), 0),
+    [messages],
+  )
+  const userMessageCount = useMemo(
+    () => messages.filter((m) => m.role === 'user').length,
+    [messages],
+  )
+  const assistantMessageCount = useMemo(
+    () => messages.filter((m) => m.role === 'assistant').length,
+    [messages],
+  )
   const streamElapsed =
     streamingMessage && streamStartedAtRef.current != null
       ? formatElapsed(nowMs - streamStartedAtRef.current)
@@ -1684,26 +1709,49 @@ const ChatPage = () => {
       </form>
 
       <footer className="os-chat-footer" aria-live="polite">
-        <div
-          className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
-          role="meter"
-          aria-label="Tokens in context"
-          aria-valuemin={0}
-          aria-valuemax={CONTEXT_METER_TOKENS}
-          aria-valuenow={tokenCount}
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs h-auto p-0.5 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case"
+          aria-label="Session token usage"
+          data-testid="token-meter-button"
+          onClick={() => setTokenDiagOpen(true)}
         >
           <div
-            className="h-full rounded-full bg-base-content/45"
-            style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
-          />
-        </div>
-        <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
+            className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
+            role="meter"
+            aria-label="Tokens in context"
+            aria-valuemin={0}
+            aria-valuemax={CONTEXT_METER_TOKENS}
+            aria-valuenow={tokenCount}
+          >
+            <div
+              className="h-full rounded-full bg-base-content/45"
+              style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+            />
+          </div>
+          <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
+        </button>
         {streamingMessage ? (
           <span className="min-w-0 truncate">
             {selectedAgentName} · {streamElapsed ?? '0s'}
           </span>
         ) : null}
       </footer>
+
+      <TokenDiagnosticsModal
+        isOpen={tokenDiagOpen}
+        onClose={() => setTokenDiagOpen(false)}
+        agentName={selectedAgentName}
+        conversationId={conversationId}
+        tokenCount={tokenCount}
+        inputTokens={inputTokens}
+        outputTokens={outputTokens}
+        compactsCount={summaries.length}
+        toolCallsCount={toolCallsCount}
+        messageCount={messages.length}
+        userMessageCount={userMessageCount}
+        assistantMessageCount={assistantMessageCount}
+      />
     </div>
   )
 }
