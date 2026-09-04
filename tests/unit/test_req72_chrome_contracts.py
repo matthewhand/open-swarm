@@ -18,14 +18,15 @@ SETTINGS_PREFS = REPO / "webui" / "frontend" / "src" / "lib" / "settingsPrefs.ts
 TEAM_ROSTERS = REPO / "webui" / "frontend" / "src" / "lib" / "teamRosters.ts"
 
 
-def test_settings_remotes_panes_are_placeholders_not_live_api():
-    """#318/#320: Settings Hermes/OMB/Rakazo chrome is a stub; /v1/remotes/ is backend-only."""
+def test_settings_remotes_are_opt_in_not_default_kind_cards():
+    """REQ-59: empty remotes catalog + Add remote; no default Hermes/OMB/Rakazo panes."""
     src = SETTINGS_SHEET.read_text(encoding="utf-8")
-    assert "placeholder remote" in src
-    assert "remotes API has not landed" in src
-    assert "/v1/remotes" not in src
-    for label in ("Hermes", "OMB", "Rakazo"):
-        assert label in src
+    assert "Add remote" in src
+    assert "placeholder remote" not in src
+    assert "remotes API has not landed" not in src
+    assert "fetchRemotes" in src
+    assert "label: 'OMB'" not in src
+    assert "name: 'OMB'" not in src
 
 
 def test_search_palette_bot_rows_spa_navigate_chat():

@@ -216,7 +216,6 @@ describe('SettingsSheet', () => {
     expect(screen.queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'OMB' })).not.toBeInTheDocument()
   })
-  })
 
   it('persists retention via join radios and shows a save toast', async () => {
     renderSheet()
