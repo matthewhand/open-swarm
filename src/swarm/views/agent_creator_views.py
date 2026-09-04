@@ -74,10 +74,10 @@ class BlueprintCodeValidator:
     """Validates generated blueprint code using Python AST parsing and linting"""
 
     def __init__(self):
+        # Match swarm.core.blueprint_spec.BLUEPRINT_INTERFACE: BlueprintBase
+        # plus async run(). Typing imports (AsyncGenerator, Any) are optional.
         self.required_imports = [
             'BlueprintBase',
-            'AsyncGenerator',
-            'Any'
         ]
         self.required_methods = ['run']
         self.required_attributes = ['metadata']
@@ -139,7 +139,7 @@ class BlueprintCodeValidator:
                 if required_method not in methods_found:
                     errors.append(f"Missing required async method: {required_method}")
 
-            # Check for metadata attribute
+            # Check for metadata attribute (plain assign or annotated ClassVar)
             has_metadata = False
             for node in blueprint_class.body:
                 if isinstance(node, ast.Assign):
@@ -147,6 +147,12 @@ class BlueprintCodeValidator:
                         if isinstance(target, ast.Name) and target.id == 'metadata':
                             has_metadata = True
                             break
+                elif (
+                    isinstance(node, ast.AnnAssign)
+                    and isinstance(node.target, ast.Name)
+                    and node.target.id == 'metadata'
+                ):
+                    has_metadata = True
 
             if not has_metadata:
                 warnings.append("Missing metadata attribute (recommended)")
@@ -415,8 +421,12 @@ agent_generator = AgentPersonaGenerator()
 def agent_creator_page(request):
     """Render the agent creator interface"""
     if request.method == 'GET':
+        from swarm.core.blueprint_spec import BLUEPRINT_INTERFACE, BLUEPRINT_ONE_LINER
+
         context = {
             'page_title': 'Agent Creator',
+            'blueprint_one_liner': BLUEPRINT_ONE_LINER,
+            'blueprint_interface': BLUEPRINT_INTERFACE,
             'form_data': {
                 'personality_options': [
                     'helpful and professional', 'creative and enthusiastic',
@@ -451,8 +461,23 @@ def generate_agent_code(request):
                     'error': f'Missing required field: {field}'
                 }, status=400)
 
-        # Generate the code
         generated_code = agent_generator.generate_agent_code(data)
+        if data.get("assist") and not os.environ.get("PYTEST_CURRENT_TEST"):
+            from swarm.core.llm_assist import generate_blueprint_class
+
+            tags = data.get("tags") or ["custom"]
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",") if t.strip()]
+            draft = generate_blueprint_class(
+                name=data.get("name") or "CustomAgent",
+                description=data.get("description") or "",
+                requirements=data.get("instructions") or "",
+                tags=list(tags),
+            )
+            if draft:
+                check = validator.validate_blueprint_code(draft)
+                if check.get("valid"):
+                    generated_code = draft
 
         # Validate the generated code
         validation_result = validator.validate_blueprint_code(generated_code)
@@ -698,13 +723,23 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     class_name = f"{_pascal_case(team_name)}SwarmBlueprint"
     blueprint_id = _slugify(team_name)
 
+    from swarm.core.agent_roles import ROLE_GATE, ROLE_SKEPTIC, normalize_agent_role
+    from swarm.core.skeptic import SKEPTIC_INSTRUCTIONS
+    from swarm.core.tool_gate import GATE_INSTRUCTIONS
+
     agents = []
     for agent in team["agents"]:
+        role = normalize_agent_role(agent.get("role"))
+        instructions = agent.get("system_prompt") or agent.get("instructions") or f"You are {agent['name']}."
+        if role == ROLE_GATE and GATE_INSTRUCTIONS not in instructions:
+            instructions = f"{GATE_INSTRUCTIONS}\n\n{instructions}"
+        if role == ROLE_SKEPTIC and SKEPTIC_INSTRUCTIONS not in instructions:
+            instructions = f"{SKEPTIC_INSTRUCTIONS}\n\n{instructions}"
         agents.append({
             "name": agent["name"],
-            "role": agent.get("role") or agent["name"],
+            "role": role,
             "description": agent.get("description") or f"{agent['name']} agent",
-            "instructions": agent.get("system_prompt") or agent.get("instructions") or f"You are {agent['name']}.",
+            "instructions": instructions,
             "model_profile": agent.get("model_profile") or "default",
             "tools": agent.get("tools") or [],
         })
@@ -783,7 +818,10 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     lines.append("")
     lines.append("from agents import Agent, Runner, function_tool")
     lines.append("")
+    lines.append("from swarm.core.agent_roles import find_role_agent, normalize_agent_role")
     lines.append("from swarm.core.blueprint_base import BlueprintBase")
+    lines.append("from swarm.core.skeptic import attach_skeptic_as_tool, run_with_skeptic")
+    lines.append("from swarm.core.tool_gate import attach_gate_as_tool, wrap_tools_with_gate")
     lines.append("")
     if tool_defs:
         lines.extend(tool_defs)
@@ -805,7 +843,10 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     lines.append("        \"version\": \"1.0.0\",")
     lines.append("        \"author\": \"Web UI\",")
     lines.append("        \"tags\": [\"swarm\", \"webui\"],")
-    lines.append("        \"agents\": [spec[\"name\"] for spec in AGENT_SPECS],")
+    lines.append("        \"role\": \"default\",")
+    lines.append("        \"agents\": [{\"name\": spec[\"name\"], \"role\": spec.get(\"role\") or \"default\"} for spec in AGENT_SPECS],")
+    lines.append("        \"gate_agent\": next((spec[\"name\"] for spec in AGENT_SPECS if spec.get(\"role\") in (\"gate\", \"tool_gate\")), None),")
+    lines.append("        \"skeptic_agent\": next((spec[\"name\"] for spec in AGENT_SPECS if spec.get(\"role\") == \"skeptic\"), None),")
     lines.append(f"        \"coordinator\": {repr(coordinator_name)},")
     lines.append("    }")
     lines.append("")
@@ -822,6 +863,7 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     lines.append("            tool_names = spec.get(\"tools\") or []")
     lines.append("            tools = [TOOLS_REGISTRY[t] for t in tool_names if t in TOOLS_REGISTRY]")
     lines.append("            model_instance = self._get_model_instance(model_profile)")
+    lines.append("            role = normalize_agent_role(spec.get(\"role\"))")
     lines.append("            agents[name] = Agent(")
     lines.append("                name=name,")
     lines.append("                model=model_instance,")
@@ -829,28 +871,53 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     lines.append("                tools=tools,")
     lines.append("                mcp_servers=[],")
     lines.append("            )")
+    lines.append("            agents[name].role = role")
     lines.append("        return agents")
+    lines.append("")
+    lines.append("    def elicit_tool_approval(self, tool_name, arguments):")
+    lines.append("        return self.request_approval(\"tool\", f\"{tool_name}\", arguments)")
     lines.append("")
     lines.append("    def create_starting_agent(self, mcp_servers):")
     lines.append("        if not self._agents:")
     lines.append("            self._agents = self._build_agents()")
     lines.append(f"        coordinator_name = {repr(coordinator_name)}")
     lines.append("        coordinator = self._agents.get(coordinator_name) or next(iter(self._agents.values()))")
+    lines.append("        gate = find_role_agent(self._agents, \"gate\")")
+    lines.append("        skeptic = find_role_agent(self._agents, \"skeptic\")")
     lines.append("        team_tools = []")
     lines.append("        for name, agent in self._agents.items():")
     lines.append("            if name == coordinator.name:")
     lines.append("                continue")
+    lines.append("            if getattr(agent, \"role\", \"default\") in (\"gate\", \"skeptic\"):")
+    lines.append("                continue")
     lines.append("            team_tools.append(agent.as_tool(tool_name=name, tool_description=f\"Delegate to {name}.\"))")
     lines.append("        if team_tools:")
     lines.append("            coordinator.tools = list(coordinator.tools) + team_tools")
+    lines.append("        # Unwired gate: wrap_tools_with_gate is a no-op and never elicits.")
+    lines.append("        coordinator.tools = wrap_tools_with_gate(")
+    lines.append("            list(coordinator.tools or []),")
+    lines.append("            gate=gate,")
+    lines.append("            elicit_fn=self.elicit_tool_approval,")
+    lines.append("        )")
+    lines.append("        attach_gate_as_tool(coordinator, gate)")
+    lines.append("        attach_skeptic_as_tool(coordinator, skeptic)")
     lines.append("        return coordinator")
     lines.append("")
     lines.append("    async def run(self, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]:")
     lines.append("        user_message = messages[-1].get(\"content\", \"\") if messages else \"\"")
     lines.append("        agent = self.create_starting_agent([])")
+    lines.append("        skeptic = find_role_agent(self._agents, \"skeptic\")")
     lines.append("        try:")
-    lines.append("            result = await Runner.run(agent, user_message)")
-    lines.append("            content = getattr(result, \"final_output\", str(result))")
+    lines.append("            async def _run(current, prompt):")
+    lines.append("                result = await Runner.run(current, prompt)")
+    lines.append("                return getattr(result, \"final_output\", str(result))")
+    lines.append("            outcome = await run_with_skeptic(")
+    lines.append("                agent=agent,")
+    lines.append("                prompt=user_message,")
+    lines.append("                skeptic=skeptic,")
+    lines.append("                run_fn=_run,")
+    lines.append("            )")
+    lines.append("            content = outcome.output")
     lines.append("            yield {\"messages\": [{\"role\": \"assistant\", \"content\": content}]}")
     lines.append("        except Exception as e:")
     lines.append("            yield {\"messages\": [{\"role\": \"assistant\", \"content\": f\"[Swarm Error] {e}\"}]}")
@@ -900,9 +967,11 @@ def save_team_swarm(request):
                 banned = _banned_snippet_error(val)
                 if banned:
                     return JsonResponse({"success": False, "error": banned}, status=400)
+        from swarm.core.agent_roles import normalize_agent_role
+
         cleaned_agents.append({
             "name": bot_name,
-            "role": (agent.get("role") or bot_name).strip(),
+            "role": normalize_agent_role(agent.get("role")),
             "description": (agent.get("description") or f"{bot_name} bot").strip(),
             "system_prompt": (agent.get("system_prompt") or agent.get("instructions") or f"You are {bot_name}.").strip(),
             "model_profile": (agent.get("model_profile") or "default").strip(),

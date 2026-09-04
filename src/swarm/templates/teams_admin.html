@@ -8,9 +8,18 @@
   <div class="ta-head">
     <div>
       <h1 class="h3">Teams Admin</h1>
-      <div class="os-meta">Register teams as OpenAI-compatible models &middot; callable at <code>/v1/chat/completions</code></div>
+      <div class="os-meta">LLM-profile aliases (prefer <strong>Profiles</strong>) &middot; callable at <code>/v1/chat/completions</code></div>
     </div>
     <span class="os-chip"><strong>{{ teams|length }}</strong>&nbsp;team{{ teams|length|pluralize }}</span>
+  </div>
+
+  <div class="alert alert-info" role="note">
+    <strong>Profiles, not a Team.</strong>
+    This page registers LLM-profile aliases (model ids over <code>llm_profile</code>).
+    A Team is API, CLI, and remote agents that see and talk via openai-agents
+    handoff / as_tool — place Hermes / OMB / Rakazo with
+    <code>swarm-cli remotes place</code> or <code>PATCH /v1/agent-team/</code>.
+    URLs stay <code>/teams/</code> and <code>/v1/teams/</code> (name collision).
   </div>
 
   <h2 class="visually-hidden">Primary actions</h2>
@@ -206,6 +215,56 @@
       </div>
     </div>
   </div>
+
+  <section class="card mt-4" id="herdr-members">
+    <div class="card-header">Herdr members</div>
+    <div class="card-body">
+      <p class="os-meta mb-3">
+        Members with <code>kind=herdr</code>. Empty remote is localhost
+        (no <code>--remote</code>; unix sockets). Discover runs
+        <code>herdr agent list</code> and <code>herdr workspace list</code>
+        so you can add a live pane such as <code>w3:p1</code>.
+        This is not Hermes/OMB/Rakazo.
+      </p>
+      {% csrf_token %}
+      <div class="ta-actions mb-3">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-action="discover-herdr-agents">
+          Discover live Herdr
+        </button>
+        <a class="btn btn-sm btn-outline-secondary" href="/settings/#group-herdr">Settings</a>
+      </div>
+      <div id="herdr-agent-status" class="os-meta mb-2" role="status"></div>
+      <div id="herdr-discover-wrap" class="mb-3" hidden>
+        <ul id="herdr-discover-list" class="list-unstyled mb-0"></ul>
+      </div>
+      {% if herdr_agents %}
+      <table class="table table-sm align-middle ta-table">
+        <caption class="visually-hidden">Persisted Herdr members</caption>
+        <thead>
+          <tr>
+            <th scope="col">Name (prompt target)</th>
+            <th scope="col">Remote</th>
+            <th scope="col">Kind</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for agent in herdr_agents %}
+          <tr>
+            <td><code>{{ agent.name }}</code></td>
+            <td>{% if agent.remote %}{{ agent.remote }}{% else %}localhost{% endif %}</td>
+            <td><code>herdr</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="os-empty" role="status">
+        <div>No Herdr members yet.</div>
+        <div class="os-meta">Discover from the local Herdr server, then add a member to pick it here and in the sidepane.</div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
 
   <script src="{% static 'js/teams_admin.js' %}"></script>
 </div>

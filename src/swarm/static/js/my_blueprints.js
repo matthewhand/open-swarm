@@ -124,7 +124,12 @@ async function runBlueprint() {
     try {
         const response = await fetch('/v1/chat/completions/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                    || document.querySelector('meta[name="csrf-token"]')?.content
+                    || '',
+            },
             credentials: 'same-origin',
             body: JSON.stringify({
                 model: blueprint.id,
@@ -187,8 +192,8 @@ function showStatus(message, type) {
 }
 
 function previewBlueprint(blueprintId) {
-    // Blueprint source served by the REST API (there is no /blueprint/<id>/ page).
-    window.open(`/v1/blueprints/${encodeURIComponent(blueprintId)}/source/`, '_blank');
+    // Highlighted Python page — not the JSON /v1/blueprints/<id>/source API.
+    window.open(`/blueprint-library/${encodeURIComponent(blueprintId)}/source/`, '_blank');
 }
 
 function removeBlueprint(blueprintId, blueprintName) {

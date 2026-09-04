@@ -447,3 +447,55 @@ class TestHandleToolCalls:
         )
 
         assert response.agent is target_agent
+
+    @pytest.mark.asyncio
+    async def test_safety_denies_concerned_api_tool(self):
+        from swarm.core.safety import SafetySession, install_safety_session, reset_safety_session
+
+        tool_call = make_tool_call("call-deny", "wipe", "{}")
+
+        def wipe():
+            raise AssertionError("denied tool must not run")
+
+        session = SafetySession(
+            agent_id="codey",
+            safety_assigned=True,
+            classify_fn=lambda _n, _a: True,
+            elicit_fn=lambda _n, _a: "deny",
+        )
+        token = install_safety_session(session)
+        try:
+            response = await handle_tool_calls([tool_call], [wipe], {}, debug=False)
+        finally:
+            reset_safety_session(token)
+        assert "DENIED" in response.messages[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_cli_safety_session_does_not_block_tool(self):
+        from swarm.core.safety import (
+            CHANNEL_CLI,
+            SafetySession,
+            install_safety_session,
+            reset_safety_session,
+        )
+
+        tool_call = make_tool_call("call-cli", "wipe", "{}")
+        prompted: list[str] = []
+
+        def wipe():
+            return "ran"
+
+        session = SafetySession(
+            agent_id="cli_agent",
+            channel=CHANNEL_CLI,
+            safety_assigned=True,
+            classify_fn=lambda _n, _a: True,
+            elicit_fn=lambda n, _a: prompted.append(n) or "deny",
+        )
+        token = install_safety_session(session)
+        try:
+            response = await handle_tool_calls([tool_call], [wipe], {}, debug=False)
+        finally:
+            reset_safety_session(token)
+        assert response.messages[0]["content"] == "ran"
+        assert prompted == []

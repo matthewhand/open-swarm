@@ -28,3 +28,4 @@ def test_create_default_config_writes_loadable_default(tmp_path):
     assert "llm" in data
     assert "default" in data["llm"]
     assert data["llm"]["default"]["provider"] == "openai"
+    assert data.get("remotes") == {}

@@ -1,8 +1,8 @@
 /**
- * Persist pinned agent shortcuts (drag-from-sidebar tiles).
+ * Persist pinned favourite tiles (drag-from-conversation-list).
  *
- * This is a copy/pin, not a move: the AGENTS sidepane row stays.
- * IDs live in localStorage so a reload keeps the same unlabeled top grid.
+ * Pin is a copy, not a move: the conversation row stays in the rail.
+ * IDs live in localStorage so a reload keeps the unlabeled tile grid.
  */
 
 export const PINNED_AGENTS_STORAGE_KEY = 'swarm_pinned_agents'
@@ -29,6 +29,19 @@ export function endAgentDrag(): void {
 
 export function peekAgentDrag(): PinnedAgent | null {
   return activeDrag
+}
+
+function normalizePin(value: unknown): PinnedAgent | null {
+  if (typeof value === 'string' && value.length > 0) {
+    return { id: value, name: value }
+  }
+  if (!value || typeof value !== 'object') return null
+  const rec = value as { id?: unknown; name?: unknown }
+  if (typeof rec.id !== 'string' || rec.id.length === 0) return null
+  return {
+    id: rec.id,
+    name: typeof rec.name === 'string' && rec.name.length > 0 ? rec.name : rec.id,
+  }
 }
 
 export function loadPinnedAgents(): PinnedAgent[] {
@@ -90,7 +103,7 @@ export function writeAgentDragPayload(dataTransfer: DataTransfer, agent: PinnedA
   try {
     dataTransfer.setData(AGENT_DRAG_MIME, JSON.stringify(pin))
     dataTransfer.setData('text/plain', pin.id)
-    dataTransfer.effectAllowed = 'copy'
+    dataTransfer.effectAllowed = 'copyMove'
   } catch {
     /* some test DataTransfers only implement a subset */
   }
@@ -115,15 +128,4 @@ export function parseAgentDragPayload(dataTransfer?: DataTransfer | null): Pinne
   } catch {
     return null
   }
-}
-
-function normalizePin(value: unknown): PinnedAgent | null {
-  if (typeof value === 'string' && value.length > 0) {
-    return { id: value, name: value }
-  }
-  if (!value || typeof value !== 'object') return null
-  const record = value as { id?: unknown; name?: unknown }
-  if (typeof record.id !== 'string' || record.id.length === 0) return null
-  const name = typeof record.name === 'string' && record.name.length > 0 ? record.name : record.id
-  return { id: record.id, name }
 }

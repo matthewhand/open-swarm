@@ -15,7 +15,8 @@
     "marked": "^15.0.12",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.18.0"
+    "react-router-dom": "^6.18.0",
+    "zustand": "^5.0.15"
   },
   "scripts": {
     "start": "vite",
