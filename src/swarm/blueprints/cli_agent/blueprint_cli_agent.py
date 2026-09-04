@@ -27,8 +27,24 @@ from swarm.core.cli_sessions import (
     resolve_thread,
 )
 from swarm.core.consensus import run_consensus
+from swarm.core.session_policy import resume_cli_session_id
 
 logger = logging.getLogger(__name__)
+
+
+def _resume_id_for(*agent_ids: str) -> str | None:
+    """Stored CLI session id, or None when new-chat-per-task is on (REQ-65)."""
+    from swarm.core.agent_settings import is_new_chat_per_task
+
+    for agent_id in agent_ids:
+        if not agent_id:
+            continue
+        if is_new_chat_per_task(agent_id):
+            return None
+        stored = resume_cli_session_id(agent_id)
+        if stored:
+            return stored
+    return None
 
 
 class CliAgentBlueprint(BlueprintBase):
@@ -60,6 +76,10 @@ class CliAgentBlueprint(BlueprintBase):
         return resolve_thread(params, default_agent=self.blueprint_id)
 
     def _stored_session(self, params: dict[str, Any], cli_name: str) -> str | None:
+        from swarm.core.agent_settings import is_new_chat_per_task
+
+        if is_new_chat_per_task(self.blueprint_id) or is_new_chat_per_task(cli_name):
+            return None
         ref = self._thread_ref(params)
         if ref is None:
             return None

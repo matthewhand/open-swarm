@@ -22,6 +22,40 @@ That talks to the Herdr already on this host (local server + unix sockets,
 typically `~/.config/herdr/`). Live `.30` (ubuntu-max) runs `herdr server` plus
 the remote-client-bridge. This cloud agent does **not** SSH there.
 
+## Settings Remotes kind (REQ-64)
+
+Herdr is an **addable remotes kind** (`kind=herdr`), same persist shape as
+Hermes / OpenMousBot / Rakazo: base URL + api-key-env name. It is **opt-in**
+(compatible with REQ-59): it does not appear in Settings Remotes until you add
+it. There is **no baked LAN host**.
+
+```bash
+swarm-cli remotes set herdr --base-url http://127.0.0.1:9 --api-key-env HERDR_API_KEY
+```
+
+Settings → Remotes → **+ Add remote** (or Django `/settings/` **Add Herdr remote**)
+does the same `PATCH /v1/remotes/herdr/`. After add, Herdr shows in the Remotes
+list like the other kinds.
+
+`herdr --remote` and `HerdrClient.from_remote_config()` use that configured
+base. A **localhost / loopback** base omits `--remote` (the documented default)
+only when **you set** that URL. Missing config is a clear error — Open Swarm
+will not guess another host.
+
+HTTP health/list (stubbed in tests; no live LAN in CI):
+
+| Op | Request |
+|---|---|
+| Health | `GET {base}/health` |
+| List | `GET {base}/agents` |
+
+```bash
+swarm-cli remotes health herdr
+swarm-cli remotes operate herdr --op list
+```
+
+Do not commit tokens. Placeholders only (`${HERDR_API_KEY}`).
+
 ## Optional `--remote`
 
 A persisted Herdr row may set `remote` to a string such as

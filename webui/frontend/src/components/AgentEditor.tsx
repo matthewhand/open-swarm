@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Input, Modal, Select } from './DaisyUI'
 import { fetchBlueprints, fetchModels, type AgentRole, type Blueprint } from '../lib/api'
@@ -7,6 +7,12 @@ import {
   loadAgentEdit,
   saveAgentEdit,
 } from '../lib/agentEdits'
+import {
+  NEW_CHAT_PER_TASK_LABEL,
+  NEW_CHAT_PER_TASK_TOOLTIP,
+  fetchAgentSettings,
+  saveAgentSettings,
+} from '../lib/agentSettings'
 import { agentRole, exampleRoleAgents } from '../lib/agentRoles'
 import { agentLabel, catalogLabel } from '../lib/supportAgent'
 import { openSettingsSheet } from './SettingsSheet'
@@ -48,10 +54,13 @@ export interface AgentEditorProps {
  */
 export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorProps) {
   const id = agentId || ''
+  const toggleId = useId()
   const [name, setName] = useState('')
   const [role, setRole] = useState<AgentRole>('default')
   const [blueprintId, setBlueprintId] = useState('')
   const [llmOverride, setLlmOverride] = useState('')
+  const [newChatPerTask, setNewChatPerTask] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -85,7 +94,27 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setRole(edit.role || agentRole({ id, name: catalogAgent?.name, role: catalogAgent?.role }))
     setBlueprintId(edit.blueprintId || id)
     setLlmOverride(edit.llmOverride || '')
+
+    let cancelled = false
+    ;(async () => {
+      const settings = await fetchAgentSettings(id)
+      if (!cancelled) setNewChatPerTask(settings.new_chat_per_task)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [isOpen, id, blueprintsQuery.data])
+
+  const handleToggleNewChat = async (next: boolean) => {
+    setNewChatPerTask(next)
+    if (!id) return
+    setSavingSettings(true)
+    try {
+      await saveAgentSettings(id, { new_chat_per_task: next })
+    } finally {
+      setSavingSettings(false)
+    }
+  }
 
   const persistBlueprint = (nextId: string) => {
     setBlueprintId(nextId)
@@ -181,6 +210,28 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
             ))}
           </Select>
         ) : null}
+
+        <div
+          className="tooltip tooltip-bottom w-full text-left"
+          data-tip={NEW_CHAT_PER_TASK_TOOLTIP}
+        >
+          <label
+            htmlFor={toggleId}
+            className="label cursor-pointer items-center justify-between gap-4 rounded-box border border-base-300 bg-base-200/60 px-4 py-3"
+          >
+            <span className="label-text text-base font-semibold">{NEW_CHAT_PER_TASK_LABEL}</span>
+            <input
+              id={toggleId}
+              type="checkbox"
+              className="toggle toggle-primary"
+              role="switch"
+              aria-label={NEW_CHAT_PER_TASK_LABEL}
+              checked={newChatPerTask}
+              disabled={!id || savingSettings}
+              onChange={(event) => handleToggleNewChat(event.target.checked)}
+            />
+          </label>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <Button

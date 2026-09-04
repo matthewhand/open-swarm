@@ -90,6 +90,24 @@ How to proceed:
 
 ## 7. Browser automation / Playwright MCP
 
+### REQ-45 — Browser (this machine)
+
+The SPA **Browser control** pane defaults to Playwright on **this machine**
+(``swarm.core.browser_control``). Same module is the agent tool from CLI, API,
+or a remote seat. **Sandbox / Docker** and **SaaS** rows are grey TODO — they
+are not wired (do not pretend they work). Desktop/OS control is out of scope
+(#341 stub).
+
+Missing Playwright or Chrome returns a structured error (``ok: false``) and
+must not crash the process. Tests inject ``StubBrowser`` — there is no fake
+success path for a live page. Optional attach: ``SWARM_CHROME_CDP``.
+
+The dismissible **runtime banner** is about where the *app* is running
+(``SWARM_RUNTIME_MODE``), not which browser provider is selected. Missing env
+is honest unknown — never a green isolated sandbox.
+
+### Playwright MCP (blueprint capability)
+
 Blueprints that declare a ``browser`` capability (e.g. ``whiskeytango_foxtrot``,
 ``jeeves``) expect the official **microsoft/playwright-mcp** server
 (``npx -y @playwright/mcp@latest``). Open Swarm auto-provisions it in the tool

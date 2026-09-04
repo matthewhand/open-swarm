@@ -5,6 +5,31 @@ from datetime import datetime, timedelta, timezone
 from swarm.core import chat_store
 
 
+def test_concurrent_task_sessions_do_not_share_transcript(tmp_path):
+    chat_store.save(
+        "u1",
+        "worker",
+        [{"role": "user", "content": "alpha"}],
+        conversation_id="task-a",
+        session_id="task-a",
+        base_dir=tmp_path,
+    )
+    chat_store.save(
+        "u1",
+        "worker",
+        [{"role": "user", "content": "beta"}],
+        conversation_id="task-b",
+        session_id="task-b",
+        base_dir=tmp_path,
+    )
+    a = chat_store.load("u1", "worker", session_id="task-a", base_dir=tmp_path)
+    b = chat_store.load("u1", "worker", session_id="task-b", base_dir=tmp_path)
+    assert a["messages"][0]["content"] == "alpha"
+    assert b["messages"][0]["content"] == "beta"
+    stems = {row["session_id"] for row in chat_store.list_sessions("u1", "worker", base_dir=tmp_path)}
+    assert stems == {"task-a", "task-b"}
+
+
 def test_save_load_roundtrip(tmp_path):
     path = chat_store.save(
         "u1",
@@ -54,6 +79,21 @@ def test_normalize_and_default_agent():
     assert chat_store.normalize_agent_id(None) == "_default"
     assert chat_store.normalize_agent_id("  ") == "_default"
     assert chat_store.normalize_agent_id("hybrid_team") == "hybrid_team"
+
+
+def test_normalize_keeps_status_role(tmp_path):
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        [
+            {"role": "status", "content": "CLI: antigravity → grok"},
+            {"role": "user", "content": "hi"},
+        ],
+        base_dir=tmp_path,
+    )
+    loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert loaded["messages"][0] == {"role": "status", "content": "CLI: antigravity → grok"}
+    assert loaded["messages"][1]["role"] == "user"
     assert chat_store.normalize_agent_id("../etc/passwd") == "etc-passwd"
 
 

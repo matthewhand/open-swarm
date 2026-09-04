@@ -85,6 +85,19 @@ noise (`.git`, `__pycache__`, `.pyc`, …).
 Measured on the oracle host: `read swarm_config.json` returns in **~0.45s** vs
 **~133–200s** for the same ask routed through `cli_agent`.
 
+## Browser (this machine) — REQ-45
+
+`swarm.core.browser_control` is a small Playwright driver for **this machine**
+(launch Chrome / attach via `SWARM_CHROME_CDP`, then navigate + snapshot). The
+same module is what an agent uses from CLI, API, or a remote seat. Inject
+`StubBrowser` in tests. Missing Playwright or Chrome returns `ok: false` and
+does not crash.
+
+Sandbox / Docker and SaaS **browser providers** are not implemented (UI rows
+are grey TODO). OMB and Rakazo remain **remote harness members** (`consult_omb`
+/ `consult_rakazo`) — that is not a local sandboxed Chrome. Desktop/OS control
+is out of scope (#341).
+
 ## Choosing the right model for a task
 - **Inspect a file / dir / config / log** → `fs_introspect` (instant, reliable).
 - **Reason about / transform code** → `cli_agent` (or `cli_fusion` / `cli_roundtable`

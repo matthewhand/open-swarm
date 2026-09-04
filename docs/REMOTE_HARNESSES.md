@@ -38,9 +38,13 @@ LAN). Defaults below are operator facts already present in `harness_fleet`
 plus the published APIs for those products. Health fails honestly when the
 box is down.
 
+Remotes are **opt-in**. Settings → Remotes starts empty (no Hermes / OpenMousBot /
+Rakazo card) until you **+ Add remote**. Kind `hermes` is complete: after add
+(base URL + api-key-env *name* only) Settings can health / list / send.
+
 ## Configure (persist)
 
-Defaults (override anytime):
+Kind defaults (override when adding). Unused kinds are not pre-seeded cards:
 
 | Remote | Host | Default base URL | Auth env |
 |---|---|---|---|
@@ -69,8 +73,9 @@ Equivalent persist:
 
 Env overrides win over the file: `HERMES_BASE_URL`, `OMB_BASE_URL`, `RAKAZO_BASE_URL`, `SWARM_REMOTE_BASE_URL`.
 
-Settings → **Remote Harnesses** shows the same values with secrets redacted.
-`swarm-cli remotes get hermes` prints the redacted view.
+Settings → **Remotes** lists only added remotes (secrets redacted). Missing
+catalog is empty, not a default Hermes card. `swarm-cli remotes get hermes`
+prints the redacted view after add.
 
 ## Health
 

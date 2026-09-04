@@ -94,6 +94,9 @@ test('sidepane mixes a team row; selecting it shows the unlabeled member dropdow
   await expect(list.getByRole('link', { name: /Codey/ })).toBeVisible()
 
   await team.click()
+  const picker = page.getByRole('dialog', { name: 'Demo Team sessions' })
+  await expect(picker).toBeVisible()
+  await picker.getByRole('option', { name: /Codey/ }).click()
   await expect(page).toHaveURL(/[?&]team=demo-team/)
 
   const dropdown = page.getByRole('combobox', { name: 'Team members' })

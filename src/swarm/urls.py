@@ -67,6 +67,7 @@ from swarm.views.blueprint_library_views import (
     remove_blueprint_from_library,
 )
 from swarm.views.chat_views import ChatCompletionsView, HealthCheckView
+from swarm.views.runtime_views import BrowserControlView, RuntimeModeView
 from swarm.views.herdr_api import (
     HerdrAgentDetailAPIView,
     HerdrAgentsAPIView,
@@ -98,6 +99,7 @@ from swarm.views.remotes_api import (
     RemoteOperateView,
     RemotesListView,
 )
+from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
@@ -126,6 +128,12 @@ urlpatterns = [
     # Lightweight liveness probe (no auth) — used by the Fly health check.
     path("health", HealthCheckView.as_view(), name="health"),
     path("health/", HealthCheckView.as_view()),
+    # REQ-45: runtime banner (where the *app* runs) + browser-control catalog.
+    # AllowAny, no secrets / host paths. Slash twins like /health and /v1/models.
+    path("v1/runtime", RuntimeModeView.as_view(), name="runtime-mode-no-slash"),
+    path("v1/runtime/", RuntimeModeView.as_view(), name="runtime-mode"),
+    path("v1/browser-control", BrowserControlView.as_view(), name="browser-control-no-slash"),
+    path("v1/browser-control/", BrowserControlView.as_view(), name="browser-control"),
     # Session Explorer web UI (browse stateful /v1/responses sessions + delegation timelines)
     path("sessions/", session_explorer, name="session-explorer"),
     path("sessions/<str:response_id>/", session_detail, name="session-detail"),
@@ -260,6 +268,11 @@ urlpatterns = [
     path("v1/herdr-agents/discover/", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover"),
     path("v1/herdr-agents/<str:agent_id>", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail-no-slash"),
     path("v1/herdr-agents/<str:agent_id>/", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail"),
+    # REQ-65: agent-scoped settings (new chat per task). Not global Settings.
+    path("v1/agents/<str:agent_id>/settings", AgentSettingsAPIView.as_view(), name="agent-settings-api-no-slash"),
+    path("v1/agents/<str:agent_id>/settings/", AgentSettingsAPIView.as_view(), name="agent-settings-api"),
+    path("v1/agents/<str:agent_id>/sessions", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api-no-slash"),
+    path("v1/agents/<str:agent_id>/sessions/", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api"),
     # Settings System section — local store facts (REQ-56). Read-only.
     path("v1/system", LocalStoreView.as_view(), name="system-local-store-no-slash"),
     path("v1/system/", LocalStoreView.as_view(), name="system-local-store"),

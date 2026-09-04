@@ -398,6 +398,20 @@ class TestReceive:
                     consumers_module.os = original_os
 
     @pytest.mark.asyncio
+    async def test_receive_new_session_clears_prior_transcript(self, consumer):
+        """REQ-65: params.new_session starts an empty task session."""
+        consumer.messages = [{"role": "user", "content": "old"}, {"role": "assistant", "content": "prior"}]
+        text_data = json.dumps({"message": "fresh task", "params": {"new_session": True}})
+
+        with patch('swarm.consumers.render_to_string', return_value="<div>user message</div>"):
+            with patch.object(consumer, 'respond_with_default_model', new_callable=AsyncMock):
+                with patch.object(consumer, 'send', new_callable=AsyncMock):
+                    await consumer.receive(text_data)
+
+        assert consumer.messages[0]["content"] == "fresh task"
+        assert all(m.get("content") != "old" for m in consumer.messages)
+
+    @pytest.mark.asyncio
     async def test_receive_empty_message_returns_early(self, consumer):
         """Empty message should be ignored."""
         consumer.messages = []
@@ -433,6 +447,20 @@ class TestReceive:
         await consumer.receive(text_data)
 
         assert len(consumer.messages) == 0
+
+    @pytest.mark.asyncio
+    async def test_receive_tool_decision_resolves_pending_and_skips_chat(self, consumer):
+        """Safety Allow/Deny frames are not treated as chat messages."""
+        import asyncio
+
+        future = asyncio.get_running_loop().create_future()
+        consumer.messages = []
+        consumer._pending_tool_decisions = {"appr-1": future}
+        await consumer.receive(
+            json.dumps({"type": "tool_decision", "id": "appr-1", "decision": "allow"})
+        )
+        assert future.result() == "allow"
+        assert consumer.messages == []
 
 
 # =============================================================================
@@ -525,6 +553,30 @@ class TestBlueprintSelection:
                             mock_default.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_receive_status_frame_appends_without_llm(self, consumer):
+        """REQ-46: type=status persists a transcript line and skips the model."""
+        consumer.messages = []
+        consumer.conversation_id = "conv-status"
+        text_data = json.dumps({
+            "type": "status",
+            "text": "CLI: antigravity → grok",
+            "agent": "cli_agent",
+        })
+
+        with patch.object(consumer, "save_conversation", new_callable=AsyncMock) as mock_save:
+            with patch.object(consumer, "respond_with_blueprint", new_callable=AsyncMock) as mock_bp:
+                with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
+                    await consumer.receive(text_data)
+
+        assert consumer.messages == [
+            {"role": "status", "content": "CLI: antigravity → grok"}
+        ]
+        assert consumer.active_agent == "cli_agent"
+        mock_save.assert_awaited_once()
+        mock_bp.assert_not_awaited()
+        mock_default.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_team_stub_echoes_team_and_target(self, consumer):
         consumer.messages = [{"role": "user", "content": "ping"}]
         with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
@@ -608,10 +660,9 @@ class TestBlueprintSelection:
                 assert 'hx-swap-oob="beforeend:#message-response-abc"' in frames[0]
                 assert "BP reply" in frames[0]
                 assert "BP reply" in frames[1]
-                assert consumer.messages[-1] == {
-                    "role": "assistant",
-                    "content": "BP reply",
-                }
+                assert consumer.messages[-1]["role"] == "assistant"
+                assert consumer.messages[-1]["content"] == "BP reply"
+                assert consumer.messages[-1]["ts"]
 
     @pytest.mark.asyncio
     async def test_blueprint_session_notice_is_bubbleless_status(self, consumer, monkeypatch):

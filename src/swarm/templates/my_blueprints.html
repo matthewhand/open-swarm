@@ -100,7 +100,7 @@
                         <div class="card-body d-flex flex-column">
                             <!-- Identity: icon + name + category + status -->
                             <div class="d-flex align-items-start gap-2 mb-2">
-                                <div class="bp-icon-badge"><i class="fas fa-robot"></i></div>
+                                <img src="{% static 'img/default-agent-avatar.svg' %}" alt="" class="bp-avatar bp-avatar--default" width="40" height="40" data-agent-avatar="default">
                                 <div class="flex-grow-1 min-w-0">
                                     <div class="card-title mb-0 text-truncate" title="{{ blueprint.name }}">{{ blueprint.name }}</div>
                                     <small class="text-muted">{{ blueprint.category_info.name }}</small>

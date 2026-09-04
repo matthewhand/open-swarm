@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_AGENT_ID,
+  activeTaskSessionCount,
   agentIdFromBlueprint,
   compactAgentThread,
   conversationIdForAgent,
+  conversationIdForTask,
   fetchAgentThread,
+  listTaskSessions,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -26,6 +29,20 @@ describe('conversationIdForAgent', () => {
     const second = conversationIdForAgent('codey')
     expect(first).toBe(second)
     expect(conversationIdForAgent('other')).not.toBe(first)
+  })
+
+  it('reuses the stored id when new chat per task is off', () => {
+    const reused = conversationIdForTask('codey', { newChatPerTask: false })
+    expect(reused).toBe(conversationIdForAgent('codey'))
+  })
+
+  it('mints a new session per task when on, without sharing transcripts', () => {
+    const one = conversationIdForTask('worker', { newChatPerTask: true, taskId: 'alpha' })
+    const two = conversationIdForTask('worker', { newChatPerTask: true, taskId: 'beta' })
+    expect(one).not.toBe(two)
+    expect(one).not.toBe(conversationIdForAgent('worker'))
+    expect(listTaskSessions('worker')).toEqual(expect.arrayContaining([one, two]))
+    expect(activeTaskSessionCount('worker')).toBeGreaterThanOrEqual(2)
   })
 })
 
