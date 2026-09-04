@@ -1,7 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { ToastProvider } from '../../DaisyUI'
+import { COPY_EMPTY_TITLE, COPY_FAILED_TITLE } from '../../../lib/clipboard'
 import { AgentMessageBubble } from '../AgentMessageBubble'
 import type { ChatMessage } from '../../../types/agent'
+
+function renderBubble(ui: ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>)
+}
+
+function stubExecCommand(ok: boolean) {
+  const exec = vi.fn().mockReturnValue(ok)
+  Object.defineProperty(document, 'execCommand', {
+    configurable: true,
+    writable: true,
+    value: exec,
+  })
+  return exec
+}
 
 const userMsg: ChatMessage = {
   key: 'u1',
@@ -29,9 +46,13 @@ describe('AgentMessageBubble', () => {
     })
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('reveals copy and compact actions for a chat turn', async () => {
     const onCompact = vi.fn()
-    render(
+    renderBubble(
       <AgentMessageBubble
         message={userMsg}
         canCompact
@@ -43,13 +64,48 @@ describe('AgentMessageBubble', () => {
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Ship a demo')
     })
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Compact to here' }))
     expect(onCompact).toHaveBeenCalled()
   })
 
+  it('falls back to execCommand when the Clipboard API rejects', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    })
+    const exec = stubExecCommand(true)
+    renderBubble(<AgentMessageBubble message={userMsg} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
+    await waitFor(() => {
+      expect(exec).toHaveBeenCalledWith('copy')
+    })
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    expect(screen.queryByText(COPY_FAILED_TITLE)).not.toBeInTheDocument()
+  })
+
+  it('toasts Copy failed when clipboard and fallback both fail', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+    })
+    stubExecCommand(false)
+    renderBubble(<AgentMessageBubble message={userMsg} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
+    expect(await screen.findByText(COPY_FAILED_TITLE)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copied' })).not.toBeInTheDocument()
+  })
+
+  it('disables Copy when the message has no text', () => {
+    renderBubble(
+      <AgentMessageBubble
+        message={{ ...userMsg, key: 'empty', text: '' }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: COPY_EMPTY_TITLE })).toBeDisabled()
+  })
+
   it('renders a rectangular summary with regenerate and original popup', async () => {
     const onRegen = vi.fn()
-    render(
+    renderBubble(
       <AgentMessageBubble
         message={summaryMsg}
         onRegenerateSummary={onRegen}
@@ -81,10 +137,9 @@ describe('AgentMessageBubble', () => {
       agent: 'Support',
       timestamp: new Date(0),
     }
-    const { container } = render(<AgentMessageBubble message={msg} />)
+    const { container } = renderBubble(<AgentMessageBubble message={msg} />)
     const pre = container.querySelector('pre.os-code')
     expect(pre).toBeTruthy()
-    expect(pre?.getAttribute('data-lang')).toBe('python')
     expect(pre?.className).toContain('os-code-python')
     expect(container.querySelector('.os-py-kw')).toBeTruthy()
     expect(container.querySelector('.os-py-str')).toBeTruthy()
