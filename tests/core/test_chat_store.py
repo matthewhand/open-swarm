@@ -5,6 +5,31 @@ from datetime import datetime, timedelta, timezone
 from swarm.core import chat_store
 
 
+def test_concurrent_task_sessions_do_not_share_transcript(tmp_path):
+    chat_store.save(
+        "u1",
+        "worker",
+        [{"role": "user", "content": "alpha"}],
+        conversation_id="task-a",
+        session_id="task-a",
+        base_dir=tmp_path,
+    )
+    chat_store.save(
+        "u1",
+        "worker",
+        [{"role": "user", "content": "beta"}],
+        conversation_id="task-b",
+        session_id="task-b",
+        base_dir=tmp_path,
+    )
+    a = chat_store.load("u1", "worker", session_id="task-a", base_dir=tmp_path)
+    b = chat_store.load("u1", "worker", session_id="task-b", base_dir=tmp_path)
+    assert a["messages"][0]["content"] == "alpha"
+    assert b["messages"][0]["content"] == "beta"
+    stems = {row["session_id"] for row in chat_store.list_sessions("u1", "worker", base_dir=tmp_path)}
+    assert stems == {"task-a", "task-b"}
+
+
 def test_save_load_roundtrip(tmp_path):
     path = chat_store.save(
         "u1",

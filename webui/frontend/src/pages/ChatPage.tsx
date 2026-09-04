@@ -15,6 +15,12 @@ import AgentAvatar from '../components/AgentAvatar'
 import { LoadingDots, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
+import {
+  AGENT_SETTINGS_CHANGED_EVENT,
+  loadLocalNewChatPerTask,
+  openAgentEditor,
+  type AgentSettingsChangedDetail,
+} from '../lib/agentSettings'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
@@ -22,7 +28,7 @@ import { fetchBlueprints, fetchCliAgents, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   compactAgentThread,
-  conversationIdForAgent,
+  conversationIdForTask,
   fetchAgentThread,
   type ConversationSummary,
 } from '../lib/agentChat'
@@ -108,12 +114,16 @@ const ChatPage = () => {
   const selectedBlueprint = teamFromUrl
     ? ''
     : defaultBlueprintId(searchParams.get('blueprint'))
+  const [newChatPerTask, setNewChatPerTask] = useState(() =>
+    teamFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
+  )
   const threadKey = teamFromUrl
     ? teamThreadId(teamFromUrl)
     : sessionFromUrl
       ? `${selectedBlueprint}::${sessionFromUrl}`
-      : selectedBlueprint
-
+      : newChatPerTask
+        ? `${selectedBlueprint}::task`
+        : selectedBlueprint
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [summariesByThread, setSummariesByThread] = useState<
     Record<string, ConversationSummary[]>
@@ -130,8 +140,20 @@ const ChatPage = () => {
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
       ? teamThreadId(teamFromUrl)
-      : sessionFromUrl || conversationIdForAgent(agentIdFromBlueprint(selectedBlueprint)),
+      : sessionFromUrl ||
+        conversationIdForTask(agentIdFromBlueprint(selectedBlueprint), {
+          newChatPerTask: loadLocalNewChatPerTask(
+            defaultBlueprintId(searchParams.get('blueprint')),
+          ),
+        }),
   )
+  const threadKey = teamFromUrl
+    ? teamThreadId(teamFromUrl)
+    : sessionFromUrl
+      ? `${selectedBlueprint}::${sessionFromUrl}`
+      : newChatPerTask
+        ? conversationId
+        : selectedBlueprint
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
   const summaries = useMemo(
@@ -218,6 +240,23 @@ const ChatPage = () => {
     return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
   }, [])
 
+  useEffect(() => {
+    if (teamFromUrl) {
+      setNewChatPerTask(false)
+      return
+    }
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    setNewChatPerTask(loadLocalNewChatPerTask(agent))
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<AgentSettingsChangedDetail>).detail
+      if (detail?.agentId && detail.agentId === agent) {
+        setNewChatPerTask(detail.new_chat_per_task)
+      }
+    }
+    window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+  }, [selectedBlueprint, teamFromUrl])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
@@ -236,17 +275,28 @@ const ChatPage = () => {
       return
     }
 
-    const agent = agentIdFromBlueprint(selectedBlueprint)
-    const hydrateKey = sessionFromUrl ? `${agent}::${sessionFromUrl}` : agent
+    const fresh = !sessionFromUrl && newChatPerTask
+    const nextId = fresh
+      ? conversationIdForTask(agent, { newChatPerTask: true })
+      : sessionFromUrl || conversationIdForAgent(agent)
+    const hydrateKey = sessionFromUrl
+      ? `${agent}::${sessionFromUrl}`
+      : fresh
+        ? nextId
+        : agent
     const switched =
       lastHydratedAgentRef.current !== null &&
       lastHydratedAgentRef.current !== hydrateKey
     lastHydratedAgentRef.current = hydrateKey
-    setConversationId(sessionFromUrl || conversationIdForAgent(agent))
+    setConversationId(nextId)
     userKeyCounterRef.current = 0
     if (switched) {
       setThreads((prev) => ({ ...prev, [threadKey]: [] }))
       setSummariesByThread((prev) => ({ ...prev, [threadKey]: [] }))
+    }
+    if (fresh) {
+      // New empty session — do not restore a prior transcript.
+      return
     }
     let cancelled = false
     ;(async () => {
@@ -270,7 +320,7 @@ const ChatPage = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, threadKey])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, newChatPerTask, threadKey])
 
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
@@ -486,11 +536,23 @@ const ChatPage = () => {
         buildChatWsFrame(
           trimmed,
           runtimeBlueprint || selectedBlueprint || undefined,
-          selectedCli ? { cli: selectedCli.cli } : undefined,
+          selectedCli
+            ? { cli: selectedCli.cli }
+            : newChatPerTask
+              ? { new_session: messages.length === 0 }
+              : undefined,
         ),
       )
     },
-    [runtimeBlueprint, selectedBlueprint, selectedCli, teamFromUrl, memberTarget],
+    [
+      runtimeBlueprint,
+      selectedBlueprint,
+      selectedCli,
+      teamFromUrl,
+      memberTarget,
+      newChatPerTask,
+      messages.length,
+    ],
   )
 
   const handleSend = (event: FormEvent) => {
@@ -657,6 +719,20 @@ const ChatPage = () => {
               {selectedAgentName}
             </button>
           </h1>
+          {!teamFromUrl && selectedBlueprint ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              aria-label={`Edit ${selectedAgentName}`}
+              onClick={() =>
+                openAgentEditor({
+                  agentId: selectedBlueprint,
+                })
+              }
+            >
+              Edit
+            </button>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <RemoteSelect
