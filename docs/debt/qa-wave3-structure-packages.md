@@ -2,6 +2,7 @@
 
 Look-only folder-structure inventory for **#452** (REQ-95). Scope **B** only:
 app packages. No file moves, deletes, or product-code edits in this PR.
+Refs #452 (no `Fixes`; implementer work waits on CoS).
 
 **As-of:** `origin/main` @ `15bfd714` (Grok rail + Settings sheet + Agent
 Router + Herdr + rosters). Prior overlap / chrome maps:
@@ -115,19 +116,19 @@ Discovery walks `BLUEPRINT_DIRECTORY` for `blueprint_*.py`. `urls_module` /
 
 | Path | Role | Load-bearing | Proposed action |
 |------|------|--------------|-----------------|
-| `blueprints/chatbot`, `dynamic_team` | Thin LLM / alias recipes. | Y | keep |
-| `blueprints/cli_*` (agent, ensemble, fusion, map, orchestrator, pipeline, planner, recurse, roundtable) | CLI-fusion strategy recipes. | Y | keep (core.md wrap later; do not move) |
-| `blueprints/hybrid_*`, `moa`, `moa_orchestrator` | Multi-agent / MoA recipes. | Y | keep |
-| `blueprints/software_dev`, `gate`, `skeptic` | Roles/workflows (#420). CLI/API only. | Y | keep |
-| `blueprints/codey`, `suggestion` | Also hatch console scripts. | Y | keep |
-| `blueprints/geese`, `chucks_angels`, `jeeves`, `poets`, `stewie`, `persona_council` | Bundled recipes. | Y | keep |
-| `blueprints/fs_introspect`, `remote_harness`, `harness_fleet`, `rue_code` | Filesystem / remote / harness recipes. | Y | keep |
-| `blueprints/agent_router`, `support` | Router / Support briefing recipes (SPA `/agents` + rail). | Y | keep |
-| `blueprints/gawd`, `zeus`, `whiskeytango_foxtrot` | Recipes **plus leftover `apps.py`**. No templates/urls/views. Not in `INSTALLED_APPS`. | Y (recipe) / N (`apps.py`) | keep recipe; **delete** leftover `apps.py` later (core.md P2-10; **not** #419) |
-| `blueprints/django_chat/` | Unmounted webpage + import-time `django.setup()` + still-discoverable id. | Y (discovery) / N (HTTP) | **delete** package in #419 (prefer); do not move | 
-| `blueprints/django_chat/templates/…/django_chat_webpage.html` | Alpine/HTMX model dropdown. App not installed → `APP_DIRS` cannot see it. | N | delete with #419 |
-| `blueprints/django_chat/{urls,views,apps}.py` | Mini-app; `name = "blueprints.django_chat"` (wrong vs `swarm.blueprints…`). | N | delete with #419 |
-| `blueprints/README.md` | Still lists django_chat as “Django-integrated chat”. | ? | delete/edit that row with #419 (W-03) |
+| `src/swarm/blueprints/chatbot`, `dynamic_team` | Thin LLM / alias recipes. | Y | keep |
+| `src/swarm/blueprints/cli_*` (agent, ensemble, fusion, map, orchestrator, pipeline, planner, recurse, roundtable) | CLI-fusion strategy recipes. | Y | keep (core.md wrap later; do not move) |
+| `src/swarm/blueprints/hybrid_*`, `moa`, `moa_orchestrator` | Multi-agent / MoA recipes. | Y | keep |
+| `src/swarm/blueprints/software_dev`, `gate`, `skeptic` | Roles/workflows (#420). CLI/API only. | Y | keep |
+| `src/swarm/blueprints/codey`, `suggestion` | Also hatch console scripts. | Y | keep |
+| `src/swarm/blueprints/geese`, `chucks_angels`, `jeeves`, `poets`, `stewie`, `persona_council` | Bundled recipes. | Y | keep |
+| `src/swarm/blueprints/fs_introspect`, `remote_harness`, `harness_fleet`, `rue_code` | Filesystem / remote / harness recipes. | Y | keep |
+| `src/swarm/blueprints/agent_router`, `support` | Router / Support briefing recipes (SPA `/agents` + rail). | Y | keep |
+| `src/swarm/blueprints/gawd`, `zeus`, `whiskeytango_foxtrot` | Recipes **plus leftover `apps.py`**. No templates/urls/views. Not in `INSTALLED_APPS`. | Y (recipe) / N (`apps.py`) | keep recipe; **delete** leftover `apps.py` later (core.md P2-10; **not** #419) |
+| `src/swarm/blueprints/django_chat/` | Unmounted webpage + import-time `django.setup()` + still-discoverable id. | Y (discovery) / N (HTTP) | **delete** package in #419 (prefer); do not move |
+| `src/swarm/blueprints/django_chat/templates/django_chat/django_chat_webpage.html` | Alpine/HTMX model dropdown. App not installed → `APP_DIRS` cannot see it. | N | delete with #419 |
+| `src/swarm/blueprints/django_chat/{urls,views,apps}.py` | Mini-app; `name = "blueprints.django_chat"` (wrong vs `swarm.blueprints…`). | N | delete with #419 |
+| `src/swarm/blueprints/README.md` | Still lists django_chat as “Django-integrated chat”. | ? | delete/edit that row with #419 (W-03) |
 
 No other blueprint ships `templates/` or a webpage. Messenger stub dir is
 already gone (wave 2 W-16).
@@ -136,48 +137,48 @@ already gone (wave 2 W-16).
 
 | Path | Role | Load-bearing | Proposed action |
 |------|------|--------------|-----------------|
-| `views/web_views.py` | `/` (SPA or Django `index.html`), `/chat` SPA, Teams launcher/admin, profiles, `team_rosters.json`. SPA paths are **cwd-relative** `webui/frontend/dist`. | Y | keep |
-| `views/webui.py` | Legacy `/webui/` → `/`. | Y | keep (bookmark compat) |
-| `views/chat_views.py` | `/v1/chat/completions`, `/health`. | Y | keep |
-| `views/chat_persist_views.py` | `/chat/thread/`, `/chat/compact/`, retention POSTs. | Y | keep |
-| `views/settings_views.py` + `settings_manager.py` | `/settings/` dump + `/settings/api/` + env. | Y | keep (sheet ≠ dump; [wave 1 Q-03](./qa-wave1-django-spa.md)) |
-| `views/teams_api.py` | `/v1/teams/` LLM-profile **aliases**. | Y | keep (do not merge with rosters) |
-| `views/team_rosters_api.py` | `/v1/team-rosters/` composition. | Y | keep |
-| `views/herdr_api.py` | `/v1/herdr-agents/` + discover. | Y | keep |
-| `views/remotes_api.py` | Hermes / OMB / Rakazo remotes. | Y | keep |
-| `views/api_views.py` | Blueprints, models, CLI agents, config-options (includes **skills**), marketplace, support. | Y | keep |
-| `views/definition_views.py` | `/v1/definitions/` (Settings sheet Blueprint editor). | Y | keep |
-| `views/agent_router_views.py` + `agent_router_page.py` | `/v1/agents/*` + `/agents` (SPA `dist` or `agent_router.html`). | Y | keep |
-| `views/blueprint_library_views.py` | `/blueprint-library/` HTML + avatars. | Y | keep |
-| `views/library_api.py` | `/v1/library/` SPA-parity REST. | Y | keep |
-| `views/agent_creator_views.py` | `/agent-creator/`, `/team-creator/` (stamps `tags: ["swarm", "webui"]` — wave 2 W-09). | Y | keep pages; wrap tag later |
-| `views/session_explorer.py` | `/sessions/` over `/v1/responses`. | Y | keep |
-| `views/llm_profiles_api.py` | `/v1/llm-profiles/`. | Y | keep |
-| `views/responses_views.py` | OpenAI Responses API. | Y | keep |
-| `views/system_views.py` | `/v1/system/` local-store facts (REQ-56). | Y | keep |
-| `views/core_views.py` | Dead: renders missing `swarm/index.html` / `swarm/login.html`. Not in `urls.py`. | N | delete (wave 1 Q-17) |
-| `templates/base.html` | Operator shell: Home · Chat · Blueprints · Teams · Sessions · Settings + dock. Comment still claims it “matches SPA”. | Y | keep until retirement; comment is stale |
-| `templates/index.html` | Home **only if** `dist/` missing. | ? | keep as fallback **or** shrink to “build the frontend” stub |
-| `templates/agent_router.html` | `/agents` fallback if `dist/` missing. | ? | keep as fallback |
-| `templates/teams_launch.html` + `static/js/teams_launch.js` | Public blueprint launcher. `ENABLE_WEBUI` gated. | Y | keep |
-| `templates/teams_admin.html` + `teams_admin.js` | Alias CRUD + `#herdr-members`. Login + `ENABLE_WEBUI`. | Y | keep (Herdr UI lives here) |
-| `templates/settings_dashboard.html` + `settings_dashboard.js` | Operator dump + REQ-14 retention + Herdr. | Y | keep |
-| `templates/blueprint_library.html` + `my_blueprints.html` + `blueprint_*.html` + JS | Catalog / creator / source. | Y | keep |
-| `templates/agent_creator.html` / `team_creator.html` | Hidden factories (no nav href). | Y | keep or hide behind library Create |
-| `templates/session_*.html` + JS | Session Explorer. | Y | keep |
-| `templates/profiles.html` | LLM profile table. | Y | keep or fold into Settings later |
-| `templates/account/login.html` | Login mini-shell. | Y | keep |
-| `templates/account/signup.html` | No URL; title still “django_chat”. | N | delete (W-08 / Q-16) |
-| `templates/websocket_partials/*` | WS HTML frames parsed by SPA `chatWs.ts`. | Y | keep until JSON frames exist |
-| `static/js/chrome_theme.js` / `agent_sidebar.js` | Django port of theme + AGENTS rail. | Y | keep (shared keys `swarm_theme`, `swarm_hidden_agents`) |
-| `static/js/dropdown.js` | Unreferenced; redirects to `/django_chat/<bp>/new/`. | N | delete (W-07 / Q-18) |
-| `static/css/dropdown.css` | Still linked from `base.html`. | ? | delete with JS if unused |
-| `static/js/htmx.min.js` + `htmx_csp.js` | Loaded on every operator page; no `hx-` on those pages. | ? | keep for WS partials / later delete from operator chrome |
-| `static/contrib/` | Bootstrap, Font Awesome, Prism, marked, Tabler. | Y | keep while operator HTML lives |
-| `static/css/operator.css` / `rest_mode_style.css` | Operator + shared `os-action-card`. | Y | keep |
-| `static/rest_mode/` (~84 files) | Pre-ADR chat/settings fossil. Tests still use some JS for XSS. | N (chrome) / Y (tests) | archive or keep-for-tests; **do not** wire into `base.html` |
-| `static/team_rosters.json` | Sidepane seed (also `webui/frontend/public/team_rosters.json`). | Y | keep; do not invent a third copy |
-| `static/htmx/` | Extra vendored HTMX tree. | ? | merge with `static/js/htmx.min.js` or leave |
+| `src/swarm/views/web_views.py` | `/` (SPA or Django `index.html`), `/chat` SPA, Teams launcher/admin, profiles, `team_rosters.json`. SPA paths are **cwd-relative** `webui/frontend/dist`. | Y | keep |
+| `src/swarm/views/webui.py` | Legacy `/webui/` → `/`. | Y | keep (bookmark compat) |
+| `src/swarm/views/chat_views.py` | `/v1/chat/completions`, `/health`. | Y | keep |
+| `src/swarm/views/chat_persist_views.py` | `/chat/thread/`, `/chat/compact/`, retention POSTs. | Y | keep |
+| `src/swarm/views/settings_views.py` + `settings_manager.py` | `/settings/` dump + `/settings/api/` + env. | Y | keep (sheet ≠ dump; [wave 1 Q-03](./qa-wave1-django-spa.md)) |
+| `src/swarm/views/teams_api.py` | `/v1/teams/` LLM-profile **aliases**. | Y | keep (do not merge with rosters) |
+| `src/swarm/views/team_rosters_api.py` | `/v1/team-rosters/` composition. | Y | keep |
+| `src/swarm/views/herdr_api.py` | `/v1/herdr-agents/` + discover. | Y | keep |
+| `src/swarm/views/remotes_api.py` | Hermes / OMB / Rakazo remotes. | Y | keep |
+| `src/swarm/views/api_views.py` | Blueprints, models, CLI agents, config-options (includes **skills**), marketplace, support. | Y | keep |
+| `src/swarm/views/definition_views.py` | `/v1/definitions/` (Settings sheet Blueprint editor). | Y | keep |
+| `src/swarm/views/agent_router_views.py` + `agent_router_page.py` | `/v1/agents/*` + `/agents` (SPA `dist` or `agent_router.html`). | Y | keep |
+| `src/swarm/views/blueprint_library_views.py` | `/blueprint-library/` HTML + avatars. | Y | keep |
+| `src/swarm/views/library_api.py` | `/v1/library/` SPA-parity REST. | Y | keep |
+| `src/swarm/views/agent_creator_views.py` | `/agent-creator/`, `/team-creator/` (stamps `tags: ["swarm", "webui"]` — wave 2 W-09). | Y | keep pages; wrap tag later |
+| `src/swarm/views/session_explorer.py` | `/sessions/` over `/v1/responses`. | Y | keep |
+| `src/swarm/views/llm_profiles_api.py` | `/v1/llm-profiles/`. | Y | keep |
+| `src/swarm/views/responses_views.py` | OpenAI Responses API. | Y | keep |
+| `src/swarm/views/system_views.py` | `/v1/system/` local-store facts (REQ-56). | Y | keep |
+| `src/swarm/views/core_views.py` | Dead: renders missing `swarm/index.html` / `swarm/login.html`. Not in `urls.py`. | N | delete (wave 1 Q-17) |
+| `src/swarm/templates/base.html` | Operator shell: Home · Chat · Blueprints · Teams · Sessions · Settings + dock. Comment still claims it “matches SPA”. | Y | keep until retirement; comment is stale |
+| `src/swarm/templates/index.html` | Home **only if** `dist/` missing. | ? | keep as fallback **or** shrink to “build the frontend” stub |
+| `src/swarm/templates/agent_router.html` | `/agents` fallback if `dist/` missing. | ? | keep as fallback |
+| `src/swarm/templates/teams_launch.html` + `static/js/teams_launch.js` | Public blueprint launcher. `ENABLE_WEBUI` gated. | Y | keep |
+| `src/swarm/templates/teams_admin.html` + `teams_admin.js` | Alias CRUD + `#herdr-members`. Login + `ENABLE_WEBUI`. | Y | keep (Herdr UI lives here) |
+| `src/swarm/templates/settings_dashboard.html` + `settings_dashboard.js` | Operator dump + REQ-14 retention + Herdr. | Y | keep |
+| `src/swarm/templates/blueprint_library.html` + `my_blueprints.html` + `blueprint_*.html` + JS | Catalog / creator / source. | Y | keep |
+| `src/swarm/templates/agent_creator.html` / `team_creator.html` | Hidden factories (no nav href). | Y | keep or hide behind library Create |
+| `src/swarm/templates/session_*.html` + JS | Session Explorer. | Y | keep |
+| `src/swarm/templates/profiles.html` | LLM profile table. | Y | keep or fold into Settings later |
+| `src/swarm/templates/account/login.html` | Login mini-shell. | Y | keep |
+| `src/swarm/templates/account/signup.html` | No URL; title still “django_chat”. | N | delete (W-08 / Q-16) |
+| `src/swarm/templates/websocket_partials/*` | WS HTML frames parsed by SPA `chatWs.ts`. | Y | keep until JSON frames exist |
+| `src/swarm/static/js/chrome_theme.js` / `agent_sidebar.js` | Django port of theme + AGENTS rail. | Y | keep (shared keys `swarm_theme`, `swarm_hidden_agents`) |
+| `src/swarm/static/js/dropdown.js` | Unreferenced; redirects to `/django_chat/<bp>/new/`. | N | delete (W-07 / Q-18) |
+| `src/swarm/static/css/dropdown.css` | Still linked from `base.html`. | ? | delete with JS if unused |
+| `src/swarm/static/js/htmx.min.js` + `htmx_csp.js` | Loaded on every operator page; no `hx-` on those pages. | ? | keep for WS partials / later delete from operator chrome |
+| `src/swarm/static/contrib/` | Bootstrap, Font Awesome, Prism, marked, Tabler. | Y | keep while operator HTML lives |
+| `src/swarm/static/css/operator.css` / `rest_mode_style.css` | Operator + shared `os-action-card`. | Y | keep |
+| `src/swarm/static/rest_mode/` (~84 files) | Pre-ADR chat/settings fossil. Tests still use some JS for XSS. | N (chrome) / Y (tests) | archive or keep-for-tests; **do not** wire into `base.html` |
+| `src/swarm/static/team_rosters.json` | Sidepane seed (also `webui/frontend/public/team_rosters.json`). | Y | keep; do not invent a third copy |
+| `src/swarm/static/htmx/` | Extra vendored HTMX tree. | ? | merge with `static/js/htmx.min.js` or leave |
 
 ### 1.5 `webui/` (SPA + glue)
 
@@ -285,7 +286,7 @@ Product decision in code (ahead of ADR-001 text):
 | Herdr | Rail list + href `/teams/#herdr-members` | ORM + `/v1/herdr-agents/` + Teams/Settings JS | API + model stay; UI hop is leftover |
 | Blueprints | Rail `/v1/blueprints` + Chat `?blueprint=` | Library HTML + `/v1/library/` | Catalog id ≠ webpage |
 | Agents (Router) | `AgentRouterPage` + `/v1/agents/` | `agent_router.html` fallback | Prefer SPA |
-| Home | Chat (`/`) | `templates/index.html` if no `dist/` | Fallback is a second product |
+| Home | Chat (`/`) | `src/swarm/templates/index.html` if no `dist/` | Fallback is a second product |
 | Theme | `data-theme` + `swarm_theme` | `data-bs-theme` / `data-os-theme` + same key | Shared **storage**, not DOM |
 | Skills | unused `lib/skills.ts` | `/v1/config-options/` + `core/skills.py` + repo `skills/` | CLI/API, not chrome |
 
@@ -331,7 +332,7 @@ repo root
 | Herdr wrapper + ORM + `/v1/herdr-agents/` | `src/swarm/herdr` + `models/herdr.py` + `views/herdr_api.py` | Live-host binary; CI mocks |
 | Agent Skills | repo-root `skills/` + `core/skills.py` | `get_project_root_dir() / "skills"`; hatch does not ship them |
 | MCP Django app vs MCP client | `swarm.mcp` vs `extensions/mcp` | Different jobs; do not merge on a tidy pass |
-| Alias Teams vs roster Teams | `views/teams_api.py` vs `views/team_rosters_api.py` | Two contracts |
+| Alias Teams vs roster Teams | `src/swarm/views/teams_api.py` vs `views/team_rosters_api.py` | Two contracts |
 
 **Reasonable later tidy (still not this PR):**
 
