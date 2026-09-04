@@ -1366,7 +1366,7 @@ export default function AgentSidebar({
               id="os-rail-search"
               type="search"
               className="os-rail-search__input"
-              placeholder={`Search ${searchShortcut}`}
+              placeholder="Search"
               readOnly
               autoComplete="off"
               onFocus={(event) => {

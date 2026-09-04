@@ -41,9 +41,11 @@ def test_sidebar_alt_pins_and_tips():
     # Hover shortcut badge on favourite tiles
     assert "os-fav-tile__shortcut" in sidebar
 
-    # Search placeholder / affordance displays ⌘K / Ctrl+K (do not drop Search parity)
+    # Single in-field ⌘K / Ctrl+K chip — do not also append it to the Search label
     assert "searchShortcutLabel" in sidebar
     assert "os-rail-search__kbd" in sidebar
+    assert 'placeholder="Search"' in sidebar
+    assert "Search ${searchShortcut}" not in sidebar
     assert "first-load-tips" not in sidebar
     assert "os-keybinding-tips alert" not in sidebar
 
