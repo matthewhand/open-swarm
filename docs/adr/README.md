@@ -4,5 +4,6 @@
 |-----|--------|
 | [ADR-001](../ADR-001-primary-ui.md) | Primary UI is Django; SPA Chat only |
 | [ADR-002](./002-config-ownership.md) | Config ownership — `.env` vs XDG `swarm_config.json` vs Django DB |
+| [ADR-003](./003-desktop-packaging.md) | Desktop packaging — local server + pywebview (Windows first) |
 
 Related research (not an ADR): [Grok Bot keybinding parity](../GROK_KEYBINDING_PARITY.md) (REQ-150 / #552).

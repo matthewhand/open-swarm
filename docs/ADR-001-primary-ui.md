@@ -1,7 +1,7 @@
 # ADR-001: Primary UI is Django; SPA Chat only
 
 - **Status:** Accepted (2026-08-18)
-- **See also:** [ADR-002 config ownership](./adr/002-config-ownership.md) (`.env` / XDG / Django SoT)
+- **See also:** [ADR-002 config ownership](./adr/002-config-ownership.md) (`.env` / XDG / Django SoT); [ADR-003 desktop packaging](./adr/003-desktop-packaging.md) (Windows pane of glass; no installer in that PR)
 - **Context:** Open Swarm grew a Django/HTMx operator UI and a React SPA in parallel. Builder/AgentCreator SPA routes were unmounted; Teams/Blueprints SPA pages are leftovers while bare paths redirect to Django. Dual maintenance and confused docs were flagged as a senior-review P0.
 
 ## Decision

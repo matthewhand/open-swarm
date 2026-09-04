@@ -3,7 +3,9 @@
 Ownership of `.env` vs XDG `swarm_config.json` vs Django (what is live SoT
 after boot, what WebUI writes, Docker volumes) is decided in
 **[ADR-002](docs/adr/002-config-ownership.md)** (REQ-145 / #541). This page
-remains the schema and environment-variable reference.
+remains the schema and environment-variable reference. A future Windows
+desktop zip (not shipped) must set these paths explicitly —
+[ADR-003](docs/adr/003-desktop-packaging.md) (REQ-151 / #554).
 
 ## Quickstart: Configuring Swarm
 

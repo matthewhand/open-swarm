@@ -211,6 +211,12 @@ commit log; version bumped to 0.4.0.
   - [x] CONTRIBUTING.md added (honest: references only scripts that exist; lint scoped to touched files)
   - [x] License headers / NOTICE decision: **NOTICE file instead of per-file headers** (decided 2026-06-11). `NOTICE` covers the MIT grant, OpenAI Swarm/openai-agents attribution, and vendored static assets (marked.js, Tabler Icons, Font Awesome webfonts); linked from README's License section
   - [x] Cut the actual first release (tag, release notes from CHANGELOG) — through v0.5.1
+- [ ] **Windows desktop package (REQ-151)** — Phase 0 ADR accepted when
+  [docs/adr/003-desktop-packaging.md](./docs/adr/003-desktop-packaging.md)
+  merges: OpenMausBot-style **local loopback server + owned window**,
+  implemented as **pywebview + PyInstaller onedir** (not Electron).
+  Phase 1 portable zip and Phase 2 NSIS/signing are split Issues — no
+  installer in the ADR PR. TUI (#481) stays a separate API client.
 
 ---
 
