@@ -368,13 +368,14 @@ html[data-theme="light"] #root {
 }
 
 .os-search-add-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  width: 44px;
-  height: 44px;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
   flex-shrink: 0;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
@@ -382,6 +383,13 @@ html[data-theme="light"] #root {
   background: color-mix(in srgb, var(--color-base-100) 40%, transparent);
   transition: all 0.15s ease-in-out;
   cursor: pointer;
+}
+.os-search-add-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  min-width: 44px;
+  min-height: 44px;
 }
 .os-search-add-btn:hover,
 .os-search-add-btn:focus-visible {
