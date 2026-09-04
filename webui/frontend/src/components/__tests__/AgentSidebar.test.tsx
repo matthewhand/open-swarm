@@ -170,7 +170,7 @@ function storedHidden(): string[] {
 }
 
 function hiddenBotsButton(count: number) {
-  return screen.getByRole('button', { name: `Hidden Bots ${count}` })
+  return screen.getByRole('button', { name: `Hidden Bots ${count} (${count} hidden)` })
 }
 
 function storedRailOrder(): string[] {
@@ -538,7 +538,9 @@ describe('AgentSidebar Grok rail', () => {
     renderSidebar()
     const listAfter = await screen.findByRole('navigation', { name: 'Agent list' })
     const gridAfter = screen.getByLabelText('Pinned agents')
-    const unhideTrigger = await screen.findByRole('button', { name: 'Hidden Bots 3' })
+    const unhideTrigger = await screen.findByRole('button', {
+      name: 'Hidden Bots 3 (3 hidden)',
+    })
     expect(within(gridAfter).queryByRole('link', { name: 'Codey' })).not.toBeInTheDocument()
     expect(within(listAfter).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
