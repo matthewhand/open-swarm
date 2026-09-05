@@ -121,7 +121,8 @@ import { workingLabel } from '../lib/chatBubble'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
-import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel } from '../lib/agentEdits'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel, loadInferenceList } from '../lib/agentEdits'
+import { nextInferenceIndex, serializeInferenceList } from '../lib/inferenceList'
 import {
   agentLabel,
   defaultBlueprintId,
@@ -1100,6 +1101,16 @@ const ChatPage = () => {
         ? supportTurnExtras()
         : undefined
       const selectedModelParam = (searchParams.get('model') ?? '').trim()
+      const agentIdForInference =
+        runtimeBlueprint || selectedBlueprint || SUPPORT_AGENT_ID
+      const inferenceSeats = loadInferenceList(agentIdForInference)
+      const inferenceKeys = serializeInferenceList(inferenceSeats)
+      let inferenceIndex: number | undefined
+      let scaleSeat = inferenceSeats[0]
+      if (newChatPerTask && inferenceSeats.length > 0) {
+        inferenceIndex = nextInferenceIndex(agentIdForInference, inferenceSeats.length)
+        scaleSeat = inferenceSeats[inferenceIndex]
+      }
       const cliParams = isCliAgent
         ? {
             cli: currentCli,
@@ -1112,12 +1123,22 @@ const ChatPage = () => {
             : newChatPerTask
               ? { new_session: messages.length === 0 }
               : undefined
+      const inferenceParams =
+        inferenceKeys.length > 0
+          ? {
+              inference_list: inferenceKeys,
+              ...(inferenceIndex !== undefined ? { inference_index: inferenceIndex, scale_out: true } : {}),
+              ...(scaleSeat?.kind === 'llm' ? { llm_profile: scaleSeat.id, model: scaleSeat.id } : {}),
+              ...(scaleSeat?.kind === 'cli' ? { cli: scaleSeat.id } : {}),
+              ...(scaleSeat?.kind === 'remote' ? { remote_id: scaleSeat.id } : {}),
+            }
+          : undefined
       ws.send(
         buildChatWsFrame(
           trimmed,
           runtimeBlueprint || selectedBlueprint || undefined,
-          supportParams || cliParams
-            ? { ...cliParams, ...supportParams }
+          supportParams || cliParams || inferenceParams
+            ? { ...cliParams, ...inferenceParams, ...supportParams }
             : undefined,
         ),
       )

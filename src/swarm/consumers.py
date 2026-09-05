@@ -404,6 +404,16 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             from swarm.core.cli_catalog import cli_from_rail_id
             from swarm.views.utils import get_blueprint_instance
 
+            from swarm.core.inference_list import (
+                failover_notice,
+                is_config_failure,
+                is_rate_limit,
+                normalize_inference_list,
+                pick_scale_out,
+                seat_id,
+                seat_kind,
+            )
+
             cli_name = None
             if isinstance(params, dict):
                 raw_cli = params.get("cli")
@@ -411,6 +421,18 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                     cli_name = raw_cli.strip()
             if not cli_name:
                 cli_name = cli_from_rail_id(blueprint_id)
+            inference_seats = normalize_inference_list(
+                params.get("inference_list") if isinstance(params, dict) else None
+            )
+            scale_out = bool(params and params.get("scale_out"))
+            if scale_out and inference_seats:
+                raw_idx = params.get("inference_index") if isinstance(params, dict) else 0
+                try:
+                    idx = int(raw_idx or 0)
+                except (TypeError, ValueError):
+                    idx = 0
+                chosen = pick_scale_out(inference_seats, idx)
+                inference_seats = [chosen] if chosen else []
             if str(blueprint_id).strip().lower() == "api_agent":
                 run_id = "chatbot"
                 blueprint_instance = await get_blueprint_instance(run_id)
@@ -419,10 +441,17 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                     raw_model = params.get("model") or params.get("llm_profile")
                     if isinstance(raw_model, str) and raw_model.strip() and raw_model.strip() != "default":
                         profile = raw_model.strip()
+                if inference_seats:
+                    first = inference_seats[0]
+                    if seat_kind(first) == "llm":
+                        profile = seat_id(first)
                 if blueprint_instance is not None and profile:
                     blueprint_instance.llm_profile_name = profile
             else:
                 run_id = "cli_agent" if cli_name else blueprint_id
+                if inference_seats and seat_kind(inference_seats[0]) == "cli":
+                    cli_name = seat_id(inference_seats[0])
+                    run_id = "cli_agent"
                 blueprint_instance = await get_blueprint_instance(run_id)
                 if blueprint_instance is not None and cli_name and hasattr(
                     blueprint_instance, "set_params"
@@ -516,6 +545,40 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             logger.error(
                 f"Error running blueprint '{blueprint_id}': {e}", exc_info=True
             )
+            from swarm.core.inference_list import (
+                failover_notice,
+                is_config_failure,
+                is_rate_limit,
+                normalize_inference_list,
+                retry_params,
+                should_failover,
+            )
+
+            seats = normalize_inference_list(
+                params.get("inference_list") if isinstance(params, dict) else None
+            )
+            rest = seats[1:] if seats else []
+            scale_out = bool(params and params.get("scale_out"))
+            if should_failover(e, rest, scale_out=scale_out):
+                notice = failover_notice(seats[0], rest[0])
+                await self.send(text_data=_status_line_html(notice))
+                self.messages.append({"role": "status", "content": notice})
+                await self.respond_with_blueprint(
+                    blueprint_id,
+                    contents_div_id,
+                    params=retry_params(params, rest),
+                )
+                return
+            if (
+                seats
+                and not rest
+                and not scale_out
+                and is_config_failure(e)
+                and not is_rate_limit(e)
+            ):
+                notice = failover_notice(seats[0], None, exhausted=True)
+                await self.send(text_data=_status_line_html(notice))
+                self.messages.append({"role": "status", "content": notice})
             await self.send_error_message(
                 contents_div_id,
                 f"Error: blueprint '{blueprint_id}' failed while generating a reply.",
