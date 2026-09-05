@@ -1,9 +1,26 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+function readPyprojectVersion(): string {
+    try {
+        const text = readFileSync(resolve(__dirname, '../../pyproject.toml'), 'utf8')
+        const match = /^version\s*=\s*"([^"]+)"/m.exec(text)
+        return match?.[1] ?? '0.0.0'
+    } catch {
+        return '0.0.0'
+    }
+}
+
+const spaVersion = readPyprojectVersion()
+
 // https://vitejs.dev/config/
 export default defineConfig({
+    define: {
+        'import.meta.env.VITE_SPA_VERSION': JSON.stringify(spaVersion),
+    },
     plugins: [
         react(),
         tailwindcss(),

@@ -1008,6 +1008,29 @@ button.os-agent-row {
   background: color-mix(in srgb, var(--color-base-300) 40%, transparent);
 }
 
+/* REQ-78: XOR update/info slot to the right of the system name.
+   Colour A (local SPA/backend mismatch) is amber/warning.
+   Colour B (GitHub newer release) is sky/info. Distinct from #372 WS red. */
+.os-rail-update-chrome {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+.os-rail-update-chrome--idle {
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+.os-rail-update-chrome--idle:hover,
+.os-rail-update-chrome--idle:focus-visible {
+  color: var(--color-base-content);
+}
+.os-rail-update-chrome--local,
+.os-rail-update-chrome--local[data-kind="local"] {
+  color: #d97706;
+}
+.os-rail-update-chrome--upstream,
+.os-rail-update-chrome--upstream[data-kind="upstream"] {
+  color: #38bdf8;
+}
+
 .os-chat-header {
   display: flex;
   align-items: center;
