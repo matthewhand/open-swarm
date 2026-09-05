@@ -143,6 +143,20 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PUT',
+    headers: buildHeaders(true),
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    await throwApiError(path, response)
+  }
+
+  return (await response.json()) as T
+}
+
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
@@ -388,6 +402,32 @@ export interface TeamRosterRecord {
 
 export function fetchTeamRosters(): Promise<ListResponse<TeamRosterRecord>> {
   return apiGet<ListResponse<TeamRosterRecord>>('/v1/team-rosters/')
+}
+
+export interface CreateTeamRosterRequest {
+  name: string
+  members?: TeamRosterRecord['members']
+  wires?: TeamRosterRecord['wires']
+}
+
+export function createTeamRoster(
+  roster: CreateTeamRosterRequest,
+): Promise<TeamRosterRecord> {
+  return apiPost<TeamRosterRecord>('/v1/team-rosters/', roster)
+}
+
+export function updateTeamRoster(
+  rosterId: string,
+  roster: CreateTeamRosterRequest,
+): Promise<TeamRosterRecord> {
+  return apiPut<TeamRosterRecord>(
+    `/v1/team-rosters/${encodeURIComponent(rosterId)}/`,
+    roster,
+  )
+}
+
+export function deleteTeamRoster(rosterId: string): Promise<void> {
+  return apiDelete(`/v1/team-rosters/${encodeURIComponent(rosterId)}/`)
 }
 
 export function createTeam(team: CreateTeamRequest): Promise<Team> {

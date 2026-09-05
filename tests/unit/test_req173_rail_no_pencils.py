@@ -14,6 +14,11 @@ def test_rail_rows_have_no_edit_pencils():
     assert "openBlueprintEditor" not in content, "Undefined openBlueprintEditor call site must be removed (Fixes #606)"
     assert "showsBlueprintEdit" not in content, "showsBlueprintEdit should not be needed in sidebar rows"
 
-    # Context menu edit option must remain accessible
-    assert "Edit agent" in content, "Edit agent context menu must remain available"
-    assert 'role="menuitem"' in content
+    # Context menu lives in RailContextMenu (REQ-82). Edit is no longer inline.
+    menu = (REPO_ROOT / "webui" / "frontend" / "src" / "components" / "RailContextMenu.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "Edit Profile" in (
+        REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "railContextMenu.ts"
+    ).read_text(encoding="utf-8"), "Edit Profile must remain on the rail context menu"
+    assert 'role="menuitem"' in menu

@@ -5,11 +5,13 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Circle, Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plug, Plus, Search, Server, Users, X } from 'lucide-react'
 import AddAgentWizard, { type AgentKind } from './AddAgentWizard'
 import {
   UNREAD_CHANGED_EVENT,
@@ -18,6 +20,12 @@ import {
   markAgentUnread,
 } from '../lib/unreadAgents'
 import {
+  createCustomBlueprint,
+  createRemote,
+  createTeamRoster,
+  deleteCustomBlueprint,
+  deleteRemote,
+  deleteTeamRoster,
   fetchBlueprints,
   fetchCliAgents,
   fetchHerdrAgents,
@@ -116,11 +124,33 @@ import {
   openAgentEditor,
 } from '../lib/agentSettings'
 import { activeTaskSessionCount } from '../lib/agentChat'
+import {
+  RAIL_LONG_PRESS_MS,
+  copyableConversationId,
+  duplicateName,
+  isRailMenuKey,
+  railMenuItems,
+  type RailMenuItemId,
+  type RailMenuKind,
+} from '../lib/railContextMenu'
+import { copyTextToClipboard } from '../lib/clipboard'
+import {
+  isRailIdDeleted,
+  loadDeletedRailIds,
+  markRailIdDeleted,
+} from '../lib/deletedRailIds'
 import { openSearchPalette } from './SearchPalette'
 import { isMacPlatform, searchShortcutLabel } from '../lib/keybindingTips'
-import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
+import {
+  AGENT_EDITS_CHANGED_EVENT,
+  assignedBlueprintId,
+  loadAgentEdit,
+  saveAgentEdit,
+} from '../lib/agentEdits'
 import SessionPicker from './SessionPicker'
 import { openSettingsSheet } from './SettingsSheet'
+import { ConfirmModal } from './DaisyUI'
+import RailContextMenu from './RailContextMenu'
 import AvatarStack from './AvatarStack'
 import StackedAvatars from './StackedAvatars'
 import {
@@ -153,7 +183,8 @@ interface ContextMenuState {
   pinned: boolean
   x: number
   y: number
-  kind?: 'agent' | 'team' | 'remote'
+  kind: RailMenuKind
+  entityId: string
   sessions?: MemberSession[]
 }
 
@@ -242,6 +273,7 @@ export default function AgentSidebar({
   const drawerHidden = Boolean(narrow && !open)
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const onChat = pathname.startsWith('/chat') || pathname === '/'
   const selectedTeamId = onChat ? (searchParams.get('team') ?? '') : ''
@@ -254,6 +286,8 @@ export default function AgentSidebar({
   const [hiddenIds, setHiddenIds] = useState<string[] | null>(() =>
     hasHiddenAgentsStorage() ? loadHiddenAgentIds() : null,
   )
+  const [deletedIds, setDeletedIds] = useState<string[]>(() => loadDeletedRailIds())
+  const [deleteConfirm, setDeleteConfirm] = useState<ContextMenuState | null>(null)
   const [pins, setPins] = useState<PinnedAgent[]>(() => loadOrSeedPinnedAgents())
   const [hoveringHidden, setHoveringHidden] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
@@ -302,7 +336,11 @@ export default function AgentSidebar({
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const [sessionTick, setSessionTick] = useState(0)
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLUListElement | null>(null)
+  const longPressRef = useRef<{ timer: number | null; opened: boolean }>({
+    timer: null,
+    opened: false,
+  })
   const hideDropDepth = useRef(0)
   const prefsHydrated = useRef(false)
   const skipPrefsSave = useRef(true)
@@ -572,39 +610,71 @@ export default function AgentSidebar({
     () =>
       agents.filter(
         (agent) =>
-          isCliRailAgent(agent) || isApiRailAgent(agent) || !resolvedHiddenIds.includes(agent.id),
+          !isRailIdDeleted(agent.id, deletedIds) &&
+          (isCliRailAgent(agent) || isApiRailAgent(agent) || !resolvedHiddenIds.includes(agent.id)),
       ),
-    [agents, resolvedHiddenIds],
+    [agents, resolvedHiddenIds, deletedIds],
   )
   const hiddenAgents = useMemo(
     () =>
       agents.filter(
         (agent) =>
+          !isRailIdDeleted(agent.id, deletedIds) &&
           !isCliRailAgent(agent) &&
           !isApiRailAgent(agent) &&
           resolvedHiddenIds.includes(agent.id),
       ),
-    [agents, resolvedHiddenIds],
+    [agents, resolvedHiddenIds, deletedIds],
   )
   const visibleTeams = useMemo(
-    () => teams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
-    [teams, resolvedHiddenIds],
+    () =>
+      teams.filter(
+        (team) =>
+          !isRailIdDeleted(teamHideId(team.id), deletedIds) &&
+          !isRailIdDeleted(team.id, deletedIds) &&
+          !resolvedHiddenIds.includes(teamHideId(team.id)),
+      ),
+    [teams, resolvedHiddenIds, deletedIds],
   )
   const visibleRootTeams = useMemo(
-    () => rootTeams.filter((team) => !resolvedHiddenIds.includes(teamHideId(team.id))),
-    [rootTeams, resolvedHiddenIds],
+    () =>
+      rootTeams.filter(
+        (team) =>
+          !isRailIdDeleted(teamHideId(team.id), deletedIds) &&
+          !isRailIdDeleted(team.id, deletedIds) &&
+          !resolvedHiddenIds.includes(teamHideId(team.id)),
+      ),
+    [rootTeams, resolvedHiddenIds, deletedIds],
   )
   const hiddenTeams = useMemo(
-    () => teams.filter((team) => resolvedHiddenIds.includes(teamHideId(team.id))),
-    [teams, resolvedHiddenIds],
+    () =>
+      teams.filter(
+        (team) =>
+          !isRailIdDeleted(teamHideId(team.id), deletedIds) &&
+          !isRailIdDeleted(team.id, deletedIds) &&
+          resolvedHiddenIds.includes(teamHideId(team.id)),
+      ),
+    [teams, resolvedHiddenIds, deletedIds],
   )
   const visibleRemotes = useMemo(
-    () => remotes.filter((remote) => !resolvedHiddenIds.includes(remoteHideId(remote.id))),
-    [remotes, resolvedHiddenIds],
+    () =>
+      remotes.filter(
+        (remote) =>
+          !isRailIdDeleted(remoteHideId(remote.id), deletedIds) &&
+          !isRailIdDeleted(remote.id, deletedIds) &&
+          !resolvedHiddenIds.includes(remoteHideId(remote.id)),
+      ),
+    [remotes, resolvedHiddenIds, deletedIds],
   )
   const hiddenRemotes = useMemo(
-    () => remotes.filter((remote) => resolvedHiddenIds.includes(remoteHideId(remote.id))),
-    [remotes, resolvedHiddenIds],
+    () =>
+      remotes.filter(
+        (remote) =>
+          !isRailIdDeleted(remoteHideId(remote.id), deletedIds) &&
+          !isRailIdDeleted(remote.id, deletedIds) &&
+          resolvedHiddenIds.includes(remoteHideId(remote.id)),
+      ),
+    [remotes, resolvedHiddenIds, deletedIds],
   )
   const hiddenCount = hiddenAgents.length + hiddenTeams.length + hiddenRemotes.length
   const visibleCount = visibleAgents.length + visibleTeams.length + visibleRemotes.length
@@ -658,8 +728,11 @@ export default function AgentSidebar({
   )
   const visibleRowIds = useMemo(() => orderedRows.map((row) => row.id), [orderedRows])
   const visiblePins = useMemo(
-    () => pins.filter((pin) => !resolvedHiddenIds.includes(pin.id)),
-    [pins, resolvedHiddenIds],
+    () =>
+      pins.filter(
+        (pin) => !resolvedHiddenIds.includes(pin.id) && !isRailIdDeleted(pin.id, deletedIds),
+      ),
+    [pins, resolvedHiddenIds, deletedIds],
   )
   const hotkeyTargets = useMemo(
     () => computeRailHotkeyTargets({ visiblePins, orderedRows }),
@@ -806,20 +879,32 @@ export default function AgentSidebar({
     return () => window.removeEventListener('keydown', onAltDigit)
   }, [visiblePins, hotkeyTargets, navigate, onClose])
 
-  const openMenu = (
-    event: ReactMouseEvent,
+  const resolveMenuKind = (hideId: string, hinted?: RailMenuKind): RailMenuKind => {
+    if (hinted) return hinted
+    if (hideId.startsWith('team:')) return 'team'
+    if (hideId.startsWith('remote:')) return 'remote'
+    const agent = agents.find((row) => row.id === hideId)
+    if (agent && isCliRailAgent(agent)) return 'cli'
+    if (agent && isHerdrAgent(agent)) return 'remote'
+    return 'api'
+  }
+
+  const openMenuAt = (
+    clientX: number,
+    clientY: number,
     hideId: string,
     label: string,
     hidden: boolean,
-    kind?: 'agent' | 'team' | 'remote',
+    kind?: RailMenuKind,
     sessions?: MemberSession[],
+    entityId?: string,
   ) => {
-    event.preventDefault()
     const pad = 8
-    const width = 200
-    const height = 120
-    const x = Math.min(event.clientX, window.innerWidth - width - pad)
-    const y = Math.min(event.clientY, window.innerHeight - height - pad)
+    const width = 220
+    const height = 280
+    const x = Math.min(clientX, window.innerWidth - width - pad)
+    const y = Math.min(clientY, window.innerHeight - height - pad)
+    const resolvedKind = resolveMenuKind(hideId, kind)
     setMenu({
       agentId: hideId,
       agentName: label,
@@ -827,10 +912,57 @@ export default function AgentSidebar({
       pinned: pins.some((pin) => pin.id === hideId),
       x: Math.max(pad, x),
       y: Math.max(pad, y),
-      kind,
+      kind: resolvedKind,
+      entityId: entityId || hideId,
       sessions,
     })
   }
+
+  const clearLongPress = () => {
+    if (longPressRef.current.timer != null) {
+      window.clearTimeout(longPressRef.current.timer)
+      longPressRef.current.timer = null
+    }
+  }
+
+  const rowMenuHandlers = (
+    hideId: string,
+    label: string,
+    hidden: boolean,
+    kind?: RailMenuKind,
+    sessions?: MemberSession[],
+    entityId?: string,
+  ) => ({
+    onContextMenu: (event: ReactMouseEvent) => {
+      event.preventDefault()
+      openMenuAt(event.clientX, event.clientY, hideId, label, hidden, kind, sessions, entityId)
+    },
+    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (!isRailMenuKey(event)) return
+      event.preventDefault()
+      const rect = event.currentTarget.getBoundingClientRect()
+      openMenuAt(rect.left + 12, rect.bottom, hideId, label, hidden, kind, sessions, entityId)
+    },
+    onTouchStart: (event: ReactTouchEvent<HTMLElement>) => {
+      const touch = event.touches[0]
+      if (!touch) return
+      longPressRef.current.opened = false
+      clearLongPress()
+      longPressRef.current.timer = window.setTimeout(() => {
+        longPressRef.current.opened = true
+        openMenuAt(touch.clientX, touch.clientY, hideId, label, hidden, kind, sessions, entityId)
+      }, RAIL_LONG_PRESS_MS)
+    },
+    onTouchEnd: (event: ReactTouchEvent<HTMLElement>) => {
+      clearLongPress()
+      if (longPressRef.current.opened) {
+        event.preventDefault()
+      }
+    },
+    onTouchMove: () => {
+      clearLongPress()
+    },
+  })
 
   const finishDrag = () => {
     endAgentDrag()
@@ -868,11 +1000,7 @@ export default function AgentSidebar({
   }
 
   const unhideAgent = (id: string) => {
-    setHiddenIds((current) => {
-      const next = unhideAgentId(id, current ?? resolvedHiddenIds)
-      if (next.length === 0) setHiddenOpen(false)
-      return next
-    })
+    setHiddenIds((current) => unhideAgentId(id, current ?? resolvedHiddenIds))
     closeMenu()
   }
 
@@ -1033,6 +1161,203 @@ export default function AgentSidebar({
     onClose?.()
   }
 
+  const editMenuRow = (row: ContextMenuState) => {
+    if (row.kind === 'cli') return
+    if (row.kind === 'team') {
+      openDefinition('team', row.entityId, { teamId: row.entityId })
+      closeMenu()
+      return
+    }
+    if (row.kind === 'remote') {
+      openSettingsSheet({ section: 'remotes' })
+      closeMenu()
+      onClose?.()
+      return
+    }
+    openAgentSettings({ id: row.entityId, name: row.agentName })
+  }
+
+  const duplicateMenuRow = async (row: ContextMenuState) => {
+    const name = duplicateName(row.agentName)
+    try {
+      if (row.kind === 'cli') return
+      if (row.kind === 'team') {
+        const source = teams.find((team) => team.id === row.entityId)
+        const created = await createTeamRoster({
+          name,
+          members: (source?.members ?? []).map((member) => ({
+            id: member.id,
+            kind: member.kind || 'api',
+            role: member.role || 'default',
+            source: member.kind === 'team' ? `team:${member.team_id || member.id}` : `blueprint:${member.id}`,
+            team_id: member.team_id,
+          })),
+        })
+        await queryClient.invalidateQueries({ queryKey: ['team-rosters'] })
+        const createdHide = teamHideId(created.id)
+        const base = mergeRailOrder(railOrder, visibleRowIds)
+        persistVisibleOrder(bumpRailIdToTop(base, createdHide))
+        closeMenu()
+        return
+      }
+      if (row.kind === 'remote') {
+        const source = configuredRemotesList.find((remote) => remote.id === row.entityId)
+        const created = await createRemote({
+          kind: source?.kind || row.entityId,
+          base_url: source?.base_url,
+          api_key_env: source?.api_key_env,
+          ui_url: source?.ui_url,
+        })
+        await queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+        await queryClient.invalidateQueries({ queryKey: ['remotes-list'] })
+        await queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+        const createdHide = remoteHideId(created.id)
+        const base = mergeRailOrder(railOrder, visibleRowIds)
+        persistVisibleOrder(bumpRailIdToTop(base, createdHide))
+        closeMenu()
+        return
+      }
+      const sourceEdit = loadAgentEdit(row.entityId)
+      const created = await createCustomBlueprint({
+        name,
+        description: `Copy of ${row.agentName}`,
+        category: 'ai_assistants',
+        tags: ['api'],
+        code: `# Copy of ${assignedBlueprintId(row.entityId)}\n`,
+      })
+      saveAgentEdit(created.id, {
+        name,
+        blueprintId: sourceEdit.blueprintId || assignedBlueprintId(row.entityId),
+        role: sourceEdit.role,
+        llmOverride: sourceEdit.llmOverride,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['blueprints'] })
+      await queryClient.invalidateQueries({ queryKey: ['custom-blueprints'] })
+      const base = mergeRailOrder(railOrder, visibleRowIds)
+      persistVisibleOrder(bumpRailIdToTop(base, created.id))
+    } catch {
+      /* caller / tests mock fetch; failures stay on the current row */
+    }
+    closeMenu()
+  }
+
+  const copyMenuConversationId = async (row: ContextMenuState) => {
+    const id = copyableConversationId(row.kind, row.agentId, row.entityId)
+    if (!id) {
+      closeMenu()
+      return
+    }
+    await copyTextToClipboard(id)
+    closeMenu()
+  }
+
+  const requestDelete = (row: ContextMenuState) => {
+    closeMenu()
+    setDeleteConfirm(row)
+  }
+
+  const confirmDeleteRow = async () => {
+    const row = deleteConfirm
+    if (!row) return
+    const hideId = row.agentId
+    setPins((current) =>
+      current.some((pin) => pin.id === hideId) ? unpinAgent(hideId, current) : current,
+    )
+    if (row.kind === 'remote') {
+      try {
+        await deleteRemote(row.entityId)
+      } catch {
+        /* local remove still applies */
+      }
+      await queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+      await queryClient.invalidateQueries({ queryKey: ['remotes-list'] })
+      await queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+    } else if (row.kind === 'team') {
+      try {
+        await deleteTeamRoster(row.entityId)
+      } catch {
+        /* local remove still applies */
+      }
+      await queryClient.invalidateQueries({ queryKey: ['team-rosters'] })
+    } else if (row.kind === 'api') {
+      try {
+        await deleteCustomBlueprint(row.entityId)
+      } catch {
+        /* catalog seats are removed locally only */
+      }
+      await queryClient.invalidateQueries({ queryKey: ['blueprints'] })
+      await queryClient.invalidateQueries({ queryKey: ['custom-blueprints'] })
+    }
+    // CLI: hide-or-remove from rail only — do not uninstall the binary.
+    setDeletedIds((current) => {
+      let next = markRailIdDeleted(hideId, current)
+      if (row.entityId !== hideId) next = markRailIdDeleted(row.entityId, next)
+      return next
+    })
+    setDeleteConfirm(null)
+  }
+
+  const handleMenuSelect = (id: RailMenuItemId) => {
+    if (!menu) return
+    if (id === 'select-agent' && menu.sessions && menu.sessions.length > 0) {
+      const title = menu.agentName
+      const sessions = menu.sessions
+      closeMenu()
+      openGroupPicker(title, sessions)
+      return
+    }
+    if (id === 'unpin' || id === 'pin') {
+      togglePin({ id: menu.agentId, name: menu.agentName })
+      return
+    }
+    if (id === 'unread') {
+      if (unreadIds.includes(menu.agentId)) {
+        setUnreadIds(markAgentRead(menu.agentId))
+      } else {
+        setUnreadIds(markAgentUnread(menu.agentId))
+      }
+      closeMenu()
+      return
+    }
+    if (id === 'edit') {
+      editMenuRow(menu)
+      return
+    }
+    if (id === 'duplicate') {
+      void duplicateMenuRow(menu)
+      return
+    }
+    if (id === 'copy-id') {
+      void copyMenuConversationId(menu)
+      return
+    }
+    if (id === 'hide') {
+      hideAgent(menu.agentId)
+      return
+    }
+    if (id === 'unhide') {
+      unhideAgent(menu.agentId)
+      return
+    }
+    if (id === 'delete') {
+      requestDelete(menu)
+    }
+  }
+
+  const menuItems = menu
+    ? railMenuItems({
+        kind: menu.kind,
+        pinned: menu.pinned,
+        hidden: menu.hidden,
+        unread: unreadIds.includes(menu.agentId),
+        hasSelectAgent: Boolean(menu.sessions && menu.sessions.length > 0),
+        canCopyId:
+          menu.kind === 'cli' || menu.kind === 'remote'
+            ? Boolean(copyableConversationId(menu.kind, menu.agentId, menu.entityId))
+            : true,
+      })
+    : []
+
   const renderAgentRow = (agent: SidebarAgent, hidden: boolean, spillSlot?: number) => {
     const name = agentLabel(agent)
     const herdr = isHerdrAgent(agent)
@@ -1172,7 +1497,7 @@ export default function AgentSidebar({
           onDragOver={(event) => allowRowDrop(event, agent.id)}
           onDrop={(event) => dropReorder(event, agent.id)}
           onClick={pickOrClose}
-          onContextMenu={(event) => openMenu(event, agent.id, name, hidden)}
+          {...rowMenuHandlers(agent.id, name, hidden, isHerdrAgent(agent) ? 'remote' : 'api')}
         >
           {body}
         </a>
@@ -1184,7 +1509,12 @@ export default function AgentSidebar({
       onDragEnd: finishDrag,
       onDragOver: (event: ReactDragEvent) => allowRowDrop(event, agent.id),
       onDrop: (event: ReactDragEvent) => dropReorder(event, agent.id),
-      onContextMenu: (event: ReactMouseEvent) => openMenu(event, agent.id, name, hidden),
+      ...rowMenuHandlers(
+        agent.id,
+        name,
+        hidden,
+        isCliRailAgent(agent) ? 'cli' : isHerdrAgent(agent) ? 'remote' : 'api',
+      ),
     }
 
     if (scaleOut) {
@@ -1284,7 +1614,7 @@ export default function AgentSidebar({
             openGroupPicker(name, sessions)
           }
         }}
-        onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'team', sessions)}
+        {...rowMenuHandlers(hideId, name, hidden, 'team', sessions, team.id)}
       >
         <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
           {totalMembers >= 2 ? (
@@ -1445,7 +1775,7 @@ export default function AgentSidebar({
             openGroupPicker(name, sessions)
           }
         }}
-        onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'remote', sessions)}
+        {...rowMenuHandlers(hideId, name, hidden, 'remote', sessions, remote.id)}
       >
         <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
           {totalMembers >= 2 ? (
@@ -1803,6 +2133,8 @@ export default function AgentSidebar({
                 )}
               </>
             )
+            const pinKind = resolveMenuKind(pin.id)
+            const pinEntityId = pin.id.replace(/^(team|remote):/, '')
             const pinHandlers = {
               draggable: true as const,
               onDragStart: (event: ReactDragEvent) => beginRowDrag(event, pin),
@@ -1810,17 +2142,14 @@ export default function AgentSidebar({
               onDragOver: (event: ReactDragEvent) => allowRowDrop(event, pin.id),
               onDrop: (event: ReactDragEvent) => dropPinReorder(event, pin.id),
               onClick: pickOrClose,
-              onContextMenu: (event: ReactMouseEvent) => {
-                event.preventDefault()
-                setMenu({
-                  agentId: pin.id,
-                  agentName: pinName,
-                  hidden: resolvedHiddenIds.includes(pin.id),
-                  pinned: true,
-                  x: event.clientX,
-                  y: event.clientY,
-                })
-              },
+              ...rowMenuHandlers(
+                pin.id,
+                pinName,
+                resolvedHiddenIds.includes(pin.id),
+                pinKind,
+                undefined,
+                pinEntityId,
+              ),
             }
             if (isHerdrAgent(pin)) {
               return (
@@ -2100,89 +2429,33 @@ export default function AgentSidebar({
       />
 
       {menu && (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label={`Actions for ${menu.agentName}`}
-          className="fixed z-50 min-w-[12.5rem] rounded-lg border border-base-300 bg-neutral py-1 text-sm shadow-xl"
-          style={{ left: menu.x, top: menu.y }}
+        <RailContextMenu
+          agentName={menu.agentName}
+          x={menu.x}
+          y={menu.y}
+          items={menuItems}
+          menuRef={menuRef}
+          onSelect={handleMenuSelect}
+        />
+      )}
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={confirmDeleteRow}
+          title={`Delete ${deleteConfirm.agentName}?`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmVariant="error"
         >
-          {menu.sessions && menu.sessions.length > 0 && (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-              onClick={() => {
-                const s = menu.sessions!
-                const title = menu.agentName
-                closeMenu()
-                openGroupPicker(title, s)
-              }}
-            >
-              <Users className="h-4 w-4" aria-hidden="true" />
-              Select Agent
-            </button>
-          )}
-          {menu.hidden ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-              onClick={() => unhideAgent(menu.agentId)}
-            >
-              <Eye className="h-4 w-4" aria-hidden="true" />
-              Unhide
-            </button>
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-              onClick={() => hideAgent(menu.agentId)}
-            >
-              <EyeOff className="h-4 w-4" aria-hidden="true" />
-              Hide from sidebar
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-            onClick={() => {
-              if (unreadIds.includes(menu.agentId)) {
-                setUnreadIds(markAgentRead(menu.agentId))
-              } else {
-                setUnreadIds(markAgentUnread(menu.agentId))
-              }
-              closeMenu()
-            }}
-          >
-            <Circle className="h-4 w-4" aria-hidden="true" />
-            {unreadIds.includes(menu.agentId) ? 'Mark as read' : 'Mark as unread'}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-            onClick={() => openAgentSettings({ id: menu.agentId, name: menu.agentName })}
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            Edit agent
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-            onClick={() => togglePin({ id: menu.agentId, name: menu.agentName })}
-          >
-            {menu.pinned ? (
-              <PinOff className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Pin className="h-4 w-4" aria-hidden="true" />
-            )}
-            {menu.pinned ? 'Unpin' : 'Pin'}
-          </button>
-        </div>
+          <p>
+            {deleteConfirm.kind === 'cli'
+              ? 'This removes the CLI agent from the rail. It does not uninstall the CLI on this machine.'
+              : deleteConfirm.kind === 'remote'
+                ? 'This removes the configured remote from swarm. It does not change the far-side host.'
+                : 'This deletes the local entity and removes it from the rail. This cannot be undone from Hidden Bots.'}
+          </p>
+        </ConfirmModal>
       )}
       <AddAgentWizard
         isOpen={addWizardOpen}

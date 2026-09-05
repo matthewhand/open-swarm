@@ -352,7 +352,7 @@ describe('AgentSidebar Grok rail', () => {
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const codey = await within(list).findByRole('link', { name: /Codey/ })
     fireEvent.contextMenu(codey)
-    fireEvent.click(await screen.findByRole('menuitem', { name: /^Edit agent$/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Edit Profile$/i }))
     expect(opened).toEqual([{ agentId: 'codey', agentName: 'Codey' }])
     window.removeEventListener('swarm:open-agent-editor', onOpen)
   })
@@ -681,7 +681,7 @@ describe('AgentSidebar Grok rail', () => {
     window.removeEventListener('swarm:open-settings', onOpen)
   })
 
-  it('reveals a focusable hover-edit on role rows and opens the agent editor via Enter', async () => {
+  it('has no hover-edit pencil on role rows; Edit Profile on the context menu opens the agent editor', async () => {
     // REQ-26 first-load seed hides gate/skeptic; show all roles for this check.
     localStorage.setItem(HIDDEN_AGENTS_STORAGE_KEY, JSON.stringify([]))
     const opened: Array<{ agentId?: string }> = []
@@ -692,15 +692,15 @@ describe('AgentSidebar Grok rail', () => {
     renderSidebar()
 
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
-    const supportEdit = await screen.findByRole('button', { name: 'Edit Support' })
-    expect(screen.getByRole('button', { name: 'Edit Gate' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit Skeptic' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit Codey' })).not.toBeInTheDocument()
+    const support = await within(list).findByRole('link', { name: /Support/ })
+    expect(screen.queryByRole('button', { name: 'Edit Support' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Gate' })).not.toBeInTheDocument()
+    expect(document.querySelector('.os-agent-edit')).not.toBeInTheDocument()
     expect(within(list).queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()
 
-    supportEdit.focus()
-    fireEvent.keyDown(supportEdit, { key: 'Enter' })
-    expect(opened).toEqual([{ agentId: 'support' }])
+    fireEvent.contextMenu(support)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Edit Profile$/i }))
+    expect(opened).toEqual([{ agentId: 'support', agentName: 'Support' }])
     window.removeEventListener('swarm:open-agent-editor', onOpen)
   })
 

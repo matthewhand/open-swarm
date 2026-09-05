@@ -8,6 +8,7 @@ import {
   conversationIdForTask,
   fetchAgentThread,
   listTaskSessions,
+  peekConversationIdForAgent,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -29,6 +30,12 @@ describe('conversationIdForAgent', () => {
     const second = conversationIdForAgent('codey')
     expect(first).toBe(second)
     expect(conversationIdForAgent('other')).not.toBe(first)
+  })
+
+  it('peeks a stored id without minting', () => {
+    expect(peekConversationIdForAgent('codey')).toBeNull()
+    const minted = conversationIdForAgent('codey')
+    expect(peekConversationIdForAgent('codey')).toBe(minted)
   })
 
   it('reuses the stored id when new chat per task is off', () => {
