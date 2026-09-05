@@ -1504,20 +1504,45 @@ export default function AgentSidebar({
           <label className="sr-only" htmlFor="os-rail-search">
             Search
           </label>
-          <div className="os-rail-search min-w-0 flex-1">
-            <Search className="h-3.5 w-3.5 shrink-0 text-base-content/40" aria-hidden="true" />
+          <div
+            className="os-rail-search min-w-0 flex-1 cursor-pointer"
+            data-testid="rail-search-trigger"
+            role="button"
+            tabIndex={0}
+            aria-label="Search"
+            onClick={openPalette}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                openPalette()
+              }
+            }}
+          >
+            <Search
+              className="h-3.5 w-3.5 shrink-0 text-base-content/40 cursor-pointer"
+              aria-hidden="true"
+              data-testid="rail-search-icon"
+              onClick={(event) => {
+                event.stopPropagation()
+                openPalette()
+              }}
+            />
             <input
               id="os-rail-search"
               type="search"
               className="os-rail-search__input"
               placeholder="Search"
               readOnly
+              tabIndex={isAvatarOnly ? -1 : 0}
               autoComplete="off"
               onFocus={(event) => {
                 event.currentTarget.blur()
                 openPalette()
               }}
-              onClick={openPalette}
+              onClick={(event) => {
+                event.stopPropagation()
+                openPalette()
+              }}
             />
             <kbd className="os-rail-search__kbd kbd kbd-xs">{searchShortcut}</kbd>
           </div>
