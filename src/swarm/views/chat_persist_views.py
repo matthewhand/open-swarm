@@ -456,7 +456,7 @@ def chat_attachment_upload(request):
 @login_required
 @require_http_methods(["POST"])
 def chat_compact(request):
-    """Summarise the current backlog (or a selected span) into a nested summary."""
+    """LLM-summarise the current backlog (or a selected span) into a nested summary."""
     payload = _json_body(request)
     agent = chat_store.normalize_agent_id(
         payload.get("agent") or payload.get("agent_id") or request.POST.get("agent_id")

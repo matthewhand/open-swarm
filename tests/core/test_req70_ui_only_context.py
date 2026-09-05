@@ -133,7 +133,7 @@ def test_summarize_items_skips_status_info():
 
 
 @pytest.mark.django_db
-def test_compact_backlog_summarises_real_messages_only():
+def test_compact_backlog_summarises_real_messages_only(stub_compact_llm):
     from django.contrib.auth import get_user_model
     from swarm.core import chat_store
 
@@ -155,7 +155,10 @@ def test_compact_backlog_summarises_real_messages_only():
     assert [item["role"] for item in raw] == ["user", "assistant"]
     assert STATUS_CLI not in row.body
     assert STATUS_FALLBACK not in row.body
-    assert "remember this" in row.body
+    assert row.body == "LLM digest of the compacted range."
+    sent = stub_compact_llm[-1]["items"]
+    assert any(item.get("content") == "remember this" for item in sent)
+    assert all(STATUS_CLI not in str(item.get("content") or "") for item in sent)
     context = build_model_context(raw, [row])
     blob = context_blob(context)
     assert STATUS_CLI not in blob

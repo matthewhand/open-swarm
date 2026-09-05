@@ -59,6 +59,19 @@ def pytest_collection_modifyitems(config, items):
 # TestCase/TransactionTestCase explicitly.
 
 @pytest.fixture
+def stub_compact_llm(monkeypatch):
+    """#672 — compact uses an LLM; tests stub it so no network / secrets."""
+    calls: list[dict] = []
+
+    def _fake(items, *, agent_id=""):
+        calls.append({"items": items, "agent_id": agent_id})
+        return "LLM digest of the compacted range."
+
+    monkeypatch.setattr("swarm.core.chat_compact.llm_summarize_items", _fake)
+    return calls
+
+
+@pytest.fixture
 def mock_openai_client():
     from openai import AsyncOpenAI
     client = MagicMock(spec=AsyncOpenAI)

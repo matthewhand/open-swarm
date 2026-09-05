@@ -2618,7 +2618,7 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
     })
     expect(await screen.findByText('Compact failed')).toBeInTheDocument()
-    expect(screen.getByText(/Could not compact this chat/i)).toBeInTheDocument()
+    expect(screen.getByText(/boom/i)).toBeInTheDocument()
   })
 
   it('drops the token meter after Compact replaces raw turns with a short summary', async () => {

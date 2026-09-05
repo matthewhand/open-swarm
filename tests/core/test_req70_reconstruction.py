@@ -129,7 +129,7 @@ def test_save_persists_chrome_in_ui_events(tmp_path):
 
 
 @pytest.mark.django_db
-def test_compact_backlog_summarises_turns_only():
+def test_compact_backlog_summarises_turns_only(stub_compact_llm):
     from django.contrib.auth import get_user_model
     from swarm.core import chat_store
 
@@ -151,7 +151,9 @@ def test_compact_backlog_summarises_turns_only():
     assert [item["role"] for item in raw] == ["user", "assistant"]
     assert STATUS_CLI not in row.body
     assert INFO_FAIL not in row.body
-    assert "remember this" in row.body
+    assert row.body == "LLM digest of the compacted range."
+    sent = stub_compact_llm[-1]["items"]
+    assert any(item.get("content") == "remember this" for item in sent)
     context = build_model_context(raw, [row])
     _assert_no_chrome(context)
 

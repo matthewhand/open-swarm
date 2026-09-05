@@ -1968,11 +1968,12 @@ const ChatPage = () => {
           })),
       })
       setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message.trim() : ''
       addToast({
         type: 'error',
         title: 'Compact failed',
-        message: 'Could not compact this chat. Sign in and try again.',
+        message: detail || 'Could not compact this chat. Sign in and try again.',
       })
     }
   }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
@@ -2005,11 +2006,12 @@ const ChatPage = () => {
           spanEnd,
         })
         setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
-      } catch {
+      } catch (err) {
+        const detail = err instanceof Error ? err.message.trim() : ''
         addToast({
           type: 'error',
           title: 'Compact failed',
-          message: 'Could not compact this chat. Sign in and try again.',
+          message: detail || 'Could not compact this chat. Sign in and try again.',
         })
       }
     },
