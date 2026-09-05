@@ -1263,6 +1263,14 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
 .os-chat-transcript {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
+  /* #743: last-message clearance tracks live sticky composer height */
+  scroll-padding-bottom: var(--os-chat-composer-inset, 0px);
+}
+.os-chat-messages {
+  padding-bottom: var(--os-chat-composer-inset, 0px);
+}
+.os-chat-bottom-dock {
+  margin-top: calc(-1 * var(--os-chat-composer-inset, 0px));
 }
 @media (min-width: 640px) {
   .os-chat-transcript {

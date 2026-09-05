@@ -78,9 +78,10 @@ describe('REQ-202: Chat scrollbar to page bottom; composer inside pane but non-s
     const header = screen.getByRole('banner')
     expect(header).toContainElement(tokenButton)
 
-    // Messages container has bottom padding so last message remains readable above dock
+    // Messages container uses a live composer inset (not a stale fixed pb-* guess)
     const messagesContainer = screen.getByTestId('chat-messages-container')
     expect(scrollPane).toContainElement(messagesContainer)
-    expect(messagesContainer.className).toContain('pb-4')
+    expect(messagesContainer).toHaveClass('os-chat-messages')
+    expect(scrollPane).toHaveAttribute('data-composer-inset')
   })
 })
