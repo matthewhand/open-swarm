@@ -58,9 +58,10 @@ describe('composerInset helpers (#743)', () => {
   })
 
   it('treats the user as pinned when remaining scroll is within inset slack', () => {
-    const el = { scrollHeight: 2000, scrollTop: 1900, clientHeight: 80 }
-    expect(isPinnedToTranscriptBottom(el, 96)).toBe(true)
-    expect(isPinnedToTranscriptBottom(el, 48)).toBe(false)
+    const nearBottom = { scrollHeight: 2000, scrollTop: 1920, clientHeight: 80 }
+    const scrolledUp = { scrollHeight: 2000, scrollTop: 1600, clientHeight: 80 }
+    expect(isPinnedToTranscriptBottom(nearBottom, 96)).toBe(true)
+    expect(isPinnedToTranscriptBottom(scrolledUp, 96)).toBe(false)
     expect(COMPOSER_PIN_SLACK_PX).toBe(48)
   })
 
