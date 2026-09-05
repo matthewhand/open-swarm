@@ -42,6 +42,7 @@ function mockFetch() {
               name: 'Codey',
               description: 'Code assistant',
               last_message_at: yesterday,
+              rail: true,
             },
             {
               id: 'stewie',
@@ -49,12 +50,14 @@ function mockFetch() {
               name: 'Stewie',
               description: 'Helpful agent',
               last_message_at: yesterday,
+              rail: true,
             },
             {
               id: 'rakazo',
               object: 'blueprint',
               name: 'Rakazo',
               description: 'Remote helper',
+              rail: true,
             },
           ],
         }),

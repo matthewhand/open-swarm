@@ -250,6 +250,11 @@ export interface Blueprint {
   /** REQ-170: true = AGENTS rail seat. Missing/false = catalog-only. */
   rail?: boolean | null
   kind?: string | null
+  /** REQ-171B: first-class CLI command on Add-agent seats (not a code comment). */
+  command?: string | null
+  cli?: string | null
+  source?: string | null
+  user_created?: boolean | null
   urls_module?: string | null
   url_prefix?: string | null
   /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
@@ -817,6 +822,12 @@ export interface CustomBlueprint {
   code: string
   required_mcp_servers: string[]
   env_vars: string[]
+  /** REQ-171B: Add-agent CLI/API seats persist kind + command + rail. */
+  kind?: 'cli' | 'api' | string
+  command?: string
+  cli?: string
+  rail?: boolean
+  source?: string
 }
 
 export interface CreateCustomBlueprintRequest {
@@ -825,6 +836,10 @@ export interface CreateCustomBlueprintRequest {
   code?: string
   category?: string
   tags?: string[]
+  kind?: 'cli' | 'api'
+  command?: string
+  rail?: boolean
+  source?: string
 }
 
 export function fetchCustomBlueprints(): Promise<ListResponse<CustomBlueprint>> {

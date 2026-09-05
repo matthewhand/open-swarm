@@ -14,7 +14,7 @@ Archiving Django seed agents does nothing on that host. Deleting recipe packages
 
 `GET /v1/blueprints/` now includes `rail: true|false`. Missing metadata = **false** (catalog-only).
 
-**On the rail:** Support; hide-seeded gate / skeptic; CLI verify rows from `/v1/cli-agents/`; teams / remotes / Herdr / CoS from their own lists; any recipe that sets `rail: true`.
+**On the rail:** Support; hide-seeded gate / skeptic; CLI verify rows from `/v1/cli-agents/`; teams / remotes / Herdr / CoS from their own lists; any recipe that sets `rail: true`; Add-agent CLI/API customs (`POST /v1/blueprints/custom/` stamps `rail: true` + `command` — REQ-171B / #607).
 
 **Off the rail (catalog only):** demo pack (`poets`, `chucks_angels`, MoA / `cli_fusion` aliases, `software_dev`, `codey`, …) and retired `django_chat`. Deep links and `/v1/models` still resolve.
 

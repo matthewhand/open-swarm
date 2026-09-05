@@ -6,7 +6,8 @@ pick one by its `model` name over the OpenAI API, run it with
 `swarm-cli launch <name>`, or use it as a starting point for your own. They do
 not ship a webpage. The Grok-like WebUI (`/` + `/chat`) is the product chrome.
 The AGENTS rail lists **seats** (`metadata.rail: true`), not this whole catalog
-(REQ-170 / #595).
+(REQ-170 / #595). Add-agent CLI/API customs are merged into `GET /v1/blueprints/`
+with `rail: true` (REQ-171B / #607).
 
 **Status legend**
 

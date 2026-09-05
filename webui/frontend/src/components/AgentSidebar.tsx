@@ -684,8 +684,11 @@ export default function AgentSidebar({
     const fromBlueprintsNoCli = fromBlueprints.filter((a) => !namedIds.has(a.id) && a.id !== 'api_agent')
     const list = [...fromRosters, ...fromBlueprintsNoCli, ...herdr]
     const support = list.filter((a) => isSupportAgent(a))
+    // Named api_agent comes from /v1/cli-agents/. Add-agent API customs stay
+    // in the catalog with rail+kind and must not be dropped here (REQ-171B).
+    const catalogApi = list.filter((a) => isApiRailAgent(a) && !isSupportAgent(a))
     const rest = list.filter((a) => !isSupportAgent(a) && !isApiRailAgent(a))
-    const merged = [...support, ...named, ...rest]
+    const merged = [...support, ...named, ...catalogApi, ...rest]
     const railRank = (a: SidebarAgent) => {
       if (isSupportAgent(a)) return 0
       if (isCliRailAgent(a)) return 1
@@ -1730,6 +1733,9 @@ export default function AgentSidebar({
         description: `Copy of ${row.agentName}`,
         category: 'ai_assistants',
         tags: ['api'],
+        kind: 'api',
+        rail: true,
+        source: 'add-agent',
         code: `# Copy of ${assignedBlueprintId(row.entityId)}\n`,
       })
       saveAgentEdit(created.id, {

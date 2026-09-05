@@ -2,9 +2,10 @@ import type { Blueprint } from './api'
 import { exampleRoleAgents } from './agentRoles'
 
 /**
- * REQ-170: a catalog recipe is a rail seat only when the API sets `rail: true`.
- * Missing / false = Settings / Add-agent catalog only. CLI / Herdr / named API
- * kind rows from other endpoints stay seats.
+ * REQ-170 / REQ-171B: a catalog recipe is a rail seat only when the API sets
+ * `rail: true`. Missing / false = Settings / Add-agent catalog only. CLI /
+ * Herdr / named API kind rows from other endpoints stay seats. Add-agent
+ * CLI/API creates persist `rail: true` so `GET /v1/blueprints/` can list them.
  */
 export function isRailSeat(row: {
   rail?: boolean | null

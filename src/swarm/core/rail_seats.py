@@ -77,6 +77,23 @@ DEMO_CATALOG_IDS = frozenset(
 
 USER_SOURCE_MARKERS = frozenset({"user", "wizard", "custom", "add-agent"})
 
+# Add-agent custom seats (REQ-171B / #607). Remote uses /v1/remotes/, not this store.
+ADD_AGENT_SEAT_KINDS = frozenset({"cli", "api"})
+ADD_AGENT_SOURCE = "add-agent"
+
+CLI_COMMAND_REQUIRED_ERROR = (
+    "CLI command is required. Enter a binary or command the AGENTS rail can list, "
+    "or choose API instead."
+)
+UNSUPPORTED_ADD_AGENT_KIND_ERROR = (
+    "Add-agent custom seats only support CLI or API. "
+    "Use Remotes for remote harnesses."
+)
+
+
+class CustomSeatError(ValueError):
+    """Honest create/update failure for Add-agent CLI/API seats."""
+
 
 def metadata_rail(meta: Mapping[str, Any] | None) -> bool:
     """True only when discovery metadata explicitly opts the recipe onto the rail."""
@@ -233,6 +250,135 @@ def apply_marketplace_archive(
             item["manifest_data"] = manifest
         updated.append(item)
     return updated
+
+
+def infer_custom_kind(item: Mapping[str, Any] | None) -> str:
+    """Resolve CLI/API from explicit kind, then category/tags (Add-agent wizard)."""
+    if not item:
+        return ""
+    kind = str(item.get("kind") or "").strip().lower()
+    if kind:
+        return kind
+    category = str(item.get("category") or "").strip().lower()
+    tags = [str(tag).strip().lower() for tag in (item.get("tags") or [])]
+    if category == "cli" or "cli" in tags:
+        return "cli"
+    if category == "api" or "api" in tags:
+        return "api"
+    return ""
+
+
+def extract_cli_command(item: Mapping[str, Any] | None) -> str:
+    """First-class command, else the wizard ``# Command:`` comment."""
+    if not item:
+        return ""
+    for key in ("command", "cli"):
+        raw = item.get(key)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+    code = item.get("code")
+    if isinstance(code, str):
+        for line in code.splitlines():
+            stripped = line.strip()
+            if stripped.lower().startswith("# command:"):
+                return stripped.split(":", 1)[1].strip()
+    return ""
+
+
+def custom_item_is_rail_seat(item: Mapping[str, Any] | None) -> bool:
+    """True for Add-agent CLI/API customs that belong on the AGENTS rail.
+
+    Explicit ``rail: false`` stays catalog-only. Demo leftovers stay off the
+    rail unless they opted in with ``rail: true``.
+    """
+    if not item or already_hidden(item):
+        return False
+    if item.get("rail") is False:
+        return False
+    if item.get("rail") is True:
+        return True
+    if is_seed_demo_row(item):
+        return False
+    return infer_custom_kind(item) in ADD_AGENT_SEAT_KINDS
+
+
+def build_custom_rail_item(body: Mapping[str, Any], *, existing: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Validate and stamp a custom-library row as a rail-visible CLI/API seat.
+
+    Raises ``CustomSeatError`` with user-facing copy on failure.
+    """
+    merged: dict[str, Any] = dict(existing or {})
+    merged.update(dict(body or {}))
+
+    kind = infer_custom_kind(merged)
+    if kind and kind not in ADD_AGENT_SEAT_KINDS:
+        raise CustomSeatError(UNSUPPORTED_ADD_AGENT_KIND_ERROR)
+
+    command = extract_cli_command(merged)
+    if kind == "cli" and not command:
+        raise CustomSeatError(CLI_COMMAND_REQUIRED_ERROR)
+
+    if kind in ADD_AGENT_SEAT_KINDS:
+        merged["kind"] = kind
+        merged["rail"] = True
+        merged["source"] = str(merged.get("source") or ADD_AGENT_SOURCE).strip() or ADD_AGENT_SOURCE
+        merged["user_created"] = True
+        if kind == "cli":
+            merged["command"] = command
+            merged["cli"] = command
+        elif "command" in merged and not str(merged.get("command") or "").strip():
+            merged.pop("command", None)
+    elif merged.get("rail") is True:
+        merged["rail"] = True
+        merged["source"] = str(merged.get("source") or ADD_AGENT_SOURCE).strip() or ADD_AGENT_SOURCE
+        merged["user_created"] = True
+    elif "rail" not in merged:
+        merged["rail"] = False
+
+    return merged
+
+
+def custom_library_to_blueprint_rows(
+    items: Iterable[Mapping[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Shape custom-library rail seats for ``GET /v1/blueprints/`` (newest first)."""
+    rows: list[dict[str, Any]] = []
+    for raw in items or []:
+        if not isinstance(raw, Mapping):
+            continue
+        if not custom_item_is_rail_seat(raw):
+            continue
+        ident = row_id(raw)
+        if not ident:
+            continue
+        kind = infer_custom_kind(raw) or "api"
+        command = extract_cli_command(raw)
+        rows.append(
+            {
+                "id": ident,
+                "object": "blueprint",
+                "name": raw.get("name") or ident,
+                "description": raw.get("description") or "",
+                "abbreviation": raw.get("abbreviation"),
+                "required_mcp_servers": list(raw.get("required_mcp_servers") or []),
+                "tags": list(raw.get("tags") or []),
+                "installed": True,
+                "compiled": True,
+                "avatar_path": raw.get("avatar_path") or raw.get("avatar"),
+                "persona_count": 0,
+                "personas": [],
+                "webui": False,
+                "rail": True,
+                "kind": kind if kind in ADD_AGENT_SEAT_KINDS else None,
+                "command": command,
+                "cli": command if kind == "cli" else "",
+                "source": raw.get("source") or ADD_AGENT_SOURCE,
+                "user_created": True,
+                "role": "default",
+            }
+        )
+    rows.reverse()
+    return rows
 
 
 def apply_custom_library_archive(

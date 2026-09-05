@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - **Untrusted CLI argv (C-H8 / REQ-171C-6):** User prompts cannot become extra flags (`--` before positional prompts, or stdin / `-p=`). `{workdir}` is not substituted inside the prompt text. Session ids reject leading `-`, `.`, and `..`; `resume_cli_session_id` sanitizes. Fixes #615.
 
 ### Fixed
+- **REQ-171B Add-agent rail seat:** Completing Add-agent CLI/API persists `rail: true` plus a first-class CLI `command` (not only a `# Command:` comment). `GET /v1/blueprints/` merges those customs so the AGENTS rail / Search Bots filter can list them. Missing CLI command or a non-CLI/API kind returns honest copy. New seats land at the top of the unpinned list. ChatPage unchanged. Fixes #607.
 - **REQ-171C-7 Vitest PR gate:** `Python Tests` sibling `vitest` job runs `npm ci` then `npm test` so SPA contract tests cannot go red on `main` unnoticed. Golden-journey / `visual-regression.yml` stays HOLD (REQ-89). Shrunk `test_req133_*` source greps that only checked TSX testids — those are not coverage. Fixes #616.
 
 ### Changed

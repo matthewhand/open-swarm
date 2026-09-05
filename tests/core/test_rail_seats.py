@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import pytest
+
 from swarm.core.rail_seats import (
     DEMO_CATALOG_IDS,
+    CustomSeatError,
     apply_custom_library_archive,
     apply_marketplace_archive,
+    build_custom_rail_item,
+    custom_item_is_rail_seat,
+    custom_library_to_blueprint_rows,
+    extract_cli_command,
+    infer_custom_kind,
     is_protected_user_agent,
     is_seed_demo_row,
     metadata_rail,
@@ -114,3 +122,67 @@ def test_protected_user_agents_are_not_seed_demo_rows():
     assert is_protected_user_agent({"id": "poets", "rail": True}) is True
     assert is_seed_demo_row({"id": "poets"}) is True
     assert is_seed_demo_row({"id": "my_helper"}) is False
+
+
+def test_infer_kind_and_command_from_wizard_fields():
+    assert infer_custom_kind({"kind": "CLI"}) == "cli"
+    assert infer_custom_kind({"category": "cli"}) == "cli"
+    assert infer_custom_kind({"tags": ["api"]}) == "api"
+    assert infer_custom_kind({"category": "ai_assistants"}) == ""
+    assert extract_cli_command({"command": "grok -p"}) == "grok -p"
+    assert extract_cli_command({"code": "# CLI agent: Desk\n# Command: agy\n"}) == "agy"
+    assert extract_cli_command({"code": "# no command here"}) == ""
+
+
+def test_custom_item_is_rail_seat_for_add_agent_kinds():
+    assert custom_item_is_rail_seat({"id": "desk", "kind": "cli", "command": "grok"}) is True
+    assert custom_item_is_rail_seat({"id": "helper", "tags": ["api"]}) is True
+    assert custom_item_is_rail_seat({"id": "recipe", "category": "test"}) is False
+    assert custom_item_is_rail_seat({"id": "desk", "kind": "cli", "rail": False}) is False
+    assert custom_item_is_rail_seat({"id": "poets", "category": "cli"}) is False
+    assert custom_item_is_rail_seat({"id": "poets", "rail": True}) is True
+    assert custom_item_is_rail_seat({"id": "gone", "kind": "api", "archived": True}) is False
+
+
+def test_build_custom_rail_item_requires_cli_command_and_rejects_remote():
+    cli = build_custom_rail_item(
+        {"id": "desk", "name": "Desk", "kind": "cli", "command": "grok"}
+    )
+    assert cli["rail"] is True
+    assert cli["kind"] == "cli"
+    assert cli["command"] == "grok"
+    assert cli["source"] == "add-agent"
+
+    from_comment = build_custom_rail_item(
+        {"id": "agy_bot", "category": "cli", "code": "# Command: agy --help"}
+    )
+    assert from_comment["command"] == "agy --help"
+    assert from_comment["rail"] is True
+
+    api = build_custom_rail_item({"id": "helper", "tags": ["api"]})
+    assert api["kind"] == "api"
+    assert api["rail"] is True
+
+    generic = build_custom_rail_item({"id": "scratch", "category": "test"})
+    assert generic["rail"] is False
+
+    with pytest.raises(CustomSeatError, match="CLI command is required"):
+        build_custom_rail_item({"id": "blank", "kind": "cli"})
+    with pytest.raises(CustomSeatError, match="only support CLI or API"):
+        build_custom_rail_item({"id": "omb", "kind": "remote"})
+
+
+def test_custom_library_to_blueprint_rows_newest_first_and_skips_catalog():
+    rows = custom_library_to_blueprint_rows(
+        [
+            {"id": "older", "name": "Older", "kind": "cli", "command": "agy"},
+            {"id": "recipe", "name": "Recipe", "category": "test"},
+            {"id": "newer", "name": "Newer", "tags": ["api"]},
+        ]
+    )
+    assert [row["id"] for row in rows] == ["newer", "older"]
+    assert rows[0]["rail"] is True
+    assert rows[0]["kind"] == "api"
+    assert rows[1]["kind"] == "cli"
+    assert rows[1]["command"] == "agy"
+    assert rows[1]["cli"] == "agy"
