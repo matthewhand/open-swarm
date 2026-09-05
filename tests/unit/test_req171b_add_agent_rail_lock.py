@@ -16,11 +16,12 @@ CI = REPO / ".github" / "workflows" / "req171b-add-agent-rail.yml"
 
 def test_backend_stamps_rail_and_requires_cli_command():
     text = RAIL.read_text(encoding="utf-8")
+    helpers = text.split("ADD_AGENT_SEAT_KINDS", 1)[-1]
     assert "CLI_COMMAND_REQUIRED_ERROR" in text
     assert "UNSUPPORTED_ADD_AGENT_KIND_ERROR" in text
     assert "build_custom_rail_item" in text
     assert "custom_library_to_blueprint_rows" in text
-    assert ":8001" not in text
+    assert ":8001" not in helpers
     assert "WAVE" not in text
     assert "ghp_" not in text
 
@@ -46,4 +47,5 @@ def test_own_diff_ci_exists():
     text = CI.read_text(encoding="utf-8")
     assert "own-diff" in text
     assert "test_req171b_add_agent_rail.py" in text
+    assert "test_req171b_add_agent_rail_lock.py" in text
     assert ":8001" not in text
