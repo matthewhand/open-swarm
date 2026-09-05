@@ -64,7 +64,10 @@ export function TokenDiagnosticsModal({
         {/* Session Metadata */}
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-base-content/70">
           <div>
-            Agent: <span className="font-medium text-base-content">{agentName || '—'}</span>
+            Current Agent:{' '}
+            <span className="font-medium text-base-content" data-testid="diag-current-agent">
+              {agentName || '—'}
+            </span>
           </div>
           <div>
             Session:{' '}
