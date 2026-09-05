@@ -1271,6 +1271,80 @@ describe('AgentSidebar teams', () => {
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
   })
 
+  it('shows three declared persona faces on a team row (REQ-81)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'squad',
+                  object: 'team_roster',
+                  name: 'Squad',
+                  blueprint_id: 'software_dev',
+                  persona_count: 3,
+                  personas: [
+                    { name: 'Researcher' },
+                    { name: 'Writer' },
+                    { name: 'Reviewer' },
+                  ],
+                  members: [{ id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' }],
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/herdr-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [
+              ...blueprints,
+              {
+                id: 'software_dev',
+                object: 'blueprint',
+                name: 'Software-dev team',
+                description: 'CoS / engineer / skeptic',
+                abbreviation: null,
+                required_mcp_servers: [],
+                tags: [],
+                installed: true,
+                compiled: true,
+                persona_count: 3,
+                personas: [
+                  { name: 'Researcher' },
+                  { name: 'Writer' },
+                  { name: 'Reviewer' },
+                ],
+              },
+            ],
+          }),
+        } as Response
+      }),
+    )
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Squad \(team\)/ })
+    expect(team).toHaveAttribute('data-persona-count', '3')
+    expect(team).toHaveAttribute('data-roster', 'declared')
+    expect(within(team).getByTestId('declared-roster')).toHaveAttribute('data-persona-count', '3')
+    expect(within(team).getByLabelText('Squad declared members')).toBeInTheDocument()
+  })
+
   it('opens the definition pane when the Team badge is clicked', async () => {
     const opened: Array<Record<string, unknown>> = []
     const onOpen = (event: Event) => {

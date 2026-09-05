@@ -250,6 +250,7 @@ describe('REQ-82 rail right-click menu', () => {
       opened.push((event as CustomEvent).detail || {})
     }
     window.addEventListener('swarm:open-agent-editor', onOpen)
+    window.addEventListener('swarm:open-team-editor', onOpen)
     window.addEventListener('swarm:open-settings', onOpen)
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
@@ -262,10 +263,8 @@ describe('REQ-82 rail right-click menu', () => {
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /Research \(team\)/ }))
     fireEvent.click(await screen.findByRole('menuitem', { name: /^Edit Profile$/i }))
     expect(opened).toContainEqual({
-      section: 'definition',
-      definitionKind: 'team',
-      definitionId: 'research',
       teamId: 'research',
+      teamName: 'Research',
     })
 
     opened.length = 0
@@ -277,6 +276,7 @@ describe('REQ-82 rail right-click menu', () => {
     expect(screen.queryByRole('menuitem', { name: /^Edit Profile$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: /^Duplicate$/i })).not.toBeInTheDocument()
     window.removeEventListener('swarm:open-agent-editor', onOpen)
+    window.removeEventListener('swarm:open-team-editor', onOpen)
     window.removeEventListener('swarm:open-settings', onOpen)
   })
 

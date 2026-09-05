@@ -22,6 +22,7 @@ from swarm.views.agent_creator_views import (
 )
 from swarm.views.api_views import (
     BlueprintsListView,
+    BlueprintPersonasView,
     BlueprintSourceView,
     BlueprintToolsView,
     CliAgentModelsView,
@@ -181,6 +182,12 @@ urlpatterns = [
     # Slash + no-slash twins (same pattern as /v1/responses and /v1/chat/completions).
     path("v1/blueprints/<str:blueprint_id>/source", BlueprintSourceView.as_view(), name="blueprint-source"),
     path("v1/blueprints/<str:blueprint_id>/source/", BlueprintSourceView.as_view(), name="blueprint-source-slash"),
+    path("v1/blueprints/<str:blueprint_id>/personas", BlueprintPersonasView.as_view(), name="blueprint-personas"),
+    path(
+        "v1/blueprints/<str:blueprint_id>/personas/",
+        BlueprintPersonasView.as_view(),
+        name="blueprint-personas-slash",
+    ),
     path("v1/blueprints/<str:blueprint_id>/tools", BlueprintToolsView.as_view(), name="blueprint-tools"),
     path("v1/blueprints/<str:blueprint_id>/tools/", BlueprintToolsView.as_view(), name="blueprint-tools-slash"),
     path(

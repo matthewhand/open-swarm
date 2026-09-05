@@ -35,6 +35,26 @@ describe('parseTeamRosters', () => {
     })
   })
 
+  it('keeps blueprint_id and declared personas', () => {
+    const parsed = parseTeamRosters({
+      object: 'list',
+      data: [
+        {
+          id: 'squad',
+          object: 'team_roster',
+          name: 'Squad',
+          blueprint_id: 'software_dev',
+          persona_count: 3,
+          personas: [{ name: 'Researcher' }, { name: 'Writer' }, { name: 'Reviewer' }],
+          members: [],
+        },
+      ],
+    })
+    expect(parsed[0].blueprintId).toBe('software_dev')
+    expect(parsed[0].persona_count).toBe(3)
+    expect(parsed[0].personas?.map((p) => p.name)).toEqual(['Researcher', 'Writer', 'Reviewer'])
+  })
+
   it('ignores /v1/teams LLM-alias shapes (no members / object=team without roster)', () => {
     expect(
       parseTeamRosters({
