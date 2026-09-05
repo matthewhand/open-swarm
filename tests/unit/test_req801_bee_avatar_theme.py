@@ -14,6 +14,21 @@ def test_req801_theme_enum_includes_bee():
     content = THEME_TS.read_text(encoding="utf-8")
     assert "'blobs', 'bland', 'default', 'bee'" in content
     assert "value === 'bee'" in content
+    assert "return 'blobs'" in content
+    assert "defaultAvatarTheme" in content
+
+
+def test_req801_bee_is_opt_in_not_forced_default():
+    content = THEME_TS.read_text(encoding="utf-8")
+    # Default remains Blobs; Bee is stored only when chosen.
+    assert "function defaultAvatarTheme(): AvatarTheme {\n  return 'blobs'\n}" in content
+    picker = (
+        REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AvatarThemePicker.tsx"
+    ).read_text(encoding="utf-8")
+    assert 'value="blobs"' in picker
+    assert 'value="bland"' in picker
+    assert 'value="bee"' in picker
+    assert "optional choice" in picker
 
 
 def test_req801_both_locked_variants_are_assigned():

@@ -45,3 +45,4 @@ def test_req155_avatar_theme_picker_labels():
     assert "Blobs with eyes (default)" in content
     assert "Bland static circle" in content
     assert ">Bee<" in content
+    assert "optional choice" in content

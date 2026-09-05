@@ -34,6 +34,13 @@ describe('avatar theme persist', () => {
     expect(loadAvatarTheme()).toBe('bee')
   })
 
+  it('keeps Bee opt-in: default and empty storage stay Blobs', () => {
+    expect(defaultAvatarTheme()).toBe('blobs')
+    expect(defaultAvatarTheme()).not.toBe('bee')
+    expect(loadAvatarTheme()).toBe('blobs')
+    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBeNull()
+  })
+
   it('migrates legacy default to bland', () => {
     localStorage.setItem(AVATAR_THEME_STORAGE_KEY, 'default')
     expect(loadAvatarTheme()).toBe('bland')

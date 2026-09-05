@@ -29,9 +29,10 @@ export default function AvatarThemePicker({ id = 'os-avatar-theme' }: AvatarThem
       </select>
       <p className="text-xs text-base-content/55">
         Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles.
-        Bee uses the geometric WebUI brand marks — side-on and face-only, with googly eyes —
-        assigned per agent. Custom uploaded faces always win. Generated still avatars from
-        Settings → Image generation apply on Bland and stay unused while Blobs or Bee is selected.
+        Bee is an optional choice: geometric WebUI brand marks — side-on and face-only, with
+        googly eyes — assigned per agent. Existing users stay on their current theme.
+        Custom uploaded faces always win. Generated still avatars from Settings → Image
+        generation apply on Bland and stay unused while Blobs or Bee is selected.
       </p>
     </div>
   )
