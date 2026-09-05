@@ -1,5 +1,5 @@
-import { useState, useId, useMemo, useEffect } from 'react'
-import { Terminal, Bot, Globe, ArrowLeft, Plus, ExternalLink, Edit3 } from 'lucide-react'
+import { useState, useId, useMemo, useRef } from 'react'
+import { Terminal, Bot, Globe, Plus, ExternalLink, Edit3, X } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Modal, Button, Alert } from './DaisyUI'
 import {
@@ -14,7 +14,6 @@ import {
 import { OPENMOUSBOT_LABEL } from '../lib/remotesCatalog'
 import { loadAgentEdit, saveAgentEdit } from '../lib/agentEdits'
 import { RemoteSelect } from './RemoteSelect'
-import { openSettingsSheet } from './SettingsSheet'
 import { configuredRemotes } from '../lib/remotes'
 import { remotesListForSelect, saveAgentRemoteBinding } from '../lib/agentRemote'
 
@@ -44,12 +43,12 @@ export interface ManageAgentItem {
 }
 
 /**
- * REQ-109 / REQ-164 / REQ-165 / REQ-167: Add agent popup wizard.
+ * REQ-184 / REQ-109 / REQ-164 / REQ-165 / REQ-167: Add agent popup wizard.
  *
- * - Step 1: Choose agent kind (CLI, API, Remote with OpenMousBot copy).
- * - Step 2 (CLI / API): Manage existing agents of that kind (list + edit + open + add new).
- * - Step 3 / Configure: Create new agent or edit existing agent.
- * - Overlay only: chat stays mounted (#364). Esc / backdrop cancels without creating.
+ * - Tabs: CLI | API | Remote (with OpenMousBot product naming).
+ * - Under each tab: shows existing list (empty state when none) AND create/edit fields on the same view.
+ * - Esc / backdrop / close cancels without creating.
+ * - Completing create bumps to top of unpinned and navigates.
  */
 export default function AddAgentWizard({
   isOpen,
@@ -59,11 +58,12 @@ export default function AddAgentWizard({
 }: AddAgentWizardProps) {
   const queryClient = useQueryClient()
   const titleId = useId()
+  const firstInputRef = useRef<HTMLInputElement>(null)
 
-  const [step, setStep] = useState<'select_kind' | 'manage' | 'configure'>('select_kind')
   const [selectedKind, setSelectedKind] = useState<AgentKind>('cli')
   const [mode, setMode] = useState<'create' | 'edit'>('create')
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
+  const [editingAgentName, setEditingAgentName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -116,14 +116,6 @@ export default function AddAgentWizard({
   const remotesCatalog = remotesListForSelect(remotesQuery.data)
   const configuredRemoteRows = configuredRemotes(remotesCatalog)
 
-  useEffect(() => {
-    if (!isOpen || selectedKind !== 'remote' || step !== 'configure') return
-    if (remotesQuery.isPending) return
-    if (configuredRemoteRows.length === 0) {
-      openSettingsSheet({ section: 'remotes', addRemote: true })
-    }
-  }, [isOpen, selectedKind, step, remotesQuery.isPending, configuredRemoteRows.length])
-
   const resetFormFields = () => {
     setError(null)
     setFolderError(null)
@@ -140,11 +132,11 @@ export default function AddAgentWizard({
     setRemoteApiKey('')
     setPickedRemoteId('')
     setEditingAgentId(null)
+    setEditingAgentName('')
   }
 
   const handleClose = () => {
     resetFormFields()
-    setStep('select_kind')
     setSelectedKind('cli')
     setMode('create')
     onClose()
@@ -153,11 +145,10 @@ export default function AddAgentWizard({
   const handleSelectKind = (kind: AgentKind) => {
     setSelectedKind(kind)
     setError(null)
-    if (kind === 'remote') {
+    setFolderError(null)
+    if (mode === 'edit') {
+      resetFormFields()
       setMode('create')
-      setStep('configure')
-    } else {
-      setStep('manage')
     }
   }
 
@@ -270,13 +261,16 @@ export default function AddAgentWizard({
   const handleStartAddNew = () => {
     resetFormFields()
     setMode('create')
-    setStep('configure')
+    setTimeout(() => {
+      firstInputRef.current?.focus()
+    }, 0)
   }
 
   const handleStartEdit = (agent: ManageAgentItem) => {
     setError(null)
     setFolderError(null)
     setEditingAgentId(agent.id)
+    setEditingAgentName(agent.name)
     setMode('edit')
     if (selectedKind === 'cli') {
       setCliName(agent.name)
@@ -288,7 +282,14 @@ export default function AddAgentWizard({
       setApiDescription(agent.description || '')
       setApiPrompt(agent.prompt || '')
     }
-    setStep('configure')
+    setTimeout(() => {
+      firstInputRef.current?.focus()
+    }, 0)
+  }
+
+  const handleCancelEdit = () => {
+    resetFormFields()
+    setMode('create')
   }
 
   const handleOpenAgent = (agentId: string) => {
@@ -300,13 +301,22 @@ export default function AddAgentWizard({
     handleClose()
   }
 
-  const handleCancelConfigure = () => {
-    if (selectedKind === 'remote') {
-      handleClose()
-    } else {
-      resetFormFields()
-      setStep('manage')
-    }
+  const handleConnectRemote = (remoteId: string, remoteName: string) => {
+    saveAgentRemoteBinding(remoteId, {
+      id: remoteId,
+      kind: remoteId,
+    })
+    onCreated?.({
+      id: remoteId,
+      name: remoteName,
+      kind: 'remote',
+    })
+    handleClose()
+  }
+
+  const handleCancelForm = () => {
+    resetFormFields()
+    setMode('create')
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -329,8 +339,11 @@ export default function AddAgentWizard({
         if (!name) throw new Error('Agent name is required')
         if (!command) throw new Error('CLI command or binary is required')
 
-        const folderComment = folder ? `# Folder: ${folder}\n` : ''
-        const code = `# CLI agent: ${name}\n# Command: ${command}\n${folderComment}`
+        const folderComment = folder ? `# Folder: ${folder}
+` : ''
+        const code = `# CLI agent: ${name}
+# Command: ${command}
+${folderComment}`
 
         if (mode === 'create') {
           const created = await createCustomBlueprint({
@@ -373,7 +386,7 @@ export default function AddAgentWizard({
           await queryClient.invalidateQueries({ queryKey: ['custom-blueprints'] })
           await queryClient.invalidateQueries({ queryKey: ['cli-agents'] })
           resetFormFields()
-          setStep('manage')
+          setMode('create')
         }
       } else if (selectedKind === 'api') {
         const name = apiName.trim()
@@ -386,7 +399,8 @@ export default function AddAgentWizard({
             name,
             description,
             category: 'ai_assistants',
-            code: prompt || `# API Assistant: ${name}\n`,
+            code: prompt || `# API Assistant: ${name}
+`,
             tags: ['api'],
           })
 
@@ -403,7 +417,8 @@ export default function AddAgentWizard({
             await updateCustomBlueprint(editingAgentId, {
               name,
               description,
-              code: prompt || `# API Assistant: ${name}\n`,
+              code: prompt || `# API Assistant: ${name}
+`,
             })
           } catch {
             // Local edits already saved via saveAgentEdit
@@ -412,26 +427,11 @@ export default function AddAgentWizard({
           await queryClient.invalidateQueries({ queryKey: ['blueprints'] })
           await queryClient.invalidateQueries({ queryKey: ['custom-blueprints'] })
           resetFormFields()
-          setStep('manage')
+          setMode('create')
         }
       } else if (selectedKind === 'remote') {
-        if (configuredRemoteRows.length > 0) {
-          const picked = configuredRemoteRows.find((row) => row.id === pickedRemoteId)
-          if (!picked) throw new Error('Select a configured remote')
-          saveAgentRemoteBinding(picked.id, {
-            id: picked.id,
-            kind: picked.kind || picked.id,
-          })
-          onCreated?.({
-            id: picked.id,
-            name: picked.label || picked.title || picked.id,
-            kind: 'remote',
-          })
-          handleClose()
-        } else {
-          const baseUrl = remoteBaseUrl.trim()
-          if (!baseUrl) throw new Error('Base URL is required')
-
+        const baseUrl = remoteBaseUrl.trim()
+        if (baseUrl) {
           const created = await createRemote({
             kind: remoteKind === 'omb' ? 'omb' : 'remote',
             base_url: baseUrl,
@@ -451,6 +451,23 @@ export default function AddAgentWizard({
             kind: 'remote',
           })
           handleClose()
+        } else if (pickedRemoteId) {
+          const picked = configuredRemoteRows.find((row) => row.id === pickedRemoteId)
+          if (!picked) throw new Error('Select a configured remote')
+          saveAgentRemoteBinding(picked.id, {
+            id: picked.id,
+            kind: picked.kind || picked.id,
+          })
+          onCreated?.({
+            id: picked.id,
+            name: picked.label || picked.title || picked.id,
+            kind: 'remote',
+          })
+          handleClose()
+        } else if (configuredRemoteRows.length > 0) {
+          throw new Error('Select a configured remote')
+        } else {
+          throw new Error('Base URL is required')
         }
       }
     } catch (err) {
@@ -466,78 +483,83 @@ export default function AddAgentWizard({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      size="md"
+      size="lg"
       placement="middle"
       aria-label="Add agent wizard"
     >
-      <div className="space-y-4" data-testid="add-agent-wizard">
+      <div className="space-y-4 max-h-[82vh] overflow-y-auto pr-1" data-testid="add-agent-wizard">
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-base-300 pb-3">
-          <div className="flex items-center gap-2">
-            {step !== 'select_kind' ? (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm btn-circle"
-                aria-label="Back"
-                onClick={() => {
-                  setError(null)
-                  if (step === 'configure' && selectedKind !== 'remote') {
-                    setStep('manage')
-                  } else {
-                    setStep('select_kind')
-                  }
-                }}
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </div>
-            )}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+            </div>
             <div>
               <h3 id={titleId} className="text-base font-semibold">
-                {step === 'select_kind'
-                  ? 'Add Agent'
-                  : step === 'manage'
-                  ? selectedKind === 'cli'
-                    ? 'Manage CLI Agents'
-                    : 'Manage API Agents'
-                  : mode === 'edit'
-                  ? `Edit ${selectedKind === 'cli' ? 'CLI' : 'API'} Agent`
-                  : selectedKind === 'cli'
-                  ? 'Configure CLI Agent'
-                  : selectedKind === 'api'
-                  ? 'Configure API Agent'
-                  : 'Configure Remote Agent'}
+                Add Agent
               </h3>
               <p className="text-xs text-base-content/60">
-                {step === 'select_kind'
-                  ? 'Choose the type of agent to manage or create'
-                  : step === 'manage'
-                  ? selectedKind === 'cli'
-                    ? 'Launch, edit, or create local command-line agents'
-                    : 'Launch, edit, or create API assistants'
-                  : selectedKind === 'cli'
-                  ? 'Connect a local command-line executable or script'
-                  : selectedKind === 'api'
-                  ? 'Create an autonomous API recipe or assistant'
-                  : `Connect an external ${OPENMOUSBOT_LABEL} or HTTP worker`}
+                Browse existing agents or configure a new one
               </p>
             </div>
           </div>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs btn-circle text-base-content/60 hover:text-base-content"
+            aria-label="Close"
+            onClick={handleClose}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
 
-          {step === 'manage' && (
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={handleStartAddNew}
-              data-testid="add-new-agent-btn"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Add new
-            </Button>
-          )}
+        {/* Tabs */}
+        <div
+          role="tablist"
+          className="tabs tabs-boxed bg-base-200/70 p-1 rounded-xl"
+          aria-label="Agent kinds"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedKind === 'cli'}
+            className={`tab gap-2 flex-1 font-semibold text-xs sm:text-sm transition ${
+              selectedKind === 'cli' ? 'tab-active' : ''
+            }`}
+            onClick={() => handleSelectKind('cli')}
+            data-testid="kind-option-cli"
+          >
+            <Terminal className="h-4 w-4" aria-hidden="true" />
+            <span>CLI</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedKind === 'api'}
+            className={`tab gap-2 flex-1 font-semibold text-xs sm:text-sm transition ${
+              selectedKind === 'api' ? 'tab-active' : ''
+            }`}
+            onClick={() => handleSelectKind('api')}
+            data-testid="kind-option-api"
+          >
+            <Bot className="h-4 w-4" aria-hidden="true" />
+            <span>API</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedKind === 'remote'}
+            className={`tab gap-2 flex-1 font-semibold text-xs sm:text-sm transition ${
+              selectedKind === 'remote' ? 'tab-active' : ''
+            }`}
+            onClick={() => handleSelectKind('remote')}
+            data-testid="kind-option-remote"
+          >
+            <Globe className="h-4 w-4" aria-hidden="true" />
+            <span>Remote ({OPENMOUSBOT_LABEL})</span>
+          </button>
         </div>
 
         {error ? (
@@ -546,99 +568,130 @@ export default function AddAgentWizard({
           </Alert>
         ) : null}
 
-        {step === 'select_kind' ? (
-          <div
-            className="grid grid-cols-1 gap-2.5 sm:grid-cols-3"
-            role="radiogroup"
-            aria-label="Agent kinds"
-          >
-            {/* CLI */}
-            <button
-              type="button"
-              className="flex flex-col items-start gap-2 rounded-xl border border-base-300 bg-base-100 p-3.5 text-left transition hover:border-primary hover:bg-base-200/50"
-              onClick={() => handleSelectKind('cli')}
-              data-testid="kind-option-cli"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Terminal className="h-4 w-4" aria-hidden="true" />
-              </div>
-              <div>
-                <span className="block text-sm font-semibold">CLI</span>
-                <span className="mt-0.5 block text-xs text-base-content/60 leading-tight">
-                  Run command-line binaries or local terminal tools
-                </span>
-              </div>
-            </button>
-
-            {/* API */}
-            <button
-              type="button"
-              className="flex flex-col items-start gap-2 rounded-xl border border-base-300 bg-base-100 p-3.5 text-left transition hover:border-primary hover:bg-base-200/50"
-              onClick={() => handleSelectKind('api')}
-              data-testid="kind-option-api"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
-                <Bot className="h-4 w-4" aria-hidden="true" />
-              </div>
-              <div>
-                <span className="block text-sm font-semibold">API</span>
-                <span className="mt-0.5 block text-xs text-base-content/60 leading-tight">
-                  Autonomous assistant with custom prompt and code
-                </span>
-              </div>
-            </button>
-
-            {/* Remote */}
-            <button
-              type="button"
-              className="flex flex-col items-start gap-2 rounded-xl border border-base-300 bg-base-100 p-3.5 text-left transition hover:border-primary hover:bg-base-200/50"
-              onClick={() => handleSelectKind('remote')}
-              data-testid="kind-option-remote"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500">
-                <Globe className="h-4 w-4" aria-hidden="true" />
-              </div>
-              <div>
-                <span className="block text-sm font-semibold">Remote</span>
-                <span className="mt-0.5 block text-xs text-base-content/60 leading-tight">
-                  Connect {OPENMOUSBOT_LABEL} or HTTP worker
-                </span>
-              </div>
-            </button>
-          </div>
-        ) : step === 'manage' ? (
-          <div className="space-y-3" data-testid="manage-agent-surface">
-            {currentAgents.length === 0 ? (
+        {/* Tab content: 1. Existing List (Manage) */}
+        <div className="space-y-3" data-testid="manage-agent-surface">
+          {selectedKind === 'remote' ? (
+            configuredRemoteRows.length === 0 ? (
               <div
-                className="rounded-xl border border-dashed border-base-300 py-8 text-center"
+                className="rounded-xl border border-dashed border-base-300 py-6 text-center"
                 data-testid="empty-manage-state"
               >
-                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-base-200 text-base-content/50">
-                  {selectedKind === 'cli' ? (
-                    <Terminal className="h-5 w-5" />
-                  ) : (
-                    <Bot className="h-5 w-5" />
-                  )}
+                <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-base-200 text-base-content/50">
+                  <Globe className="h-4.5 w-4.5" />
                 </div>
-                <p className="mt-2 text-sm font-medium">
-                  {selectedKind === 'cli' ? 'No CLI agents yet' : 'No API agents yet'}
-                </p>
+                <p className="mt-2 text-sm font-medium">No remotes configured yet</p>
                 <p className="mt-1 text-xs text-base-content/60">
-                  Get started by creating your first {selectedKind === 'cli' ? 'CLI' : 'API'} agent.
+                  Connect an external {OPENMOUSBOT_LABEL} or HTTP worker below.
                 </p>
                 <Button
                   type="button"
-                  variant="primary"
-                  size="sm"
-                  className="mt-4"
+                  variant="ghost"
+                  size="xs"
+                  className="mt-2"
                   onClick={handleStartAddNew}
                   data-testid="empty-add-btn"
                 >
-                  Add {selectedKind === 'cli' ? 'CLI' : 'API'} Agent
+                  Add Remote Agent
                 </Button>
               </div>
             ) : (
-              <div className="max-h-80 overflow-y-auto space-y-2 pr-1" data-testid="manage-agent-list">
+              <div className="space-y-2.5" data-testid="manage-agent-list">
+                <div className="flex items-center justify-between text-xs font-semibold text-base-content/70">
+                  <span>Configured Remotes ({configuredRemoteRows.length})</span>
+                </div>
+                <RemoteSelect
+                  remotes={remotesCatalog}
+                  value={pickedRemoteId}
+                  onChange={setPickedRemoteId}
+                  label="Remote"
+                />
+                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                  {configuredRemoteRows.map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between rounded-lg border border-base-300 bg-base-100 p-2.5 hover:bg-base-200/40"
+                      data-testid={`agent-row-${row.id}`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500">
+                          <Globe className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate leading-tight">
+                            {row.label || row.title || row.id}
+                          </p>
+                          <p className="text-[11px] text-base-content/60 truncate font-mono mt-0.5">
+                            {row.base_url || row.id}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() =>
+                            handleConnectRemote(row.id, row.label || row.title || row.id)
+                          }
+                          data-testid={`open-agent-${row.id}`}
+                          aria-label={`Open ${row.label || row.title || row.id}`}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          Connect
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          ) : currentAgents.length === 0 ? (
+            <div
+              className="rounded-xl border border-dashed border-base-300 py-6 text-center"
+              data-testid="empty-manage-state"
+            >
+              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-base-200 text-base-content/50">
+                {selectedKind === 'cli' ? (
+                  <Terminal className="h-4.5 w-4.5" />
+                ) : (
+                  <Bot className="h-4.5 w-4.5" />
+                )}
+              </div>
+              <p className="mt-2 text-sm font-medium">
+                {selectedKind === 'cli' ? 'No CLI agents yet' : 'No API agents yet'}
+              </p>
+              <p className="mt-1 text-xs text-base-content/60">
+                Get started by creating your first {selectedKind === 'cli' ? 'CLI' : 'API'} agent below.
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="mt-2"
+                onClick={handleStartAddNew}
+                data-testid="empty-add-btn"
+              >
+                Add {selectedKind === 'cli' ? 'CLI' : 'API'} Agent
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2" data-testid="manage-agent-list">
+              <div className="flex items-center justify-between text-xs font-semibold text-base-content/70">
+                <span>
+                  Existing {selectedKind === 'cli' ? 'CLI' : 'API'} Agents ({currentAgents.length})
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleStartAddNew}
+                  data-testid="add-new-agent-btn"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                  New agent
+                </Button>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                 {currentAgents.map((agent) => (
                   <div
                     key={agent.id}
@@ -696,10 +749,38 @@ export default function AddAgentWizard({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        ) : (
+            </div>
+          )}
+        </div>
+
+        {/* Tab content: 2. Create / Edit Section */}
+        <div className="border-t border-base-300 pt-3.5">
           <form onSubmit={handleSubmit} className="space-y-3.5" data-testid="add-agent-form">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-base-content/70">
+                {mode === 'edit'
+                  ? `Edit ${selectedKind === 'cli' ? 'CLI' : 'API'} Agent: ${editingAgentName}`
+                  : `Add New ${
+                      selectedKind === 'cli'
+                        ? 'CLI'
+                        : selectedKind === 'api'
+                        ? 'API'
+                        : 'Remote'
+                    } Agent`}
+              </h4>
+              {mode === 'edit' ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={handleCancelEdit}
+                  data-testid="cancel-edit-btn"
+                >
+                  Cancel edit
+                </Button>
+              ) : null}
+            </div>
+
             {selectedKind === 'cli' ? (
               <>
                 <div className="space-y-1">
@@ -707,6 +788,7 @@ export default function AddAgentWizard({
                     Agent Name <span className="text-error">*</span>
                   </label>
                   <input
+                    ref={firstInputRef}
                     type="text"
                     className="input input-sm input-bordered w-full"
                     placeholder="e.g. Claude Code CLI"
@@ -791,6 +873,7 @@ export default function AddAgentWizard({
                     Agent Name <span className="text-error">*</span>
                   </label>
                   <input
+                    ref={firstInputRef}
                     type="text"
                     className="input input-sm input-bordered w-full"
                     placeholder="e.g. Research Analyst"
@@ -833,65 +916,52 @@ export default function AddAgentWizard({
             ) : null}
 
             {selectedKind === 'remote' ? (
-              configuredRemoteRows.length > 0 ? (
-                <RemoteSelect
-                  remotes={remotesCatalog}
-                  value={pickedRemoteId}
-                  onChange={setPickedRemoteId}
-                  label="Remote"
-                />
-              ) : (
-                <>
-                  <p className="text-xs text-base-content/60" data-testid="remote-empty-add-hint">
-                    No remotes configured yet. Add one here, or finish Add remote in Settings.
-                  </p>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-base-content/80">
-                      Remote Type <span className="text-error">*</span>
-                    </label>
-                    <select
-                      className="select select-sm select-bordered w-full"
-                      value={remoteKind}
-                      onChange={(e) => setRemoteKind(e.target.value as 'omb' | 'generic')}
-                      aria-label="Remote type"
-                      data-testid="select-remote-kind"
-                    >
-                      <option value="omb">{OPENMOUSBOT_LABEL}</option>
-                      <option value="generic">Generic Remote Agent</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-base-content/80">
-                      Base URL <span className="text-error">*</span>
-                    </label>
-                    <input
-                      type="url"
-                      className="input input-sm input-bordered w-full font-mono text-xs"
-                      placeholder="http://localhost:8000"
-                      value={remoteBaseUrl}
-                      onChange={(e) => setRemoteBaseUrl(e.target.value)}
-                      required
-                      autoFocus
-                      aria-label="Base URL"
-                      data-testid="input-remote-url"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-base-content/80">
-                      API Key / Token (optional)
-                    </label>
-                    <input
-                      type="password"
-                      className="input input-sm input-bordered w-full text-xs"
-                      placeholder="Optional authorization token"
-                      value={remoteApiKey}
-                      onChange={(e) => setRemoteApiKey(e.target.value)}
-                      aria-label="API Key"
-                      data-testid="input-remote-key"
-                    />
-                  </div>
-                </>
-              )
+              <>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-base-content/80">
+                    Remote Type <span className="text-error">*</span>
+                  </label>
+                  <select
+                    className="select select-sm select-bordered w-full"
+                    value={remoteKind}
+                    onChange={(e) => setRemoteKind(e.target.value as 'omb' | 'generic')}
+                    aria-label="Remote type"
+                    data-testid="select-remote-kind"
+                  >
+                    <option value="omb">{OPENMOUSBOT_LABEL}</option>
+                    <option value="generic">Generic Remote Agent</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-base-content/80">
+                    Base URL <span className="text-error">*</span>
+                  </label>
+                  <input
+                    ref={firstInputRef}
+                    type="url"
+                    className="input input-sm input-bordered w-full font-mono text-xs"
+                    placeholder="http://localhost:8000"
+                    value={remoteBaseUrl}
+                    onChange={(e) => setRemoteBaseUrl(e.target.value)}
+                    aria-label="Base URL"
+                    data-testid="input-remote-url"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-base-content/80">
+                    API Key / Token (optional)
+                  </label>
+                  <input
+                    type="password"
+                    className="input input-sm input-bordered w-full text-xs"
+                    placeholder="Optional authorization token"
+                    value={remoteApiKey}
+                    onChange={(e) => setRemoteApiKey(e.target.value)}
+                    aria-label="API Key"
+                    data-testid="input-remote-key"
+                  />
+                </div>
+              </>
             ) : null}
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -899,7 +969,7 @@ export default function AddAgentWizard({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={handleCancelConfigure}
+                onClick={handleCancelForm}
                 disabled={submitting}
               >
                 Cancel
@@ -912,11 +982,15 @@ export default function AddAgentWizard({
                 disabled={Boolean(folderError)}
                 data-testid="submit-create-agent"
               >
-                {mode === 'edit' ? 'Save Changes' : 'Create Agent'}
+                {mode === 'edit'
+                  ? 'Save Changes'
+                  : selectedKind === 'remote' && configuredRemoteRows.length > 0 && !remoteBaseUrl
+                  ? 'Connect Selected'
+                  : 'Create Agent'}
               </Button>
             </div>
           </form>
-        )}
+        </div>
       </div>
     </Modal>
   )
