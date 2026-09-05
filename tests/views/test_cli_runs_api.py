@@ -107,6 +107,8 @@ def test_terminate_looping_cli_leaves_agent(api_client):
         )
         assert stopped.status_code == 200
         assert stopped.json()["status"] == "terminated"
+        child.wait(timeout=5)
+        assert child.poll() is not None
         assert _wait_dead(child.pid)
 
         idle = api_client.get("/v1/cli-agents/runs/?agent=cli_agent")

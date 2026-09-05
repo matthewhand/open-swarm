@@ -70,6 +70,8 @@ def test_terminate_looping_fixture_kills_group_only():
     os.kill(child.pid, 0)
 
     assert terminate_cli_runs("u0", "cli_agent") == "terminated"
+    child.wait(timeout=5)
+    assert child.poll() is not None
     assert _wait_dead(child.pid)
     assert is_cli_run_running("u0", "cli_agent") is False
     # Agent identity is untouched — registry is empty, no delete side effect.

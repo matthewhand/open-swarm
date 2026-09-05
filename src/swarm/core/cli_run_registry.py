@@ -131,6 +131,15 @@ def was_user_terminated(token: str | None) -> bool:
 def _process_alive(pid: int) -> bool:
     if not pid or pid <= 1:
         return False
+    # Reap our own zombies so kill(pid, 0) is not a false positive.
+    try:
+        waited, _status = os.waitpid(pid, os.WNOHANG)
+        if waited == pid:
+            return False
+    except ChildProcessError:
+        pass
+    except OSError:
+        return False
     try:
         os.kill(pid, 0)
         return True
