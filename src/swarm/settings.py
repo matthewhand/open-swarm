@@ -297,7 +297,6 @@ LOGGING = {
         'swarm.auth': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
         'swarm.views': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
         'swarm.extensions': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
-        'blueprint_django_chat': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
         'print_debug': { 'handlers': ['console'], 'level': 'DEBUG', 'propagate': False, },
     },
     'root': { 'handlers': ['console'], 'level': 'WARNING', },

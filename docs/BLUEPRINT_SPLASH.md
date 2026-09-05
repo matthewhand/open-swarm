@@ -1,7 +1,7 @@
 # Blueprint Splash Abstraction
 
 ## Purpose
-The splash is a visually engaging, branded introduction message shown when a blueprint is started in an interactive terminal (CLI) environment. It typically includes the blueprint’s name, purpose, and features, styled with ANSI colors, Unicode boxes, and emoji for clarity and impact.
+The splash is a visually engaging, branded introduction message shown when a blueprint is started in an interactive terminal (CLI) environment. Blueprints are CLI/API only — they do not ship a webpage; the Grok-like WebUI is product chrome. The splash is CLI chrome, not a WebUI. It typically includes the blueprint’s name, purpose, and features, styled with ANSI colors, Unicode boxes, and emoji for clarity and impact.
 
 ## Key Principles
 - **Single Splash:** Each blueprint defines only one splash, generated from its metadata (title, description, etc.), and styled for CLI use.

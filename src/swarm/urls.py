@@ -517,5 +517,5 @@ if frontend_path and frontend_path.exists():
 
     urlpatterns += [
         re_path(r'^assets/(?P<path>.*)$', spa_asset),
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/).*$', spa_fallback),
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/|django_chat).*$', spa_fallback),
     ]

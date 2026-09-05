@@ -6,7 +6,6 @@ Covers:
 - ALLOW_TESTUSER_AUTOLOGIN gating (default off, debug-only, refusal outside debug)
 - No hardcoded 'testpass' password anywhere (per-process random / env override)
 - custom_login testuser auto-login guard
-- django_chat default-user debug guard
 - runserver: auth-on default, --disable-auth dev-only refusal
 """
 
@@ -17,7 +16,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.core.exceptions import ImproperlyConfigured
 from django.core.management.base import CommandError
 from django.test import RequestFactory
 
@@ -274,29 +273,6 @@ class TestCustomLoginAutologinGuard:
         with pytest.raises(ImproperlyConfigured):
             custom_login(_login_request(RequestFactory()))
         assert User.objects.count() == users_before  # no user auto-created
-
-
-# =============================================================================
-# django_chat default-user debug guard
-# =============================================================================
-
-@pytest.mark.django_db
-class TestDjangoChatDefaultUserGuard:
-    def test_refused_outside_debug(self, monkeypatch):
-        monkeypatch.setenv("DJANGO_DEBUG", "false")
-        from swarm.blueprints.django_chat.views import get_or_create_default_user
-        with pytest.raises(PermissionDenied):
-            get_or_create_default_user()
-
-    def test_created_in_debug_without_hardcoded_password(self, monkeypatch):
-        monkeypatch.setenv("DJANGO_DEBUG", "true")
-        monkeypatch.delenv("TESTUSER_PASSWORD", raising=False)
-        from django.contrib.auth.models import User
-
-        from swarm.blueprints.django_chat.views import get_or_create_default_user
-        user = get_or_create_default_user()
-        assert user.username == "testuser"
-        assert not User.objects.get(username="testuser").check_password("testpass")
 
 
 # =============================================================================
