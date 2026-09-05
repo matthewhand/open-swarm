@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useAgentStore } from '../agent-store'
 import { STARTER_API_ID, STARTER_CLI_ID, STARTER_REMOTE_ID, STARTER_SUPPORT_ID } from '../starter-agents'
+import { AVATAR_THEME_STORAGE_KEY, dispatchAvatarTheme } from '../avatarTheme'
 import type { Agent } from '../../types/agent'
 
 const mockAgents: Agent[] = [
@@ -42,10 +43,15 @@ describe('useAgentStore avatar themes', () => {
     })
   })
 
-  it('persists the Swarm-wide avatar pack', () => {
+  it('persists the Swarm-wide avatar pack to swarm_avatar_theme (REQ-188C-3)', () => {
     useAgentStore.getState().setAvatarTheme('pixel')
     expect(useAgentStore.getState().avatarTheme).toBe('pixel')
-    expect(JSON.parse(localStorage.getItem('agent_avatar_theme') || '""')).toBe('pixel')
+    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBe('pixel')
+  })
+
+  it('synchronizes Swarm-wide avatar pack when dispatchAvatarTheme is called (REQ-188C-3)', () => {
+    dispatchAvatarTheme('bland')
+    expect(useAgentStore.getState().avatarTheme).toBe('bland')
   })
 
   it('stores a per-agent override and can clear it', () => {

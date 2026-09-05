@@ -9,6 +9,7 @@ import { SidebarHeader } from '../SidebarHeader'
 import type { Agent } from '../../../types/agent'
 import { AVATAR_THEMES } from '../../../types/agent'
 import { useAgentStore } from '../../../lib/agent-store'
+import { AVATAR_THEME_STORAGE_KEY } from '../../../lib/avatarTheme'
 
 const mockAgent: Agent = {
   agent_id: 'coder',
@@ -129,6 +130,16 @@ describe('AgentAvatar', () => {
     // With animated=false, uses the plain circle fallback — no SVG avatar
     const noSvg = screen.queryByRole('img', { name: /Coder/i })
     expect(noSvg).toBeNull()
+  })
+
+  it('falls back to plain circle when avatar theme is bland (REQ-188C-3)', () => {
+    localStorage.setItem(AVATAR_THEME_STORAGE_KEY, 'bland')
+    render(<AgentAvatar agent={mockAgent} size={40} />)
+    const noSvg = screen.queryByRole('img', { name: /Coder/i })
+    expect(noSvg).toBeNull()
+    const fallback = screen.getByTitle('Coder')
+    expect(fallback).toHaveAttribute('data-avatar-theme', 'bland')
+    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
   })
 })
 

@@ -11,6 +11,7 @@ import {
 import type { Agent, AgentStatus, AvatarState, AvatarMotion, AvatarTheme, AvatarEyes } from '../../types/agent'
 import { getInitials, getReadableTextColor } from '../../lib/agent-utils'
 import { useAgentStore } from '../../lib/agent-store'
+import { useAvatarTheme } from '../../lib/useAvatarTheme'
 import { RobotAvatar } from './RobotAvatar'
 
 export interface AgentAvatarProps {
@@ -54,10 +55,10 @@ export const AgentAvatar = memo(function AgentAvatar({
   const resolvedTheme = theme || storeTheme
   const resolvedEyes = eyes || storeEyes
 
-  const IconComponent = agent.icon ? EMOJI_ICON_MAP[agent.icon] : null
-  const hasEmojiIcon = agent.icon && agent.icon.length <= 2 && !IconComponent
-  // Use RobotAvatar if animated; fall back to plain circle for very small sizes
-  const useRobot = isAnimated && size >= 32
+  const globalAvatarTheme = useAvatarTheme()
+  const isBland = globalAvatarTheme === 'bland' || resolvedTheme === 'bland'
+  // Use RobotAvatar if animated and not bland; fall back to plain circle for bland or very small sizes
+  const useRobot = isAnimated && size >= 32 && !isBland
 
   if (useRobot) {
     return (
@@ -76,6 +77,8 @@ export const AgentAvatar = memo(function AgentAvatar({
   }
 
   // Fallback: plain color circle with icon/initials
+  const IconComponent = agent.icon ? EMOJI_ICON_MAP[agent.icon] : null
+  const hasEmojiIcon = agent.icon && agent.icon.length <= 2 && !IconComponent
   const bgColor = agent.color || '#6366f1'
   const textColor = getReadableTextColor(bgColor)
   const sizeClass =
@@ -95,6 +98,7 @@ export const AgentAvatar = memo(function AgentAvatar({
         className={`${sizeClass} rounded-full flex items-center justify-center font-bold shadow-sm overflow-hidden select-none`}
         style={{ backgroundColor: bgColor, color: textColor }}
         title={`${agent.customName || agent.name}`}
+        data-avatar-theme={isBland ? 'bland' : undefined}
       >
         {IconComponent ? (
           <IconComponent className={iconSizeClass} />

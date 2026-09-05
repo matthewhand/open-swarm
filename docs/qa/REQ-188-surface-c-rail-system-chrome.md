@@ -137,16 +137,14 @@ Three child Issues for CoS (drafts at the bottom). Suggested first wave (2–3):
 | **Test** | **Weak.** Happy-path Vitest + e2e. Error path asserts empty paint. No test that 500/401 shows a warning and keeps retry. |
 | **Coordinate** | Closed #377 — do **not** reopen “say Django” or add connection strings. Keep missing-store empty. Split **error** from **not created**. |
 
-### C-H3 — Settings → Rail avatar theme is a second, weaker store
+### C-H3 — Settings → Rail avatar theme unified with /agents (RESOLVED)
 
 | Field | Value |
 |-------|--------|
-| **Severity** | HIGH |
-| **File / area** | `AvatarThemePicker.tsx`; `lib/avatarTheme.ts` (`swarm_avatar_theme`, blobs/bland/default); `components/AgentAvatar.tsx`; `types/agent.ts` `AVATAR_THEMES` (ten packs); `lib/agent-store.ts` (`agent_avatar_theme`); `components/AgentSidebar/SidebarHeader.tsx`; `pages/AgentRouterPage.tsx` |
-| **Evidence** | Settings Rail offers two options and writes `swarm_avatar_theme`. Grok chat rail / header / favourite tiles (`components/AgentAvatar`) honour that. `/agents` (and the unused nested `AgentSidebar/SidebarHeader`) honour `useAgentStore.avatarTheme` — chassis/pixel/glyph/… + eyes — persisted as `agent_avatar_theme`. Same noun (“avatar theme” / “avatar pack”), two keys, two UIs. Opening Settings from Search while on `/agents` and picking Bland does not change Agent Router faces. Settings never exposes the ten packs. RailPane copy does not say “chat rail only”. |
-| **Suggested fix Issue title** | One avatar-theme store for Settings → Rail and /agents (REQ-188 / #644) |
-| **Test** | **Missing** as a product contract. Each store has its own unit tests. No test that Settings → Rail changes `/agents` faces (or that the picker copy says chat-only). |
-| **Coordinate** | #563 / #619 Blobs default stays. Do not delete Bland. Do not fight #579 prefs persist — pick one key before persisting both. |
+| **Severity** | HIGH (Resolved in #662) |
+| **File / area** | `AvatarThemePicker.tsx`; `lib/avatarTheme.ts` (`swarm_avatar_theme`, blobs/bland/default); `components/AgentAvatar.tsx`; `types/agent.ts`; `lib/agent-store.ts` (`swarm_avatar_theme`); `components/AgentSidebar/AgentAvatar.tsx`; `pages/AgentRouterPage.tsx` |
+| **Resolution** | Unified on `swarm_avatar_theme` as the single store of truth. `agent_avatar_theme` eliminated. Settings Rail theme changes synchronize live with Agent Router and rail faces via `AVATAR_THEME_SET_EVENT`. When Bland is chosen, both chat and `/agents` faces fall back to bland static circles. Custom uploaded faces always win. |
+| **Test** | `agent-store.test.ts`, `avatarTheme.test.ts`, `components/AgentSidebar/__tests__/AgentSidebar.test.tsx`. |
 
 ---
 

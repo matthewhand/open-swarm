@@ -34,6 +34,11 @@ import {
   mergeStarters,
 } from './starter-agents'
 import { cycleSessionMode as nextSessionMode, normalizeSessionMode, type SessionMode } from './session-modes'
+import {
+  AVATAR_THEME_STORAGE_KEY,
+  AVATAR_THEME_SET_EVENT,
+  dispatchAvatarTheme,
+} from './avatarTheme'
 
 interface AgentStoreState {
   // Bots/Agents
@@ -161,6 +166,30 @@ function saveStored<T>(key: string, value: T): void {
   }
 }
 
+function loadAvatarThemeStored(fallback: AvatarTheme): AvatarTheme {
+  try {
+    const raw = localStorage.getItem(AVATAR_THEME_STORAGE_KEY)
+    if (!raw) return fallback
+    let parsed: any = raw
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      /* plain string */
+    }
+    return (parsed as AvatarTheme) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+function saveAvatarThemeStored(theme: AvatarTheme): void {
+  try {
+    localStorage.setItem(AVATAR_THEME_STORAGE_KEY, theme)
+  } catch {
+    // best-effort persistence
+  }
+}
+
 function persistOverlayKeys(state: {
   renames: Record<string, string>
   purposes: Record<string, string>
@@ -279,7 +308,7 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
   sidebarOpen: loadStored<boolean>('agent_sidebar_open', true),
   sidebarDensity: loadStored<SidebarDensity>('agent_sidebar_density', 'compact'),
   collapsedSections: loadStored<string[]>('agent_collapsed_sections', []),
-  avatarTheme: loadStored<AvatarTheme>('agent_avatar_theme', 'chassis'),
+  avatarTheme: loadAvatarThemeStored('chassis'),
   avatarThemeByAgent: loadStored<Record<string, AvatarTheme>>('agent_avatar_theme_by_agent', {}),
   avatarEyes: loadStored<AvatarEyes>('agent_avatar_eyes', 'lens'),
   avatarEyesByAgent: loadStored<Record<string, AvatarEyes>>('agent_avatar_eyes_by_agent', {}),
@@ -412,7 +441,8 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
   },
 
   setAvatarTheme: (theme) => {
-    saveStored('agent_avatar_theme', theme)
+    saveAvatarThemeStored(theme)
+    dispatchAvatarTheme(theme as any)
     set({ avatarTheme: theme })
   },
 
@@ -810,3 +840,25 @@ useAgentStore.subscribe((state, prev) => {
     persistingTeam = false
   }
 })
+
+if (typeof window !== 'undefined') {
+  const onAvatarThemeSet = (event: Event) => {
+    const detail = (event as CustomEvent<AvatarTheme>).detail
+    if (detail && detail !== useAgentStore.getState().avatarTheme) {
+      useAgentStore.setState({ avatarTheme: detail })
+    }
+  }
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === AVATAR_THEME_STORAGE_KEY && event.newValue) {
+      try {
+        const val = JSON.parse(event.newValue)
+        if (val) useAgentStore.setState({ avatarTheme: val })
+      } catch {
+        useAgentStore.setState({ avatarTheme: event.newValue as AvatarTheme })
+      }
+    }
+  }
+  window.addEventListener(AVATAR_THEME_SET_EVENT, onAvatarThemeSet)
+  window.addEventListener('storage', onStorage)
+}
+
