@@ -154,11 +154,26 @@ export function writeAgentDragPayload(dataTransfer: DataTransfer, agent: PinnedA
   if (!pin) return
   beginAgentDrag(pin)
   try {
+    // Strip URL formats so Chromium/Edge does not trigger native "Split view" / "Open in split screen" drag UI (#702)
+    dataTransfer.clearData('text/uri-list')
+    dataTransfer.clearData('URL')
+    dataTransfer.clearData('text/html')
+  } catch {
+    /* clearData might not be supported in some test environments */
+  }
+  try {
     dataTransfer.setData(AGENT_DRAG_MIME, JSON.stringify(pin))
     dataTransfer.setData('text/plain', pin.id)
     dataTransfer.effectAllowed = 'copyMove'
   } catch {
     /* some test DataTransfers only implement a subset */
+  }
+  try {
+    dataTransfer.clearData('text/uri-list')
+    dataTransfer.clearData('URL')
+    dataTransfer.clearData('text/html')
+  } catch {
+    /* ignore */
   }
 }
 

@@ -8,6 +8,7 @@ import {
   movePinnedAgent,
   pinAgent,
   unpinAgent,
+  writeAgentDragPayload,
 } from '../pinnedAgents'
 
 describe('pinnedAgents persistence', () => {
@@ -55,4 +56,33 @@ describe('pinnedAgents persistence', () => {
       'support',
     ])
   })
+
+  it('clears URL and URI drag data to prevent browser split view popup (#702)', () => {
+    const data: Record<string, string> = {
+      'text/uri-list': 'http://10.0.0.30:8001/chat?blueprint=codey',
+      'URL': 'http://10.0.0.30:8001/chat?blueprint=codey',
+      'text/html': '<a href="http://10.0.0.30:8001/chat?blueprint=codey">Codey</a>',
+    }
+    const mockDataTransfer = {
+      setData: (key: string, val: string) => {
+        data[key] = val
+      },
+      getData: (key: string) => data[key] || '',
+      clearData: (key?: string) => {
+        if (!key) {
+          for (const k of Object.keys(data)) delete data[k]
+        } else {
+          delete data[key]
+        }
+      },
+      effectAllowed: 'none',
+    } as unknown as DataTransfer
+
+    writeAgentDragPayload(mockDataTransfer, { id: 'codey', name: 'Codey' })
+    expect(data['text/uri-list']).toBeUndefined()
+    expect(data['URL']).toBeUndefined()
+    expect(data['text/html']).toBeUndefined()
+    expect(data['text/plain']).toBe('codey')
+  })
 })
+

@@ -965,10 +965,20 @@ export default function AgentSidebar({
   }
 
   const beginRowDrag = (event: ReactDragEvent, agent: { id: string; name: string }) => {
+    try {
+      event.dataTransfer.clearData('text/uri-list')
+      event.dataTransfer.clearData('URL')
+      event.dataTransfer.clearData('text/html')
+    } catch {
+      /* jsdom DataTransfer may be a stub */
+    }
     writeAgentDragPayload(event.dataTransfer, agent)
     beginRailDrag(agent.id)
     try {
       event.dataTransfer.effectAllowed = 'copyMove'
+      event.dataTransfer.clearData('text/uri-list')
+      event.dataTransfer.clearData('URL')
+      event.dataTransfer.clearData('text/html')
     } catch {
       /* jsdom DataTransfer may be a stub */
     }
