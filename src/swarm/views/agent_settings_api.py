@@ -153,12 +153,15 @@ class AgentTaskSessionAPIView(APIView):
 
         task_id = str(body.get("task_id") or "").strip() or None
         session = allocate_task_session(request.user, agent, task_id=task_id)
-        persist_allocated_session(
-            request.user,
-            agent,
-            session.conversation_id,
-            empty=session.empty,
-        )
+        try:
+            persist_allocated_session(
+                request.user,
+                agent,
+                session.conversation_id,
+                empty=session.empty,
+            )
+        except Exception:
+            logger.exception("Failed to persist allocated session %s", session.conversation_id)
         return Response(
             {
                 "object": "agent_task_session",
