@@ -78,7 +78,15 @@
   --border-btn: 1px;
   --tab-border: 1px;
   --tab-radius: 0.5rem;
-  --os-chrome-sidebar: #0c0c0c;
+  --os-chrome-sidebar: #111111;
+  /* REQ-101: Grok chrome colour tokens */
+  --os-grok-rail: #111111;
+  --os-grok-tile-selected: #313131;
+  --os-grok-assistant-bubble: #262626;
+  --os-grok-user-bubble: #5a5a5a;
+  --os-grok-composer: #262626;
+  --os-grok-code-inline: #ff5667;
+  --os-grok-link: #4194eb;
 }
 
 /* Paint the document chrome near-black so a DaisyUI/user-agent light
@@ -95,11 +103,60 @@ html[data-theme="light"] #root {
 }
 
 [data-theme="dark"] {
-  --os-chrome-sidebar: #0c0c0c;
+  --os-chrome-sidebar: var(--os-grok-rail, #111111);
 }
 
 [data-theme="light"] {
   --os-chrome-sidebar: #ececee;
+}
+
+/* REQ-101: Grok colour parity for dark chrome */
+html:not([data-theme="light"]) .os-agent-sidebar,
+[data-theme="dark"] .os-agent-sidebar {
+  background-color: var(--os-grok-rail, #111111);
+}
+
+html:not([data-theme="light"]) .os-fav-tile--active,
+[data-theme="dark"] .os-fav-tile--active,
+html:not([data-theme="light"]) .os-agent-row--active,
+[data-theme="dark"] .os-agent-row--active {
+  background: var(--os-grok-tile-selected, #313131) !important;
+  color: #f2f2f2;
+}
+
+html:not([data-theme="light"]) .chat-start .chat-bubble,
+[data-theme="dark"] .chat-start .chat-bubble,
+html:not([data-theme="light"]) [data-message-role="assistant"] > div > div.rounded-2xl,
+[data-theme="dark"] [data-message-role="assistant"] > div > div.rounded-2xl {
+  background-color: var(--os-grok-assistant-bubble, #262626) !important;
+  color: #f2f2f2 !important;
+}
+
+html:not([data-theme="light"]) .chat-end .chat-bubble,
+[data-theme="dark"] .chat-end .chat-bubble,
+html:not([data-theme="light"]) [data-message-role="user"] > div > div.rounded-2xl,
+[data-theme="dark"] [data-message-role="user"] > div > div.rounded-2xl {
+  background-color: var(--os-grok-user-bubble, #5a5a5a) !important;
+  color: #ffffff !important;
+}
+
+html:not([data-theme="light"]) .os-composer,
+[data-theme="dark"] .os-composer {
+  background: var(--os-grok-composer, #262626);
+}
+
+html:not([data-theme="light"]) .chat-md code:not(pre code),
+[data-theme="dark"] .chat-md code:not(pre code),
+html:not([data-theme="light"]) .os-chat-md code:not(pre code),
+[data-theme="dark"] .os-chat-md code:not(pre code) {
+  color: var(--os-grok-code-inline, #ff5667);
+}
+
+html:not([data-theme="light"]) .chat-md a,
+[data-theme="dark"] .chat-md a,
+html:not([data-theme="light"]) .os-chat-md a,
+[data-theme="dark"] .os-chat-md a {
+  color: var(--os-grok-link, #4194eb);
 }
 
 /* Large dashboard action cards — chrome panels, not rainbow buttons */
