@@ -6,7 +6,7 @@
  */
 
 import { apiGet, apiPost } from './api'
-import { agentIdFromBlueprint } from './agentChat'
+import { agentIdFromBlueprint, setConversationIdForAgent } from './agentChat'
 import { formatRailTimestamp } from './chatTime'
 import {
   listAgentSessions,
@@ -148,6 +148,9 @@ export async function createAgentSession(
       { new: true, empty: true, title: opts?.title || '', labels: opts?.labels || [] },
     )
     const parsed = parseDjangoSession(data, agent)
+    if (parsed?.id) {
+      setConversationIdForAgent(agent, parsed.id)
+    }
     emitAgentSessionsChanged(agent)
     return parsed
   } catch {

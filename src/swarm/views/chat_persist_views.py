@@ -188,6 +188,7 @@ def chat_thread(request):
         session_id = requested_cid
     turns: list[dict] = []
     events: list[dict] = []
+    session_missing = False
     if fresh_task and not requested_cid:
         # New task: do not hydrate the reused agent transcript.
         record = None
@@ -202,19 +203,29 @@ def chat_thread(request):
         db_messages = [] if record and record.get("messages") else _messages_from_db(
             request.user, db_id
         )
-        turns, events = _thread_channels(record, db_messages)
-        if not record and turns and not session_id:
-            # Upgrade path: mirror an existing Django row onto disk.
-            try:
-                chat_store.save(
-                    user_key,
-                    agent,
-                    turns,
-                    conversation_id=db_id,
-                    ui_events=events,
-                )
-            except OSError:
-                logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
+        if (
+            requested_cid
+            and record is None
+            and not db_messages
+            and requested_cid.startswith(("cli-", "sess-"))
+        ):
+            # Select-minted ids (CLI / Django picker) — honest miss, no swap.
+            session_missing = True
+            turns, events = [], []
+        else:
+            turns, events = _thread_channels(record, db_messages)
+            if not record and turns and not session_id:
+                # Upgrade path: mirror an existing Django row onto disk.
+                try:
+                    chat_store.save(
+                        user_key,
+                        agent,
+                        turns,
+                        conversation_id=db_id,
+                        ui_events=events,
+                    )
+                except OSError:
+                    logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
     if requested_cid:
         conversation_id = requested_cid
     elif record and record.get("conversation_id") and not fresh_task:
@@ -232,13 +243,14 @@ def chat_thread(request):
     sessions = list_active_task_sessions(user_key, agent) if fresh_task else []
     kind = classify_agent_kind(agent_raw or agent)
     session_title = ""
-    try:
-        from swarm.core.agent_sessions import get_or_create_session
+    if not session_missing:
+        try:
+            from swarm.core.agent_sessions import get_or_create_session
 
-        row = get_or_create_session(request.user, conversation_id, agent_id=agent)
-        session_title = row.title or ""
-    except Exception:
-        session_title = ""
+            row = get_or_create_session(request.user, conversation_id, agent_id=agent)
+            session_title = row.title or ""
+        except Exception:
+            session_title = ""
     payload = {
         "agent_id": agent,
         "conversation_id": conversation_id,
@@ -247,6 +259,7 @@ def chat_thread(request):
         "editable": kind == "api",
         "new_chat_per_task": fresh_task,
         "active_sessions": sessions,
+        "session_missing": session_missing,
         "messages": _thread_payload_messages(turns, events),
         "turns": _public_messages(turns),
         "ui_events": _public_messages(events),

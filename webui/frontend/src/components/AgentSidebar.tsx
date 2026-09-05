@@ -136,7 +136,13 @@ import {
   openAgentEditor,
 } from '../lib/agentSettings'
 import { createAgentSession, loadPickerSessions } from '../lib/agentSessions'
-import { activeTaskSessionCount } from '../lib/agentChat'
+import {
+  AGENT_CONVERSATION_EVENT,
+  activeTaskSessionCount,
+  agentChatHref,
+  conversationIdForAgent,
+  setConversationIdForAgent,
+} from '../lib/agentChat'
 import {
   RAIL_LONG_PRESS_MS,
   copyableConversationId,
@@ -168,7 +174,6 @@ import {
   selectCliSession,
   type CliProviderSession,
 } from '../lib/cliSessions'
-import { conversationIdForAgent } from '../lib/agentChat'
 import { openSettingsSheet } from './SettingsSheet'
 import { ConfirmModal } from './DaisyUI'
 import RailContextMenu from './RailContextMenu'
@@ -244,7 +249,7 @@ function isHerdrAgent(agent: { id: string; kind?: string }): boolean {
 
 function sidebarHref(agent: { id: string; kind?: string }): string {
   if (isHerdrAgent(agent)) return '/teams/#herdr-members'
-  return `/chat?blueprint=${encodeURIComponent(agent.id)}`
+  return agentChatHref(agent.id)
 }
 
 function toSidebarCli(row: CliRailAgent): SidebarAgent {
@@ -511,11 +516,13 @@ export default function AgentSidebar({
     const onChange = () => setSessionTick((n) => n + 1)
     window.addEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
     window.addEventListener(AGENT_CHAT_SESSIONS_EVENT, onChange)
+    window.addEventListener(AGENT_CONVERSATION_EVENT, onChange)
     window.addEventListener(GENERATION_COMPLETE_EVENT, onChange)
     window.addEventListener('storage', onChange)
     return () => {
       window.removeEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
       window.removeEventListener(AGENT_CHAT_SESSIONS_EVENT, onChange)
+      window.removeEventListener(AGENT_CONVERSATION_EVENT, onChange)
       window.removeEventListener(GENERATION_COMPLETE_EVENT, onChange)
       window.removeEventListener('storage', onChange)
     }
@@ -2418,7 +2425,7 @@ export default function AgentSidebar({
             return (
               <Link
                 key={pin.id}
-                to={`/chat?blueprint=${encodeURIComponent(pin.id)}`}
+                to={agentChatHref(pin.id)}
                 className={pinClass}
                 title={pinName}
                 aria-label={pinName}
@@ -2676,6 +2683,7 @@ export default function AgentSidebar({
         }}
         onSelect={(session) => {
           const agentId = sessionPicker?.agentId || session.agentId
+          setConversationIdForAgent(agentId, session.id)
           navigate(sessionHref(agentId, session.id))
           onClose?.()
         }}

@@ -532,6 +532,12 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(dialog).getByRole('button', { name: /^New session$/i })).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('option', { name: /Notes/ }))
     expect(screen.getByTestId('os-test-search')).toHaveTextContent('session=sess-notes')
+    await waitFor(() => {
+      expect(within(list).getByRole('link', { name: /Codey/ })).toHaveAttribute(
+        'href',
+        expect.stringContaining('session=sess-notes'),
+      )
+    })
 
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /Office \(team\)/ }))
     expect(screen.queryByRole('menuitem', { name: /Select session/i })).not.toBeInTheDocument()

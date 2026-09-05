@@ -23,6 +23,14 @@ export function switchedSessionNotice(title?: string | null): string {
   return label ? `Switched to session ${label}` : 'Switched to session'
 }
 
+/** #794: stored session id is gone — never silently swap to another transcript. */
+export const MISSING_SESSION_TEXT = 'Stored session is gone'
+
+export function missingSessionNotice(sessionId?: string | null): string {
+  const id = String(sessionId || '').trim()
+  return id ? `Stored session ${id} is gone` : MISSING_SESSION_TEXT
+}
+
 export function restoreKindForAgent(agentId: string): RestoreKind {
   const id = (agentId || '').trim().toLowerCase()
   if (id.startsWith('team-') || id.startsWith('team:')) return 'team'
@@ -46,7 +54,8 @@ export function isRestoreStatusText(text: string | null | undefined): boolean {
     t.startsWith('resumed ') ||
     t.startsWith('reconnected remote') ||
     t.startsWith('continued chat') ||
-    t.startsWith('switched to session')
+    t.startsWith('switched to session') ||
+    t.startsWith('stored session')
   )
 }
 

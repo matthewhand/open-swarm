@@ -153,6 +153,24 @@ def test_chat_thread_isolates_two_sessions_and_summaries(client, user):
 
 
 @pytest.mark.django_db
+def test_chat_thread_missing_selected_session_does_not_swap(client, user, tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    chat_store.save(
+        chat_store.user_key_for(user),
+        "codey",
+        [{"role": "user", "content": "older session"}, {"role": "assistant", "content": "old"}],
+        conversation_id=chat_store.conversation_id_for(user, "codey"),
+    )
+    gone = client.get("/chat/thread/?agent=codey&conversation_id=sess-gone")
+    assert gone.status_code == 200
+    payload = gone.json()
+    assert payload["conversation_id"] == "sess-gone"
+    assert payload["session_missing"] is True
+    assert payload["messages"] == []
+    assert all(row.get("content") != "older session" for row in payload["messages"])
+
+
+@pytest.mark.django_db
 def test_chat_thread_requires_login():
     resp = Client().get("/chat/thread/?agent=jeeves")
     assert resp.status_code == 302

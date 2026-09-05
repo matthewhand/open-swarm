@@ -404,8 +404,21 @@ def load(
                 continue
             sid = row.get("session_id") or ""
             if sid:
-                return load(user_key, agent, session_id=sid, base_dir=base_dir)
-            break
+                found = load(user_key, agent, session_id=sid, base_dir=base_dir)
+                if found is not None:
+                    return found
+            path = _active_path(user_key, agent, base)
+            if path is None or not path.is_file():
+                return None
+            record = _read_json(path)
+            if record is None:
+                return None
+            if (record.get("conversation_id") or "") != wanted:
+                return None
+            record["messages"] = _normalize_messages(record.get("messages"))
+            record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
+            return record
+        return None
     path = _active_path(user_key, agent, base)
     if path is None or not path.is_file():
         return None

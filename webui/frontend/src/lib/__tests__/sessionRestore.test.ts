@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MISSING_SESSION_TEXT,
   RESTORED_SESSION_TEXT,
   hasRestorableTurns,
   isRestoreStatusText,
+  missingSessionNotice,
   restoreKindForAgent,
   restoredSessionNotice,
   switchedSessionNotice,
@@ -63,5 +65,14 @@ describe('withRestoredSession', () => {
     expect(isRestoreStatusText('Switched to session Notes')).toBe(true)
     expect(switchedSessionNotice('Notes')).toBe('Switched to session Notes')
     expect(switchedSessionNotice('')).toBe('Switched to session')
+  })
+})
+
+describe('missingSessionNotice (#794)', () => {
+  it('is honest and never claims restore', () => {
+    expect(missingSessionNotice('sess-gone')).toBe('Stored session sess-gone is gone')
+    expect(missingSessionNotice('')).toBe(MISSING_SESSION_TEXT)
+    expect(isRestoreStatusText('Stored session sess-gone is gone')).toBe(true)
+    expect(isRestoreStatusText('Stored session is gone')).toBe(true)
   })
 })
