@@ -17,6 +17,7 @@ import type { RailMenuItemId, RailMenuItemSpec } from '../lib/railContextMenu'
 
 const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'select-agent': Users,
+  'select-session': History,
   unpin: PinOff,
   pin: Pin,
   unread: Circle,
