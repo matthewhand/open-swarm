@@ -18,11 +18,14 @@ import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
 import {
+  AGENT_DROPDOWNS_CHANGED_EVENT,
   AGENT_SETTINGS_CHANGED_EVENT,
+  loadAgentDropdownChoice,
   loadLocalNewChatPerTask,
   openAgentEditor,
   type AgentSettingsChangedDetail,
 } from '../lib/agentSettings'
+import { persistAgentDropdownChoice } from '../lib/userPrefs'
 import { persistableMessages, putAgentChatSession } from '../lib/agentChatSessions'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
@@ -261,6 +264,7 @@ const ChatPage = () => {
     !searchParams.get('remote'),
   )
   const [, setEditsTick] = useState(0)
+  const [dropdownTick, setDropdownTick] = useState(0)
   const [selectedRemoteId, setSelectedRemoteId] = useState('')
   const [conversationId, setConversationId] = useState(() =>
     teamFromUrl
@@ -498,16 +502,29 @@ const ChatPage = () => {
       !isCliAgent,
   )
 
+  const dropdownAgentId = teamFromUrl
+    ? `team-${teamFromUrl}`
+    : remoteFromUrl || selectedBlueprint || DEFAULT_AGENT_ID
+  const persistedDropdown = useMemo(
+    () => loadAgentDropdownChoice(dropdownAgentId),
+    [dropdownAgentId, dropdownTick],
+  )
+
   const discoveredClis = useMemo(
-    () => discoverChatClis(cliQuery.data, searchParams.get('cli') || selectedCli?.cli),
-    [cliQuery.data, searchParams, selectedCli],
+    () =>
+      discoverChatClis(
+        cliQuery.data,
+        searchParams.get('cli') || persistedDropdown.cli || selectedCli?.cli,
+      ),
+    [cliQuery.data, searchParams, persistedDropdown.cli, selectedCli],
   )
   const currentCli = useMemo(() => {
     const fromParam = (searchParams.get('cli') ?? '').trim()
     if (fromParam) return fromParam
+    if (persistedDropdown.cli) return persistedDropdown.cli
     if (selectedCli?.cli) return selectedCli.cli
     return preferredChatCli(discoveredClis, '')
-  }, [searchParams, selectedCli, discoveredClis])
+  }, [searchParams, persistedDropdown.cli, selectedCli, discoveredClis])
 
   const cliModelsQuery = useQuery({
     queryKey: ['cli-models', currentCli],
@@ -517,14 +534,19 @@ const ChatPage = () => {
   })
   const availableCliModels = useMemo(() => {
     const list = cliModelsQuery.data?.models ?? (cliQuery.data as any)?.list_models?.[currentCli] ?? []
-    return list.length ? list : ['default']
-  }, [cliModelsQuery.data, cliQuery.data, currentCli])
+    const merged = list.length ? [...list] : ['default']
+    const saved = (persistedDropdown.model || '').trim()
+    if (saved && !merged.includes(saved)) merged.push(saved)
+    return merged
+  }, [cliModelsQuery.data, cliQuery.data, currentCli, persistedDropdown.model])
 
   const currentCliModel = useMemo(() => {
     const fromParam = (searchParams.get('model') ?? '').trim()
     if (fromParam && availableCliModels.includes(fromParam)) return fromParam
+    const saved = (persistedDropdown.model || '').trim()
+    if (saved && availableCliModels.includes(saved)) return saved
     return availableCliModels[0] || 'default'
-  }, [searchParams, availableCliModels])
+  }, [searchParams, availableCliModels, persistedDropdown.model])
   const recordDropdownChange = useCallback(
     (kind: DropdownKind, fromLabel: string, toLabel: string) => {
       if (!shouldRecordDropdownChange(fromLabel, toLabel)) return
@@ -572,11 +594,14 @@ const ChatPage = () => {
 
   useEffect(() => {
     const onEdits = () => setEditsTick((tick) => tick + 1)
+    const onDropdowns = () => setDropdownTick((tick) => tick + 1)
     window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
     window.addEventListener(AGENT_REMOTE_BINDINGS_CHANGED_EVENT, onEdits)
+    window.addEventListener(AGENT_DROPDOWNS_CHANGED_EVENT, onDropdowns)
     return () => {
       window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
       window.removeEventListener(AGENT_REMOTE_BINDINGS_CHANGED_EVENT, onEdits)
+      window.removeEventListener(AGENT_DROPDOWNS_CHANGED_EVENT, onDropdowns)
     }
   }, [])
 
@@ -1105,7 +1130,11 @@ const ChatPage = () => {
       })
         ? supportTurnExtras()
         : undefined
-      const selectedModelParam = (searchParams.get('model') ?? '').trim()
+      const persistedModel = (persistedDropdown.model || persistedDropdown.api || '').trim()
+      const selectedModelParam = (
+        (searchParams.get('model') ?? '').trim() ||
+        (isCliAgent ? currentCliModel : persistedModel)
+      ).trim()
       const agentIdForInference =
         runtimeBlueprint || selectedBlueprint || SUPPORT_AGENT_ID
       const inferenceSeats = loadInferenceList(agentIdForInference)
@@ -1155,7 +1184,10 @@ const ChatPage = () => {
       isCliAgent,
       currentCli,
       currentCliModel,
+      persistedDropdown.model,
+      persistedDropdown.api,
       isApiAgent,
+      searchParams,
       teamFromUrl,
       memberTarget,
       newChatPerTask,
@@ -1647,8 +1679,10 @@ const ChatPage = () => {
                     id: remote.id,
                     kind: remote.kind || remote.id,
                   })
+                  persistAgentDropdownChoice(bindingAgentId, { remote: remote.id })
                 } else if (bindingAgentId && !nextId) {
                   saveAgentRemoteBinding(bindingAgentId, null)
+                  persistAgentDropdownChoice(bindingAgentId, { remote: '' })
                 }
                 if (remoteFromUrl && nextId && nextId !== remoteFromUrl) {
                   setSearchParams((prev) => {
@@ -1713,6 +1747,7 @@ const ChatPage = () => {
                     return
                   }
                   const prev = currentCli
+                  persistAgentDropdownChoice(dropdownAgentId, { cli: nextCli })
                   setSearchParams(
                     (prevParams) => {
                       const nextParams = new URLSearchParams(prevParams)
@@ -1742,6 +1777,7 @@ const ChatPage = () => {
                 onChange={(e) => {
                   const nextModel = e.target.value
                   const prev = currentCliModel
+                  persistAgentDropdownChoice(dropdownAgentId, { model: nextModel })
                   setSearchParams(
                     (prevParams) => {
                       const nextParams = new URLSearchParams(prevParams)

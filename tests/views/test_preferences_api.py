@@ -167,6 +167,32 @@ def test_patch_normalizes_duplicate_and_string_pins(api_client):
 
 
 @pytest.mark.django_db
+def test_agent_dropdowns_roundtrip_and_drop_secrets(api_client):
+    response = api_client.patch(
+        "/v1/preferences/",
+        {
+            "values": {
+                "agent_dropdowns": {
+                    "cli_agent": {"cli": "grok", "model": "grok-4", "token": "x"},
+                    "starter-remote": {"remote": "omb", "blueprint": "codey"},
+                }
+            }
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    dropdowns = response.json()["values"]["agent_dropdowns"]
+    assert dropdowns["cli_agent"] == {"cli": "grok", "model": "grok-4"}
+    assert dropdowns["starter-remote"] == {"remote": "omb", "blueprint": "codey"}
+    blob = json.dumps(response.json())
+    assert "token" not in dropdowns["cli_agent"]
+    assert "sk-" not in blob
+
+    again = api_client.get("/v1/preferences/")
+    assert again.json()["values"]["agent_dropdowns"]["cli_agent"]["cli"] == "grok"
+
+
+@pytest.mark.django_db
 def test_hostname_override_must_be_a_string(api_client):
     response = api_client.patch(
         "/v1/preferences/",

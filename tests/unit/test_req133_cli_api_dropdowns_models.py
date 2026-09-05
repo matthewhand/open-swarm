@@ -37,6 +37,7 @@ def test_chat_page_renders_cli_dropdowns_with_models():
     # Status tracking on remaining dropdowns
     assert "recordDropdownChange('cli'" in tsx
     assert "recordDropdownChange('model'" in tsx
+    assert "persistAgentDropdownChoice" in tsx
 
 
 def test_chat_status_and_cli_context_contracts():
