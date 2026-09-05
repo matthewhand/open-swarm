@@ -66,19 +66,27 @@ export function shouldShowSuggestionChips(opts: {
   return parseSuggestions(opts.chips ?? []).length > 0
 }
 
-export function suggestionsUrl(agentId: string, mode: 'kickstart' | 'continue' = 'kickstart'): string {
+export function suggestionsUrl(
+  agentId: string,
+  mode: 'kickstart' | 'continue' = 'kickstart',
+  conversationId?: string,
+): string {
   const id = encodeURIComponent(agentId)
-  return `/v1/agents/${id}/suggestions/?mode=${mode}`
+  const params = new URLSearchParams({ mode })
+  const conversation = (conversationId || '').trim()
+  if (conversation) params.set('conversation_id', conversation)
+  return `/v1/agents/${id}/suggestions/?${params}`
 }
 
 export async function fetchAgentSuggestions(
   agentId: string,
   mode: 'kickstart' | 'continue' = 'kickstart',
+  conversationId?: string,
 ): Promise<string[]> {
   const agent = (agentId || '').trim()
   if (!agent) return []
   try {
-    const response = await fetch(suggestionsUrl(agent, mode), {
+    const response = await fetch(suggestionsUrl(agent, mode, conversationId), {
       headers: { Accept: 'application/json' },
     })
     if (!response.ok) return []

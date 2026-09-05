@@ -989,6 +989,71 @@ class TestBlueprintSelection:
         store.reset_agent_settings_cache()
 
     @pytest.mark.asyncio
+    async def test_suggestions_prod_path_passes_wired_agent(self, consumer, monkeypatch, tmp_path):
+        """Outside TEST_MODE the WS emit must pass the suggestions-role agent + turn."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+        from swarm.core import agent_settings as store
+        from swarm.core.agent_roles import ROLE_SUGGESTIONS, find_role_agent
+        import swarm.core.suggestions as sug
+
+        store.reset_agent_settings_cache()
+        store.update_settings("cli_agent", {"use_suggestions": True})
+        consumer.messages = [{"role": "user", "content": "Hello there"}]
+        consumer.active_agent = "cli_agent"
+
+        class Stub:
+            role = "suggestions"
+            name = "suggester"
+
+            def suggest(self, prompt):
+                assert "Hello there" in prompt
+                return ["Wired chip", "Another chip"]
+
+        instance = MagicMock()
+
+        async def fake_run(messages, **kwargs):
+            yield {"messages": [{"role": "assistant", "content": "done"}]}
+
+        instance.run = fake_run
+        instance._agents = {"suggester": Stub()}
+        instance.metadata = {}
+        instance.agents = None
+
+        seen: dict = {}
+        real = sug.run_suggestions
+
+        def wrap(*, mode, messages=None, agents=None, suggest_fn=None):
+            seen["mode"] = mode
+            seen["messages"] = messages
+            seen["agents"] = agents
+            return real(mode=mode, messages=messages, agents=agents, suggest_fn=suggest_fn)
+
+        monkeypatch.setattr(sug, "run_suggestions", wrap)
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("cli_agent", "message-response-prod-sug")
+                frames = [
+                    call.kwargs.get("text_data") or call.args[0]
+                    for call in mock_send.await_args_list
+                ]
+        json_frames = [frame for frame in frames if str(frame).startswith("{")]
+        assert json_frames, frames
+        payload = json.loads(json_frames[-1])
+        assert payload["type"] == "suggestions"
+        assert payload["suggestions"] == ["Wired chip", "Another chip"]
+        assert seen.get("agents") is not None
+        assert find_role_agent(seen["agents"], ROLE_SUGGESTIONS) is not None
+        assert any(
+            isinstance(row, dict) and row.get("content") == "Hello there"
+            for row in (seen.get("messages") or [])
+        )
+        assert all(m.get("role") != "suggestions" for m in consumer.messages)
+        store.reset_agent_settings_cache()
+
+    @pytest.mark.asyncio
     async def test_blueprint_run_failure_sends_error_partial(self, consumer, monkeypatch):
         """Exceptions from blueprint.run() surface as an error partial."""
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)

@@ -1408,7 +1408,7 @@ const ChatPage = () => {
     if (!agent) return
     let cancelled = false
     const mode = messages.length === 0 ? 'kickstart' : 'continue'
-    void fetchAgentSuggestions(agent, mode).then((chips) => {
+    void fetchAgentSuggestions(agent, mode, conversationId).then((chips) => {
       if (!cancelled && chips.length > 0) setSuggestionChips(chips)
     })
     return () => {
@@ -1422,6 +1422,7 @@ const ChatPage = () => {
     selectedBlueprint,
     messages.length,
     threadKey,
+    conversationId,
   ])
 
   const chooseSuggestion = useCallback(
