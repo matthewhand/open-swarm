@@ -62,41 +62,11 @@ Without `dist/`, `/` falls back to Django templates. Rebuild after SPA pulls. Au
 
 ## Why openai-agents
 
-The differentiator is a **programmatic graph** — not “let chat figure it out,” and not “many concurrent seats” (Grok Bot / Rakazo / OpenMousBot). openai-agents **handoff / agent-as-tool** can enforce topology:
-
-- **Forced sequence** — BA → Engineer → Tester because each seat has **only one handoff** to the next. BA cannot skip to Tester.
-- **Circular / punt-back** — the last Skeptic can hand off back to Engineer.
-
-```mermaid
-flowchart LR
-  BA[BA] --> Eng[Engineer]
-  Eng --> Test[Tester]
-```
-
-```mermaid
-flowchart LR
-  BA[BA] --> Eng[Engineer]
-  Eng --> Test[Tester]
-  Test --> Sk[Skeptic]
-  Sk --> Eng
-```
+The differentiator is a **programmatic graph** — not “let chat figure it out,” and not “many concurrent seats” (Grok Bot / Rakazo / OpenMousBot). openai-agents **handoff / agent-as-tool** can enforce a forced BA → Engineer → Tester sequence, or a circular Skeptic punt-back.
 
 **Limit (up front):** that graph runs **inside Blueprint seats** (today’s leftover `api` bucket). We **cannot inject** openai-agents into **CLI** or **Remote** harnesses — those **stay native** sessions. Cross-kind teams still work: a Blueprint coordinator can sit with a Grok CLI and a Hermes Remote.
 
-```mermaid
-flowchart TB
-  User[User task] --> OS[Open Swarm]
-  OS --> CLI[CLI]
-  OS --> API[API inference]
-  OS --> BP[Blueprint]
-  OS --> Remote[Remote]
-  BP --> Graph[openai-agents graph]
-  Graph --> Team[Team — Blueprint subtype]
-  CLI --> NativeCLI[native grok or agy session]
-  Remote --> NativeRemote[native Hermes or OpenMousBot]
-```
-
-Worked configs and tests that lock the edges: [docs/examples/openai-agents-handoff-graphs/](docs/examples/openai-agents-handoff-graphs/README.md) (REQ-156 / #564). Kind-base templates (`ApiKindBase` / `CliKindBase` / `RemoteKindBase`): [ADR-005](docs/adr/005-kind-bases.md) (REQ-159 / #570). ADR-006 amends the `ApiKindBase` slot so user-facing kinds are CLI | API | Blueprint | Remote.
+Mermaid, kind bases, and the `:8001` seed live on [docs/DEVELOPER.md](docs/DEVELOPER.md). Worked configs: [docs/examples/openai-agents-handoff-graphs/](docs/examples/openai-agents-handoff-graphs/README.md) (REQ-156 / #564). Kind-base ADR: [ADR-005](docs/adr/005-kind-bases.md) (REQ-159 / #570).
 
 ---
 

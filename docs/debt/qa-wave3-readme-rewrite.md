@@ -1,9 +1,11 @@
 # REQ-102 — README rewrite plan (look-only)
 
-**Status (2026-09-05):** Implementer rewrite landed. Root `README.md` is the
-WebUI-first front door; internals moved to [docs/DEVELOPER.md](../DEVELOPER.md).
-This file stays the look-only inventory / version-honesty table — do not treat
-it as the live README.
+**Status (2026-09-05):** Product-truth rewrite landed in
+[#785](https://github.com/matthewhand/open-swarm/pull/785) (closed #466).
+Shape follow-up is [#791](https://github.com/matthewhand/open-swarm/issues/791)
+(mermaid / layout / CI on [docs/DEVELOPER.md](../DEVELOPER.md)). This file
+stays the look-only inventory / version-honesty table — do not treat it as
+the live README.
 
 Look-only investigation for [Issue #466](https://github.com/matthewhand/open-swarm/issues/466)
 (REQ-102). This file proposed a new README direction. It did **not** rewrite
