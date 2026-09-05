@@ -24,6 +24,7 @@ export type AvatarTheme =
   | 'blobs'
   | 'bland'
   | 'default'
+  | 'bee'
 
 export type AvatarEyes = 'lens' | 'googly' | 'mismatched' | 'crazy' | 'sleepy' | 'spiral'
 

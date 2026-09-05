@@ -10,6 +10,7 @@ def test_req155_settings_dashboard_template_avatar_options():
     assert 'id="os-avatar-theme"' in content
     assert '<option value="blobs">Blobs with eyes (default)</option>' in content
     assert '<option value="bland">Bland static circle</option>' in content
+    assert '<option value="bee">Bee</option>' in content
 
 
 def test_req155_chrome_avatar_theme_script_defaults_to_blobs():
@@ -20,6 +21,7 @@ def test_req155_chrome_avatar_theme_script_defaults_to_blobs():
 
     assert 'return "blobs";' in content
     assert 'theme === "bland"' in content
+    assert 'theme === "bee"' in content
     assert 'localStorage.removeItem(KEY);' in content
 
 
@@ -31,7 +33,7 @@ def test_req155_frontend_avatar_theme_defaults():
 
     assert "defaultAvatarTheme(): AvatarTheme" in content
     assert "return 'blobs'" in content
-    assert "'blobs', 'bland'" in content
+    assert "'blobs', 'bland', 'default', 'bee'" in content
 
 
 def test_req155_avatar_theme_picker_labels():
@@ -42,3 +44,5 @@ def test_req155_avatar_theme_picker_labels():
 
     assert "Blobs with eyes (default)" in content
     assert "Bland static circle" in content
+    assert ">Bee<" in content
+    assert "optional choice" in content

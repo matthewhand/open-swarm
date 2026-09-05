@@ -10,6 +10,7 @@
     try {
       var stored = localStorage.getItem(KEY);
       if (stored === "bland" || stored === "default") return "bland";
+      if (stored === "bee") return "bee";
       if (stored === "blobs") return "blobs";
     } catch (err) {
       /* storage unavailable */
@@ -18,7 +19,9 @@
   }
 
   function writeTheme(theme) {
-    var next = theme === "bland" || theme === "default" ? "bland" : "blobs";
+    var next = "blobs";
+    if (theme === "bland" || theme === "default") next = "bland";
+    else if (theme === "bee") next = "bee";
     try {
       if (next === "blobs") {
         localStorage.removeItem(KEY);

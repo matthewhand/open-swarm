@@ -160,6 +160,10 @@ test('gear opens a DaisyUI modal-end settings sheet over chat', async ({ page })
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('swarm_avatar_theme')))
     .toBe('bland')
+  await page.getByLabel('Avatar theme').selectOption('bee')
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('swarm_avatar_theme')))
+    .toBe('bee')
 
   await page.getByRole('button', { name: 'System' }).click()
   await expect(page.getByRole('heading', { name: 'System' })).toBeVisible()

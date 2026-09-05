@@ -3,6 +3,7 @@ import { useGeneratedAvatar } from '../lib/agentAvatars'
 import { isGeneratedStillSrc } from '../lib/imageGenSettings'
 import { useAvatarTheme } from '../lib/useAvatarTheme'
 import BlobAvatar from './BlobAvatar'
+import BeeAvatar from './BeeAvatar'
 
 /**
  * Bland circular fallback — not the Bert-like default owned by REQ-6 (#309).
@@ -44,9 +45,10 @@ export function agentAvatarKind(src?: string | null): 'custom' | 'default' {
  * Shared agent face for the rail tile, favourites large tiles, and the chat header.
  * Display-only: no click handler. Sizes: rail sm, header/favs lg.
  * Unset or broken avatars resolve to Blobs-with-eyes by default (REQ-155),
+ * Bee geometric brand marks when that theme is chosen (#801),
  * or bland static circles when opt-in chosen in Settings. Uploaded custom
  * faces always win. Generated stills (REQ-83) apply on Bland/Default and
- * stay unused while Blobs is selected.
+ * stay unused while Blobs or Bee is selected.
  */
 export default function AgentAvatar({
   src,
@@ -72,7 +74,9 @@ export default function AgentAvatar({
     uploadedSrc ||
     (customSrc && isGeneratedStillSrc(customSrc) ? customSrc : '') ||
     generatedSrc
-  const showGeneratedStill = Boolean(stillSrc && !uploadedSrc && theme !== 'blobs')
+  const showGeneratedStill = Boolean(
+    stillSrc && !uploadedSrc && theme !== 'blobs' && theme !== 'bee',
+  )
   const showUploaded = Boolean(uploadedSrc && !broken)
   const isCustom = showUploaded || (showGeneratedStill && !broken)
 
@@ -101,6 +105,27 @@ export default function AgentAvatar({
   }
 
   // Unset or broken face -> resolve via avatar theme
+  if (theme === 'bee') {
+    return (
+      <div
+        className={`avatar ${className}`.trim()}
+        data-agent-avatar="default"
+        data-avatar-theme="bee"
+        data-avatar-size={size}
+        data-eye-state={active ? 'active' : 'idle'}
+        aria-hidden={alt ? undefined : true}
+        style={style}
+      >
+        <BeeAvatar
+          agentId={agentId || 'agent'}
+          active={active}
+          size={size}
+          className=""
+        />
+      </div>
+    )
+  }
+
   if (theme === 'blobs') {
     return (
       <div

@@ -5,7 +5,7 @@ export interface AvatarThemePickerProps {
   id?: string
 }
 
-/** Settings control: Blobs (default) or Bland static. Persists like hostname (REQ-155). */
+/** Settings control: Blobs (default), Bland static, or Bee brand marks. Persists like hostname (REQ-155 / #801). */
 export default function AvatarThemePicker({ id = 'os-avatar-theme' }: AvatarThemePickerProps) {
   const theme = useAvatarTheme()
   const selectValue = theme === 'default' ? 'bland' : theme
@@ -25,11 +25,14 @@ export default function AvatarThemePicker({ id = 'os-avatar-theme' }: AvatarThem
       >
         <option value="blobs">Blobs with eyes (default)</option>
         <option value="bland">Bland static circle</option>
+        <option value="bee">Bee</option>
       </select>
       <p className="text-xs text-base-content/55">
         Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles.
+        Bee is an optional choice: geometric WebUI brand marks — side-on and face-only, with
+        googly eyes — assigned per agent. Existing users stay on their current theme.
         Custom uploaded faces always win. Generated still avatars from Settings → Image
-        generation apply on Bland and stay unused while Blobs is selected.
+        generation apply on Bland and stay unused while Blobs or Bee is selected.
       </p>
     </div>
   )
