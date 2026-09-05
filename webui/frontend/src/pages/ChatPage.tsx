@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Layers, Mic, PanelLeft, Pencil, Plus, Settings } from 'lucide-react'
+import { Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
 import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
@@ -155,6 +155,19 @@ export {
   formatTokenCount,
 } from '../lib/chatMeter'
 
+interface ReplyTarget {
+  key: string
+  role: string
+  speaker: string
+  text: string
+}
+
+interface MessageContextMenuState {
+  x: number
+  y: number
+  message: ChatMessage
+}
+
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const { addToast, dismissByKind } = useToast()
@@ -184,6 +197,8 @@ const ChatPage = () => {
     Record<string, ConversationSummary[]>
   >({})
   const [input, setInput] = useState('')
+  const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null)
+  const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null)
   const [slashDismissed, setSlashDismissed] = useState(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [recentSlashIds, setRecentSlashIds] = useState<string[]>(() => getRecentSlashIds())
@@ -295,6 +310,38 @@ const ChatPage = () => {
       }
     }
   }, [activeChatAgentId, conversationId, threadKey, threads])
+
+  useEffect(() => {
+    setReplyTarget(null)
+    setContextMenu(null)
+  }, [threadKey])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenu(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [contextMenu])
+
+  const handleBubbleContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>, message: ChatMessage) => {
+      if (message.streaming) return
+      if (typeof window !== 'undefined' && window.getSelection && !window.getSelection()?.isCollapsed) {
+        return
+      }
+      event.preventDefault()
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        message,
+      })
+    },
+    [],
+  )
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -1029,8 +1076,14 @@ const ChatPage = () => {
 
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
-    sendText(input)
+    if (!canSend) return
+    const quotePrefix = replyTarget ? (replyTarget.speaker ? `> **${replyTarget.speaker}**: ` : `> `) : ''
+    const textToSend = replyTarget
+      ? `${quotePrefix}${replyTarget.text.replace(/\r\n/g, '\n').split('\n').join('\n> ')}\n\n${input}`
+      : input
+    sendText(textToSend)
     setInput('')
+    setReplyTarget(null)
   }
 
   // Dynamic skills loading for slash catalog (REQ-169)
@@ -1234,16 +1287,28 @@ const ChatPage = () => {
       }
     }
 
-    if (event.key === 'Escape' && input.length > 0) {
-      event.preventDefault()
-      setInput('')
-      return
+    if (event.key === 'Escape') {
+      if (replyTarget) {
+        event.preventDefault()
+        setReplyTarget(null)
+        return
+      }
+      if (input.length > 0) {
+        event.preventDefault()
+        setInput('')
+        return
+      }
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      if (status === 'open') {
-        sendText(input)
+      if (status === 'open' && input.trim().length > 0) {
+        const quotePrefix = replyTarget ? (replyTarget.speaker ? `> **${replyTarget.speaker}**: ` : `> `) : ''
+        const textToSend = replyTarget
+          ? `${quotePrefix}${replyTarget.text.replace(/\r\n/g, '\n').split('\n').join('\n> ')}\n\n${input}`
+          : input
+        sendText(textToSend)
         setInput('')
+        setReplyTarget(null)
       }
     }
   }
@@ -1279,7 +1344,7 @@ const ChatPage = () => {
       ? formatElapsed(nowMs - streamStartedAtRef.current)
       : null
 
-  const composerPlaceholder = 'Message …'
+  const composerPlaceholder = replyTarget ? 'Reply…' : 'Message …'
 
   const statusLabel = useMemo(() => {
     if (status === 'open') return ''
@@ -1680,7 +1745,10 @@ const ChatPage = () => {
               !message.streaming &&
               (message.role === 'user' || message.role === 'assistant')
             return (
-              <div key={message.key}>
+              <div
+                key={message.key}
+                onContextMenu={(e) => handleBubbleContextMenu(e, message)}
+              >
                 <ChatMessageBubble
                   role={message.role}
                   agentName={selectedAgentName}
@@ -1752,79 +1820,110 @@ const ChatPage = () => {
                 onSelectItem={handleSelectSlashItem}
                 recentIds={recentSlashIds}
               />
-              <div className="os-composer">
-                <div className="relative" ref={plusRef}>
+              <div className={`os-composer ${replyTarget ? 'os-composer--reply flex-col items-stretch !rounded-2xl !p-2' : ''}`}>
+                {replyTarget && (
+                  <div
+                    className="flex items-center justify-between gap-2 px-2.5 py-1 text-xs text-base-content/70 border-b border-base-content/10 mb-1 w-full"
+                    data-testid="composer-reply-strip"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <Reply className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                      <span className="truncate" title={replyTarget.text}>
+                        {replyTarget.speaker ? (
+                          <strong className="font-semibold text-base-content/90 mr-1">
+                            {replyTarget.speaker}:
+                          </strong>
+                        ) : null}
+                        <span className="opacity-75">
+                          {replyTarget.text.replace(/\s+/g, ' ').slice(0, 100)}
+                        </span>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs btn-circle h-5 w-5 min-h-0 text-base-content/60 hover:text-base-content"
+                      aria-label="Dismiss reply"
+                      data-testid="dismiss-reply-button"
+                      onClick={() => setReplyTarget(null)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className={`flex items-center gap-1.5 min-h-0 ${replyTarget ? 'w-full' : 'flex-1'}`}>
+                  <div className="relative" ref={plusRef}>
+                    <button
+                      type="button"
+                      className="os-composer__icon"
+                      aria-label="Add"
+                      aria-haspopup="menu"
+                      aria-expanded={plusOpen}
+                      onClick={() => setPlusOpen((value) => !value)}
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    {plusOpen && (
+                      <ul
+                        role="menu"
+                        aria-label="Chat actions"
+                        className="os-plus-menu"
+                      >
+                        <li role="none">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="os-plus-menu__item"
+                            onClick={() => {
+                              void handleCompact()
+                            }}
+                          >
+                            <Layers className="h-4 w-4" aria-hidden="true" />
+                            Compact
+                          </button>
+                        </li>
+                      </ul>
+                    )}
+                  </div>
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    className="os-composer__input"
+                    placeholder={composerPlaceholder}
+                    value={input}
+                    onChange={handleInputChange}
+                    onKeyDown={handleComposerKeyDown}
+                    disabled={status !== 'open'}
+                    aria-label="Chat message"
+                    aria-haspopup="listbox"
+                    aria-expanded={isSlashOpen}
+                    aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
+                  />
+                  {!input ? (
+                    <kbd
+                      className="os-composer__hint kbd kbd-xs"
+                      data-testid="composer-send-hint"
+                      title="Enter to send"
+                    >
+                      ↵
+                    </kbd>
+                  ) : (
+                    <kbd
+                      className="os-composer__hint kbd kbd-xs"
+                      data-testid="composer-clear-hint"
+                      title="Esc to clear"
+                    >
+                      Esc
+                    </kbd>
+                  )}
                   <button
                     type="button"
                     className="os-composer__icon"
-                    aria-label="Add"
-                    aria-haspopup="menu"
-                    aria-expanded={plusOpen}
-                    onClick={() => setPlusOpen((value) => !value)}
+                    aria-label="Voice input"
+                    onClick={handleMic}
                   >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    <Mic className="h-4 w-4" aria-hidden="true" />
                   </button>
-                  {plusOpen && (
-                    <ul
-                      role="menu"
-                      aria-label="Chat actions"
-                      className="os-plus-menu"
-                    >
-                      <li role="none">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="os-plus-menu__item"
-                          onClick={() => {
-                            void handleCompact()
-                          }}
-                        >
-                          <Layers className="h-4 w-4" aria-hidden="true" />
-                          Compact
-                        </button>
-                      </li>
-                    </ul>
-                  )}
                 </div>
-                <textarea
-                  ref={composerRef}
-                  rows={1}
-                  className="os-composer__input"
-                  placeholder={composerPlaceholder}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleComposerKeyDown}
-                  disabled={status !== 'open'}
-                  aria-label="Chat message"
-                  aria-haspopup="listbox"
-                  aria-expanded={isSlashOpen}
-                  aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
-                />
-                {!input ? (
-                  <kbd
-                    className="os-composer__hint kbd kbd-xs"
-                    data-testid="composer-send-hint"
-                    title="Enter to send"
-                  >
-                    ↵
-                  </kbd>
-                ) : (
-                  <kbd
-                    className="os-composer__hint kbd kbd-xs"
-                    data-testid="composer-clear-hint"
-                    title="Esc to clear"
-                  >
-                    Esc
-                  </kbd>
-                )}
-                <button
-                  type="button"
-                  className="os-composer__icon"
-                  aria-label="Voice input"
-                  onClick={handleMic}
-                >
-                  <Mic className="h-4 w-4" aria-hidden="true" />
-                </button>
               </div>
             </div>
             <button type="submit" className="sr-only" disabled={!canSend}>
@@ -1850,6 +1949,51 @@ const ChatPage = () => {
           </footer>
         </div>
       </div>
+
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            data-testid="context-menu-backdrop"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setContextMenu(null)
+            }}
+          />
+          <div
+            role="menu"
+            aria-label="Message actions"
+            data-testid="message-context-menu"
+            className="fixed z-50 min-w-32 rounded-lg border border-base-300 bg-base-100 p-1 shadow-xl text-sm"
+            style={{
+              left: `${Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 150 : 0)}px`,
+              top: `${Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 80 : 0)}px`,
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm hover:bg-base-200 cursor-pointer"
+              data-testid="context-menu-reply"
+              onClick={() => {
+                setReplyTarget({
+                  key: contextMenu.message.key,
+                  role: contextMenu.message.role,
+                  speaker:
+                    contextMenu.message.role === 'user' ? 'You' : selectedAgentName,
+                  text: contextMenu.message.text,
+                })
+                setContextMenu(null)
+                composerRef.current?.focus()
+              }}
+            >
+              <Reply className="h-4 w-4 opacity-70" aria-hidden="true" />
+              Reply
+            </button>
+          </div>
+        </>
+      )}
 
       <TokenDiagnosticsModal
         isOpen={tokenDiagOpen}
