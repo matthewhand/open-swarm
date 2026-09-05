@@ -34,8 +34,9 @@ def test_req801_reuses_geometric_webui_paths_not_cyber_swarm():
     bee = BEE_AVATAR_TSX.read_text(encoding="utf-8")
     assert "M18 18 C8 8 4 22 16 28 C20 24 22 20 18 18 Z" in geometric
     assert "M18 18 C8 8 4 22 16 28 C20 24 22 20 18 18 Z" in bee
-    assert "marketing-cyber-swarm" not in bee
     assert "webui-geometric.svg" in bee
+    assert not any("src=" in line and "marketing" in line for line in bee.splitlines())
+    assert not any("href=" in line and "marketing" in line for line in bee.splitlines())
 
 
 def test_req801_eye_wander_css_matches_blobs_spirit():

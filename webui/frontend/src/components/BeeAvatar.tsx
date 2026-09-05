@@ -14,8 +14,8 @@ export interface BeeAvatarProps {
 
 /**
  * Rail Bee faces. Path data is the shipped geometric WebUI mark
- * (`assets/brand/webui-geometric.svg` / #778). Do not pull
- * `marketing-cyber-swarm` into this component.
+ * (`assets/brand/webui-geometric.svg` / #778). Marketing fanfare
+ * marks stay out of the rail.
  */
 export default function BeeAvatar({
   agentId,
