@@ -2183,6 +2183,32 @@ describe('ChatPage team member dropdown', () => {
     fireEvent.change(composer, { target: { value: 'just codey' } })
     fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
 
+    // REQ-171A-3 / #603: second Send while awaitingAssistant is queued
+    // (REQ-90 / #447 pane), not a racing second {message}. Drain after
+    // the first assistant final so the member target still goes on the wire.
+    const queued = await screen.findByTestId('queued-row')
+    expect(queued).toHaveTextContent('just codey')
+    expect(
+      ws.send.mock.calls
+        .map((call) => JSON.parse(String(call[0])))
+        .filter((frame) => frame.message && frame.type !== 'status'),
+    ).toHaveLength(1)
+
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-team1" class="assistant-message"></div></div>',
+        }),
+      )
+    })
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-team1" class="assistant-message" hx-swap-oob="true">ack</div>',
+        }),
+      )
+    })
+
     await waitFor(() => {
       const userFrames = ws.send.mock.calls
         .map((call) => JSON.parse(String(call[0])))

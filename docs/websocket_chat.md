@@ -43,6 +43,12 @@ Notes:
   (`SWARM_ALLOW_ANONYMOUS=0` disables that). `receive()` re-checks auth so a
   frame that races the close cannot append to a transcript or invoke a
   blueprint/LLM.
+- Overlapping ``{"message"}`` frames on one socket are serialised
+  (REQ-171A-3 / #603): the consumer runs one ``respond_with_*`` at a time
+  so ``self.messages`` and HTML ``message-response-*`` frames cannot
+  interleave. A second composer Send before the first reply starts is
+  queued in the SPA (REQ-90 / #447 pane). ``tool_decision`` / ``status`` /
+  ``edit`` frames are not blocked by that lock.
 - `Origin` must match `ALLOWED_HOSTS` (AllowedHostsOriginValidator).
 - The consumer streams completions from `OPENAI_API_KEY` / `OPENAI_MODEL`
   (optionally `LITELLM_BASE_URL`/`OPENAI_BASE_URL`).

@@ -1,0 +1,70 @@
+name: REQ-171A-3 serialise chat turns
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/consumers.py"
+      - "tests/test_consumers.py"
+      - "tests/unit/test_req171a3_serialise_turns.py"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.queued.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
+      - "webui/frontend/src/lib/chatQueue.ts"
+      - "webui/frontend/src/lib/__tests__/chatQueue.test.ts"
+      - ".github/workflows/req171a3-serialise-turns.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/consumers.py"
+      - "tests/test_consumers.py"
+      - "tests/unit/test_req171a3_serialise_turns.py"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.queued.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
+      - "webui/frontend/src/lib/chatQueue.ts"
+      - "webui/frontend/src/lib/__tests__/chatQueue.test.ts"
+      - ".github/workflows/req171a3-serialise-turns.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest overlapping-turn suite
+        run: |
+          uv run pytest tests/unit/test_req171a3_serialise_turns.py
+          uv run pytest tests/test_consumers.py \
+            -k "overlapping_receives or tool_decision_is_not_blocked or receive_tool_decision or receive_valid_json"
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest queued-send + in-flight suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/chatQueue.test.ts \
+            src/pages/__tests__/ChatPage.queued.test.tsx
+          npx vitest run src/pages/__tests__/ChatPage.test.tsx \
+            -t "Send path with mock inference|Send button honesty|team member dropdown|REQ-171A-3"

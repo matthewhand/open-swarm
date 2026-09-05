@@ -101,6 +101,28 @@ describe('ChatPage queued sends (REQ-90 / #447)', () => {
     resetConversationThreads()
   })
 
+  it('queues a second send before assistant_start so only one WS frame is in flight (REQ-171A-3 / #603)', async () => {
+    renderChat()
+    const ws = await openSocket()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Chat message' }), {
+      target: { value: 'first turn' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Chat message' }), {
+      target: { value: 'second turn' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    expect(ws.send).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toMatchObject({
+      message: 'first turn',
+    })
+    const row = screen.getByTestId('queued-row')
+    expect(row).toHaveAttribute('data-status', 'queued')
+    expect(row).toHaveTextContent('second turn')
+  })
+
   it('queues composer send while streaming and does not start a second generation', async () => {
     renderChat()
     const ws = await openSocket()

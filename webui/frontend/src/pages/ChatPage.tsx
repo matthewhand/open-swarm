@@ -1606,14 +1606,17 @@ const ChatPage = () => {
     (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || status !== 'open') return
-      if (messages.some((message) => message.streaming)) {
+      // REQ-171A-3 / #603: queue before assistant_start, not only while
+      // streaming. REQ-90 / #447 owns the pane chrome; this only closes
+      // the pre-start double-{message} race.
+      if (generationIsInFlight(messages, awaitingAssistant)) {
         queued.enqueue(trimmed)
         return
       }
       setAwaitingAssistant(true)
       if (!sendText(trimmed)) setAwaitingAssistant(false)
     },
-    [messages, queued, sendText, status],
+    [awaitingAssistant, messages, queued, sendText, status],
   )
 
   useEffect(() => {
