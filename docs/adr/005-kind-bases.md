@@ -121,6 +121,6 @@ workflow). The **code it writes for users** subclasses a kind base.
 
 ## 6. Cross-links
 
-- README [Why openai-agents](../../README.md#why-openai-agents) (REQ-156 / #564); four user-facing kinds: [ADR-006](./006-api-vs-blueprint-kinds.md)
+- [docs/DEVELOPER.md — Why openai-agents](../DEVELOPER.md#why-openai-agents-and-four-kinds) (REQ-156 / #564; mermaid parked off the README in #791); four user-facing kinds: [ADR-006](./006-api-vs-blueprint-kinds.md)
 - [openai-agents-handoff-graphs](../examples/openai-agents-handoff-graphs/README.md)
 - [GLOSSARY — Harness type / Kind base](../GLOSSARY.md)
