@@ -36,7 +36,8 @@ describe('TokenDiagnosticsModal (REQ-115)', () => {
 
     expect(screen.getByTestId('token-diagnostics-modal')).toBeInTheDocument()
     expect(screen.getByText('Session Token Diagnostics')).toBeInTheDocument()
-    expect(screen.getByText('Stewie')).toBeInTheDocument()
+    expect(screen.getByText(/Current Agent:/i)).toBeInTheDocument()
+    expect(screen.getByTestId('diag-current-agent')).toHaveTextContent('Stewie')
     expect(screen.getByTestId('diag-session-id')).toHaveTextContent('conv-test-123')
     expect(screen.getByTestId('diag-context-usage')).toHaveTextContent('4.2k / 128k tok')
 
@@ -47,6 +48,33 @@ describe('TokenDiagnosticsModal (REQ-115)', () => {
     expect(screen.getByTestId('diag-tool-calls')).toHaveTextContent('5')
     expect(screen.getByTestId('diag-message-count')).toHaveTextContent('8')
     expect(screen.getByTestId('diag-estimated-cost')).toHaveTextContent('—')
+  })
+
+  it('updates Current Agent dynamically when agent changes without sticky name', () => {
+    const { rerender } = render(
+      <TokenDiagnosticsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        agentName="FirstAgent"
+        conversationId="conv-test-123"
+        tokenCount={100}
+      />
+    )
+
+    expect(screen.getByTestId('diag-current-agent')).toHaveTextContent('FirstAgent')
+
+    rerender(
+      <TokenDiagnosticsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        agentName="SwitchedAgent"
+        conversationId="conv-test-123"
+        tokenCount={120}
+      />
+    )
+
+    expect(screen.getByTestId('diag-current-agent')).toHaveTextContent('SwitchedAgent')
+    expect(screen.queryByText('FirstAgent')).not.toBeInTheDocument()
   })
 
   it('handles empty/unknown fields with honest placeholders', () => {
