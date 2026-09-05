@@ -27,7 +27,7 @@ Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python)
 
 > **Status: beta.** Core framework, CLI, OpenAI-compatible REST API, websocket chat, and both web UIs are working, covered by an 1100+ test suite and verified in Docker. Remaining gaps are listed honestly in [Roadmap](#roadmap--unfinished-features).
 
-> 🧭 **Start with the [Vision](docs/VISION.md)** — where Open Swarm is going (one OpenAI-compatible endpoint that *adapts and orchestrates* your agentic CLIs), with an honest built-vs-remaining table and live cross-CLI proofs. Pattern mechanics with sequence diagrams: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md).
+> 🧭 **Start with the [Vision](docs/VISION.md)** — four kinds (CLI / API / Blueprint / Remote), Grok-like WebUI, and openai-agents handoff, with an honest built-vs-remaining table. Pattern mechanics: [Orchestration Patterns](docs/ORCHESTRATION_PATTERNS.md). README rewrite is [#466](https://github.com/matthewhand/open-swarm/issues/466).
 
 ---
 
