@@ -1145,6 +1145,9 @@ export default function AgentSidebar({
     const active = selectedTeamId === team.id
     const sessions = sessionsForTeam(team)
     const stacked = selectStackedFaces(stackFacesForTeam(team))
+    const totalMembers = team.members ? team.members.length : (stacked.faces.length + (stacked.remainder || 0))
+    const singleMember = totalMembers === 1
+    const singleFace = stacked.faces[0]
     const dragging = draggingId === hideId
     const dropping = dropTargetId === hideId
     const { snippet: teamSnippet, timestamp: teamTime } = getRowLastMessage(
@@ -1185,13 +1188,20 @@ export default function AgentSidebar({
         }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'team', sessions)}
       >
-        <span className="relative inline-flex shrink-0 mt-0.5">
-          {stacked.faces.length > 0 ? (
+        <span className={`relative inline-flex shrink-0 ${singleMember ? 'mt-1.5' : 'mt-0.5'}`}>
+          {totalMembers >= 2 ? (
             <AvatarStack
               faces={stacked.faces}
               remainder={stacked.remainder}
               animate
               label={`${name} members`}
+            />
+          ) : singleMember && singleFace ? (
+            <AgentAvatar
+              src={singleFace.avatarSrc || singleFace.src}
+              agentId={singleFace.id}
+              alt={singleFace.name || name}
+              size="sm"
             />
           ) : (
             <span
@@ -1276,6 +1286,9 @@ export default function AgentSidebar({
     const dragging = draggingId === hideId
     const sessions = sessionsForRemote(remote)
     const stacked = selectStackedFaces(stackFacesForRemote(remote))
+    const totalMembers = remote.agents ? remote.agents.length : (stacked.faces.length + (stacked.remainder || 0))
+    const singleMember = totalMembers === 1
+    const singleFace = stacked.faces[0]
     const { snippet: remoteSnippet, timestamp: remoteTime } = getRowLastMessage(
       hideId,
       sessions as any,
@@ -1324,13 +1337,29 @@ export default function AgentSidebar({
         }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'remote', sessions)}
       >
-        <span className="relative inline-flex shrink-0 mt-0.5">
-          <AvatarStack
-            faces={stacked.faces}
-            remainder={stacked.remainder}
-            animate
-            label={`${name} members`}
-          />
+        <span className={`relative inline-flex shrink-0 ${singleMember ? 'mt-1.5' : 'mt-0.5'}`}>
+          {totalMembers >= 2 ? (
+            <AvatarStack
+              faces={stacked.faces}
+              remainder={stacked.remainder}
+              animate
+              label={`${name} members`}
+            />
+          ) : singleMember && singleFace ? (
+            <AgentAvatar
+              src={singleFace.avatarSrc || singleFace.src}
+              agentId={singleFace.id}
+              alt={singleFace.name || name}
+              size="sm"
+            />
+          ) : (
+            <span
+              className="os-team-mark os-agent-team-icon flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/80"
+              aria-hidden="true"
+            >
+              <Users className="h-3.5 w-3.5" />
+            </span>
+          )}
           <span
             className="os-agent-role-badge badge badge-ghost badge-xs shrink-0 font-medium uppercase tracking-wide text-base-content/55"
             data-kind="remote"
