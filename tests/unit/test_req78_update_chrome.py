@@ -48,11 +48,13 @@ def test_xor_priority_and_click_targets():
 
 def test_github_call_home_is_public_and_tokenless():
     src = GITHUB.read_text(encoding="utf-8")
-    assert "api.github.com/repos/matthewhand/open-swarm/releases/latest" in src
+    assert "api.github.com/repos/" in src
+    assert "releases/latest" in src
+    assert "GITHUB_REPO = 'matthewhand/open-swarm'" in src
     assert "Authorization" not in src
     assert "GITHUB_TOKEN" not in src
     assert "Bearer" not in src
-    assert "token" not in src.lower() or "No tokens" in src
+    assert "No tokens" in src
 
 
 def test_backend_advertises_spa_hello_on_authenticated_connect():

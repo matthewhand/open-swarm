@@ -992,9 +992,11 @@ button.os-agent-row {
   color: #d46a6a;
 }
 .os-rail-hostname {
-  min-width: 0;
-  flex: 1;
-  width: 100%;
+  min-width: 4rem;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 10rem;
+  field-sizing: content;
   background: transparent;
   border: 0;
   border-radius: 0.35rem;
