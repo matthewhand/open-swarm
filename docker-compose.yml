@@ -80,7 +80,7 @@ services:
       SWARM_UVICORN_WORKERS: "${SWARM_UVICORN_WORKERS:-1}"
       # REQ-45 runtime mode. This compose file bind-mounts $HOME config/state,
       # so the instance is a developer sandbox with home access — not isolated
-      # and not bare-metal. Pinokio start.js also sets this. Values:
+      # and not bare-metal. Pinokio pinokio/start.js also sets this. Values:
       # bare-metal | sandbox-home | sandbox-isolated
       SWARM_RUNTIME: "${SWARM_RUNTIME:-sandbox-home}"
       ENABLE_WEBUI: "${ENABLE_WEBUI:-true}"

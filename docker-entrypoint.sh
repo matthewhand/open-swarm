@@ -9,6 +9,12 @@ CONFIG_PATH="/app/swarm_config.json"
 PORT=${PORT:-8000} # Get port from env
 SQLITE_DB_PATH=${SQLITE_DB_PATH:-/app/db.sqlite3}
 
+# This script is not the image ENTRYPOINT. If someone execs it, seed the
+# in-image config from the committed example when no local file is present.
+if [ ! -f "$CONFIG_PATH" ] && [ -f /app/swarm_config.example.json ]; then
+  cp /app/swarm_config.example.json "$CONFIG_PATH"
+fi
+
 echo "--- Docker Override Entrypoint: Starting Setup ---"
 
 # --- Ensure .local/bin is in PATH ---

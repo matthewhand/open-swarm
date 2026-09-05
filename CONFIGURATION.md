@@ -13,7 +13,7 @@ Swarm supports both interactive and manual configuration. The recommended way to
 
 - **CLI (`swarm-cli config`):**
   - `swarm-cli config list [--section llm|mcpServers|remotes]` — view profiles / MCP servers / remotes.
-  - `swarm-cli config init [--force]` — write a default `swarm_config.json` (refuses to overwrite unless `--force`).
+  - `swarm-cli config init [--force]` — write a default `swarm_config.json` (refuses to overwrite unless `--force`). The committed template is [`swarm_config.example.json`](./swarm_config.example.json).
   - `swarm-cli config add --section llm|mcpServers|remotes --name <name> --json '<...>'` — add a profile, MCP server, or remote entry.
   - `swarm-cli config remove --section … --name …` — remove an entry.
   - There is **no** `swarm-cli configure`, `list-config`, or `set` command; use `config` as above or edit JSON.
@@ -27,6 +27,11 @@ Swarm supports both interactive and manual configuration. The recommended way to
 
 **Recommended location:** `~/.config/swarm/swarm_config.json` (XDG Base Directory
 Spec — overridable with `XDG_CONFIG_HOME`).
+
+The repository ships [`swarm_config.example.json`](./swarm_config.example.json)
+as the copy-paste template (no secrets, no operator LAN hosts). A checkout-local
+`swarm_config.json` is gitignored — copy the example, or run
+`swarm-cli config init` to write the XDG file.
 
 Config is resolved in this order:
 

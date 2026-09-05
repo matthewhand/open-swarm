@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Tidy repo root (#775):** Move PyInstaller helpers to `scripts/packaging/` and Pinokio install/start/update/menu into `pinokio/`. Root `pinokio.js` and `manage.py` stay (Pinokio and Django require those paths). Replace committed `swarm_config.json` with sanitized `swarm_config.example.json`; gitignore a local `swarm_config.json`. Fixes #775.
+
 ### Added
 - **REQ-104 CLI Select session:** Right-click a CLI rail row → **Select session** opens a search-palette overlay (filter, keyboard, paste session id, recent few with activity age). Design A: selecting binds a **new** Django/chat-store conversation to that CLI session (old thread kept; differing prior chat collapses into a Prior history pill — System/Agent family). Catalog CLIs cannot list non-interactively — honest empty + paste-id + swarm-touch recents. Shared `RailContextMenu` so #435 can merge. Fixes #468.
 - **REQ-144 / REQ-168 server-side rail preferences:** Favourites (ordered id list), Hidden Bots, and hostname override persist on `GET/PATCH /v1/preferences/` in a first-party per-user `UserPreference` JSON bag (SQLite/Postgres; no Neon, no secrets). SPA loads on session start and writes on pin/hide/hostname change (debounce). If localStorage has values and the server bag is empty, import once, then server wins. Guest rows are session-scoped; logged-in users sync across browsers. Fixes #540 #592.

@@ -225,5 +225,9 @@ webui/frontend/build/
 .Jules/
 .grok/
 
-# Pinokio local install marker (created by install.js; not a catalog listing)
+# Pinokio local install marker (created by pinokio/install.js; not a catalog listing)
 .pinokio/
+
+# Local swarm config (copy swarm_config.example.json). Only the repo-root
+# file is ignored so tests/swarm_config.json stays tracked.
+/swarm_config.json

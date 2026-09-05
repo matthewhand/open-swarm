@@ -217,7 +217,9 @@ swarm-cli delete cool_agent                # remove from user blueprint library
 ## Managing Configuration
 
 `swarm_config.json` holds your LLM profiles and MCP server definitions.
-Manage them with `swarm-cli config` (or edit the JSON file by hand).
+Copy [`swarm_config.example.json`](./swarm_config.example.json) or run
+`swarm-cli config init`. Manage entries with `swarm-cli config` (or edit
+the JSON file by hand). A checkout-local `swarm_config.json` is gitignored.
 
 ```bash
 swarm-cli config list --section llm

@@ -45,7 +45,7 @@ Open Swarm is already a **local web app**. The missing piece is a Windows-owned 
 | DB | `DATABASE_URL` → Postgres; else `DJANGO_DB_NAME` / `SQLITE_DB_PATH`; **default `/tmp/db.sqlite3`** (`src/swarm/settings.py`) | Desktop **must** set a user-profile sqlite path. No Neon. |
 | Config | ADR-002 hybrid: secrets in env; topology in XDG `swarm_config.json`; chats/prefs moving to Django | Desktop sets explicit `SWARM_*` / XDG-equivalent under the profile (see §5) |
 | Native CLIs | Catalog in `src/swarm/core/cli_catalog.py` (`grok`, `agy`, `opencode`, …); compose **does not** bake them (`docker-compose.yml` header) | Desktop must inherit the **user PATH**. Do not vendor CLIs. |
-| Existing “local app” | Pinokio sideload (`pinokio.js` / `start.js`) is `docker compose up` → `http://127.0.0.1:8000` | Satisfies Docker users only. Out of scope for #554. |
+| Existing “local app” | Pinokio sideload (`pinokio.js` / `pinokio/start.js`) is `docker compose up` → `http://127.0.0.1:8000` | Satisfies Docker users only. Out of scope for #554. |
 | Freeze tool | `pyinstaller>=5.13.0` in `pyproject.toml`; used today for **blueprint** `swarm-cli install`, not the server | Already a dep; hard part is Django hidden imports, not installing PyInstaller |
 | Icons | `assets/brand/` — “later installable / desktop / Pinokio icons” (`assets/brand/README.md`) | Reuse bee mark; no new UI chrome in this PR |
 
@@ -61,7 +61,7 @@ These are not blockers for the ADR; they are **Phase 1 must-fix env**, not silen
 | Prod Secure cookies | `SWARM_SECURE_COOKIES` default on when `DEBUG=False` | Loopback HTTP needs Secure cookies **off** or the session never sticks. |
 | `X_FRAME_OPTIONS` `DENY` | `CONFIGURATION.md` / middleware | Fine: the window **navigates** to loopback. Do **not** iframe Django inside a foreign origin. |
 
-Pinokio already sets `DJANGO_DEBUG=true` and `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1` (`start.js`). A published desktop build should stay **`DEBUG=False`** with an explicit loopback allow-list, not ship a debug server.
+Pinokio already sets `DJANGO_DEBUG=true` and `DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1` (`pinokio/start.js`). A published desktop build should stay **`DEBUG=False`** with an explicit loopback allow-list, not ship a debug server.
 
 ---
 
