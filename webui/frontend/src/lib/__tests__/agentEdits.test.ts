@@ -39,6 +39,13 @@ describe('agentEdits', () => {
     expect(loadAgentEdit('support')).toEqual({ name: 'Desk', role: 'gate' })
   })
 
+  it('persists CLI Folder on the agent record', () => {
+    saveAgentEdit('cli_agent', { folder: '  /home/dev/tool  ' })
+    expect(loadAgentEdit('cli_agent')).toEqual({ folder: '/home/dev/tool' })
+    saveAgentEdit('cli_agent', { folder: '' })
+    expect(loadAgentEdit('cli_agent')).toEqual({})
+  })
+
   it('records an explicit role override separately from the value', () => {
     saveAgentEdit('codey', { role: 'engineer', roleOverridden: true, workflow: 'handoff' })
     expect(loadAgentEdit('codey')).toEqual({

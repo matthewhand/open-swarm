@@ -108,3 +108,44 @@ def test_select_requires_id_or_start_new(api_client):
         format="json",
     )
     assert response.status_code == 400
+
+
+def test_select_bad_folder_is_400(api_client, tmp_path):
+    response = api_client.post(
+        "/v1/cli-sessions/select/",
+        {
+            "agent": "cli_agent",
+            "cli": "echo",
+            "start_new": True,
+            "folder": str(tmp_path / "missing"),
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "does not exist" in response.json()["error"]
+
+
+def test_list_bad_folder_is_400(api_client, tmp_path):
+    response = api_client.get(
+        "/v1/cli-sessions/",
+        {"agent": "cli_agent", "cli": "echo", "folder": str(tmp_path / "missing")},
+    )
+    assert response.status_code == 400
+    assert "does not exist" in response.json()["error"]
+
+
+def test_select_good_folder_starts(api_client, tmp_path):
+    folder = tmp_path / "project"
+    folder.mkdir()
+    response = api_client.post(
+        "/v1/cli-sessions/select/",
+        {
+            "agent": "cli_agent",
+            "cli": "echo",
+            "start_new": True,
+            "folder": str(folder),
+        },
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "Started a new echo session."

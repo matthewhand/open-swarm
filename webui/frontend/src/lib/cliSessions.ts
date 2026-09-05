@@ -5,6 +5,7 @@
  * Prior foreign history is a UI pill (`kind: prior_history`), not CLI turns.
  */
 
+import { folderRequestValue } from './agentFolder'
 import { apiGet, apiPost } from './api'
 import {
   agentIdFromBlueprint,
@@ -76,9 +77,13 @@ export interface CliSessionSelectResult {
 }
 
 export async function fetchCliSessions(agentId: string, cli: string): Promise<CliSessionList> {
-  const agent = encodeURIComponent(agentIdFromBlueprint(agentId))
-  const name = encodeURIComponent(cli)
-  return apiGet<CliSessionList>(`/v1/cli-sessions/?agent=${agent}&cli=${name}`)
+  const folder = folderRequestValue(agentId)
+  const qs = new URLSearchParams({
+    agent: agentIdFromBlueprint(agentId),
+    cli,
+  })
+  if (folder) qs.set('folder', folder)
+  return apiGet<CliSessionList>(`/v1/cli-sessions/?${qs.toString()}`)
 }
 
 export async function selectCliSession(opts: {
@@ -92,6 +97,7 @@ export async function selectCliSession(opts: {
 }): Promise<CliSessionSelectResult> {
   const from =
     (opts.fromConversationId || '').trim() || conversationIdForAgent(opts.agentId)
+  const folder = folderRequestValue(opts.agentId)
   const data = await apiPost<CliSessionSelectResult>('/v1/cli-sessions/select/', {
     agent: agentIdFromBlueprint(opts.agentId),
     cli: opts.cli,
@@ -100,6 +106,7 @@ export async function selectCliSession(opts: {
     from_conversation_id: from,
     title: opts.title || '',
     snippet: opts.snippet || '',
+    ...(folder ? { folder } : {}),
   })
   if (data.conversation_id) {
     setConversationIdForAgent(opts.agentId, data.conversation_id)

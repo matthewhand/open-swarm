@@ -29,6 +29,19 @@ def test_get_defaults_off(api_client):
     assert body["object"] == "agent_settings"
     assert body["agent_id"] == "worker"
     assert body["new_chat_per_task"] is False
+    assert body.get("folder") is None
+
+
+def test_patch_folder_roundtrip(api_client):
+    response = api_client.patch(
+        "/v1/agents/cli_agent/settings/",
+        {"folder": " /tmp/ws "},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["folder"] == "/tmp/ws"
+    again = api_client.get("/v1/agents/cli_agent/settings/")
+    assert again.json()["folder"] == "/tmp/ws"
 
 
 def test_patch_toggle_on(api_client):

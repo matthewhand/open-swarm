@@ -37,3 +37,12 @@ def test_rejects_unknown_keys(tmp_path, monkeypatch):
         assert "Unknown" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_folder_persists_on_agent_record(tmp_path, monkeypatch):
+    _isolate(tmp_path, monkeypatch)
+    updated = store.update_settings("cli_agent", {"folder": "/tmp/ws"})
+    assert updated["folder"] == "/tmp/ws"
+    store.reset_agent_settings_cache()
+    assert store.get_settings("cli_agent")["folder"] == "/tmp/ws"
+    assert store.get_settings("other")["folder"] is None

@@ -28,6 +28,7 @@ import {
   saveAgentEdit,
   saveInferenceList,
 } from '../lib/agentEdits'
+import { FOLDER_FORMAT_ERROR, isValidFolderPath } from '../lib/agentFolder'
 import type { InferenceSeat } from '../lib/inferenceList'
 import {
   NEW_CHAT_PER_TASK_LABEL,
@@ -108,6 +109,8 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [boundRemoteId, setBoundRemoteId] = useState('')
   const [inferenceSeats, setInferenceSeats] = useState<InferenceSeat[]>([])
   const [avatarPrompt, setAvatarPrompt] = useState('')
+  const [folder, setFolder] = useState('')
+  const [folderError, setFolderError] = useState<string | null>(null)
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -225,6 +228,8 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setProfileOverride(edit.profileOverride || '')
     setBoundRemoteId(loadAgentRemoteBinding(id)?.id || '')
     setInferenceSeats(loadInferenceList(id))
+    setFolder(edit.folder || '')
+    setFolderError(null)
     const catalogNameForPrompt = catalogAgent?.name || id
     const roleForPrompt = edit.role || agentRole({ id, name: catalogAgent?.name, role: catalogAgent?.role })
     setAvatarPrompt(defaultAvatarPrompt(edit.name || catalogNameForPrompt, roleForPrompt))
@@ -235,6 +240,9 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
       if (!cancelled) {
         setNewChatPerTask(settings.new_chat_per_task)
         setUseSuggestions(settings.use_suggestions)
+        if (!edit.folder && settings.folder) {
+          setFolder(settings.folder)
+        }
       }
     })()
     return () => {
@@ -586,6 +594,43 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="form-control">
+              <label className="label py-1">
+                <span className="label-text text-xs">
+                  Folder <span className="font-normal text-base-content/60">(optional)</span>
+                </span>
+              </label>
+              <input
+                type="text"
+                className={`input input-sm input-bordered w-full font-mono text-xs ${
+                  folderError ? 'input-error' : ''
+                }`}
+                placeholder="/path/to/working/directory or ./project"
+                value={folder}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setFolder(next)
+                  if (next && !isValidFolderPath(next)) {
+                    setFolderError(FOLDER_FORMAT_ERROR)
+                    return
+                  }
+                  setFolderError(null)
+                  saveAgentEdit(id, { folder: next })
+                  void saveAgentSettings(id, { folder: next.trim() })
+                }}
+                aria-label="Folder"
+                data-testid="input-cli-folder"
+              />
+              <span className="block text-[11px] text-base-content/60 mt-1">
+                Working directory for this CLI agent
+              </span>
+              {folderError ? (
+                <span className="block text-xs text-error" data-testid="folder-error">
+                  {folderError}
+                </span>
+              ) : null}
             </div>
           </div>
         )}

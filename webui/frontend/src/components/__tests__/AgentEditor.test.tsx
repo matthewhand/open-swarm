@@ -370,13 +370,19 @@ describe('AgentEditor (REQ-58)', () => {
       expect(within(modelSelect).queryByRole('option', { name: 'Stewie' })).not.toBeInTheDocument()
 
       expect(within(dialog).getByTestId('default-llm-label')).toBeInTheDocument()
+      expect(within(dialog).getByTestId('input-cli-folder')).toBeInTheDocument()
+      expect(within(dialog).getByText(/Working directory for this CLI agent/i)).toBeInTheDocument()
 
       // Save override
       fireEvent.change(cliSelect, { target: { value: 'copilot' } })
       fireEvent.change(modelSelect, { target: { value: 'gpt-4o' } })
+      fireEvent.change(within(dialog).getByTestId('input-cli-folder'), {
+        target: { value: '/home/dev/tool' },
+      })
       const stored = JSON.parse(localStorage.getItem(AGENT_EDITS_KEY) || '{}')['cli_agent']
       expect(stored.cliOverride).toBe('copilot')
       expect(stored.llmOverride).toBe('gpt-4o')
+      expect(stored.folder).toBe('/home/dev/tool')
     })
 
     it('API agent: renders profiles and models, not agents from catalog', async () => {

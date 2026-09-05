@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import sys
 
+import pytest
+
 from swarm.core import agent_settings as settings_store
 from swarm.core import chat_store
 from swarm.core.cli_adapter import CliAdapter
@@ -445,3 +447,53 @@ def test_parse_provider_sessions_accepts_conversation_id():
     rows = parse_provider_sessions(raw, cli_name="agy")
     assert rows[0]["id"] == "3b4a1d20-3968-4ed2-90b3-00eea3060b02"
     assert rows[0]["title"] == "Cloud Run"
+
+
+def test_list_uses_folder_as_cwd(tmp_path, monkeypatch):
+    from swarm.core.agent_folder import AgentFolderError
+
+    captured: dict[str, str | None] = {}
+
+    def fake_run(argv, timeout, cwd=None):
+        captured["cwd"] = cwd
+        return 0, json.dumps([{"id": "sid-1", "title": "One"}]), ""
+
+    monkeypatch.setattr(
+        "swarm.core.cli_session_select._default_run_list", fake_run
+    )
+    folder = tmp_path / "ws"
+    folder.mkdir()
+    payload = list_cli_sessions(
+        "u1",
+        "cli_agent",
+        "echo",
+        config=_list_config(str(tmp_path / "unused.py")),
+        base_dir=tmp_path,
+        folder=str(folder),
+    )
+    assert captured["cwd"] == str(folder.resolve())
+    assert payload["sessions"][0]["id"] == "sid-1"
+
+    with pytest.raises(AgentFolderError, match="does not exist"):
+        list_cli_sessions(
+            "u1",
+            "cli_agent",
+            "echo",
+            config=_list_config(str(tmp_path / "unused.py")),
+            base_dir=tmp_path,
+            folder=str(tmp_path / "missing"),
+        )
+
+
+def test_select_rejects_bad_folder(tmp_path):
+    from swarm.core.agent_folder import AgentFolderError
+
+    with pytest.raises(AgentFolderError, match="does not exist"):
+        select_cli_session(
+            "u1",
+            "cli_agent",
+            "echo",
+            start_new=True,
+            folder=str(tmp_path / "missing"),
+            base_dir=tmp_path,
+        )

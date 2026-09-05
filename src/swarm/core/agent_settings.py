@@ -14,7 +14,8 @@ Layout::
           "new_chat_per_task": false,
           "use_suggestions": false,
           "cli_session_id": null,
-          "remote_session_id": null
+          "remote_session_id": null,
+          "folder": null
         }
       }
     }
@@ -43,17 +44,20 @@ KEY_NEW_CHAT_PER_TASK = "new_chat_per_task"
 KEY_USE_SUGGESTIONS = "use_suggestions"
 KEY_CLI_SESSION = "cli_session_id"
 KEY_REMOTE_SESSION = "remote_session_id"
+KEY_FOLDER = "folder"
 
 DEFAULTS: dict[str, Any] = {
     KEY_NEW_CHAT_PER_TASK: False,
     KEY_USE_SUGGESTIONS: False,
     KEY_CLI_SESSION: None,
     KEY_REMOTE_SESSION: None,
+    KEY_FOLDER: None,
 }
 
 _ALLOWED_KEYS = frozenset(DEFAULTS)
 _BOOL_KEYS = frozenset({KEY_NEW_CHAT_PER_TASK, KEY_USE_SUGGESTIONS})
 _ID_KEYS = frozenset({KEY_CLI_SESSION, KEY_REMOTE_SESSION})
+_PATH_KEYS = frozenset({KEY_FOLDER})
 
 _cache: dict[str, Any] | None = None
 
@@ -134,7 +138,7 @@ def _normalize_value(key: str, value: Any) -> Any:
             if lowered in ("false", "0", "no", "off", ""):
                 return False
         raise ValueError(f"{key} must be a boolean.")
-    if key in _ID_KEYS:
+    if key in _ID_KEYS or key in _PATH_KEYS:
         if value is None:
             return None
         text = str(value).strip()
@@ -157,6 +161,7 @@ def public_settings(raw: dict[str, Any] | None = None) -> dict[str, Any]:
         KEY_USE_SUGGESTIONS: bool(merged[KEY_USE_SUGGESTIONS]),
         KEY_CLI_SESSION: merged[KEY_CLI_SESSION],
         KEY_REMOTE_SESSION: merged[KEY_REMOTE_SESSION],
+        KEY_FOLDER: merged[KEY_FOLDER],
     }
 
 
@@ -215,3 +220,12 @@ def set_cli_session_id(agent_id: str, session_id: str | None) -> dict[str, Any]:
 
 def set_remote_session_id(agent_id: str, session_id: str | None) -> dict[str, Any]:
     return update_settings(agent_id, {KEY_REMOTE_SESSION: session_id})
+
+
+def stored_folder(agent_id: str) -> str | None:
+    value = get_settings(agent_id).get(KEY_FOLDER)
+    return str(value) if value else None
+
+
+def set_folder(agent_id: str, folder: str | None) -> dict[str, Any]:
+    return update_settings(agent_id, {KEY_FOLDER: folder})

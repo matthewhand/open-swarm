@@ -65,16 +65,23 @@ class CliSessionListAPIView(APIView):
         responses={200: OpenApiTypes.OBJECT},
     )
     def get(self, request, *_args, **_kwargs):
+        from swarm.core.agent_folder import AgentFolderError
         from swarm.core.cli_session_select import list_cli_sessions
 
         agent = normalize_agent_id(request.query_params.get("agent") or "cli_agent")
         cli = _resolve_cli(agent, request.query_params.get("cli"))
-        payload = list_cli_sessions(
-            _user_key(request),
-            agent,
-            cli,
-            config=_swarm_config(),
-        )
+        raw_folder = request.query_params.get("folder")
+        folder = raw_folder.strip() if isinstance(raw_folder, str) else None
+        try:
+            payload = list_cli_sessions(
+                _user_key(request),
+                agent,
+                cli,
+                config=_swarm_config(),
+                folder=folder,
+            )
+        except AgentFolderError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -90,6 +97,7 @@ class CliSessionSelectAPIView(APIView):
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
     )
     def post(self, request, *_args, **_kwargs):
+        from swarm.core.agent_folder import AgentFolderError
         from swarm.core.cli_session_select import select_cli_session
 
         body = request.data if isinstance(request.data, dict) else {}
@@ -109,6 +117,8 @@ class CliSessionSelectAPIView(APIView):
             from_cid = raw_from.strip()
         title = str(body.get("title") or "")[:200]
         snippet = str(body.get("snippet") or "")[:240]
+        raw_folder = body.get("folder")
+        folder = raw_folder.strip() if isinstance(raw_folder, str) else None
         user = getattr(request, "user", None)
         try:
             payload = select_cli_session(
@@ -121,7 +131,10 @@ class CliSessionSelectAPIView(APIView):
                 user=user,
                 title=title,
                 snippet=snippet,
+                folder=folder,
             )
+        except AgentFolderError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except OSError:

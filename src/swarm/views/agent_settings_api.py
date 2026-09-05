@@ -54,6 +54,7 @@ def _payload(agent_id: str, settings: dict, request) -> dict:
         "use_suggestions": bool(settings.get("use_suggestions")),
         "cli_session_id": settings.get("cli_session_id"),
         "remote_session_id": settings.get("remote_session_id"),
+        "folder": settings.get("folder"),
         "active_sessions": sessions,
     }
 
