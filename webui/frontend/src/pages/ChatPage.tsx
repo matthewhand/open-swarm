@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings } from 'lucide-react'
+import { ArrowUp, Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
 import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
@@ -1045,7 +1045,8 @@ const ChatPage = () => {
     })
   }, [status, authRejected, signInHref, addToast, dismissByKind, reconnect])
 
-  const canSend = status === 'open' && input.trim().length > 0
+  const hasSendableDraft = input.trim().length > 0
+  const canSend = status === 'open' && hasSendableDraft
 
   const sendText = useCallback(
     (text: string) => {
@@ -1998,12 +1999,18 @@ const ChatPage = () => {
                   >
                     <Mic className="h-4 w-4" aria-hidden="true" />
                   </button>
+                  {hasSendableDraft ? (
+                    <button
+                      type="submit"
+                      className="os-composer__send"
+                      aria-label="Send"
+                    >
+                      <ArrowUp className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
-            <button type="submit" className="sr-only" disabled={!canSend}>
-              Send
-            </button>
           </form>
         </div>
       </div>

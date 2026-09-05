@@ -171,7 +171,8 @@ describe('ChatPage Unavailable / Sign-in CTA + connection status', () => {
     const composer = screen.getByRole('textbox', { name: 'Chat message' })
     expect(composer).toBeDisabled()
     expect(composer).toHaveAttribute('placeholder', 'Message …')
-    expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /^Send$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.queryByText(/^Connected$/)).not.toBeInTheDocument()
 
     await act(async () => {
@@ -577,8 +578,13 @@ describe('ChatPage Send button honesty while streaming', () => {
       )
     })
 
+    fireEvent.change(screen.getByRole('textbox', { name: 'Chat message' }), {
+      target: { value: 'follow-up while streaming' },
+    })
     const send = screen.getByRole('button', { name: /^Send$/i })
     expect(send).not.toHaveAttribute('aria-busy', 'true')
+    expect(send).not.toHaveClass('loading')
+    expect(send.querySelector('.loading')).toBeNull()
 
     const loaders = screen.getAllByRole('status', { name: 'Loading' })
     expect(loaders.length).toBeGreaterThan(0)
@@ -1200,6 +1206,41 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
     expect(screen.getByLabelText('Tokens in context')).toBeInTheDocument()
     expect(document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')).toBeInTheDocument()
+  })
+
+  it('REQ-76: circular up-arrow send appears only while the field has text', async () => {
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    expect(screen.queryByRole('button', { name: /^Send$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
+
+    fireEvent.change(composer, { target: { value: 'hi' } })
+    const send = screen.getByRole('button', { name: /^Send$/i })
+    expect(send).toBeEnabled()
+    expect(send).toHaveClass('os-composer__send')
+    expect(send.querySelector('svg')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+
+    fireEvent.change(composer, { target: { value: '   ' } })
+    expect(screen.queryByRole('button', { name: /^Send$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+
+    fireEvent.change(composer, { target: { value: 'hi' } })
+    expect(screen.getByRole('button', { name: /^Send$/i })).toBeInTheDocument()
+    fireEvent.change(composer, { target: { value: '' } })
+    expect(screen.queryByRole('button', { name: /^Send$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
+
+    fireEvent.change(composer, { target: { value: 'hi' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+    expect(composer).toHaveValue('')
+    expect(screen.queryByRole('button', { name: /^Send$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Voice input' })).toBeInTheDocument()
   })
 
   it('ghosts composer shortcut chips until hover or focus, swapping Enter/Esc by draft', async () => {
