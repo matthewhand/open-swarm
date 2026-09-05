@@ -190,6 +190,11 @@ network.
   docs PR.
 - **#680** — Remote stays one kind; Hermes / OpenMousBot / Rakazo / Herdr
   implement an abstract harness. Herdr is not a fifth kind.
+- **README** — WebUI-first front door + `docs/DEVELOPER.md` is
+  [#791](https://github.com/matthewhand/open-swarm/issues/791), not the old
+  #466 rewrite (that cut already landed in
+  [#785](https://github.com/matthewhand/open-swarm/pull/785)). This file
+  leads; README sells.
 - **SPA depth** — virtualized history ([ADR-004](./adr/004-virtualized-chat-history.md))
   planned; computer-control chrome is a stub ([ADR-007](./adr/007-local-computer-control.md));
   golden-journey screenshots on HOLD.
