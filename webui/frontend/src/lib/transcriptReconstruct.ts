@@ -88,7 +88,13 @@ export function splitMixedMessages(messages: TranscriptTurn[]): {
   const events: UiEvent[] = []
   messages.forEach((row, index) => {
     const stamped = { ...row, seq: seqOf(row, index) }
-    if (isChromeRole(row.role) || row.kind === 'prior_history' || row.kind === 'hop' || row.kind === 'pr_opened') {
+    if (
+      isChromeRole(row.role) ||
+      row.kind === 'prior_history' ||
+      row.kind === 'hop' ||
+      row.kind === 'pr_opened' ||
+      row.kind === 'teammate_task'
+    ) {
       events.push(stamped)
     } else {
       turns.push(stamped)

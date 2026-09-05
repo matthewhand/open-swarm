@@ -103,7 +103,7 @@ def context_blob(messages: Iterable[dict[str, Any]] | None) -> str:
     return "\n".join(parts)
 
 
-CHROME_KINDS = frozenset({"status", "info", "hop", "pr_opened", "prior_history"})
+CHROME_KINDS = frozenset({"status", "info", "hop", "pr_opened", "teammate_task", "prior_history"})
 HOP_PREFIXES = ("Messaged ", "Message from ")
 
 # Belt alias: same filter, named for the reconstructed (turns-only) path.

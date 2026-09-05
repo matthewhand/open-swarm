@@ -1743,6 +1743,20 @@ html:not([data-theme="light"]) .os-composer__send,
   padding: 0.85rem 1rem;
 }
 
+/* REQ-84: teammate remote-task chrome (title + Running/Done + Open in {Kind}). */
+.os-teammate-task-wrap {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+.os-teammate-task-card {
+  text-align: left;
+}
+.os-teammate-task-card .card-body {
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+}
+
 .os-search-overlay {
   position: fixed;
   inset: 0;

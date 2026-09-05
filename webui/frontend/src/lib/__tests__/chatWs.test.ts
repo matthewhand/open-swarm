@@ -208,4 +208,29 @@ describe('parseChatWsMessage', () => {
       },
     })
   })
+
+  it('parses a structured teammate_task frame (REQ-84)', () => {
+    expect(
+      parseChatWsMessage(
+        JSON.stringify({
+          type: 'teammate_task',
+          team_id: 'harness-team',
+          worker_id: 'hermes',
+          title: 'list sessions',
+          status: 'Done',
+        }),
+      ),
+    ).toEqual({
+      kind: 'teammate_task',
+      event: {
+        type: 'teammate_task',
+        teamId: 'harness-team',
+        workerId: 'hermes',
+        workerKind: 'hermes',
+        openInLabel: 'Open in Hermes',
+        title: 'list sessions',
+        status: 'Done',
+      },
+    })
+  })
 })
