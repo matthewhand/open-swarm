@@ -249,4 +249,20 @@ describe('SearchPalette choose + actions (REQ-5c #322)', () => {
     expect(assign).not.toHaveBeenCalled()
     expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
   })
+
+  it('renders real agent avatars in search results instead of default bot icon (REQ-199)', async () => {
+    renderPalette()
+    const codeyRow = await screen.findByRole('option', { name: /Codey/i })
+    expect(codeyRow).toBeInTheDocument()
+
+    const avatarSlot = codeyRow.querySelector('.os-search-row__icon--avatar')
+    expect(avatarSlot).toBeInTheDocument()
+
+    // Real avatar component is rendered inside (e.g. data-agent-avatar)
+    const avatar = avatarSlot?.querySelector('[data-agent-avatar]')
+    expect(avatar).toBeInTheDocument()
+
+    // No generic Bot lucide icon inside the bot avatar slot
+    expect(avatarSlot?.querySelector('.lucide-bot')).toBeNull()
+  })
 })
