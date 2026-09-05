@@ -2249,6 +2249,155 @@ describe('ChatPage per-agent thread switch (REQ-14 #319)', () => {
   })
 })
 
+describe('ChatPage selected session persist (#794)', () => {
+  beforeEach(() => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    window.localStorage.clear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          const cid = new URL(url, 'http://localhost').searchParams.get('conversation_id')
+          if (cid === 'sess-notes') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'codey',
+                conversation_id: 'sess-notes',
+                session_title: 'Notes',
+                messages: [
+                  { role: 'user', content: 'notes from A' },
+                  { role: 'assistant', content: 'reply A' },
+                ],
+              }),
+            } as Response
+          }
+          if (cid === 'sess-old') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'codey',
+                conversation_id: 'sess-old',
+                messages: [
+                  { role: 'user', content: 'older session' },
+                  { role: 'assistant', content: 'old reply' },
+                ],
+              }),
+            } as Response
+          }
+          if (cid === 'sess-gone' || cid === 'cli-cli_agent-gone') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: cid?.startsWith('cli-') ? 'cli_agent' : 'codey',
+                conversation_id: cid,
+                session_missing: true,
+                messages: [],
+              }),
+            } as Response
+          }
+          if (cid === 'cli-cli_agent-abc') {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                agent_id: 'cli_agent',
+                conversation_id: 'cli-cli_agent-abc',
+                messages: [
+                  { role: 'status', content: 'Switched to grok session sid-1.' },
+                  { role: 'user', content: 'from cli A' },
+                ],
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ agent_id: 'codey', conversation_id: cid, messages: [] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              { id: 'codey', name: 'Codey', description: 'Code assistant' },
+              { id: 'cli_agent', name: 'CLI Agent', description: 'CLI' },
+            ],
+          }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    resetConversationThreads()
+    window.localStorage.clear()
+  })
+
+  it('rehydrates the selected Django session after unmount without ?session=', async () => {
+    const { setConversationIdForAgent } = await import('../../lib/agentChat')
+    setConversationIdForAgent('codey', 'sess-old')
+    const first = renderChat('/chat?blueprint=codey&session=sess-notes')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('notes from A')).toBeInTheDocument()
+    expect(screen.queryByText('older session')).not.toBeInTheDocument()
+    first.unmount()
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+    expect(await screen.findByText('notes from A')).toBeInTheDocument()
+    expect(screen.queryByText('older session')).not.toBeInTheDocument()
+    const threadCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes('/chat/thread/'))
+    expect(threadCalls.some((url) => url.includes('conversation_id=sess-notes'))).toBe(true)
+  })
+
+  it('rehydrates the selected CLI conversation after unmount without ?session=', async () => {
+    const { setConversationIdForAgent } = await import('../../lib/agentChat')
+    setConversationIdForAgent('cli_agent', 'cli-cli_agent-abc')
+    const first = renderChat('/chat?blueprint=cli_agent&session=cli-cli_agent-abc')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('from cli A')).toBeInTheDocument()
+    first.unmount()
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+    expect(await screen.findByText('from cli A')).toBeInTheDocument()
+  })
+
+  it('shows honest status when the stored session is gone — no older transcript', async () => {
+    const { setConversationIdForAgent } = await import('../../lib/agentChat')
+    setConversationIdForAgent('codey', 'sess-gone')
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByTestId('chat-status')).toHaveTextContent(
+      'Stored session sess-gone is gone',
+    )
+    expect(screen.queryByText('older session')).not.toBeInTheDocument()
+    expect(screen.queryByText('notes from A')).not.toBeInTheDocument()
+  })
+})
+
 describe('ChatPage Support default URL (REQ-5c #322)', () => {
   beforeEach(() => {
     MockWebSocket.instances = []

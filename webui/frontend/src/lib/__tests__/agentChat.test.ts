@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  AGENT_CONVERSATION_EVENT,
   DEFAULT_AGENT_ID,
   activeTaskSessionCount,
+  agentChatHref,
   agentIdFromBlueprint,
   compactAgentThread,
   conversationIdForAgent,
@@ -9,6 +11,7 @@ import {
   fetchAgentThread,
   listTaskSessions,
   peekConversationIdForAgent,
+  setConversationIdForAgent,
 } from '../agentChat'
 
 describe('agentIdFromBlueprint', () => {
@@ -36,6 +39,35 @@ describe('conversationIdForAgent', () => {
     expect(peekConversationIdForAgent('codey')).toBeNull()
     const minted = conversationIdForAgent('codey')
     expect(peekConversationIdForAgent('codey')).toBe(minted)
+  })
+
+  it('persists a selected session id and rehydrates it after remount', () => {
+    setConversationIdForAgent('codey', 'sess-notes')
+    expect(peekConversationIdForAgent('codey')).toBe('sess-notes')
+    expect(conversationIdForAgent('codey')).toBe('sess-notes')
+    expect(agentChatHref('codey')).toBe('/chat?blueprint=codey&session=sess-notes')
+    expect(agentChatHref('stewie')).toBe('/chat?blueprint=stewie')
+  })
+
+  it('keeps the selected id after the module-level helpers are called again (unmount)', () => {
+    setConversationIdForAgent('cli_agent', 'cli-cli_agent-abc')
+    expect(peekConversationIdForAgent('cli_agent')).toBe('cli-cli_agent-abc')
+    expect(conversationIdForAgent('cli_agent')).toBe('cli-cli_agent-abc')
+    expect(agentChatHref('cli_agent')).toContain('session=cli-cli_agent-abc')
+  })
+
+  it('emits AGENT_CONVERSATION_EVENT when the selected id is stored', () => {
+    const seen: string[] = []
+    const onChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string }>).detail
+      if (detail?.conversationId) seen.push(detail.conversationId)
+    }
+    window.addEventListener(AGENT_CONVERSATION_EVENT, onChange)
+    setConversationIdForAgent('codey', 'sess-b')
+    window.removeEventListener(AGENT_CONVERSATION_EVENT, onChange)
+    expect(seen).toEqual(['sess-b'])
+    setConversationIdForAgent('codey', 'sess-b')
+    expect(seen).toEqual(['sess-b'])
   })
 
   it('reuses the stored id when new chat per task is off', () => {
@@ -247,6 +279,26 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('codey', 'sess-worker-2')
     expect(thread.conversation_id).toBe('sess-worker-2')
     expect(String(fetchMock.mock.calls[0][0])).toContain('conversation_id=sess-worker-2')
+  })
+
+  it('surfaces session_missing so Chat does not swap transcripts', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'codey',
+          conversation_id: 'sess-gone',
+          session_missing: true,
+          messages: [],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('codey', 'sess-gone')
+    expect(thread.session_missing).toBe(true)
+    expect(thread.messages).toEqual([])
+    expect(thread.conversation_id).toBe('sess-gone')
   })
 
   it('returns an empty thread when fetch fails', async () => {

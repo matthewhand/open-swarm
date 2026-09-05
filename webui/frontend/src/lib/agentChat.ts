@@ -16,9 +16,34 @@ export const DEFAULT_AGENT_ID = '_default'
 const STORAGE_PREFIX = 'swarm_agent_chat:'
 const TASKS_PREFIX = 'swarm_agent_tasks:'
 
+/** Last selected swarm conversation id changed (CLI or Django). */
+export const AGENT_CONVERSATION_EVENT = 'swarm:agent-conversation'
+
 export function agentIdFromBlueprint(blueprintId: string | null | undefined): string {
   const trimmed = (blueprintId ?? '').trim()
   return trimmed || DEFAULT_AGENT_ID
+}
+
+/** Persist the selected conversation id so remount / browse-back restores it. */
+export function setConversationIdForAgent(agentId: string, conversationId: string): void {
+  const agent = agentIdFromBlueprint(agentId)
+  const id = String(conversationId || '').trim()
+  if (!id) return
+  if (peekConversationIdForAgent(agent) === id) return
+  try {
+    window.localStorage.setItem(`${STORAGE_PREFIX}${agent}`, id)
+  } catch {
+    /* private mode / quota */
+  }
+  try {
+    window.dispatchEvent(
+      new CustomEvent(AGENT_CONVERSATION_EVENT, {
+        detail: { agentId: agent, conversationId: id },
+      }),
+    )
+  } catch {
+    /* jsdom / SSR */
+  }
 }
 
 /** Stable per-agent conversation id (localStorage). Survives reload. */
@@ -26,14 +51,7 @@ export function conversationIdForAgent(agentId: string): string {
   const existing = peekConversationIdForAgent(agentId)
   if (existing) return existing
   const minted = newConversationId()
-  try {
-    window.localStorage.setItem(
-      `${STORAGE_PREFIX}${agentIdFromBlueprint(agentId)}`,
-      minted,
-    )
-  } catch {
-    /* private mode / quota */
-  }
+  setConversationIdForAgent(agentId, minted)
   return minted
 }
 
@@ -46,6 +64,19 @@ export function peekConversationIdForAgent(agentId: string): string | null {
   } catch {
     return null
   }
+}
+
+/** Rail / remount href: keep the last selected session on the URL when known. */
+export function agentChatHref(agentId: string): string {
+  const agent = agentIdFromBlueprint(agentId)
+  const session = peekConversationIdForAgent(agent)
+  if (session) {
+    const params = new URLSearchParams()
+    params.set('blueprint', agent)
+    params.set('session', session)
+    return `/chat?${params.toString()}`
+  }
+  return `/chat?blueprint=${encodeURIComponent(agent)}`
 }
 
 function tasksKey(agentId: string): string {
@@ -123,6 +154,8 @@ export interface AgentThread {
   summaries: ConversationSummary[]
   kind?: AgentKind
   editable?: boolean
+  /** Requested session was not on disk/DB — do not silently swap. */
+  session_missing?: boolean
 }
 
 export interface CompactResult {
@@ -198,6 +231,7 @@ export async function fetchAgentThread(
       summaries: parseSummaries(data?.summaries),
       kind,
       editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
+      session_missing: data?.session_missing === true,
     }
   } catch {
     const kind = classifyAgentKind(agent)

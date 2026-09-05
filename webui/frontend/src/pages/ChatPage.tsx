@@ -44,6 +44,7 @@ import {
 } from '../lib/slashMenu'
 import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchRemotes } from '../lib/api'
 import {
+  AGENT_CONVERSATION_EVENT,
   agentIdFromBlueprint,
   appendAgentMessage,
   compactAgentThread,
@@ -52,6 +53,8 @@ import {
   DEFAULT_AGENT_ID,
   fetchAgentThread,
   patchAgentMessage,
+  peekConversationIdForAgent,
+  setConversationIdForAgent,
   type ConversationSummary,
 } from '../lib/agentChat'
 import { canEditAgentMessages, classifyAgentKind, type AgentKind } from '../lib/agentKind'
@@ -151,10 +154,12 @@ import {
 import { insertCliSessionNotice } from '../lib/chatTranscript'
 import { fetchAgentSuggestions, shouldShowSuggestionChips } from '../lib/suggestions'
 import {
+  missingSessionNotice,
   restoreKindForAgent,
   restoredSessionNotice,
   switchedSessionNotice,
 } from '../lib/sessionRestore'
+import { CLI_SESSION_SWITCHED_EVENT } from '../lib/cliSessions'
 import {
   SUGGESTION_CHIP_EVENT,
   generationIsInFlight,
@@ -305,6 +310,7 @@ const ChatPage = () => {
       : remoteFromUrl
         ? `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
         : sessionFromUrl ||
+          peekConversationIdForAgent(defaultBlueprintId(searchParams.get('blueprint'))) ||
           conversationIdForTask(agentIdFromBlueprint(selectedBlueprint), {
             newChatPerTask: loadLocalNewChatPerTask(
               defaultBlueprintId(searchParams.get('blueprint')),
@@ -641,6 +647,29 @@ const ChatPage = () => {
     setMemberTarget(ALL_MEMBERS_TARGET)
   }, [teamFromUrl, sessionFromUrl])
 
+  // #794: persist the selected swarm conversation (CLI or Django) so remount
+  // and rail browse-back restore the same id — not the prior default.
+  useEffect(() => {
+    if (teamFromUrl || remoteFromUrl || !sessionFromUrl || !selectedBlueprint) return
+    setConversationIdForAgent(selectedBlueprint, sessionFromUrl)
+  }, [sessionFromUrl, selectedBlueprint, teamFromUrl, remoteFromUrl])
+
+  useEffect(() => {
+    const onSwitched = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentId?: string; conversationId?: string }>).detail
+      const agent = agentIdFromBlueprint(selectedBlueprint)
+      if (!detail?.conversationId || teamFromUrl || remoteFromUrl) return
+      if (detail.agentId && agentIdFromBlueprint(detail.agentId) !== agent) return
+      setConversationId(detail.conversationId)
+    }
+    window.addEventListener(CLI_SESSION_SWITCHED_EVENT, onSwitched)
+    window.addEventListener(AGENT_CONVERSATION_EVENT, onSwitched)
+    return () => {
+      window.removeEventListener(CLI_SESSION_SWITCHED_EVENT, onSwitched)
+      window.removeEventListener(AGENT_CONVERSATION_EVENT, onSwitched)
+    }
+  }, [selectedBlueprint, teamFromUrl, remoteFromUrl])
+
   useEffect(() => {
     const onEdits = () => setEditsTick((tick) => tick + 1)
     const onDropdowns = () => setDropdownTick((tick) => tick + 1)
@@ -793,10 +822,12 @@ const ChatPage = () => {
     }
 
     const agent = agentIdFromBlueprint(selectedBlueprint)
-    const fresh = !sessionFromUrl && newChatPerTask
+    const stored = peekConversationIdForAgent(agent)
+    const resolvedSession = sessionFromUrl || stored || ''
+    const fresh = !resolvedSession && newChatPerTask
     const nextId = fresh
       ? conversationIdForTask(agent, { newChatPerTask: true })
-      : sessionFromUrl || conversationIdForAgent(agent)
+      : resolvedSession || conversationIdForAgent(agent)
     const hydrateKey = sessionFromUrl
       ? `${agent}::${sessionFromUrl}`
       : fresh
@@ -807,6 +838,9 @@ const ChatPage = () => {
       lastHydratedAgentRef.current !== hydrateKey
     lastHydratedAgentRef.current = hydrateKey
     setConversationId(nextId)
+    if (resolvedSession) {
+      setConversationIdForAgent(agent, nextId)
+    }
     setEditingKey(null)
     setAgentKind(classifyAgentKind(selectedBlueprint))
     setMessagesEditable(canEditAgentMessages(selectedBlueprint) && !selectedCli)
@@ -823,7 +857,7 @@ const ChatPage = () => {
     }
     let cancelled = false
     ;(async () => {
-      const thread = await fetchAgentThread(agent, sessionFromUrl || undefined)
+      const thread = await fetchAgentThread(agent, resolvedSession || undefined)
       if (cancelled) return
       setAgentKind(thread.kind ?? classifyAgentKind(selectedBlueprint))
       setMessagesEditable(
@@ -835,9 +869,18 @@ const ChatPage = () => {
         ...prev,
         [threadKey]: thread.summaries,
       }))
+      if (thread.session_missing) {
+        setRestoreNotice(missingSessionNotice(resolvedSession || nextId))
+        setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+        setThreadReady(true)
+        return
+      }
       if (switched && sessionFromUrl) {
         setRestoreNotice(switchedSessionNotice(thread.session_title || thread.conversation_id))
-        if (thread.messages.length === 0) return
+        if (thread.messages.length === 0) {
+          setThreadReady(true)
+          return
+        }
       } else if (thread.messages.length === 0) {
         setRestoreNotice(null)
         setThreadReady(true)
@@ -2069,17 +2112,17 @@ const ChatPage = () => {
         }}
       >
         <div className="os-chat-messages space-y-1 flex-1" data-testid="chat-messages-container">
+        {restoreNotice ? (
+          <p className="os-chat-status" data-role="status" data-testid="chat-status">
+            <span>{restoreNotice}</span>
+          </p>
+        ) : null}
         {messages.length === 0 ? (
           <div className="flex h-full min-h-64 flex-col items-center justify-center gap-2 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
           <>
-          {restoreNotice ? (
-            <p className="os-chat-status" data-role="status" data-testid="chat-status">
-              <span>{restoreNotice}</span>
-            </p>
-          ) : null}
           {displayItems.map((item, idx) => {
             if (item.kind === 'summary') {
               return (

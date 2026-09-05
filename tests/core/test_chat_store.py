@@ -253,6 +253,35 @@ def test_prune_uses_mtime_when_updated_at_missing(tmp_path):
     assert moved == ["aged"]
 
 
+def test_load_unknown_conversation_id_does_not_swap_default(tmp_path):
+    chat_store.save(
+        "u1",
+        "codey",
+        [{"role": "user", "content": "older session"}],
+        conversation_id="agt-1-codey",
+        base_dir=tmp_path,
+    )
+    chat_store.save(
+        "u1",
+        "codey",
+        [{"role": "user", "content": "selected A"}],
+        conversation_id="sess-notes",
+        session_id="sess-notes",
+        base_dir=tmp_path,
+    )
+    selected = chat_store.load(
+        "u1", "codey", conversation_id="sess-notes", base_dir=tmp_path
+    )
+    assert selected is not None
+    assert selected["messages"][0]["content"] == "selected A"
+    missing = chat_store.load(
+        "u1", "codey", conversation_id="sess-gone", base_dir=tmp_path
+    )
+    assert missing is None
+    default = chat_store.load("u1", "codey", base_dir=tmp_path)
+    assert default["messages"][0]["content"] == "older session"
+
+
 def test_archive_all(tmp_path):
     chat_store.save("u1", "a", [{"role": "user", "content": "1"}], base_dir=tmp_path)
     chat_store.save("u1", "b", [{"role": "user", "content": "2"}], base_dir=tmp_path)

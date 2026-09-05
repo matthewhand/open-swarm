@@ -6,7 +6,13 @@
  */
 
 import { apiGet, apiPost } from './api'
-import { agentIdFromBlueprint, conversationIdForAgent } from './agentChat'
+import {
+  agentIdFromBlueprint,
+  conversationIdForAgent,
+  setConversationIdForAgent,
+} from './agentChat'
+
+export { setConversationIdForAgent } from './agentChat'
 
 const SESSION_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/
 const SECRET_PREFIX = /^(sk-|gsk_|xai-|AIza|ghp_|github_pat_|xox[baprs]-|Bearer )/i
@@ -63,15 +69,6 @@ export interface CliSessionSelectResult {
   collapsed_prior: boolean
   import: 'none' | 'full' | 'partial'
   same_session?: boolean
-}
-
-export function setConversationIdForAgent(agentId: string, conversationId: string): void {
-  const key = `swarm_agent_chat:${agentIdFromBlueprint(agentId)}`
-  try {
-    window.localStorage.setItem(key, conversationId)
-  } catch {
-    /* best-effort */
-  }
 }
 
 export async function fetchCliSessions(agentId: string, cli: string): Promise<CliSessionList> {
