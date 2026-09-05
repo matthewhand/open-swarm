@@ -158,7 +158,7 @@ Open Swarm is **not** in the Pinokio public catalog. In Pinokio, add the git URL
 https://github.com/matthewhand/open-swarm.git
 ```
 
-Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home`.
+Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home` (REQ-45). Pinokio requires root `pinokio.js`; install/start/update scripts live under `pinokio/`.
 
 ---
 

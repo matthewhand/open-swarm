@@ -36,7 +36,7 @@ help:
 	@echo ""
 	@echo "  🔄 LEGACY:"
 	@echo "    make build NAME=codey                   # Build (uses shim if SWARM_TEST_MODE=1, else PyInstaller)"
-	@echo "    make build-all-pyinstaller              # Bulk build via build_all_blueprints.py"
+	@echo "    make build-all-pyinstaller              # Bulk build via scripts/packaging/build_all_blueprints.py"
 
 # Containerized dev server with uvicorn --reload (same ASGI path as prod).
 # Bind-mounts the source via docker-compose.dev.yml; publishes host :8002 so it
@@ -100,6 +100,6 @@ build-pyinstaller:
 
 # Bulk PyInstaller build using repository helper script
 build-all-pyinstaller:
-	python build_all_blueprints.py
+	python scripts/packaging/build_all_blueprints.py
 
 

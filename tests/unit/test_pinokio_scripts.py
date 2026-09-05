@@ -1,8 +1,8 @@
-"""REQ-47: Pinokio script.git is complete, local-only, and menu-complete.
+"""Pinokio script.git is complete, local-only, and menu-complete.
 
-Loads root pinokio.js / install.js / start.js (and update.js) as CommonJS
-modules. Asserts menu states, valid Pinokio ``run`` arrays, REQ-45 compose
-runtime env, and the hard stops: no pinokio.computer network, no secrets,
+Loads root pinokio.js (re-export) plus pinokio/install.js / start.js / update.js
+as CommonJS modules. Asserts menu states, valid Pinokio ``run`` arrays, REQ-45
+compose runtime env, and the hard stops: no pinokio.computer network, no secrets,
 no real home paths, no git-tag / public-discovery wiring.
 """
 from __future__ import annotations
@@ -18,11 +18,22 @@ REPO = Path(__file__).resolve().parents[2]
 NODE = shutil.which("node")
 
 PINOKIO_JS = REPO / "pinokio.js"
-INSTALL_JS = REPO / "install.js"
-START_JS = REPO / "start.js"
-UPDATE_JS = REPO / "update.js"
+INSTALL_JS = REPO / "pinokio" / "install.js"
+START_JS = REPO / "pinokio" / "start.js"
+UPDATE_JS = REPO / "pinokio" / "update.js"
+MENU_JS = REPO / "pinokio" / "menu.js"
 
-SCRIPT_FILES = (PINOKIO_JS, INSTALL_JS, START_JS, UPDATE_JS)
+ROOT_SHIMS = (
+    REPO / "install.js",
+    REPO / "start.js",
+    REPO / "update.js",
+)
+
+SCRIPT_FILES = (PINOKIO_JS, MENU_JS, INSTALL_JS, START_JS, UPDATE_JS, *ROOT_SHIMS)
+
+INSTALL_HREF = "pinokio/install.js"
+START_HREF = "pinokio/start.js"
+UPDATE_HREF = "pinokio/update.js"
 
 # Real host trees / credential material must not appear in launcher scripts.
 FORBIDDEN_IN_SCRIPTS = (
@@ -77,12 +88,15 @@ if (typeof mod.menu === 'function') {
     },
     running: {
       exists: (p) => String(p).replace(/\\/g, '/') === '.pinokio/installed',
-      running: (p) => p === 'start.js',
+      running: (p) => p === 'pinokio/start.js' || p === 'start.js',
     },
-    installing: { exists: () => false, running: (p) => p === 'install.js' },
+    installing: {
+      exists: () => false,
+      running: (p) => p === 'pinokio/install.js' || p === 'install.js',
+    },
     updating: {
       exists: (p) => String(p).replace(/\\/g, '/') === '.pinokio/installed',
-      running: (p) => p === 'update.js',
+      running: (p) => p === 'pinokio/update.js' || p === 'update.js',
     },
   };
   out.menus = {};
@@ -159,7 +173,7 @@ class TestPinokioMenu:
     def test_not_installed_offers_install(self, pinokio):
         items = pinokio["menus"]["not_installed"]
         assert [i["text"] for i in items] == ["Install"]
-        assert items[0]["href"] == "install.js"
+        assert items[0]["href"] == INSTALL_HREF
         assert items[0].get("default") is True
 
     def test_installed_stopped_offers_start_and_update(self, pinokio):
@@ -167,15 +181,15 @@ class TestPinokioMenu:
         texts = [i["text"] for i in items]
         assert texts == ["Start", "Update"]
         hrefs = {i["text"]: i["href"] for i in items}
-        assert hrefs["Start"] == "start.js"
-        assert hrefs["Update"] == "update.js"
+        assert hrefs["Start"] == START_HREF
+        assert hrefs["Update"] == UPDATE_HREF
         assert items[0].get("default") is True
 
     def test_running_open_app_hrefs_start(self, pinokio):
         items = pinokio["menus"]["running"]
         assert len(items) == 1
         assert items[0]["text"] == "Open App"
-        assert items[0]["href"] == "start.js"
+        assert items[0]["href"] == START_HREF
         assert items[0].get("default") is True
 
     def test_every_menu_href_exists(self, pinokio):
@@ -187,8 +201,8 @@ class TestPinokioMenu:
                     continue
                 seen.add(href)
                 assert (REPO / href).is_file(), f"menu href missing: {href}"
-        assert "install.js" in seen
-        assert "start.js" in seen
+        assert INSTALL_HREF in seen
+        assert START_HREF in seen
 
 
 class TestPinokioRunArrays:
@@ -198,6 +212,7 @@ class TestPinokioRunArrays:
         blob = _messages(install["run"])
         assert "docker compose build" in blob
         assert "docker compose up" not in blob
+        assert "swarm_config.example.json" in blob
 
     def test_start_is_compose_up_with_req45_env(self, start):
         assert start["daemon"] is True
@@ -218,12 +233,21 @@ class TestPinokioRunArrays:
         assert update["run"]
         blob = _messages(update["run"])
         assert "git pull" in blob
-        assert "install.js" in blob
+        assert INSTALL_HREF in blob
         assert any(
             step.get("method") == "script.start"
-            and (step.get("params") or {}).get("uri") == "install.js"
+            and (step.get("params") or {}).get("uri") == INSTALL_HREF
             for step in update["run"]
         )
+
+    def test_root_shims_reexport_implementations(self):
+        shim_install = _load_module(REPO / "install.js")
+        real_install = _load_module(INSTALL_JS)
+        assert shim_install["run"] == real_install["run"]
+        shim_start = _load_module(REPO / "start.js")
+        real_start = _load_module(START_JS)
+        assert shim_start["run"] == real_start["run"]
+        assert shim_start["daemon"] is True
 
 
 class TestPinokioHardStops:

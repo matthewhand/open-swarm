@@ -233,6 +233,8 @@ See [MOA.md](./MOA.md).
 ## 7. Advanced: Configure swarm_config.json
 
 - The main config file is at `~/.config/swarm/swarm_config.json` (XDG compliant).
+  A checkout-local `swarm_config.json` is gitignored; start from
+  [`swarm_config.example.json`](../swarm_config.example.json) or `swarm-cli config init`.
 - Secrets are stored in `~/.config/swarm/.env` and referenced as `${ENV_VAR}` in JSON.
 - Edit it directly (it's plain JSON), then add an `llm` profile like:
   ```jsonc

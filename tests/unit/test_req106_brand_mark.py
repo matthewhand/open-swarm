@@ -20,6 +20,7 @@ LOGIN = REPO / "src" / "swarm" / "templates" / "account" / "login.html"
 INCLUDE = REPO / "src" / "swarm" / "templates" / "includes" / "brand_icons.html"
 SETTINGS_SHEET = REPO / "webui" / "frontend" / "src" / "components" / "SettingsSheet.tsx"
 PINOKIO = REPO / "pinokio.js"
+PINOKIO_MENU = REPO / "pinokio" / "menu.js"
 HERO_JPG = REPO / "assets" / "images" / "openswarm-project-image.jpg"
 OLD_ICO = REPO / "assets" / "images" / "favicon.ico"
 
@@ -209,7 +210,8 @@ def test_webui_chrome_uses_geometric_mark():
 
 
 def test_pinokio_uses_minimal_mark():
-    text = PINOKIO.read_text(encoding="utf-8")
+    assert PINOKIO.is_file()
+    text = PINOKIO_MENU.read_text(encoding="utf-8")
     assert "assets/brand/favicon-minimal.svg" in text
     assert "rest_mode/svg/logo.svg" not in text
     assert "assets/brand/bee-mark.svg" not in text

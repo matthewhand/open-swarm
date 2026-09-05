@@ -1,6 +1,7 @@
 # --- secrets & local state (never ship) ---
 .env
 .env.*
+/swarm_config.json
 *.pem
 *.key
 .letta/

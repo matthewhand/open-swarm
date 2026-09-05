@@ -81,7 +81,13 @@ def get_django_csrf_trusted_origins() -> list[str]:
 
 # Swarm Core Settings
 def get_swarm_config_path() -> str:
-    """Get Swarm config path."""
+    """Get Swarm config path.
+
+    Default is a checkout-local ``swarm_config.json`` (gitignored). Copy
+    ``swarm_config.example.json`` or set ``SWARM_CONFIG_PATH`` / use XDG
+    ``~/.config/swarm/swarm_config.json``. Discovery itself is XDG-first
+    via ``find_config_file``; this helper only supplies the env default.
+    """
     return os.getenv('SWARM_CONFIG_PATH', str(BASE_DIR.parent / 'swarm_config.json'))
 
 

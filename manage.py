@@ -1,5 +1,10 @@
 #!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
+"""Django's command-line utility for administrative tasks.
+
+Stays at the repository root: Django's project convention is ``python manage.py``
+from the checkout (``DJANGO_SETTINGS_MODULE=swarm.settings``). Docker, README,
+and ``make``/docs call this path. Do not move it into ``src/`` or ``scripts/``.
+"""
 import os
 import sys
 from pathlib import Path

@@ -50,7 +50,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 
 *   **Agent Core:** Leverages the `openai-agents` SDK for defining agent behaviors, tool usage, and interaction logic.
 *   **Blueprints (`BlueprintBase`):** Encapsulate the definition of an agent swarm, including agent setup, coordination logic, required configuration (LLMs, MCPs, environment variables), and potentially custom CLI arguments or Django extensions.
-*   **Configuration (`swarm_config.json`):** Centralizes definitions for LLM provider profiles and MCP server configurations, allowing flexible swapping and management. Environment variables (via `.env`) are used for sensitive keys.
+*   **Configuration (`swarm_config.json`):** Centralizes definitions for LLM provider profiles and MCP server configurations, allowing flexible swapping and management. Environment variables (via `.env`) are used for sensitive keys. The committed template is `swarm_config.example.json`; a real `swarm_config.json` at the checkout root is gitignored.
 *   **`swarm-cli`:** Provides user-facing commands (built with `typer`) for managing blueprints and config. Commands available today include: `list`, `launch`, `install` / `install-executable`, `add`, `delete`, `uninstall`, `config` (`list`/`add`/`remove`), `moa`, `moa-init`, `skills`, `cli-agents` / `agents`, `list-models`, and `wizard`. Uses XDG directories for user-specific data. Installed via PyPI (`pip install open-swarm`). See `USERGUIDE.md` for examples.
 *   **`swarm-api`:** A Django application exposing installed blueprints via an OpenAI-compatible REST API (`/v1/models`, `/v1/chat/completions`). Uses DRF for views and serializers. Authentication is handled via static API tokens. Deployed preferably via Docker.
 
@@ -63,7 +63,10 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 ├── Dockerfile                  # Defines the container build process for swarm-api
 ├── docker-compose.yml          # Base Docker Compose configuration for swarm-api
 ├── docker-compose.override.example.yml # Example for swarm-api customizations
-├── manage.py                   # Django management script (used by swarm-api)
+├── manage.py                   # Django CLI — stays at root (python manage.py convention)
+├── pinokio.js                  # Pinokio sideload entry — must stay at clone root
+├── pinokio/                    # install.js / start.js / update.js / menu.js
+├── scripts/packaging/          # PyInstaller bulk build + runtime hook
 ├── pyproject.toml              # Project metadata and dependencies (for uv/pip, used by both CLI and API)
 ├── setup.py                    # Legacy setup file (consider removing if pyproject.toml is sufficient)
 ├── src/
@@ -108,17 +111,17 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 │   ├── blueprints/             # Integration tests for specific blueprints
 │   └── unit/                   # Unit tests for core components (config, utils, etc.)
 ├── .env.example                # Example environment variables file
-└── swarm_config.json.example   # Example configuration file
+└── swarm_config.example.json   # Example configuration (copy to gitignored swarm_config.json)
 ```
 
 ---
 
 ## Configuration System
 
-*   **Primary File:** `swarm_config.json`.
+*   **Primary File:** `swarm_config.json` (not committed). Start from `swarm_config.example.json`.
 *   **Location:**
     *   **`swarm-cli`:** Uses XDG paths (default: `~/.config/swarm/swarm_config.json`).
-    *   **`swarm-api` (Docker):** Typically mounted from the host (e.g., `./swarm_config.json` mapped to `/app/swarm_config.json`).
+    *   **`swarm-api` (Docker):** Bind-mounts `${HOME}/.config/swarm` (XDG), not a repo-root `swarm_config.json`.
 *   **Loading:** Handled by `swarm.core.config_loader`. It searches upwards from the
     current directory, then checks the default XDG path (primarily relevant
     for `swarm-cli`).
@@ -216,7 +219,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 ## Docker Deployment Details
 
 *   **`Dockerfile`:** Builds the API service image. Installs dependencies via `pip install .`. Runs migrations and starts Django server via `CMD`.
-*   **`docker-compose.yml`:** Defines the `open-swarm` service using a pre-built image by default. Mounts `./blueprints`, `./swarm_config.json`, `./db.sqlite3` from host.
+*   **`docker-compose.yml`:** Defines the `swarm` service. Builds `open-swarm:local`, publishes `:8000`, and bind-mounts XDG config (`${HOME}/.config/swarm`) plus writable state (`${HOME}/.local/share/swarm`).
 *   **`docker-compose.override.example.yml`:** Example override for user customization (additional volumes, local build, env vars); copy to `docker-compose.override.yml` locally.
 
 ---
