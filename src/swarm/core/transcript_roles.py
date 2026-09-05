@@ -64,7 +64,7 @@ def messages_for_model(messages: Iterable[Any] | None) -> list[dict[str, Any]]:
         if content is None:
             content = raw.get("text") or ""
         row: dict[str, Any] = {"role": role, "content": content}
-        name = raw.get("name")
+        name = raw.get("name") or raw.get("speaker") or raw.get("agent")
         if isinstance(name, str) and name.strip():
             row["name"] = name.strip()
         if raw.get("tool_call_id"):

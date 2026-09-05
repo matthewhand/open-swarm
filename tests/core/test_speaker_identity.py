@@ -10,6 +10,7 @@ from swarm.core.cli_catalog import catalog_names
 from swarm.core.remotes import REMOTE_IDS
 from swarm.core.speaker_identity import (
     ADAPTER_NAME_FIELD,
+    SPEAKER_CLOSE,
     SPEAKER_END,
     SPEAKER_OPEN,
     apply_speaker_identity,
