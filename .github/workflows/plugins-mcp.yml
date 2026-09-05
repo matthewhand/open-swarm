@@ -1,0 +1,91 @@
+name: Plugins MCP manage (#502)
+
+# Own-diff CI: manage-path unit tests only. Not the full Python matrix.
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/mcp_plugins.py"
+      - "src/swarm/core/chat_plugin_tools.py"
+      - "src/swarm/views/mcp_plugins_api.py"
+      - "src/swarm/urls.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/extensions/mcp/mcp_utils.py"
+      - "tests/core/test_mcp_plugins.py"
+      - "tests/views/test_mcp_plugins_api.py"
+      - "webui/frontend/src/lib/mcpServers.ts"
+      - "webui/frontend/src/lib/chatPluginTools.ts"
+      - "webui/frontend/src/lib/api.ts"
+      - "webui/frontend/src/lib/__tests__/mcpServers.test.ts"
+      - "webui/frontend/src/lib/__tests__/chatPluginTools.test.ts"
+      - "webui/frontend/src/components/PluginsServersPane.tsx"
+      - "webui/frontend/src/components/__tests__/PluginsServersPane.test.tsx"
+      - ".github/workflows/plugins-mcp.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/mcp_plugins.py"
+      - "src/swarm/core/chat_plugin_tools.py"
+      - "src/swarm/views/mcp_plugins_api.py"
+      - "src/swarm/urls.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/extensions/mcp/mcp_utils.py"
+      - "tests/core/test_mcp_plugins.py"
+      - "tests/views/test_mcp_plugins_api.py"
+      - "webui/frontend/src/lib/mcpServers.ts"
+      - "webui/frontend/src/lib/chatPluginTools.ts"
+      - "webui/frontend/src/lib/api.ts"
+      - "webui/frontend/src/lib/__tests__/mcpServers.test.ts"
+      - "webui/frontend/src/lib/__tests__/chatPluginTools.test.ts"
+      - "webui/frontend/src/components/PluginsServersPane.tsx"
+      - "webui/frontend/src/components/__tests__/PluginsServersPane.test.tsx"
+      - ".github/workflows/plugins-mcp.yml"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest Plugins manage / catalog (#502)
+        working-directory: webui/frontend
+        run: >
+          npx vitest run
+          src/lib/__tests__/mcpServers.test.ts
+          src/lib/__tests__/chatPluginTools.test.ts
+          src/components/__tests__/PluginsServersPane.test.tsx
+          src/components/__tests__/SettingsSheet.test.tsx
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: MCP plugins unit + API tests
+        run: >
+          uv run pytest
+          tests/core/test_mcp_plugins.py
+          tests/core/test_chat_plugin_tools.py
+          tests/views/test_mcp_plugins_api.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"

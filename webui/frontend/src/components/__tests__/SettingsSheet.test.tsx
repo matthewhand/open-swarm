@@ -93,12 +93,50 @@ describe('SettingsSheet', () => {
     expect(localStorage.getItem(BUMP_COMPLETED_KEY)).toBe('0')
   })
 
-  it('adds a local MCP server from Plugins without storing secrets', () => {
+  it('adds a local MCP server from Plugins without storing secrets', async () => {
+    const servers: Record<string, unknown>[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method || 'GET').toUpperCase()
+        if (url.includes('/v1/mcp-plugins/') && method === 'POST' && !url.includes('discover')) {
+          const body = JSON.parse(String(init?.body || '{}'))
+          servers.push({
+            name: String(body.name || '')
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-'),
+            label: body.name,
+            kind: body.kind,
+            enabled: true,
+            command: body.command || '',
+            args: body.args || [],
+            url: '',
+            env: {},
+            headers: {},
+            provides: body.provides || [],
+            note: body.note || '',
+            tools: [],
+          })
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'mcp_plugins', scope: 'global_servers_per_chat_tools', servers }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'mcp_plugins', scope: 'global_servers_per_chat_tools', servers }),
+        } as Response
+      }),
+    )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
-    expect(screen.getByTestId('os-plugins-settings')).toHaveTextContent(/No keys or tokens/i)
+    expect(screen.getByTestId('os-plugins-settings')).toHaveTextContent(/never paste a token/i)
     fireEvent.click(screen.getByRole('button', { name: 'Fetch' }))
-    expect(screen.getByRole('list', { name: 'Configured MCP servers' })).toHaveTextContent('Fetch')
+    expect(await screen.findByRole('list', { name: 'Configured MCP servers' })).toHaveTextContent('Fetch')
     expect(localStorage.getItem('swarm_mcp_servers') || '').not.toMatch(/api[_-]?key|token|secret/i)
   })
 

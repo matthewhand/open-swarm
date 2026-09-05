@@ -30,3 +30,9 @@ def test_apply_allowlist_filters_blueprint_agents():
     apply_chat_plugin_allowlist(blueprint, ["read_file"])
     assert [fn.name for fn in agent.functions] == ["read_file", "chat"]
     assert agent.tools == []
+
+
+def test_dynamic_catalog_ids_drop_discovered_tools():
+    functions = [_fn("acme_lookup"), _fn("chat")]
+    kept = filter_plugin_tools_for_chat(functions, [], catalog_ids=["acme_lookup"])
+    assert [fn.name for fn in kept] == ["chat"]

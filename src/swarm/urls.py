@@ -74,6 +74,11 @@ from swarm.views.herdr_api import (
     HerdrDiscoverAPIView,
 )
 from swarm.views.config_ownership_api import ConfigOwnershipView, ConfigSectionView
+from swarm.views.mcp_plugins_api import (
+    McpPluginDetailView,
+    McpPluginDiscoverView,
+    McpPluginsView,
+)
 from swarm.views.llm_profiles_api import LlmProfilesView
 from swarm.views.preferences_api import UserPreferencesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
@@ -232,6 +237,28 @@ urlpatterns = [
     ),
     path("v1/preferences", UserPreferencesView.as_view(), name="user-preferences-api-no-slash"),
     path("v1/preferences/", UserPreferencesView.as_view(), name="user-preferences-api"),
+    path("v1/mcp-plugins", McpPluginsView.as_view(), name="mcp-plugins-api-no-slash"),
+    path("v1/mcp-plugins/", McpPluginsView.as_view(), name="mcp-plugins-api"),
+    path(
+        "v1/mcp-plugins/discover",
+        McpPluginDiscoverView.as_view(),
+        name="mcp-plugins-discover-no-slash",
+    ),
+    path(
+        "v1/mcp-plugins/discover/",
+        McpPluginDiscoverView.as_view(),
+        name="mcp-plugins-discover",
+    ),
+    path(
+        "v1/mcp-plugins/<str:name>",
+        McpPluginDetailView.as_view(),
+        name="mcp-plugins-detail-no-slash",
+    ),
+    path(
+        "v1/mcp-plugins/<str:name>/",
+        McpPluginDetailView.as_view(),
+        name="mcp-plugins-detail",
+    ),
     # Live list-models probes (REQ-44). More specific "models" routes first.
     path("v1/cli-agents/models", CliAgentModelsView.as_view(), name="cli-agent-models-all-no-slash"),
     path("v1/cli-agents/models/", CliAgentModelsView.as_view(), name="cli-agent-models-all"),

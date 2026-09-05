@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, FileCode2, HardDrive, Plug, Plus, Server } from 'lucide-react'
+import { AlertCircle, FileCode2, HardDrive, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
 import DefinitionPane from './DefinitionPane'
 import AvatarThemePicker from './AvatarThemePicker'
 import EnvOverrideBadge from './EnvOverrideBadge'
 import McpServersPane from './McpServersPane'
+import PluginsServersPane from './PluginsServersPane'
 import CliAgentsSettingsPane from './CliAgentsSettingsPane'
 import ImageGenPane from './ImageGenSettings'
 import SpeechPane from './SpeechSettings'
@@ -63,16 +64,6 @@ import {
   THEME_SET_EVENT,
   type Theme,
 } from '../lib/theme'
-import {
-  MCP_SERVER_TEMPLATES,
-  loadConfiguredMcpServers,
-  newMcpServerId,
-  removeMcpServer,
-  upsertMcpServer,
-  type McpServerEntry,
-  type McpServerKind,
-} from '../lib/mcpServers'
-
 /** Window event so the rail hover-edit, command palette, and tests can open the sheet. */
 export const OPEN_SETTINGS_EVENT = 'swarm:open-settings'
 
@@ -1495,217 +1486,5 @@ function LlmProfilesPane() {
         {saving ? 'Saving…' : 'Save LLM profiles'}
       </Button>
     </form>
-  )
-}
-
-/**
- * #502 manage path: add/edit MCP servers in the document store.
- * No API keys or env values — command/URL + capability tags only.
- * Live attach / list_tools still belongs to the parent MCP programme.
- */
-function PluginsServersPane() {
-  const [servers, setServers] = useState<McpServerEntry[]>(() => loadConfiguredMcpServers())
-  const [adding, setAdding] = useState(false)
-  const [kind, setKind] = useState<McpServerKind>('local')
-  const [name, setName] = useState('')
-  const [command, setCommand] = useState('')
-  const [argsText, setArgsText] = useState('')
-  const [url, setUrl] = useState('')
-  const [providesText, setProvidesText] = useState('')
-  const [note, setNote] = useState('')
-
-  const resetForm = () => {
-    setName('')
-    setCommand('')
-    setArgsText('')
-    setUrl('')
-    setProvidesText('')
-    setNote('')
-    setKind('local')
-  }
-
-  const handleAdd = (event: FormEvent) => {
-    event.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) return
-    const entry: McpServerEntry = {
-      id: newMcpServerId(trimmed),
-      name: trimmed,
-      kind,
-      command: kind === 'local' ? command.trim() : '',
-      args:
-        kind === 'local'
-          ? argsText
-              .split(/\s+/)
-              .map((part) => part.trim())
-              .filter(Boolean)
-          : [],
-      url: kind === 'remote' ? url.trim() : '',
-      provides: providesText
-        .split(/[, ]+/)
-        .map((part) => part.trim())
-        .filter(Boolean),
-      note: note.trim(),
-    }
-    setServers(upsertMcpServer(entry))
-    setAdding(false)
-    resetForm()
-  }
-
-  const addTemplate = (template: (typeof MCP_SERVER_TEMPLATES)[number]) => {
-    setServers(
-      upsertMcpServer({
-        ...template,
-        id: newMcpServerId(template.name),
-      }),
-    )
-  }
-
-  return (
-    <div className="space-y-4" data-testid="os-plugins-settings">
-      <div>
-        <h4 className="text-lg font-semibold">Plugins</h4>
-        <p className="mt-1 text-sm text-base-content/70">
-          Add local or remote MCP servers for this host. Per-chat tool On/Off
-          lives in the rail Plugins popup. Commands only — no keys or tokens
-          here. Live tool listing still uses the shipped catalog until a
-          connected server answers.
-        </p>
-      </div>
-
-      {servers.length === 0 ? (
-        <p className="text-sm text-base-content/60">No servers configured yet.</p>
-      ) : (
-        <ul className="space-y-2" aria-label="Configured MCP servers">
-          {servers.map((server) => (
-            <li
-              key={server.id}
-              className="flex items-start justify-between gap-3 rounded-lg border border-base-300 p-3"
-            >
-              <div className="min-w-0">
-                <p className="font-medium">{server.name}</p>
-                <p className="text-xs text-base-content/55 truncate">
-                  {server.kind === 'remote'
-                    ? server.url || 'Remote URL not set'
-                    : [server.command, ...(server.args || [])].filter(Boolean).join(' ') ||
-                      'Local command not set'}
-                </p>
-                {server.provides.length > 0 ? (
-                  <p className="mt-1 text-xs text-base-content/50">
-                    {server.provides.join(', ')}
-                  </p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() => setServers(removeMcpServer(server.id))}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn btn-sm btn-primary"
-          onClick={() => setAdding((open) => !open)}
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add server
-        </button>
-      </div>
-
-      {adding ? (
-        <form className="space-y-3 rounded-lg border border-base-300 p-3" onSubmit={handleAdd}>
-          <Select
-            label="Kind"
-            name="mcp-kind"
-            value={kind}
-            onChange={(event) => setKind(event.target.value as McpServerKind)}
-            size="sm"
-          >
-            <option value="local">Local command</option>
-            <option value="remote">Remote URL</option>
-          </Select>
-          <Input
-            label="Name"
-            name="mcp-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            size="sm"
-            required
-          />
-          {kind === 'local' ? (
-            <>
-              <Input
-                label="Command"
-                name="mcp-command"
-                value={command}
-                onChange={(event) => setCommand(event.target.value)}
-                size="sm"
-                placeholder="uvx"
-              />
-              <Input
-                label="Args"
-                name="mcp-args"
-                value={argsText}
-                onChange={(event) => setArgsText(event.target.value)}
-                size="sm"
-                placeholder="mcp-server-fetch"
-              />
-            </>
-          ) : (
-            <Input
-              label="URL"
-              name="mcp-url"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              size="sm"
-              placeholder="https://example.invalid/mcp"
-            />
-          )}
-          <Input
-            label="Provides"
-            name="mcp-provides"
-            value={providesText}
-            onChange={(event) => setProvidesText(event.target.value)}
-            size="sm"
-            placeholder="web_fetch"
-          />
-          <Input
-            label="Note"
-            name="mcp-note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            size="sm"
-          />
-          <Button type="submit" variant="primary" size="sm" disabled={!name.trim()}>
-            Save server
-          </Button>
-        </form>
-      ) : null}
-
-      <div>
-        <p className="mb-2 text-sm font-medium">Known non-auth servers</p>
-        <ul className="flex flex-wrap gap-2">
-          {MCP_SERVER_TEMPLATES.map((template) => (
-            <li key={template.name}>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() => addTemplate(template)}
-              >
-                <Plug className="h-3.5 w-3.5" aria-hidden="true" />
-                {template.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
   )
 }
