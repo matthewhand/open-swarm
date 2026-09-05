@@ -180,4 +180,9 @@ export interface ChatMessage {
     status: 'pending' | 'approved' | 'rejected'
     reason: string
   }
+  reactions?: Array<{
+    emoji: string
+    count: number
+    userReacted?: boolean
+  }>
 }
