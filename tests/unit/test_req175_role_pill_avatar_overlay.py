@@ -20,11 +20,12 @@ def test_sidebar_role_badge_overlays_avatar():
         content,
     )
 
-    # Avatar container has relative inline-flex wrapping mark and role badge
+    # Avatar slot (relative) wraps mark + role badge so the pill overlays the avatar
     assert re.search(
-        r'<span className="relative inline-flex shrink-0 mt-1\.5">\s*\{mark\}\s*\{roleBadgeNode\}\s*</span>',
+        r'<span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">\s*\{mark\}\s*\{roleBadgeNode\}\s*</span>',
         content,
     )
+    assert "position: 'absolute'" in content
 
 
 def test_second_row_does_not_contain_role_badge_chip():

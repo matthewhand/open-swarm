@@ -1,4 +1,8 @@
-"""REQ-133: CLI and API chat dropdowns with model selectors (Fixes #523)."""
+"""REQ-133: CLI chat dropdowns with model selectors (Fixes #523).
+
+API You/Default chrome (`api-select`) was removed in #751 / REQ-186.
+This contract keeps the CLI + model picker that still exist on ChatPage.
+"""
 
 from pathlib import Path
 import pytest
@@ -14,24 +18,24 @@ CLI_CONTEXT_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "cliAgentCon
 CHAT_STATUS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "chatStatus.ts"
 
 
-def test_chat_page_renders_cli_and_api_dropdowns_with_models():
+def test_chat_page_renders_cli_dropdowns_with_models():
     tsx = CHAT_PAGE_TSX.read_text(encoding="utf-8")
     assert "isCliAgent" in tsx
     assert "isApiAgent" in tsx
     assert "showRemotesControl" in tsx
 
-    # CLI controls
+    # CLI + model picker still on ChatPage
     assert 'data-testid="cli-select"' in tsx
     assert 'aria-label="CLI"' in tsx
     assert 'data-testid="cli-model-select"' in tsx
 
-    # API controls
-    assert 'data-testid="api-select"' in tsx
-    assert 'aria-label="API"' in tsx
+    # #751 removed You/Default API chrome — do not require it here (REQ-186 forbids it)
+    assert 'data-testid="api-select"' not in tsx
+    assert 'aria-label="API"' not in tsx
+    assert "recordDropdownChange('api'" not in tsx
 
-    # Status tracking on change
+    # Status tracking on remaining dropdowns
     assert "recordDropdownChange('cli'" in tsx
-    assert "recordDropdownChange('api'" in tsx
     assert "recordDropdownChange('model'" in tsx
 
 
