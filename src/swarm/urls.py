@@ -127,7 +127,7 @@ from swarm.views.webui import WebUIView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", index, name="index"),  # Root path for web UI
-    # REQ-106 bee mark — root URLs browsers and the SPA head request.
+    # REQ-106 / #768 bee marks — root URLs browsers and the SPA head request.
     # Registered before the SPA catch-all so /favicon.ico is not index.html.
     path("favicon.ico", brand_root_file, {"filename": "favicon.ico"}, name="brand-favicon"),
     path("favicon-16.png", brand_root_file, {"filename": "favicon-16.png"}, name="brand-favicon-16"),
@@ -136,6 +136,8 @@ urlpatterns = [
     path("icon-192.png", brand_root_file, {"filename": "icon-192.png"}, name="brand-icon-192"),
     path("icon-512.png", brand_root_file, {"filename": "icon-512.png"}, name="brand-icon-512"),
     path("manifest.json", brand_root_file, {"filename": "manifest.json"}, name="brand-manifest"),
+    path("favicon-minimal.svg", brand_root_file, {"filename": "favicon-minimal.svg"}, name="brand-favicon-minimal"),
+    path("webui-geometric.svg", brand_root_file, {"filename": "webui-geometric.svg"}, name="brand-webui-geometric"),
     # First-class SPA Chat (composer + Connected). Agent Router is /agents.
     path("chat", spa_chat, name="spa_chat"),
     path("chat/", spa_chat, name="spa_chat_slash"),

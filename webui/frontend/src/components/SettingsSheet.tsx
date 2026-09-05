@@ -181,6 +181,16 @@ export default function SettingsSheet({
     >
       <div className="flex min-h-[24rem] flex-1 flex-col gap-0 overflow-hidden rounded-box border border-base-300 md:flex-row">
         <nav aria-label="Settings sections" className="w-full shrink-0 border-b border-base-300 bg-base-200 md:w-52 md:border-b-0 md:border-r">
+          <div className="flex items-center gap-2 px-3 pt-3 pb-1">
+            <img
+              src="/webui-geometric.svg"
+              alt=""
+              width={28}
+              height={28}
+              className="os-brand-mark-geometric shrink-0"
+            />
+            <span className="text-sm font-semibold tracking-tight">Open Swarm</span>
+          </div>
           <ul className="menu menu-md w-full rounded-none p-2">
             <li>
               <button

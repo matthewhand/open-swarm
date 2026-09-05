@@ -103,6 +103,6 @@ module.exports = {
   version: "2.0",
   title: "Open Swarm",
   description: "Open Swarm — multi-agent AI workflows as a local CLI, OpenAI-compatible API, and web UI.",
-  icon: "assets/brand/bee-mark.svg",
+  icon: "assets/brand/favicon-minimal.svg",
   menu,
 }
