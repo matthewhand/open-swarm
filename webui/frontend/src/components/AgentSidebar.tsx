@@ -1017,11 +1017,11 @@ export default function AgentSidebar({
     ) : null
     const body = (
       <>
-        <span className="relative inline-flex shrink-0 mt-1.5">
+        <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
           {mark}
           {roleBadgeNode}
         </span>
-        <span className="min-w-0 flex-1">
+        <span className="os-agent-row__label-col min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
             <span className="flex items-center gap-1 shrink-0">
@@ -1188,7 +1188,7 @@ export default function AgentSidebar({
         }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'team', sessions)}
       >
-        <span className={`relative inline-flex shrink-0 ${singleMember ? 'mt-1.5' : 'mt-0.5'}`}>
+        <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
           {totalMembers >= 2 ? (
             <AvatarStack
               faces={stacked.faces}
@@ -1246,7 +1246,7 @@ export default function AgentSidebar({
             Team
           </span>
         </span>
-        <span className="min-w-0 flex-1">
+        <span className="os-agent-row__label-col min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
             <span className="flex items-center gap-1 shrink-0">
@@ -1337,7 +1337,7 @@ export default function AgentSidebar({
         }}
         onContextMenu={(event) => openMenu(event, hideId, name, hidden, 'remote', sessions)}
       >
-        <span className={`relative inline-flex shrink-0 ${singleMember ? 'mt-1.5' : 'mt-0.5'}`}>
+        <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
           {totalMembers >= 2 ? (
             <AvatarStack
               faces={stacked.faces}
@@ -1379,7 +1379,7 @@ export default function AgentSidebar({
             Remote
           </span>
         </span>
-        <span className="min-w-0 flex-1">
+        <span className="os-agent-row__label-col min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
             <span className="flex items-center gap-1 shrink-0">
@@ -1427,7 +1427,7 @@ export default function AgentSidebar({
               return (
                 <li key={`team-slot-${m.id}`}>
                   <span className="os-agent-row os-agent-row--team os-agent-row--nested">
-                    <span className="relative inline-flex shrink-0 mt-0.5">
+                    <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
                       <Users className="os-agent-team-icon h-4 w-4 shrink-0" aria-hidden="true" />
                       <span
                         className="os-agent-role-badge"
@@ -1466,7 +1466,7 @@ export default function AgentSidebar({
                         Team
                       </span>
                     </span>
-                    <span className="min-w-0 flex-1">
+                    <span className="os-agent-row__label-col min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold leading-5">
                         {m.team_id || m.id}
                       </span>
