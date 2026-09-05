@@ -20,6 +20,7 @@ import { exampleRoleAgents } from '../lib/agentRoles'
 import { agentLabel } from '../lib/supportAgent'
 import { dispatchToggleTheme } from '../lib/theme'
 import { searchShortcutLabel } from '../lib/keybindingTips'
+import AgentAvatar from './AgentAvatar'
 
 export const SEARCH_PALETTE_TABS = [
   'All',
@@ -48,6 +49,8 @@ interface PaletteRow {
   href?: string
   overlay?: ChromeOverlay
   action?: () => void
+  agentId?: string
+  avatarPath?: string | null
 }
 
 export interface SearchPaletteProps {
@@ -82,6 +85,8 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
       name: agentLabel(agent),
       description: agent.description || `${agentLabel(agent)} agent`,
       href: `/chat?blueprint=${encodeURIComponent(agent.id)}`,
+      agentId: agent.id,
+      avatarPath: agent.avatar_path,
     }))
     const actionRows: PaletteRow[] = [
       {
@@ -300,7 +305,13 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => choose(row)}
               >
-                <RowIcon tab={row.tab} id={row.id} />
+                <RowIcon
+                  tab={row.tab}
+                  id={row.id}
+                  agentId={row.agentId}
+                  avatarPath={row.avatarPath}
+                  name={row.name}
+                />
                 <span className="min-w-0 flex-1">
                   <span className="os-search-row__name">{row.name}</span>
                   <span className="os-search-row__desc">{row.description}</span>
@@ -321,12 +332,34 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
   )
 }
 
-function RowIcon({ tab, id }: { tab: PaletteRow['tab']; id: string }) {
+function RowIcon({
+  tab,
+  id,
+  agentId,
+  avatarPath,
+  name,
+}: {
+  tab: PaletteRow['tab']
+  id: string
+  agentId?: string
+  avatarPath?: string | null
+  name?: string
+}) {
   if (tab === 'Bots') {
-    const mark = agentMarkIndex(id.replace(/^bot-/, ''))
+    const botId = agentId || id.replace(/^bot-/, '')
+    const mark = agentMarkIndex(botId)
     return (
-      <span className="os-search-row__icon" data-mark={String(mark)} aria-hidden="true">
-        <Bot className="h-4 w-4" />
+      <span
+        className="os-search-row__icon os-search-row__icon--avatar flex items-center justify-center shrink-0 !bg-transparent rounded-full overflow-hidden"
+        data-mark={String(mark)}
+        aria-hidden="true"
+      >
+        <AgentAvatar
+          src={avatarPath}
+          agentId={botId}
+          alt={name || botId}
+          size="sm"
+        />
       </span>
     )
   }
