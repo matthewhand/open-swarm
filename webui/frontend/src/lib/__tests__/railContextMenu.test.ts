@@ -24,6 +24,7 @@ describe('railMenuItems (REQ-82)', () => {
       'duplicate',
       'copy-id',
       'hide',
+      'notify',
       'delete',
     ])
     expect(unpinned.at(-1)).toMatchObject({ id: 'delete', danger: true, label: 'Delete' })
@@ -37,10 +38,28 @@ describe('railMenuItems (REQ-82)', () => {
 
   it('omits Edit Profile and Duplicate for CLI (honest, not grey lies)', () => {
     const items = railMenuItems({ ...base, kind: 'cli' })
-    expect(items.map((item) => item.id)).toEqual(['pin', 'unread', 'copy-id', 'hide', 'delete'])
+    expect(items.map((item) => item.id)).toEqual([
+      'pin',
+      'unread',
+      'copy-id',
+      'hide',
+      'notify',
+      'delete',
+    ])
     expect(items.find((item) => item.id === 'edit')).toBeUndefined()
     expect(items.find((item) => item.id === 'duplicate')).toBeUndefined()
     expect(RAIL_MENU_REASONS.cliNoProfile).toMatch(/no swarm-owned profile/i)
+  })
+
+  it('lists Notifications Off by default and On when enabled (REQ-98)', () => {
+    const off = railMenuItems({ ...base, kind: 'api' })
+    expect(off.find((item) => item.id === 'notify')).toMatchObject({
+      id: 'notify',
+      label: 'Notifications: Off',
+    })
+    const on = railMenuItems({ ...base, kind: 'api', notifyEnabled: true })
+    expect(on.find((item) => item.id === 'notify')?.label).toBe('Notifications: On')
+    expect(on.at(-1)?.id).toBe('delete')
   })
 
   it('adds Select session for CLI when requested (REQ-104)', () => {

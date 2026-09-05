@@ -491,6 +491,15 @@ describe('AgentSidebar Grok rail', () => {
     window.removeEventListener('swarm:open-agent-editor', onOpen)
   })
 
+  it('REQ-98: context menu lists Notifications Off by default', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    fireEvent.contextMenu(codey)
+    expect(await screen.findByRole('menuitem', { name: /Notifications: Off/i })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Notifications: On/i })).not.toBeInTheDocument()
+  })
+
   it('pins from the context menu onto the unlabeled favourite grid', async () => {
     renderSidebar()
 

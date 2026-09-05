@@ -1,6 +1,7 @@
 import { Fragment, type Ref } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Bell,
   Circle,
   ClipboardCopy,
   CopyPlus,
@@ -28,6 +29,7 @@ const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'copy-id': ClipboardCopy,
   hide: EyeOff,
   unhide: Eye,
+  notify: Bell,
   delete: Trash2,
 }
 

@@ -92,6 +92,7 @@ import {
 } from '../lib/safety'
 import { notifyGenerationComplete } from '../lib/railOrder'
 import { publishExpectedSpaVersion } from '../lib/spaHello'
+import { maybeNotifyAgentTurn } from '../lib/agentNotifications'
 import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
@@ -101,7 +102,7 @@ import {
   teamHideId,
   teamThreadId,
 } from '../lib/teamRosters'
-import { fetchConfiguredRemotes, remoteHideId } from '../lib/remotesCatalog'
+import { fetchConfiguredRemotes, remoteDisplayName, remoteHideId } from '../lib/remotesCatalog'
 import { configuredRemotes } from '../lib/remotes'
 import {
   AGENT_REMOTE_BINDINGS_CHANGED_EVENT,
@@ -453,11 +454,21 @@ const ChatPage = () => {
   const selectedAgentName = teamFromUrl
     ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
     : remoteFromUrl
-      ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
-      : editedAgentLabel({
-          id: selectedBlueprint,
-          name: fallbackAgentName,
-        })
+          ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
+          : editedAgentLabel({
+              id: selectedBlueprint,
+              name: fallbackAgentName,
+            })
+  const notifyCtxRef = useRef({
+    agentId: activeChatAgentId,
+    agentName: selectedAgentName,
+  })
+  notifyCtxRef.current = {
+    agentId: activeChatAgentId,
+    agentName: remoteFromUrl
+      ? remoteDisplayName(selectedRemote || { id: remoteFromUrl, title: selectedAgentName })
+      : selectedAgentName,
+  }
   const signInHref = chatLoginHref(searchParams)
 
   const isRemoteBackedTeam = Boolean(
@@ -988,8 +999,18 @@ const ChatPage = () => {
         return { ...prev, [threadKey]: next }
       })
       if (event.kind === 'assistant_final') {
-        if (activeChatAgentId) {
-          notifyGenerationComplete(activeChatAgentId)
+        const { agentId, agentName } = notifyCtxRef.current
+        if (agentId) {
+          notifyGenerationComplete(agentId, {
+            snippet: event.text,
+            agentName,
+          })
+          maybeNotifyAgentTurn({
+            agentId,
+            agentName,
+            snippet: event.text,
+            selectedAgentId: agentId,
+          })
         }
       }
     },
@@ -1042,14 +1063,31 @@ const ChatPage = () => {
       const rejected = event.code === WS_AUTH_REQUIRED_CODE
       setAuthRejected(rejected)
       setStatus(opened ? 'closed' : 'failed')
+      let interrupted = false
       setThreads((prev) => {
         const current = prev[threadKey]
         if (!current || !current.some((m) => m.streaming)) return prev
+        interrupted = true
         return {
           ...prev,
           [threadKey]: current.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
         }
       })
+      if (interrupted) {
+        const { agentId, agentName } = notifyCtxRef.current
+        if (agentId) {
+          notifyGenerationComplete(agentId, {
+            failed: true,
+            agentName,
+          })
+          maybeNotifyAgentTurn({
+            agentId,
+            agentName,
+            failed: true,
+            selectedAgentId: agentId,
+          })
+        }
+      }
 
       const attempt = backoffAttemptRef.current
       if (shouldAutoReconnect(event.code, intentionalCloseRef.current, attempt)) {
@@ -1440,10 +1478,22 @@ const ChatPage = () => {
     } else if (wasStreamingRef.current) {
       wasStreamingRef.current = false
       if (activeChatAgentId) {
-        notifyGenerationComplete(activeChatAgentId)
+        const lastAssistant = [...messages]
+          .reverse()
+          .find((message) => message.role === 'assistant' && message.text)
+        notifyGenerationComplete(activeChatAgentId, {
+          snippet: lastAssistant?.text,
+          agentName: selectedAgentName,
+        })
+        maybeNotifyAgentTurn({
+          agentId: activeChatAgentId,
+          agentName: selectedAgentName,
+          snippet: lastAssistant?.text,
+          selectedAgentId: activeChatAgentId,
+        })
       }
     }
-  }, [streamingMessage, activeChatAgentId])
+  }, [streamingMessage, activeChatAgentId, messages, selectedAgentName])
 
   const handleCompact = useCallback(async () => {
     setPlusOpen(false)

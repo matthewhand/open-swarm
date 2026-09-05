@@ -511,6 +511,8 @@ describe('ChatPage Send path with mock inference', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    localStorage.removeItem('swarm_notify_agents')
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
   })
 
   it('renders mock assistant content after the user types and clicks Send', async () => {
@@ -610,6 +612,57 @@ describe('ChatPage Send button honesty while streaming', () => {
     })
     expect(completed).toEqual(['codey'])
     window.removeEventListener('swarm:generation-complete', onComplete)
+  })
+
+  it('REQ-98: Notification constructor runs only when On + granted + hidden tab', async () => {
+    const { NOTIFY_AGENTS_STORAGE_KEY, resetNotifyDedupe } = await import(
+      '../../lib/agentNotifications'
+    )
+    localStorage.setItem(NOTIFY_AGENTS_STORAGE_KEY, JSON.stringify(['codey']))
+    resetNotifyDedupe()
+    const instances: Array<{ title: string; body?: string }> = []
+    class MockNotification {
+      static permission: NotificationPermission = 'granted'
+      static requestPermission = vi.fn(async () => 'granted' as NotificationPermission)
+      title: string
+      options?: NotificationOptions
+      onclick: ((this: Notification, ev: Event) => void) | null = null
+      close = vi.fn()
+      constructor(title: string, options?: NotificationOptions) {
+        this.title = title
+        this.options = options
+        instances.push({ title, body: options?.body })
+      }
+    }
+    vi.stubGlobal('Notification', MockNotification)
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
+
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-done-n1" hx-swap-oob="true">finished quietly</div>',
+        }),
+      )
+    })
+    expect(instances.length).toBeGreaterThan(0)
+    expect(instances[0].body).toContain('finished quietly')
+
+    instances.length = 0
+    localStorage.setItem(NOTIFY_AGENTS_STORAGE_KEY, '[]')
+    resetNotifyDedupe()
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-done-n2" hx-swap-oob="true">should not popup</div>',
+        }),
+      )
+    })
+    expect(instances).toHaveLength(0)
   })
 })
 
