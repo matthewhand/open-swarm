@@ -512,6 +512,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             {"contents_div_id": contents_div_id, "message": canned},
         )
         await self.send(text_data=final_html)
+        await self._persist_completed_turn()
         await self._emit_suggestions_if_enabled(None)
 
     async def _emit_teammate_task_cards(self, params, message_text):
@@ -557,6 +558,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 {"contents_div_id": contents_div_id, "message": canned},
             )
             await self.send(text_data=final_html)
+            await self._persist_completed_turn()
             await self._emit_suggestions_if_enabled(blueprint_id)
             return
 
@@ -805,7 +807,26 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             },
         )
         await self.send(text_data=final_message_html)
+        await self._persist_completed_turn()
         await self._emit_suggestions_if_enabled(blueprint_id, blueprint=blueprint_instance)
+
+    async def _persist_completed_turn(self):
+        """REQ-171A-2: write JSON + Django rows after a finished assistant turn.
+
+        Disconnect still saves (idempotent replace). Status and edit keep
+        their own immediate save. Load order is unchanged (H5).
+        """
+        if not getattr(self.user, "is_authenticated", False):
+            return
+        conversation_id = getattr(self, "conversation_id", None)
+        if not conversation_id:
+            return
+        try:
+            await self.save_conversation(conversation_id, self.messages)
+        except Exception:
+            logger.exception(
+                "Failed to persist completed chat turn %s", conversation_id
+            )
 
     async def _emit_suggestions_if_enabled(self, agent_id, blueprint=None):
         """REQ-85: JSON chips after a finished turn (never mid-token, never in LLM context)."""
@@ -1024,6 +1045,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await client.close()
         await self.send(text_data=final_message)
+        await self._persist_completed_turn()
         await self._emit_suggestions_if_enabled(None)
 
     async def apply_message_edit(self, edit):

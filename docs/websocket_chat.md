@@ -69,8 +69,10 @@ of `spa-chat.png` shows **Connected**. The checked-in desktop/mobile frames
 
 Each agent thread is a JSON file under `$SWARM_CHAT_DIR` (default
 `$SWARM_USER_DATA_DIR/chats`): `active/<user>/<agent>.json`. The consumer
-mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
-SPA after reload or agent switch. Retention (counts, disk, trash,
+mirrors the transcript there when a turn finishes (`assistant_final` /
+blueprint final partial — REQ-171A-2) and again on disconnect (idempotent
+replace). Status and edit frames still save immediately. `GET /chat/thread/?agent=`
+hydrates the SPA after reload or agent switch. Retention (counts, disk, trash,
 `SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
 
 Dropdown changes (REQ-46) record a status event with a timestamp. The SPA
