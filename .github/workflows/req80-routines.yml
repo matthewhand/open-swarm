@@ -1,0 +1,92 @@
+name: REQ-80 routines pane
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/routines.py"
+      - "src/swarm/views/routines_api.py"
+      - "src/swarm/urls.py"
+      - "tests/core/test_routines.py"
+      - "tests/views/test_routines_api.py"
+      - "tests/unit/test_req80_routines_chrome.py"
+      - "webui/frontend/src/lib/routines.ts"
+      - "webui/frontend/src/lib/__tests__/routines.test.ts"
+      - "webui/frontend/src/components/ComputerControlStub.tsx"
+      - "webui/frontend/src/components/ComputerRoutinesPane.tsx"
+      - "webui/frontend/src/components/__tests__/ComputerControlStub.test.tsx"
+      - "webui/frontend/src/components/__tests__/OverlaysKeepChatMounted.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
+      - "webui/frontend/e2e/chrome.spec.ts"
+      - ".github/workflows/req80-routines.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/routines.py"
+      - "src/swarm/views/routines_api.py"
+      - "src/swarm/urls.py"
+      - "tests/core/test_routines.py"
+      - "tests/views/test_routines_api.py"
+      - "tests/unit/test_req80_routines_chrome.py"
+      - "webui/frontend/src/lib/routines.ts"
+      - "webui/frontend/src/lib/__tests__/routines.test.ts"
+      - "webui/frontend/src/components/ComputerControlStub.tsx"
+      - "webui/frontend/src/components/ComputerRoutinesPane.tsx"
+      - "webui/frontend/src/components/__tests__/ComputerControlStub.test.tsx"
+      - "webui/frontend/src/components/__tests__/OverlaysKeepChatMounted.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
+      - "webui/frontend/e2e/chrome.spec.ts"
+      - ".github/workflows/req80-routines.yml"
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: REQ-80 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/core/test_routines.py \
+            tests/views/test_routines_api.py \
+            tests/unit/test_req80_routines_chrome.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+  frontend-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-80 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/routines.test.ts \
+            src/components/__tests__/ComputerControlStub.test.tsx \
+            src/components/__tests__/OverlaysKeepChatMounted.test.tsx
+          npx vitest run src/pages/__tests__/ChatPage.test.tsx \
+            -t "computer-control pane"

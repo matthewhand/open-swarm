@@ -1,67 +1,46 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Monitor } from 'lucide-react'
+import { Modal } from './DaisyUI'
+import ComputerRoutinesPane from './ComputerRoutinesPane'
+import { notifyOverlayClosed, OPEN_COMPUTER_CONTROL_EVENT } from '../lib/chromeOverlay'
 
 /**
- * REQ-27b Computer-control UI stub ONLY. Click says WIP. No driver, no E2B,
- * no CUA, no xdotool, no CDP.
+ * REQ-80 / #432 — computer-icon right pane: screen thumbnail + Routines.
  *
- * Intent: Show what browser/computer control will look like in open-swarm
- * chrome. Real control comes later via OpenMousBot/Rakazo remotes.
- *
- * Success:
- * 1. Chat header top-right icon tools: computer/monitor icon only
- *    (accessible name “Computer control”; no visible label).
- * 2. Click opens a DaisyUI modal or small pane whose body is clearly WIP
- *    (short copy: computer control will use a placed OpenMousBot or Rakazo remote;
- *    not implemented here).
- * 3. Default: icon visible, feature not attached to any agent tools. No
- *    enable-that-drives-a-machine in this PR.
- * 4. Disabled-looking is OK; do not provision sandboxes.
- *
- * Constraints: React 18 + DaisyUI 5. No Neon. No guest auth.
+ * Replaces the REQ-27b placeholder dialog. Click expands a DaisyUI modal-end
+ * pane over mounted Chat (REQ-48 / #364). No driver, no live host thumbnail,
+ * no secrets.
  */
-export const COMPUTER_CONTROL_WIP_COPY =
-  'Computer control will use a placed OpenMousBot or Rakazo remote; not implemented here.'
+export interface ComputerControlStubProps {
+  agentId?: string
+  agentName?: string
+  hasScreenSession?: boolean
+}
 
-export function ComputerControlStub() {
+export function ComputerControlStub({
+  agentId = '',
+  agentName = 'Agent',
+  hasScreenSession = false,
+}: ComputerControlStubProps) {
   const [open, setOpen] = useState(false)
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const titleId = useId()
 
   useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open) {
-      if (!dialog.open) dialog.showModal()
-    } else if (dialog.open) {
-      dialog.close()
-    }
-  }, [open])
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    const onCancel = (event: Event) => {
-      event.preventDefault()
-      setOpen(false)
-    }
-    const onNativeClose = () => setOpen(false)
-    dialog.addEventListener('cancel', onCancel)
-    dialog.addEventListener('close', onNativeClose)
-    return () => {
-      dialog.removeEventListener('cancel', onCancel)
-      dialog.removeEventListener('close', onNativeClose)
-    }
+    const onOpen = () => setOpen(true)
+    window.addEventListener(OPEN_COMPUTER_CONTROL_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_COMPUTER_CONTROL_EVENT, onOpen)
   }, [])
 
-  const close = () => setOpen(false)
+  const close = () => {
+    setOpen(false)
+    notifyOverlayClosed()
+  }
 
   return (
     <>
       <div className="tooltip tooltip-bottom" data-tip="Computer control">
         <button
           type="button"
-          className="btn btn-ghost btn-sm btn-square opacity-50"
+          className="btn btn-ghost btn-sm btn-square"
           aria-label="Computer control"
           aria-haspopup="dialog"
           aria-expanded={open}
@@ -70,34 +49,20 @@ export function ComputerControlStub() {
           <Monitor className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-      <dialog
-        ref={dialogRef}
-        className={`modal ${open ? 'modal-open' : ''}`}
-        aria-labelledby={titleId}
-        aria-modal={open ? true : undefined}
+      <Modal
+        isOpen={open}
+        onClose={close}
+        placement="end"
+        size="sheet"
+        className="flex min-h-0 max-w-sm flex-col"
+        aria-label="Computer control"
       >
-        <div className="modal-box max-w-sm">
-          <h3 id={titleId} className="font-bold text-lg">
-            Computer control
-          </h3>
-          <div className="mt-3 space-y-3">
-            <p className="text-lg font-bold tracking-wide">WIP</p>
-            <p className="text-sm text-base-content/80">
-              {COMPUTER_CONTROL_WIP_COPY}
-            </p>
-          </div>
-          <div className="modal-action">
-            <button type="button" className="btn btn-sm" onClick={close}>
-              Close
-            </button>
-          </div>
-        </div>
-        <form method="dialog" className="modal-backdrop" onSubmit={close}>
-          <button type="submit" aria-label="Close modal">
-            close
-          </button>
-        </form>
-      </dialog>
+        <ComputerRoutinesPane
+          agentId={agentId}
+          agentName={agentName}
+          hasScreenSession={hasScreenSession}
+        />
+      </Modal>
     </>
   )
 }

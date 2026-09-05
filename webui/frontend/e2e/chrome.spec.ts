@@ -91,6 +91,30 @@ async function stubAgentApis(page: import('@playwright/test').Page) {
       body: JSON.stringify({ status: 'ok' }),
     })
   })
+  await page.route('**/v1/agents/**/routines**', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ object: 'routine_list', agent_id: 'codey', routines: [] }),
+      })
+      return
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        object: 'routine',
+        id: 'r-e2e',
+        name: 'New routine',
+        instruction: '',
+        active: true,
+        trigger: { kind: 'github_pr_merged', owner_repo: '', event: 'merged', actor: 'anyone' },
+        history: [],
+        when_to_run: 'When a PR merges in a GitHub repo…',
+      }),
+    })
+  })
 }
 
 test('Grok chrome is left rail + chat, not a top-nav product shell', async ({ page }) => {
@@ -167,7 +191,7 @@ test('/agents is Agent Router (not redirected to /chat)', async ({ page }) => {
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })
 
-test('chat header Computer control icon opens a WIP modal (REQ-27b)', async ({ page }) => {
+test('chat header Computer control icon opens thumbnail + Routines pane (REQ-80)', async ({ page }) => {
   const jsErrors: string[] = []
   page.on('pageerror', (e) => jsErrors.push(e.message))
   await stubAgentApis(page)
@@ -181,12 +205,17 @@ test('chat header Computer control icon opens a WIP modal (REQ-27b)', async ({ p
   await trigger.click()
   const dialog = page.getByRole('dialog', { name: 'Computer control' })
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByText('WIP', { exact: true })).toBeVisible()
-  await expect(dialog).toContainText(
-    'Computer control will use a placed OpenMousBot or Rakazo remote; not implemented here.',
-  )
-  await expect(dialog.getByRole('checkbox')).toHaveCount(0)
-  await expect(dialog.getByRole('switch')).toHaveCount(0)
+  const thumbnail = dialog.getByTestId('agent-screen-thumbnail')
+  const routines = dialog.getByRole('heading', { name: 'Routines' })
+  await expect(thumbnail).toBeVisible()
+  await expect(routines).toBeVisible()
+  const thumbBox = await thumbnail.boundingBox()
+  const headingBox = await routines.boundingBox()
+  expect(thumbBox && headingBox && thumbBox.y < headingBox.y).toBeTruthy()
+  await expect(dialog.getByRole('button', { name: 'Add routine' })).toBeVisible()
+  await expect(dialog.getByText('No routines yet.')).toBeVisible()
+  await expect(dialog.getByText(/WIP/)).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Chat message' })).toBeVisible()
 
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

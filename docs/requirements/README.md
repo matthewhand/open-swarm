@@ -31,6 +31,7 @@ Oracle from anything in this tree.
 | [REQ-67](./REQ-67.md) | [Role chrome is the badge only — no row fill/border](https://github.com/matthewhand/open-swarm/issues/396) |
 | [REQ-68](./REQ-68.md) | [Stacked avatars for teams and remotes (3 most recent, animate while working)](https://github.com/matthewhand/open-swarm/issues/398) |
 | [REQ-70](./REQ-70.md) | [Status/info as reconstructed UI metadata](https://github.com/matthewhand/open-swarm/issues/789) (parent [#407](https://github.com/matthewhand/open-swarm/issues/407)) |
+| [REQ-80](./REQ-80.md) | [Agent right pane — Routines (PR-merge trigger, history, Test run)](https://github.com/matthewhand/open-swarm/issues/432) |
 | [REQ-105](./REQ-105.md) | [Any agent — Select / New session (Django-backed session list)](https://github.com/matthewhand/open-swarm/issues/469) |
 | [REQ-114](./REQ-114.md) | [Rail right-click — Terminate running CLI process](https://github.com/matthewhand/open-swarm/issues/495) |
 | [REQ-106](./REQ-106.md) | [Bee brand mark — SVG favicon + multi-size app icons (colour + mono)](https://github.com/matthewhand/open-swarm/issues/470); surface split [minimal / geometric / cyber-swarm](https://github.com/matthewhand/open-swarm/issues/768) |
