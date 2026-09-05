@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from swarm.core.speaker_identity import apply_speaker_identity
+from swarm.core.transcript_roles import is_ui_only_role, messages_for_model
 from swarm.models import ChatConversation, ChatMessage, ConversationSummary
 
 
@@ -79,18 +81,39 @@ def _clip(text: str, limit: int = 240) -> str:
 
 
 def summarize_items(items: list[dict[str, Any]]) -> str:
-    """Deterministic extractive compact. No LLM, no secrets, no network."""
+    """Deterministic extractive compact. No LLM, no secrets, no network.
+
+    UI-only status/info rows are skipped so summaries never re-inject chrome.
+    """
     lines: list[str] = []
+    real: list[dict[str, Any]] = []
     for item in items:
         if item.get("kind") == "summary":
+            real.append(item)
             lines.append(f"- [summary] {_clip(str(item.get('body') or ''))}")
             continue
         role = item.get("role") or "user"
+        if is_ui_only_role(role):
+            continue
+        real.append(item)
         content = item.get("content") or item.get("text") or ""
         lines.append(f"- {role}: {_clip(str(content))}")
-    count = len(items)
+    count = len(real)
     noun = "item" if count == 1 else "items"
     return f"Summary of {count} {noun}:\n" + "\n".join(lines)
+
+
+def _message_item(message: dict[str, Any], offset: int) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "kind": "message",
+        "role": (message.get("role") or message.get("sender") or "user"),
+        "content": message.get("content") or message.get("text") or "",
+        "offset": offset,
+    }
+    name = message.get("name") or message.get("speaker") or message.get("agent")
+    if isinstance(name, str) and name.strip():
+        item["name"] = name.strip()
+    return item
 
 
 def build_context_items(
@@ -102,12 +125,7 @@ def build_context_items(
     rows = _as_summary_rows(summaries)
     if not rows:
         return [
-            {
-                "kind": "message",
-                "role": (m.get("role") or m.get("sender") or "user"),
-                "content": m.get("content") or m.get("text") or "",
-                "offset": idx,
-            }
+            _message_item(m, idx)
             for idx, m in enumerate(raw)
         ]
 
@@ -141,14 +159,7 @@ def build_context_items(
             idx = min(len(raw) - 1, _span_bounds(row)[1]) + 1
             continue
         message = raw[idx]
-        items.append(
-            {
-                "kind": "message",
-                "role": (message.get("role") or message.get("sender") or "user"),
-                "content": message.get("content") or message.get("text") or "",
-                "offset": idx,
-            }
-        )
+        items.append(_message_item(message, idx))
         idx += 1
     return items
 
@@ -178,14 +189,18 @@ def build_model_context(
             tree = _format_summary_tree(row, by_id) if row is not None else (item.get("body") or "")
             out.append({"role": "system", "content": f"[Conversation summary]\n{tree}"})
             continue
+        if is_ui_only_role(item.get("role")):
+            continue
         role = item.get("role") or "user"
-        if str(role) == "status":
-            continue  # bubble-less session/status lines are not model context
-        role_s = "assistant" if str(role) == "assistant" else "user"
-        if str(role) == "system":
-            role_s = "system"
-        out.append({"role": role_s, "content": str(item.get("content") or "")})
-    return out
+        role_s = str(role)
+        if role_s not in ("system", "assistant", "tool", "developer"):
+            role_s = "user"
+        row: dict[str, str] = {"role": role_s, "content": str(item.get("content") or "")}
+        name = item.get("name") or item.get("speaker") or item.get("agent")
+        if isinstance(name, str) and name.strip():
+            row["name"] = name.strip()
+        out.append(row)
+    return apply_speaker_identity(out, adapter_id="openai_compat")
 
 
 def context_for_conversation(
@@ -194,21 +209,13 @@ def context_for_conversation(
 ) -> list[dict[str, str]]:
     """Load sqlite summaries for ``conversation_id`` and build model context."""
     if not conversation_id:
-        return [
-            {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
-            for m in (messages or [])
-            if (m.get("role") or "user") != "status"
-        ]
+        return apply_speaker_identity(messages_for_model(messages), adapter_id="openai_compat")
     try:
         rows = list(
             ConversationSummary.objects.filter(conversation_id=conversation_id).order_by("id")
         )
     except Exception:
-        return [
-            {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
-            for m in (messages or [])
-            if (m.get("role") or "user") != "status"
-        ]
+        return apply_speaker_identity(messages_for_model(messages), adapter_id="openai_compat")
     return build_model_context(messages, rows)
 
 
@@ -248,8 +255,21 @@ def _normalize_client_messages(raw: Any) -> list[dict[str, str]]:
             content = item.get("text") or ""
         if not isinstance(content, str):
             content = str(content)
-        role_s = "assistant" if str(role) == "assistant" else "user"
-        out.append({"role": role_s, "content": content})
+        role_raw = str(role)
+        if role_raw == "assistant":
+            role_s = "assistant"
+        elif role_raw in ("status", "info", "system", "tool"):
+            role_s = role_raw
+        else:
+            role_s = "user"
+        row = {"role": role_s, "content": content}
+        ts = item.get("ts") or item.get("timestamp") or item.get("created_at")
+        if isinstance(ts, str) and ts:
+            row["ts"] = ts
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            row["name"] = name.strip()
+        out.append(row)
     return out
 
 
@@ -275,10 +295,7 @@ def ensure_transcript(
     record = chat_store.load(user_key, agent_id)
     stored: list[dict[str, str]] = []
     if record:
-        stored = [
-            {"role": m.get("role", "user"), "content": m.get("content", "")}
-            for m in (record.get("messages") or [])
-        ]
+        stored = _normalize_client_messages(record.get("messages") or [])
 
     chat, _created = ChatConversation.objects.get_or_create(
         conversation_id=conversation_id,
@@ -353,6 +370,8 @@ def compact_backlog(
             if span["end"] < start or span["start"] > end:
                 continue
             mix.append(item)
+            continue
+        if is_ui_only_role(item.get("role")):
             continue
         offset = item.get("offset")
         if isinstance(offset, int) and start <= offset <= end:

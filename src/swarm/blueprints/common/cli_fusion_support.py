@@ -75,16 +75,18 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
 
     A lone user message is passed through verbatim. A multi-turn conversation
     is rendered as a simple ``ROLE: content`` transcript so a one-shot CLI sees
-    the full context.
+    the full context. UI-only status/info rows are dropped (REQ-70). CLI
+    adapters strip a structured ``name`` field, so speaker identity uses the
+    tested delimiter wrap.
     """
-    msgs = [
-        m
-        for m in (messages or [])
-        if isinstance(m, dict)
-        and m.get("content")
-        and m.get("kind") != "prior_history"
-        and (m.get("role") or "") != "status"
-    ]
+    from swarm.core.speaker_identity import apply_speaker_identity
+    from swarm.core.transcript_roles import messages_for_model
+
+    labeled = apply_speaker_identity(
+        messages_for_model(messages),
+        adapter_id="cli",
+    )
+    msgs = [m for m in labeled if isinstance(m, dict) and m.get("content")]
     if not msgs:
         return ""
     if len(msgs) == 1:

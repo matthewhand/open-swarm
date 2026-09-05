@@ -663,9 +663,9 @@ class TestBlueprintSelection:
                 with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
                     await consumer.receive(text_data)
 
-        assert consumer.messages == [
-            {"role": "status", "content": "CLI: antigravity → grok"}
-        ]
+        assert consumer.messages[0]["role"] == "status"
+        assert consumer.messages[0]["content"] == "CLI: antigravity → grok"
+        assert consumer.messages[0]["ts"]
         assert consumer.active_agent == "cli_agent"
         mock_save.assert_awaited_once()
         mock_bp.assert_not_awaited()
@@ -789,7 +789,10 @@ class TestBlueprintSelection:
                 assert any("chat-status-line" in frame for frame in frames)
                 assert any("Started a new echo session." in frame for frame in frames)
                 assert "Restored" not in "".join(frames)
-                assert {"role": "status", "content": "Started a new echo session."} in consumer.messages
+                status_rows = [m for m in consumer.messages if m.get("role") == "status"]
+                assert status_rows
+                assert status_rows[0]["content"] == "Started a new echo session."
+                assert status_rows[0].get("ts")
                 roles = [m["role"] for m in consumer.messages]
                 assert roles.index("status") < roles.index("assistant")
                 status_i = next(i for i, frame in enumerate(frames) if "Started a new echo session." in frame)
