@@ -512,7 +512,8 @@ export function BlueprintsListPane({
   for (const row of assignableBlueprints(
     (customQuery.data?.data ?? []).map(customToCatalogBlueprint),
   )) {
-    byId.set(row.id, row)
+    // Catalog metadata (role / webui) wins on id collision; extras are custom-only.
+    if (!byId.has(row.id)) byId.set(row.id, row)
   }
   if (selectedId && !byId.has(selectedId)) {
     byId.set(selectedId, { id: selectedId, name: selectedId } as Blueprint)
