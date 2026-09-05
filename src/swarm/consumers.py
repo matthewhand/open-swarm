@@ -574,9 +574,12 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 existing = {}
             blueprint_instance.set_params({**existing, **thread_params})
         if isinstance(params, dict) and isinstance(params.get("enabled_tools"), list):
-            from swarm.core.chat_plugin_tools import apply_chat_plugin_allowlist
+            from swarm.core.mcp_plugins import apply_plugin_mcp_runtime, swarm_config
 
-            apply_chat_plugin_allowlist(blueprint_instance, params.get("enabled_tools"))
+            cfg = getattr(blueprint_instance, "config", None)
+            if not isinstance(cfg, dict):
+                cfg = swarm_config()
+            apply_plugin_mcp_runtime(blueprint_instance, cfg, params.get("enabled_tools"))
 
         final_message = None
         token = None

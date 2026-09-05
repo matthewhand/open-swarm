@@ -144,8 +144,11 @@ async def discover_and_merge_agent_tools(agent: Agent, config: dict[str, Any], d
     enabled_tools = config.get("enabled_tools") if isinstance(config, dict) else None
     if isinstance(enabled_tools, list):
         from swarm.core.chat_plugin_tools import filter_plugin_tools_for_chat
+        from swarm.core.mcp_plugins import plugin_catalog_ids
 
-        final_functions = filter_plugin_tools_for_chat(final_functions, enabled_tools)
+        final_functions = filter_plugin_tools_for_chat(
+            final_functions, enabled_tools, catalog_ids=plugin_catalog_ids(config)
+        )
     return final_functions
 
 

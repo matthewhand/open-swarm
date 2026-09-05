@@ -5,13 +5,18 @@
  * conversation/session id — not Neon. Default is opt-in (Off) for the
  * current chat.
  *
- * Degrade: live MCP list_tools is not required for v1. If /v1/config-options
- * mcp_catalog is empty or unreachable, the shipped fixture catalog is used
- * so search / sort / toggles stay real. No secrets are stored or shown.
+ * Catalog priority: GET /v1/mcp-plugins/ discovered tools (#502 live), then
+ * /v1/config-options mcp_catalog, then localStorage configured servers, then
+ * the shipped fixture. No secrets are stored or shown.
  */
 
-import { fetchConfigOptions, type ConfigOptions } from './api'
-import { loadConfiguredMcpServers } from './mcpServers'
+import {
+  fetchConfigOptions,
+  fetchMcpPlugins,
+  type ConfigOptions,
+  type McpPluginsPayload,
+} from './api'
+import { loadConfiguredMcpServers, serversFromApi } from './mcpServers'
 
 export const CHAT_PLUGIN_TOOLS_KEY = 'swarm_chat_plugin_tools'
 export const CHAT_PLUGIN_TOOLS_EVENT = 'swarm:chat-plugin-tools'
@@ -283,7 +288,19 @@ export function toolsFromConfigOptions(options: ConfigOptions | null | undefined
 }
 
 export function toolsFromConfiguredServers(): PluginTool[] {
-  return loadConfiguredMcpServers().flatMap((server) => {
+  return loadConfiguredMcpServers()
+    .filter((server) => server.enabled !== false)
+    .flatMap((server) => {
+    const discovered = server.tools && server.tools.length > 0
+      ? server.tools.map((tool) => ({
+          id: tool.name,
+          name: titleCase(tool.name),
+          description: tool.description || server.note || `${server.name} tool`,
+          serverId: server.id,
+          serverName: server.name,
+        }))
+      : []
+    if (discovered.length > 0) return discovered
     if (server.provides.length > 0) {
       return server.provides.map((cap) => ({
         id: cap,
@@ -305,6 +322,32 @@ export function toolsFromConfiguredServers(): PluginTool[] {
   })
 }
 
+export function toolsFromMcpPlugins(payload: McpPluginsPayload | null | undefined): PluginTool[] {
+  if (!payload) return []
+  const cached = serversFromApi(payload)
+  if (cached.length === 0) return []
+  return cached
+    .filter((server) => server.enabled !== false)
+    .flatMap((server) => {
+      if (server.tools.length > 0) {
+        return server.tools.map((tool) => ({
+          id: tool.name,
+          name: titleCase(tool.name),
+          description: tool.description || server.note || `${server.name} tool`,
+          serverId: server.id,
+          serverName: server.name,
+        }))
+      }
+      return server.provides.map((cap) => ({
+        id: cap,
+        name: titleCase(cap),
+        description: server.note || `${server.name} capability`,
+        serverId: server.id,
+        serverName: server.name,
+      }))
+    })
+}
+
 export interface ResolvedPluginCatalog {
   tools: PluginTool[]
   source: PluginCatalogSource
@@ -323,6 +366,13 @@ export function resolvePluginCatalog(options?: ConfigOptions | null): ResolvedPl
 }
 
 export async function loadPluginCatalog(): Promise<ResolvedPluginCatalog> {
+  try {
+    const plugins = await fetchMcpPlugins()
+    const live = toolsFromMcpPlugins(plugins)
+    if (live.length > 0) return { tools: live, source: 'live' }
+  } catch {
+    /* fall through to config-options / fixture */
+  }
   try {
     const options = await fetchConfigOptions()
     return resolvePluginCatalog(options)

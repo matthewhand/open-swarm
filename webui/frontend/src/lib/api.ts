@@ -1053,3 +1053,58 @@ export function patchConfigSection(
 ): Promise<import('./configOwnership').ConfigSectionPayload> {
   return apiPatch(`/v1/config/sections/${encodeURIComponent(section)}/`, body)
 }
+
+/** GET /v1/mcp-plugins/ — #502 Plugins manage (redacted MCP servers + tools). */
+export interface McpPluginTool {
+  name: string
+  description: string
+}
+
+export interface McpPluginServer {
+  name: string
+  label?: string
+  kind: 'local' | 'remote'
+  enabled: boolean
+  command: string
+  args: string[]
+  url: string
+  type?: string
+  cwd?: string
+  env: Record<string, string>
+  headers: Record<string, string>
+  provides: string[]
+  note: string
+  tools: McpPluginTool[]
+}
+
+export interface McpPluginsPayload {
+  object: 'mcp_plugins'
+  scope: string
+  servers: McpPluginServer[]
+}
+
+export interface McpPluginDiscoverPayload {
+  object: 'mcp_plugin_tools'
+  name: string
+  kind: 'local' | 'remote'
+  tools: McpPluginTool[]
+}
+
+export function fetchMcpPlugins(): Promise<McpPluginsPayload> {
+  return apiGet<McpPluginsPayload>('/v1/mcp-plugins/')
+}
+
+export function upsertMcpPlugin(body: Record<string, unknown>): Promise<McpPluginsPayload> {
+  return apiPost<McpPluginsPayload>('/v1/mcp-plugins/', body)
+}
+
+export async function deleteMcpPlugin(name: string): Promise<McpPluginsPayload> {
+  await apiDelete(`/v1/mcp-plugins/${encodeURIComponent(name)}/`)
+  return fetchMcpPlugins()
+}
+
+export function discoverMcpPluginTools(
+  body: Record<string, unknown>,
+): Promise<McpPluginDiscoverPayload> {
+  return apiPost<McpPluginDiscoverPayload>('/v1/mcp-plugins/discover/', body)
+}

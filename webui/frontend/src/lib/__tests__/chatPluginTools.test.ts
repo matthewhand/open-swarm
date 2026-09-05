@@ -9,6 +9,7 @@ import {
   saveEnabledPluginToolIds,
   setPluginToolEnabled,
   sortPluginTools,
+  toolsFromMcpPlugins,
   visiblePluginTools,
 } from '../chatPluginTools'
 import { MCP_SERVERS_KEY } from '../mcpServers'
@@ -126,5 +127,42 @@ describe('catalog degrade', () => {
     expect(resolved.source).toBe('live')
     expect(JSON.stringify(resolved.tools)).not.toMatch(/BRAVE|API_KEY|secret/i)
     expect(resolved.tools[0].id).toBe('web_search')
+  })
+
+  it('maps discovered MCP plugin tools and skips disabled servers', () => {
+    const tools = toolsFromMcpPlugins({
+      object: 'mcp_plugins',
+      scope: 'global_servers_per_chat_tools',
+      servers: [
+        {
+          name: 'fetch',
+          kind: 'local',
+          enabled: true,
+          command: 'uvx',
+          args: ['mcp-server-fetch'],
+          url: '',
+          env: {},
+          headers: {},
+          provides: [],
+          note: '',
+          tools: [{ name: 'fetch', description: 'Fetch a URL' }],
+        },
+        {
+          name: 'time',
+          kind: 'local',
+          enabled: false,
+          command: 'uvx',
+          args: ['mcp-server-time'],
+          url: '',
+          env: {},
+          headers: {},
+          provides: ['get_current_time'],
+          note: '',
+          tools: [{ name: 'get_current_time', description: 'Now' }],
+        },
+      ],
+    })
+    expect(tools.map((tool) => tool.id)).toEqual(['fetch'])
+    expect(JSON.stringify(tools)).not.toMatch(/token|secret|sk-/i)
   })
 })

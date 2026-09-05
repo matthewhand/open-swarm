@@ -52,7 +52,7 @@ WEBUI_SECTIONS: tuple[str, ...] = (
 SETTINGS_PANES: dict[str, str] = {
     "llm": "llm-profiles",
     "settings": "llm-profiles",
-    "mcpServers": "mcp",
+    "mcpServers": "plugins",
     "remotes": "remotes",
     "cli_agents": "cli-agents",
     "agent_team": "remotes",
@@ -268,9 +268,9 @@ _INVENTORY: tuple[dict[str, Any], ...] = (
         "write_api": "/v1/config/sections/mcpServers/",
         "settings_section": "mcp",
         "ui": "pane",
-        "secret_fields": ["api_key", "env"],
+        "secret_fields": ["api_key", "env", "headers"],
         "env_twins": {},
-        "notes": "MCP server map. env values for secret keys must be ${VAR}.",
+        "notes": "MCP server map (Plugins manage). env/headers values must be ${VAR}.",
     },
     {
         "key": "remotes",
