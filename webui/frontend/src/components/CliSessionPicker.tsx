@@ -44,8 +44,13 @@ export default function CliSessionPicker({
 
   const pasted = useMemo(() => sanitizeCliSessionId(query), [query])
   const visible = useMemo(() => filterCliSessions(sessions, query), [query, sessions])
+  // Paste-id is for an arbitrary id that is not already in the list. If the
+  // query matches existing title/snippet/id rows, treat it as a filter only.
   const showPaste =
-    Boolean(pasted) && !visible.some((row) => row.id === pasted) && looksLikeSessionId(query)
+    Boolean(pasted) &&
+    looksLikeSessionId(query) &&
+    !sessions.some((row) => row.id === pasted) &&
+    visible.length === 0
 
   const rows = useMemo(() => {
     const list = [...visible]
