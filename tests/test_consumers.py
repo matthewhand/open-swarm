@@ -669,9 +669,10 @@ class TestBlueprintSelection:
                 with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
                     await consumer.receive(text_data)
 
-        assert consumer.messages[0]["role"] == "status"
-        assert consumer.messages[0]["content"] == "CLI: antigravity → grok"
-        assert consumer.messages[0]["ts"]
+        assert consumer.messages == []
+        assert consumer.ui_events[0]["role"] == "status"
+        assert consumer.ui_events[0]["content"] == "CLI: antigravity → grok"
+        assert consumer.ui_events[0]["ts"]
         assert consumer.active_agent == "cli_agent"
         mock_save.assert_awaited_once()
         mock_bp.assert_not_awaited()
