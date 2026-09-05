@@ -12,9 +12,13 @@ def test_chat_page_guards_remotes_dropdown():
     assert "isRemoteBackedTeam" in tsx
     assert "isRemoteAgent" in tsx
     assert "showRemotesControl" in tsx
+    # Post-#749: remotes chrome is remote-only (agent or remote-backed team).
+    assert "showRemotesControl = isRemoteAgent || isRemoteBackedTeam" in tsx
 
-    # Must be conditionally rendered, omitted entirely when false (no empty stub)
-    assert "{showRemotesControl ? (" in tsx
+    # Empty catalog shows Add remote; otherwise RemoteSelect; omitted when not remote.
+    assert "showEmptyRemoteChrome" in tsx
+    assert "{showEmptyRemoteChrome ? (" in tsx
+    assert "showRemotesControl ? (" in tsx
     assert "<RemoteSelect" in tsx
     assert ") : null}" in tsx
 
