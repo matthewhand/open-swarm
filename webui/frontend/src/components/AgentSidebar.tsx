@@ -94,6 +94,7 @@ import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRoster
 import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
 import { configuredRemotes } from '../lib/remotes'
 import RemoteSessionsPopup from './RemoteSessionsPopup'
+import UpdateChrome from './UpdateChrome'
 import {
   CHAT_CONNECTION_EVENT,
   getChatConnection,
@@ -2030,6 +2031,7 @@ export default function AgentSidebar({
                 }
               }}
             />
+            <UpdateChrome />
             {remotesPopupOpen && (
               <RemoteSessionsPopup
                 isOpen={remotesPopupOpen}

@@ -22,6 +22,7 @@ from django.contrib.auth.models import AnonymousUser
 
 from swarm.consumers import (
     IN_MEMORY_CONVERSATIONS,
+    SPA_HELLO_TYPE,
     DjangoChatConsumer,
     _conversation_cache_key,
 )
@@ -125,6 +126,44 @@ class TestConnect:
                 mock_accept.assert_called_once()
                 mock_fetch.assert_called_once_with("test-conv-123")
                 assert order == ["accept", "fetch"]
+
+    @pytest.mark.asyncio
+    async def test_connect_authenticated_sends_spa_hello(self, consumer):
+        """REQ-78: authenticated connect advertises expected SPA version."""
+        with patch.object(consumer, "fetch_conversation", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = []
+            with patch.object(consumer, "accept", new_callable=AsyncMock):
+                with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                    with patch(
+                        "swarm.core.app_version.get_app_version",
+                        return_value="0.5.4",
+                    ):
+                        await consumer.connect()
+
+        mock_send.assert_awaited()
+        payload = json.loads(mock_send.await_args.kwargs["text_data"])
+        assert payload == {"type": SPA_HELLO_TYPE, "spa_version": "0.5.4"}
+
+    @pytest.mark.asyncio
+    async def test_connect_unauthenticated_does_not_send_spa_hello(
+        self, mock_scope_unauthenticated
+    ):
+        """Anonymous close must not emit spa_hello (no false update)."""
+        from swarm.consumers import WS_AUTH_REQUIRED_CODE
+
+        consumer = DjangoChatConsumer()
+        consumer.scope = mock_scope_unauthenticated
+        with patch("swarm.consumers.swarm_allow_anonymous", return_value=False):
+            with patch.object(consumer, "accept", new_callable=AsyncMock):
+                with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                    with patch.object(consumer, "close", new_callable=AsyncMock) as mock_close:
+                        await consumer.connect()
+
+        mock_send.assert_not_called()
+        mock_close.assert_called_once_with(
+            code=WS_AUTH_REQUIRED_CODE,
+            reason="authentication required",
+        )
 
     @pytest.mark.asyncio
     async def test_connect_accepts_even_if_fetch_raises(self, consumer):

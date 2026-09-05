@@ -31,6 +31,9 @@ IN_MEMORY_CONVERSATIONS = {}
 # so browsers receive a CloseEvent with this code instead of opaque 1006.
 WS_AUTH_REQUIRED_CODE = 4401
 
+# REQ-78 / #423 — advertise the backend's expected SPA bake on connect.
+SPA_HELLO_TYPE = "spa_hello"
+
 
 def _message_ts() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -175,6 +178,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                     )
                     return
             if getattr(self.user, "is_authenticated", False):
+                await self._send_spa_hello()
                 self.active_agent = self.default_blueprint
                 self._pending_tool_decisions = {}
                 try:
@@ -193,6 +197,22 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 )
         except Exception:
             logger.exception("post-accept websocket setup failed; socket stays open")
+
+    async def _send_spa_hello(self):
+        """Tell the tab which SPA bake this backend expects (REQ-78)."""
+        try:
+            from swarm.core.app_version import get_app_version
+
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": SPA_HELLO_TYPE,
+                        "spa_version": get_app_version(),
+                    }
+                )
+            )
+        except Exception:
+            logger.debug("spa_hello advertise failed", exc_info=True)
 
     async def disconnect(self, close_code):
         if self.user.is_authenticated:
