@@ -1,7 +1,8 @@
 /**
  * Django-backed UI preferences (REQ-144 / #540, REQ-168 / #592).
  *
- * Favourites, Hidden Bots, and hostname override load from GET
+ * Favourites, Hidden Bots, hostname override, and per-agent dropdown
+ * choices (CLI / model / remote / blueprint) load from GET
  * /v1/preferences/ and persist on change via PATCH. localStorage stays a
  * cache: if the server bag is empty and this browser already has values,
  * import once, then the server wins.
@@ -25,11 +26,22 @@ import {
   savePinnedAgents,
   type PinnedAgent,
 } from './pinnedAgents'
+import { saveAgentRemoteBinding } from './agentRemote'
+import {
+  applyLocalAgentDropdowns,
+  loadAllLocalAgentDropdowns,
+  parseAgentDropdowns,
+  saveLocalAgentDropdown,
+  type AgentDropdownChoice,
+  type AgentDropdowns,
+} from './agentSettings'
 import {
   hasHostnameOverrideStorage,
   loadHostnameOverride,
   saveHostnameOverride,
 } from './settingsPrefs'
+
+export type { AgentDropdownChoice, AgentDropdowns }
 
 export const USER_PREFS_PATH = '/v1/preferences/'
 
@@ -42,6 +54,7 @@ export interface UserPrefs {
   hidden_agents: string[]
   hostname_override: string
   values?: Record<string, unknown>
+  agent_dropdowns: AgentDropdowns
 }
 
 export type RailPrefs = {
@@ -83,6 +96,12 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
     : []
   const hostname =
     typeof rec.hostname_override === 'string' ? rec.hostname_override.trim() : ''
+  const values =
+    rec.values && typeof rec.values === 'object' && !Array.isArray(rec.values)
+      ? (rec.values as Record<string, unknown>)
+      : {}
+  const fromTop = parseAgentDropdowns(rec.agent_dropdowns)
+  const fromValues = parseAgentDropdowns(values.agent_dropdowns)
   return {
     object: 'user_preferences',
     principal: typeof rec.principal === 'string' ? rec.principal : '',
@@ -91,8 +110,16 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
     favourites: pins,
     hidden_agents: Array.from(new Set(hidden)),
     hostname_override: hostname,
-    values: rec.values && typeof rec.values === 'object' ? (rec.values as Record<string, unknown>) : {},
+    values,
+    agent_dropdowns:
+      Object.keys(fromTop).length > 0 ? fromTop : fromValues,
   }
+}
+
+export function prefsAgentDropdowns(prefs: UserPrefs | null | undefined): AgentDropdowns {
+  if (!prefs) return {}
+  if (Object.keys(prefs.agent_dropdowns).length > 0) return prefs.agent_dropdowns
+  return parseAgentDropdowns(prefs.values?.agent_dropdowns)
 }
 
 export function applyHostnameOverride(value: string): string {
@@ -140,17 +167,28 @@ export async function saveUserPrefs(patch: {
   favourites?: PinnedAgent[]
   hidden_agents?: string[]
   hostname_override?: string
+  values?: Record<string, unknown>
+  agent_dropdowns?: AgentDropdowns
 }): Promise<UserPrefs | null> {
   if (
     patch.favourites === undefined &&
     patch.hidden_agents === undefined &&
-    patch.hostname_override === undefined
+    patch.hostname_override === undefined &&
+    patch.values === undefined &&
+    patch.agent_dropdowns === undefined
   ) {
     return null
   }
+  const body: Record<string, unknown> = {}
+  if (patch.favourites !== undefined) body.favourites = patch.favourites
+  if (patch.hidden_agents !== undefined) body.hidden_agents = patch.hidden_agents
+  if (patch.hostname_override !== undefined) body.hostname_override = patch.hostname_override
+  const values = { ...(patch.values || {}) }
+  if (patch.agent_dropdowns !== undefined) values.agent_dropdowns = patch.agent_dropdowns
+  if (Object.keys(values).length > 0) body.values = values
   try {
     await ensureCsrfCookie()
-    const data = await apiPatch<unknown>(USER_PREFS_PATH, patch)
+    const data = await apiPatch<unknown>(USER_PREFS_PATH, body)
     const parsed = parseUserPrefs(data)
     if (parsed && !parsed.empty) {
       applyPrefsToLocal(parsed)
@@ -159,6 +197,21 @@ export async function saveUserPrefs(patch: {
   } catch {
     return null
   }
+}
+
+const DROPDOWN_SAVE_MS = 300
+let dropdownSaveTimer: ReturnType<typeof setTimeout> | undefined
+
+export function persistAgentDropdownChoice(
+  agentId: string,
+  patch: AgentDropdownChoice,
+): AgentDropdownChoice {
+  const next = saveLocalAgentDropdown(agentId, patch)
+  if (dropdownSaveTimer) clearTimeout(dropdownSaveTimer)
+  dropdownSaveTimer = setTimeout(() => {
+    void saveUserPrefs({ agent_dropdowns: loadAllLocalAgentDropdowns() })
+  }, DROPDOWN_SAVE_MS)
+  return next
 }
 
 export function localRailSnapshot(
@@ -181,6 +234,15 @@ export async function hydrateRailPrefs(
   const server = await fetchUserPrefs()
   if (server && !server.empty) {
     applyPrefsToLocal(server)
+    const dropdowns = prefsAgentDropdowns(server)
+    if (Object.keys(dropdowns).length > 0) {
+      applyLocalAgentDropdowns(dropdowns)
+      for (const [agentId, choice] of Object.entries(dropdowns)) {
+        if (choice.remote) {
+          saveAgentRemoteBinding(agentId, { id: choice.remote, kind: choice.remote })
+        }
+      }
+    }
     return {
       pins: server.favourites,
       hidden: server.hidden_agents,
@@ -189,11 +251,13 @@ export async function hydrateRailPrefs(
     }
   }
   const local = localRailSnapshot(catalog)
+  const localDropdowns = loadAllLocalAgentDropdowns()
   if (server?.empty) {
     await saveUserPrefs({
       favourites: local.pins,
       hidden_agents: local.hidden,
       hostname_override: local.hostnameOverride,
+      agent_dropdowns: localDropdowns,
     })
     return { ...local, source: 'import' }
   }

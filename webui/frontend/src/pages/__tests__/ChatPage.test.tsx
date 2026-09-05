@@ -2914,3 +2914,103 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
   })
 })
 
+describe('ChatPage per-agent dropdown persist (REQ-180)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  function stubCliChat() {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/cli-agents/') && url.includes('/models')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ cli: 'antigravity', models: ['default', 'grok-4'] }),
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              clis: ['grok', 'antigravity'],
+              installed: ['grok', 'antigravity'],
+              configured: ['grok', 'antigravity'],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/preferences')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: true,
+              favourites: [],
+              hidden_agents: [],
+              hostname_override: '',
+              values: {},
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI agent', description: 'CLI' }],
+            messages: [],
+          }),
+        } as Response
+      }),
+    )
+  }
+
+  it('keeps CLI + model after reload and uses them on the next send', async () => {
+    stubCliChat()
+
+    const first = renderChat('/chat?blueprint=cli_agent&mode=cli&cli=grok')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const cliSelect = await screen.findByRole('combobox', { name: 'CLI' })
+    fireEvent.change(cliSelect, { target: { value: 'antigravity' } })
+    await screen.findByRole('option', { name: 'grok-4' })
+    const modelSelect = await screen.findByRole('combobox', { name: 'Model' })
+    fireEvent.change(modelSelect, { target: { value: 'grok-4' } })
+    expect(cliSelect).toHaveValue('antigravity')
+    expect(modelSelect).toHaveValue('grok-4')
+
+    first.unmount()
+    renderChat('/chat?blueprint=cli_agent&mode=cli')
+    await act(async () => {
+      MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
+    })
+
+    const restoredCli = await screen.findByRole('combobox', { name: 'CLI' })
+    const restoredModel = await screen.findByRole('combobox', { name: 'Model' })
+    await waitFor(() => {
+      expect(restoredCli).toHaveValue('antigravity')
+      expect(restoredModel).toHaveValue('grok-4')
+    })
+
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'run with saved pin' } })
+    fireEvent.submit(composer.closest('form')!)
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toEqual({
+      message: 'run with saved pin',
+      blueprint: 'cli_agent',
+      params: { cli: 'antigravity', model: 'grok-4' },
+    })
+  })
+})
+
