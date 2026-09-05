@@ -69,11 +69,12 @@ class SdlcHandoffBlueprint(BlueprintBase):
         "author": "Open Swarm Team",
         "tags": ["sdlc", "handoff", "openai-agents", "demo", "ba", "engineer", "tester"],
         "aliases": ["sdlc-handoff", "sdlc_pipeline"],
+        "workflow": "handoff",
         "required_mcp_servers": [],
         "env_vars": [],
         "agents": [
             {"name": "ba", "role": "default", "seat": "ba"},
-            {"name": "engineer", "role": "default", "seat": "engineer"},
+            {"name": "engineer", "role": "engineer", "seat": "engineer"},
             {"name": "tester", "role": "default", "seat": "tester"},
             {"name": "skeptic", "role": "skeptic", "seat": "skeptic"},
         ],

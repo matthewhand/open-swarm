@@ -30,6 +30,8 @@ def test_css_has_no_role_row_fill_or_border():
         assert ".os-agent-role-badge[data-role=\"skeptic\"]" in css
         assert ".os-agent-role-badge[data-role=\"chief_of_staff\"]" in css
         assert ".os-agent-role-badge[data-role=\"suggestions\"]" in css
+        assert ".os-agent-role-badge[data-role=\"engineer\"]" in css
+        assert ".os-agent-row--engineer" not in css
         # Selected / hover / hidden / working stay — those are not role colours.
         assert ".os-agent-row:hover" in css or ".os-agent-item:hover" in css
 

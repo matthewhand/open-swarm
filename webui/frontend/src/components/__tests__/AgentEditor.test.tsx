@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AgentEditor from '../AgentEditor'
 import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from '../SettingsSheet'
 import { ToastProvider } from '../DaisyUI'
-import { AGENT_EDITS_KEY, assignedBlueprintId } from '../../lib/agentEdits'
+import { AGENT_EDITS_KEY, assignedBlueprintId, loadAgentEdit } from '../../lib/agentEdits'
 import { AGENT_REMOTE_BINDINGS_KEY } from '../../lib/agentRemote'
 
 const catalog = [
@@ -30,6 +30,30 @@ const catalog = [
     tags: [] as string[],
     installed: true,
     compiled: true,
+  },
+  {
+    id: 'fixture_gate',
+    object: 'blueprint' as const,
+    name: 'Fixture Gate',
+    description: 'REQ-75 fixture',
+    abbreviation: null,
+    required_mcp_servers: [] as string[],
+    tags: [] as string[],
+    installed: true,
+    compiled: true,
+    role: 'gate',
+  },
+  {
+    id: 'django_chat',
+    object: 'blueprint' as const,
+    name: 'Django Chat',
+    description: 'HTTP-only leftover',
+    abbreviation: null,
+    required_mcp_servers: [] as string[],
+    tags: [] as string[],
+    installed: true,
+    compiled: true,
+    webui: true,
   },
 ]
 
@@ -150,6 +174,40 @@ describe('AgentEditor (REQ-58)', () => {
       'codey',
     )
     expect(picker).toHaveValue('codey')
+  })
+
+  it('REQ-75: picking a gate fixture applies the Gate role; webui kind is absent', async () => {
+    stubCatalog()
+    renderEditor({ agentId: 'codey' })
+
+    const picker = await screen.findByLabelText('Blueprint')
+    await waitFor(() => {
+      expect(within(picker).getByRole('option', { name: /Fixture Gate/ })).toBeInTheDocument()
+    })
+    expect(within(picker).queryByRole('option', { name: /Django Chat/ })).not.toBeInTheDocument()
+    fireEvent.change(picker, { target: { value: 'fixture_gate' } })
+    expect(assignedBlueprintId('codey')).toBe('fixture_gate')
+    expect(loadAgentEdit('codey').role).toBe('gate')
+    expect(screen.getByLabelText('Role')).toHaveValue('gate')
+    expect(screen.getByTestId('role-override-rule').textContent).toMatch(/wins over the blueprint default/i)
+  })
+
+  it('REQ-75: editor role override survives a later blueprint re-pick', async () => {
+    stubCatalog()
+    renderEditor({ agentId: 'codey' })
+
+    const roleSelect = await screen.findByLabelText('Role')
+    fireEvent.change(roleSelect, { target: { value: 'skeptic' } })
+    expect(loadAgentEdit('codey').roleOverridden).toBe(true)
+
+    const picker = screen.getByLabelText('Blueprint')
+    await waitFor(() => {
+      expect(within(picker).getByRole('option', { name: /Fixture Gate/ })).toBeInTheDocument()
+    })
+    fireEvent.change(picker, { target: { value: 'fixture_gate' } })
+    expect(assignedBlueprintId('codey')).toBe('fixture_gate')
+    expect(loadAgentEdit('codey').role).toBe('skeptic')
+    expect(screen.getByLabelText('Role')).toHaveValue('skeptic')
   })
 
   it('Edit blueprint opens Settings → Blueprints with the assigned item selected', async () => {

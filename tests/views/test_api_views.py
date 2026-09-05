@@ -253,6 +253,48 @@ class TestBlueprintsListView:
         assert bp["role"] == "chief_of_staff"
 
     @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_exposes_engineer_role_and_workflow(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "fixture_gate": {
+                "metadata": {
+                    "name": "Fixture Gate",
+                    "description": "REQ-75 fixture",
+                    "role": "gate",
+                    "workflow": "as_tool",
+                }
+            }
+        }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        bp = response.json()["data"][0]
+        assert bp["role"] == "gate"
+        assert bp["workflow"] == "as_tool"
+        assert bp["webui"] is False
+
+    @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_marks_django_chat_webui(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "django_chat": {
+                "metadata": {
+                    "name": "Django Chat",
+                    "description": "HTTP-only leftover",
+                    "urls_module": "blueprints.django_chat.urls",
+                    "url_prefix": "django_chat/",
+                }
+            }
+        }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        bp = response.json()["data"][0]
+        assert bp["id"] == "django_chat"
+        assert bp["webui"] is True
+        assert bp["role"] == "default"
+
+    @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_search_filter(
         self, mock_get_blueprints, api_client, mock_blueprints_dict
     ):

@@ -30,7 +30,7 @@ from swarm.core.blueprint_base import BlueprintBase
 
 - **Inheritance:** Subclass `BlueprintBase`.
 - **Required method:** `async def run(self, messages: list[dict], **kwargs) -> AsyncGenerator[dict, None]`. This is the only `@abstractmethod`.
-- **`metadata`:** Conventionally a class-level `ClassVar[dict]` (name/title/description/version, optional `required_mcp_servers`, `env_vars`, `inference_profile`, …). Discovery reads it; it is not an abstract method.
+- **`metadata`:** Conventionally a class-level `ClassVar[dict]` (name/title/description/version, optional `required_mcp_servers`, `env_vars`, `inference_profile`, …). Discovery reads it; it is not an abstract method. Optional REQ-75 fields: `role` (`gate` / `skeptic` / `cos` / `engineer` / `support` / `none`) applied when an agent is created from this recipe, and `workflow` (`handoff` / `as_tool`) as a hint the runtime already has — not a new engine. Changing Role in the agent editor wins until the operator re-picks a blueprint without an override. Do not declare a `webui` kind.
 - **`__init__(blueprint_id, config=None, config_path=None, **kwargs)`:** Stores id, loads/merges config (Django AppConfig → explicit path → `find_config_file()` → optional `OPENAI_API_KEY` bootstrap), applies `${VAR}` substitution, optional memory backend (no-op unless configured).
 - **`get_llm_profile(profile_name)`:** Resolved profile via `config_loader` (API keys / env overrides).
 - **`make_agent(...)`:** Helper to build an `agents.Agent` with tools / MCP servers / optional inference-profile suggestion.

@@ -207,8 +207,18 @@ export interface ListResponse<T> {
   data: T[]
 }
 
-/** Visual / wiring role on a Team member (REQ-9 / REQ-25 / REQ-28 / REQ-42). */
-export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff' | 'suggestions'
+/** Visual / wiring role on a Team member (REQ-9 / REQ-25 / REQ-28 / REQ-42 / REQ-75). */
+export type AgentRole =
+  | 'default'
+  | 'support'
+  | 'gate'
+  | 'skeptic'
+  | 'chief_of_staff'
+  | 'engineer'
+  | 'suggestions'
+
+/** Optional openai-agents workflow hint on a blueprint (REQ-75). */
+export type BlueprintWorkflow = 'handoff' | 'as_tool'
 
 export interface BlueprintAgent {
   name: string
@@ -233,6 +243,13 @@ export interface Blueprint {
   skeptic_agent?: string | null
   chief_of_staff_agent?: string | null
   suggestions_agent?: string | null
+  /** Optional openai-agents workflow hint (handoff / as_tool). Metadata only. */
+  workflow?: BlueprintWorkflow | string | null
+  /** Leftover webui/django-chat recipe. Pickers must hide these (REQ-75). */
+  webui?: boolean | null
+  kind?: string | null
+  urls_module?: string | null
+  url_prefix?: string | null
   /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
   avatar_path?: string | null
   /** Declared openai-agents personas from a static source parse (REQ-81). */

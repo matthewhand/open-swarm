@@ -754,6 +754,57 @@ describe('SettingsSheet blueprint editor', () => {
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
   })
 
+  it('REQ-75: catalog shows a role badge and omits a webui kind', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/source')) {
+          return { ok: false, status: 404, json: async () => ({}) } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [
+              {
+                id: 'fixture_gate',
+                object: 'blueprint',
+                name: 'Fixture Gate',
+                description: 'REQ-75 fixture',
+                abbreviation: null,
+                required_mcp_servers: [],
+                tags: [],
+                installed: true,
+                compiled: true,
+                role: 'gate',
+              },
+              {
+                id: 'django_chat',
+                object: 'blueprint',
+                name: 'Django Chat',
+                description: 'HTTP-only leftover',
+                abbreviation: null,
+                required_mcp_servers: [],
+                tags: [],
+                installed: true,
+                compiled: true,
+                webui: true,
+              },
+            ],
+          }),
+        } as Response
+      }),
+    )
+    renderSheet({ blueprintId: 'fixture_gate' })
+    const list = await screen.findByRole('listbox', { name: 'Blueprints' })
+    const gated = await within(list).findByRole('option', { name: 'Fixture Gate' })
+    expect(gated).toHaveAttribute('data-role', 'gate')
+    expect(within(gated).getByText('Gate')).toHaveClass('os-agent-role-badge')
+    expect(within(list).queryByRole('option', { name: 'Django Chat' })).not.toBeInTheDocument()
+  })
+
   it('shows highlighted gate YES/NO Python when source is missing', async () => {
     vi.stubGlobal(
       'fetch',

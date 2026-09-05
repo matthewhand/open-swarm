@@ -37,9 +37,15 @@ import {
   fetchAgentSettings,
   saveAgentSettings,
 } from '../lib/agentSettings'
-import { agentRole, exampleRoleAgents } from '../lib/agentRoles'
+import {
+  agentRole,
+  applyBlueprintAssignment,
+  assignableBlueprints,
+  catalogPickerLabel,
+  exampleRoleAgents,
+} from '../lib/agentRoles'
 import { ROLE_BRIEFS } from '../lib/definitionExplain'
-import { agentLabel, catalogLabel, sessionKindForAgent } from '../lib/supportAgent'
+import { agentLabel, sessionKindForAgent } from '../lib/supportAgent'
 import { isCliBlueprintId } from '../lib/cliAgentContext'
 import { rememberGeneratedAvatar } from '../lib/agentAvatars'
 import { defaultAvatarPrompt, isImageGenConfigured, parseImageGenSettings } from '../lib/imageGenSettings'
@@ -60,10 +66,12 @@ export function openAgentEditor(detail: OpenAgentEditorDetail): void {
 }
 
 const ROLE_OPTIONS: { value: AgentRole; label: string }[] = [
-  { value: 'default', label: 'default' },
+  { value: 'default', label: 'none' },
   { value: 'support', label: 'support' },
   { value: 'gate', label: 'gate' },
   { value: 'skeptic', label: 'skeptic' },
+  { value: 'chief_of_staff', label: 'cos' },
+  { value: 'engineer', label: 'engineer' },
   { value: 'suggestions', label: 'suggestions' },
 ]
 
@@ -109,7 +117,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   })
 
   const catalog = useMemo(
-    () => exampleRoleAgents(blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS),
+    () => assignableBlueprints(exampleRoleAgents(blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS)),
     [blueprintsQuery.data],
   )
   const agent = catalog.find((item) => item.id === id)
@@ -258,7 +266,15 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
 
   const persistBlueprint = (nextId: string) => {
     setBlueprintId(nextId)
-    saveAgentEdit(id, { blueprintId: nextId })
+    const picked = catalog.find((item) => item.id === nextId)
+    const next = applyBlueprintAssignment(id, {
+      id: nextId,
+      role: picked?.role,
+      workflow: picked?.workflow,
+    })
+    if (!next.roleOverridden) {
+      setRole(next.role || 'default')
+    }
   }
 
   const persistName = (next: string) => {
@@ -268,7 +284,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
 
   const persistRole = (next: AgentRole) => {
     setRole(next)
-    saveAgentEdit(id, { role: next })
+    saveAgentEdit(id, { role: next, roleOverridden: true })
     setAvatarPrompt((current) => {
       const derived = defaultAvatarPrompt(name || catalogName, next)
       if (!current.trim() || current === defaultAvatarPrompt(name || catalogName, role)) {
@@ -384,6 +400,11 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
           <p className="text-xs text-base-content/70 mt-1" data-testid="role-explanation">
             {ROLE_BRIEFS[role] || ROLE_BRIEFS.default}
           </p>
+          <p className="text-xs text-base-content/55 mt-1" data-testid="role-override-rule">
+            Changing Role here wins over the blueprint default. Re-picking a
+            blueprint restores that recipe&apos;s role unless you have overridden
+            it.
+          </p>
         </div>
 
         <Select
@@ -397,7 +418,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
           ) : null}
           {catalog.map((item) => (
             <option key={item.id} value={item.id}>
-              {catalogLabel(item)}
+              {catalogPickerLabel(item)}
             </option>
           ))}
         </Select>
