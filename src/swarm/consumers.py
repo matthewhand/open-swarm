@@ -157,6 +157,42 @@ def _conversation_cache_key(user, conversation_id):
     return (user_id, conversation_id)
 
 
+async def _auto_compress_before_send(consumer, params=None, model_id=None):
+    """REQ-87: compact older span when estimated tokens hit N% of known max."""
+    try:
+        from swarm.core.context_compress_policy import auto_compact_before_send
+
+        inference_entry = None
+        mid = model_id
+        if isinstance(params, dict):
+            if not mid:
+                raw_model = params.get("model") or params.get("llm_profile")
+                if isinstance(raw_model, str) and raw_model.strip():
+                    mid = raw_model.strip()
+            seats = params.get("inference_list")
+            if isinstance(seats, list) and seats and isinstance(seats[0], dict):
+                inference_entry = seats[0]
+        result = await database_sync_to_async(auto_compact_before_send)(
+            user=getattr(consumer, "user", None),
+            conversation_id=getattr(consumer, "conversation_id", "") or "",
+            agent_id=str(
+                getattr(consumer, "active_agent", None)
+                or getattr(consumer, "default_blueprint", "")
+                or ""
+            ),
+            messages=getattr(consumer, "messages", None) or [],
+            model_id=str(mid).strip() if isinstance(mid, str) and mid.strip() else None,
+            inference_entry=inference_entry,
+        )
+        if result.info:
+            await consumer.send(text_data=_status_line_html(result.info))
+            _record_status(consumer, result.info, ts=_message_ts())
+        return result
+    except Exception:
+        logger.debug("auto-compress hook skipped", exc_info=True)
+        return None
+
+
 async def _compacted_context(conversation_id, messages):
     """Model context: summary tree replaces covered raw turns (REQ-37).
 
@@ -639,10 +675,14 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 emit_fn=self.emit_tool_event,
             )
             token = install_safety_session(session)
-            model_messages = await _compacted_context(
-                getattr(self, "conversation_id", ""),
-                self.messages,
-            )
+            compact_result = await _auto_compress_before_send(self, params=params)
+            if compact_result is not None and compact_result.acted and compact_result.context:
+                model_messages = compact_result.context
+            else:
+                model_messages = await _compacted_context(
+                    getattr(self, "conversation_id", ""),
+                    self.messages,
+                )
             async for chunk in blueprint_instance.run(model_messages):
                 if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
                     notice = str(chunk.get("content") or "").strip()
@@ -902,10 +942,14 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
         full_message = ""
         try:
-            model_messages = await _compacted_context(
-                getattr(self, "conversation_id", ""),
-                self.messages,
-            )
+            compact_result = await _auto_compress_before_send(self, model_id=model)
+            if compact_result is not None and compact_result.acted and compact_result.context:
+                model_messages = compact_result.context
+            else:
+                model_messages = await _compacted_context(
+                    getattr(self, "conversation_id", ""),
+                    self.messages,
+                )
             stream = await client.chat.completions.create(
                 model=model,
                 messages=model_messages,

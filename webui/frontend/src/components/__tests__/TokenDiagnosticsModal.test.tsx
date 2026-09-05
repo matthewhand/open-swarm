@@ -39,7 +39,7 @@ describe('TokenDiagnosticsModal (REQ-115)', () => {
     expect(screen.getByText(/Current Agent:/i)).toBeInTheDocument()
     expect(screen.getByTestId('diag-current-agent')).toHaveTextContent('Stewie')
     expect(screen.getByTestId('diag-session-id')).toHaveTextContent('conv-test-123')
-    expect(screen.getByTestId('diag-context-usage')).toHaveTextContent('4.2k / 128k tok')
+    expect(screen.getByTestId('diag-context-usage')).toHaveTextContent('4.2k tok (max unknown)')
 
     // Breakdown metrics
     expect(screen.getByTestId('diag-input-tokens')).toHaveTextContent('1.5k')
@@ -77,6 +77,18 @@ describe('TokenDiagnosticsModal (REQ-115)', () => {
     expect(screen.queryByText('FirstAgent')).not.toBeInTheDocument()
   })
 
+  it('shows used/max when the model context length is known', () => {
+    render(
+      <TokenDiagnosticsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        tokenCount={16000}
+        contextMax={200000}
+      />,
+    )
+    expect(screen.getByTestId('diag-context-usage')).toHaveTextContent('16k / 200k tok')
+  })
+
   it('handles empty/unknown fields with honest placeholders', () => {
     render(
       <TokenDiagnosticsModal
@@ -87,7 +99,7 @@ describe('TokenDiagnosticsModal (REQ-115)', () => {
     )
 
     expect(screen.getByTestId('diag-session-id')).toHaveTextContent('—')
-    expect(screen.getByTestId('diag-context-usage')).toHaveTextContent('0 / 128k tok (0%)')
+    expect(screen.getByTestId('diag-context-usage')).toHaveTextContent('0 tok (max unknown)')
     expect(screen.getByTestId('diag-compacts-count')).toHaveTextContent('0')
     expect(screen.getByTestId('diag-tool-calls')).toHaveTextContent('0')
     expect(screen.getByTestId('diag-message-count')).toHaveTextContent('0')

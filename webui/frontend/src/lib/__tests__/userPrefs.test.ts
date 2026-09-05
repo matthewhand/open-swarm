@@ -6,6 +6,7 @@ import { AGENT_DROPDOWNS_STORAGE_KEY } from '../agentSettings'
 import {
   USER_PREFS_PATH,
   hydrateRailPrefs,
+  parseAutoCompressPct,
   parseUserPrefs,
   saveUserPrefs,
 } from '../userPrefs'
@@ -26,6 +27,23 @@ describe('userPrefs', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     localStorage.clear()
+  })
+
+  it('defaults auto-compress percent to 80 and clamps 1–99', () => {
+    expect(parseAutoCompressPct(undefined)).toBe(80)
+    expect(parseAutoCompressPct(50)).toBe(50)
+    expect(parseAutoCompressPct(0)).toBe(1)
+    expect(parseAutoCompressPct(150)).toBe(99)
+    expect(
+      parseUserPrefs({
+        object: 'user_preferences',
+        empty: false,
+        favourites: [],
+        hidden_agents: [],
+        hostname_override: '',
+        context_auto_compress_pct: 50,
+      })?.context_auto_compress_pct,
+    ).toBe(50)
   })
 
   it('parses a user_preferences payload and rejects other shapes', () => {
@@ -51,6 +69,7 @@ describe('userPrefs', () => {
       ],
       hidden_agents: ['gate', 'skeptic'],
       hostname_override: 'lab-box',
+      context_auto_compress_pct: 80,
       values: {},
       agent_dropdowns: {},
     })

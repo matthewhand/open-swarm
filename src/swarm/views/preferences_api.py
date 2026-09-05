@@ -67,6 +67,9 @@ class UserPreferencesView(APIView):
                 "hostname_override": serializers.CharField(
                     required=False, allow_blank=True
                 ),
+                "context_auto_compress_pct": serializers.IntegerField(
+                    required=False, min_value=1, max_value=99
+                ),
                 "values": serializers.DictField(required=False),
             },
         ),
@@ -76,13 +79,19 @@ class UserPreferencesView(APIView):
         body = request.data if isinstance(request.data, dict) else {}
         if not any(
             key in body
-            for key in ("favourites", "hidden_agents", "hostname_override", "values")
+            for key in (
+                "favourites",
+                "hidden_agents",
+                "hostname_override",
+                prefs.AUTO_COMPRESS_KEY,
+                "values",
+            )
         ):
             return Response(
                 {
                     "error": (
                         "Provide at least one of favourites, hidden_agents, "
-                        "hostname_override, values."
+                        "hostname_override, context_auto_compress_pct, values."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -121,6 +130,8 @@ class UserPreferencesView(APIView):
             patch[prefs.HIDDEN_KEY] = body["hidden_agents"]
         if "hostname_override" in body:
             patch[prefs.HOSTNAME_KEY] = body["hostname_override"]
+        if prefs.AUTO_COMPRESS_KEY in body:
+            patch[prefs.AUTO_COMPRESS_KEY] = body[prefs.AUTO_COMPRESS_KEY]
 
         current = row.values if row is not None else {}
         merged = prefs.merge_values(current, patch)

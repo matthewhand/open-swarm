@@ -460,6 +460,11 @@ def chat_compact(request):
     messages = payload.get("messages")
     span_start = payload.get("span_start", payload.get("start"))
     span_end = payload.get("span_end", payload.get("end"))
+    through_message_id = (
+        payload.get("through_message_id")
+        or payload.get("message_id")
+        or payload.get("through")
+    )
     try:
         start = int(span_start) if span_start is not None and span_start != "" else None
         end = int(span_end) if span_end is not None and span_end != "" else None
@@ -473,6 +478,7 @@ def chat_compact(request):
             messages=messages if isinstance(messages, list) else None,
             span_start=start,
             span_end=end,
+            through_message_id=through_message_id,
         )
     except CompactError as exc:
         return JsonResponse({"error": str(exc)}, status=exc.status)

@@ -189,6 +189,9 @@ _PUBLIC_PROFILE_KEYS = (
     "temperature",
     "max_tokens",
     "description",
+    "context_length",
+    "context_window",
+    "max_context",
 )
 
 
@@ -201,6 +204,7 @@ class CatalogEntry:
     owned_by: str
     model: str | None = None
     traits: dict[str, float] = field(default_factory=dict)
+    context_length: int | None = None
 
     def public_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -211,6 +215,8 @@ class CatalogEntry:
         }
         if self.model:
             payload["model"] = self.model
+        if self.context_length:
+            payload["context_length"] = self.context_length
         for axis in inference_profile.TRAITS:
             if axis in self.traits:
                 payload[axis] = self.traits[axis]
@@ -573,6 +579,8 @@ def collect_catalog(
     present; otherwise OpenAI ``/v1/models`` + fixtures (see
     :mod:`swarm.core.llm_list_models`).
     """
+    from swarm.core.context_compress_policy import context_length_from_mapping
+
     config = config or {}
     entries: list[CatalogEntry] = []
     seen: set[str] = set()
@@ -590,6 +598,7 @@ def collect_catalog(
         model_id = model.strip() if isinstance(model, str) else None
         if model_id and model_id.startswith("${"):
             model_id = None
+        window = context_length_from_mapping(profile)
         _add(
             CatalogEntry(
                 id=name,
@@ -597,6 +606,7 @@ def collect_catalog(
                 owned_by=str(profile.get("provider") or vendor),
                 model=model_id,
                 traits=traits,
+                context_length=window,
             )
         )
         if model_id and model_id != name:
@@ -607,6 +617,7 @@ def collect_catalog(
                     owned_by=str(profile.get("provider") or vendor),
                     model=model_id,
                     traits=resolve_traits(model_id, profile, owned_by=vendor),
+                    context_length=window,
                 )
             )
 

@@ -319,6 +319,7 @@ export async function compactAgentThread(opts: {
   messages: AgentThreadMessage[]
   spanStart?: number
   spanEnd?: number
+  throughMessageId?: string | number
 }): Promise<CompactResult> {
   const agent = agentIdFromBlueprint(opts.agentId)
   const data = await apiPost<CompactResult>('/chat/compact/', {
@@ -327,6 +328,7 @@ export async function compactAgentThread(opts: {
     messages: opts.messages.filter((row) => row.role === 'user' || row.role === 'assistant'),
     span_start: opts.spanStart,
     span_end: opts.spanEnd,
+    through_message_id: opts.throughMessageId,
   })
   const summaries = parseSummaries(data?.summaries)
   const summary = isConversationSummary(data?.summary)

@@ -45,6 +45,10 @@ export type { AgentDropdownChoice, AgentDropdowns }
 
 export const USER_PREFS_PATH = '/v1/preferences/'
 
+export const DEFAULT_AUTO_COMPRESS_PCT = 80
+export const MIN_AUTO_COMPRESS_PCT = 1
+export const MAX_AUTO_COMPRESS_PCT = 99
+
 export interface UserPrefs {
   object: 'user_preferences'
   principal: string
@@ -53,8 +57,15 @@ export interface UserPrefs {
   favourites: PinnedAgent[]
   hidden_agents: string[]
   hostname_override: string
+  context_auto_compress_pct: number
   values?: Record<string, unknown>
   agent_dropdowns: AgentDropdowns
+}
+
+export function parseAutoCompressPct(raw: unknown): number {
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN
+  if (!Number.isFinite(value)) return DEFAULT_AUTO_COMPRESS_PCT
+  return Math.min(MAX_AUTO_COMPRESS_PCT, Math.max(MIN_AUTO_COMPRESS_PCT, Math.round(value)))
 }
 
 export type RailPrefs = {
@@ -102,6 +113,10 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
       : {}
   const fromTop = parseAgentDropdowns(rec.agent_dropdowns)
   const fromValues = parseAgentDropdowns(values.agent_dropdowns)
+  const pctRaw =
+    rec.context_auto_compress_pct !== undefined
+      ? rec.context_auto_compress_pct
+      : values.context_auto_compress_pct
   return {
     object: 'user_preferences',
     principal: typeof rec.principal === 'string' ? rec.principal : '',
@@ -110,6 +125,7 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
     favourites: pins,
     hidden_agents: Array.from(new Set(hidden)),
     hostname_override: hostname,
+    context_auto_compress_pct: parseAutoCompressPct(pctRaw),
     values,
     agent_dropdowns:
       Object.keys(fromTop).length > 0 ? fromTop : fromValues,
@@ -167,6 +183,7 @@ export async function saveUserPrefs(patch: {
   favourites?: PinnedAgent[]
   hidden_agents?: string[]
   hostname_override?: string
+  context_auto_compress_pct?: number
   values?: Record<string, unknown>
   agent_dropdowns?: AgentDropdowns
 }): Promise<UserPrefs | null> {
@@ -174,6 +191,7 @@ export async function saveUserPrefs(patch: {
     patch.favourites === undefined &&
     patch.hidden_agents === undefined &&
     patch.hostname_override === undefined &&
+    patch.context_auto_compress_pct === undefined &&
     patch.values === undefined &&
     patch.agent_dropdowns === undefined
   ) {
@@ -183,6 +201,9 @@ export async function saveUserPrefs(patch: {
   if (patch.favourites !== undefined) body.favourites = patch.favourites
   if (patch.hidden_agents !== undefined) body.hidden_agents = patch.hidden_agents
   if (patch.hostname_override !== undefined) body.hostname_override = patch.hostname_override
+  if (patch.context_auto_compress_pct !== undefined) {
+    body.context_auto_compress_pct = parseAutoCompressPct(patch.context_auto_compress_pct)
+  }
   const values = { ...(patch.values || {}) }
   if (patch.agent_dropdowns !== undefined) values.agent_dropdowns = patch.agent_dropdowns
   if (Object.keys(values).length > 0) body.values = values

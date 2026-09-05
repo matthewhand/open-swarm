@@ -436,6 +436,28 @@ class ChatCompletionsView(APIView):
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
+        try:
+            from swarm.core.context_compress_policy import auto_compact_before_send
+
+            conversation_id = ""
+            if isinstance(blueprint_params, dict):
+                conversation_id = str(
+                    blueprint_params.get("conversation_id")
+                    or blueprint_params.get("conversation")
+                    or ""
+                )
+            result = await sync_to_async(auto_compact_before_send)(
+                user=getattr(request, "user", None),
+                conversation_id=conversation_id,
+                agent_id=str(model_name or ""),
+                messages=messages,
+                model_id=str(model_name or ""),
+            )
+            if result.acted and result.context:
+                messages = result.context
+        except Exception:
+            logger.debug("auto-compress hook skipped", exc_info=True)
+
         # --- Async fire-and-forget: return a queued handle immediately, run in a
         #     background worker, poll via GET /v1/responses/{id}. Reuses the
         #     Responses async machinery. (Streaming is always inline.) ---

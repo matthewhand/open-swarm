@@ -3,6 +3,7 @@ import {
   buildDisplayItems,
   contextTextsForMeter,
   outermostSummaries,
+  rawOffsetForMessage,
   type ChatBubble,
   type ConversationSummary,
 } from '../chatCompact'
@@ -74,5 +75,17 @@ describe('contextTextsForMeter', () => {
       bubble('2', 'assistant', 'hi'),
     ]
     expect(contextTextsForMeter(messages, [])).toEqual(['hello', 'hi'])
+  })
+
+  it('maps a hovered bubble to a raw offset skipping status chrome', () => {
+    const messages: ChatBubble[] = [
+      { key: 's', role: 'status', text: 'info', streaming: false },
+      bubble('1', 'user', 'one'),
+      bubble('2', 'assistant', 'two'),
+      bubble('3', 'user', 'three'),
+    ]
+    expect(rawOffsetForMessage(messages, '1')).toBe(0)
+    expect(rawOffsetForMessage(messages, '3')).toBe(2)
+    expect(rawOffsetForMessage(messages, 'missing')).toBe(-1)
   })
 })

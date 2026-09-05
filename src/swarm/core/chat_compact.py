@@ -363,6 +363,36 @@ def ensure_transcript(
     return chat, raw
 
 
+def resolve_through_offset(
+    raw: list[dict[str, Any]],
+    conversation: ChatConversation | None,
+    through_message_id: Any,
+) -> int:
+    """Map a ChatMessage pk, client id/key, or raw offset to an inclusive end."""
+    if through_message_id is None or through_message_id == "":
+        raise CompactError("through_message_id is required.")
+    pk: int | None
+    try:
+        pk = int(through_message_id)
+    except (TypeError, ValueError):
+        pk = None
+    if pk is not None and conversation is not None:
+        rows = list(conversation.chat_messages.all())
+        for idx, row in enumerate(rows):
+            if row.pk == pk:
+                return idx
+    needle = str(through_message_id).strip()
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        mid = item.get("id") or item.get("key") or item.get("message_id")
+        if mid is not None and str(mid) == needle:
+            return idx
+    if pk is not None and 0 <= pk < len(raw):
+        return pk
+    raise CompactError("Unknown message id.")
+
+
 def compact_backlog(
     *,
     user,
@@ -371,6 +401,7 @@ def compact_backlog(
     messages: list[dict[str, Any]] | None = None,
     span_start: int | None = None,
     span_end: int | None = None,
+    through_message_id: Any = None,
 ) -> tuple[ConversationSummary, list[dict[str, str]]]:
     """Create a summary row covering ``span`` of the raw transcript.
 
@@ -378,6 +409,10 @@ def compact_backlog(
     ``parent_summary_id`` to the previous outermost summary inside the span.
     """
     chat, raw = ensure_transcript(user, conversation_id, agent_id, messages)
+    if through_message_id is not None and through_message_id != "":
+        span_end = resolve_through_offset(raw, chat, through_message_id)
+        if span_start is None:
+            span_start = 0
     start = 0 if span_start is None else int(span_start)
     end = len(raw) - 1 if span_end is None else int(span_end)
     start = max(0, start)

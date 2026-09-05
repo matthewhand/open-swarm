@@ -100,6 +100,21 @@ export function contextTextsForMeter(
     .map((item) => (item.kind === 'summary' ? item.summary.body : item.message.text))
 }
 
+/** Inclusive raw-transcript offset of a user/assistant bubble (status/system skipped). */
+export function rawOffsetForMessage<T extends { key: string; role: string }>(
+  messages: T[],
+  key: string,
+): number {
+  let offset = -1
+  for (const row of messages) {
+    if (row.role === 'user' || row.role === 'assistant') {
+      offset += 1
+      if (row.key === key) return offset
+    }
+  }
+  return -1
+}
+
 export function isConversationSummary(value: unknown): value is ConversationSummary {
   if (!value || typeof value !== 'object') return false
   const row = value as Partial<ConversationSummary>
