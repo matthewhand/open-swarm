@@ -1409,6 +1409,13 @@ html:not([data-theme="light"]) .os-composer__send,
   text-align: center;
 }
 
+.os-chat-status time {
+  display: inline;
+  margin-left: 0.35rem;
+  font-size: 0.68rem;
+  opacity: 0.72;
+}
+
 /* REQ-71: structured PR-opened tool result is thread chrome, not a chat bubble. */
 .os-pr-opened-wrap {
   display: flex;

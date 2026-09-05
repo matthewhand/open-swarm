@@ -39,9 +39,11 @@ def _message_ts() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
-    """Best-effort write of the per-agent JSON thread (Settings + reload)."""
-    if not getattr(user, "is_authenticated", False) or not messages:
+def _save_agent_json(user, agent_id, messages, *, conversation_id="", ui_events=None):
+    """Best-effort write of turns + chrome events (Settings + reload)."""
+    if not getattr(user, "is_authenticated", False):
+        return
+    if not messages and not ui_events:
         return
     try:
         from swarm.core import chat_store
@@ -54,6 +56,7 @@ def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
             chat_store.user_key_for(user),
             agent_id,
             messages,
+            ui_events=ui_events,
             conversation_id=conversation_id,
             session_id=session_id,
         )
@@ -61,10 +64,11 @@ def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
         logger.exception("Failed to persist agent chat JSON")
 
 
-def _load_agent_json(user, agent_id, *, conversation_id=""):
-    """Best-effort load of the per-agent JSON thread."""
+def _load_agent_record(user, agent_id, *, conversation_id=""):
+    """Best-effort load of turns + chrome events from the JSON thread."""
+    empty = {"messages": [], "ui_events": []}
     if not getattr(user, "is_authenticated", False):
-        return []
+        return empty
     try:
         from swarm.core import chat_store
         from swarm.core.agent_settings import is_new_chat_per_task
@@ -80,13 +84,18 @@ def _load_agent_json(user, agent_id, *, conversation_id=""):
         )
     except Exception:
         logger.exception("Failed to load agent chat JSON")
-        return []
+        return empty
     if not record:
-        return []
-    return [
-        {"role": m.get("role", "user"), "content": m.get("content", "")}
-        for m in record.get("messages") or []
-    ]
+        return empty
+    return {
+        "messages": list(record.get("messages") or []),
+        "ui_events": list(record.get("ui_events") or []),
+    }
+
+
+def _load_agent_json(user, agent_id, *, conversation_id=""):
+    """Turns only (model context). Chrome lives in ``ui_events`` on the record."""
+    return _load_agent_record(user, agent_id, conversation_id=conversation_id)["messages"]
 
 
 def _conversation_cache_key(user, conversation_id):
@@ -97,22 +106,27 @@ def _conversation_cache_key(user, conversation_id):
     return (user_id, conversation_id)
 
 
-async def _compacted_context(conversation_id, messages):
-    """Model context: summary tree replaces covered raw turns (REQ-37).
+async def _compacted_context(conversation_id, messages, *, adapter_id="openai_compat"):
+    """Model context from real turns only (REQ-37 + REQ-70).
 
-    Raw ``messages`` stay on the consumer and on disk. Failures fall back
-    to the raw list so tests without a DB and live sessions without
-    summaries keep working.
+    Chrome is stored in ``ui_events``, so ``messages`` should already be
+    turns. ``turns_for_model`` is a safety belt if mixed rows remain.
+    Failures fall back to that turns list (never the raw mixed transcript).
     """
+    from swarm.core.speaker_identity import apply_speaker_identity
+    from swarm.core.transcript_roles import turns_for_model
+
+    turns = turns_for_model(messages)
     try:
         from swarm.core.chat_compact import context_for_conversation
 
-        return await database_sync_to_async(context_for_conversation)(
-            conversation_id, messages
+        payload = await database_sync_to_async(context_for_conversation)(
+            conversation_id, turns
         )
     except Exception:
-        logger.debug("compact context unavailable; using raw transcript", exc_info=True)
-        return list(messages or [])
+        logger.debug("compact context unavailable; using turns only", exc_info=True)
+        payload = turns
+    return apply_speaker_identity(payload, adapter_id=adapter_id)
 
 
 def _status_line_html(text: str) -> str:
@@ -161,6 +175,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         query_params = parse_qs(self.scope.get("query_string", b"").decode())
         self.default_blueprint = (query_params.get("blueprint") or [None])[0]
         self.messages = []
+        self.ui_events = []
         # Accept before any DB/thread work. A wedged CurrentThreadExecutor
         # used to hang handshake (HANDSHAKING, never CONNECT) and loop /chat.
         await self.accept()
@@ -183,11 +198,14 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 self._pending_tool_decisions = {}
                 try:
                     self.messages = await self.fetch_conversation(self.conversation_id)
+                    if not getattr(self, "ui_events", None):
+                        self.ui_events = []
                 except Exception:
                     logger.exception(
                         "fetch_conversation failed after accept; continuing with empty transcript"
                     )
                     self.messages = []
+                    self.ui_events = []
             else:
                 # Close after accept so the client sees 4401 (not 1006).
                 # receive() re-checks auth so anonymous clients cannot hit the LLM.
@@ -267,7 +285,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             agent = text_data_json.get("agent")
             if isinstance(agent, str) and agent.strip():
                 self.active_agent = agent.strip()
-            self.messages.append({"role": "status", "content": status_text})
+            self._append_chrome({"role": "status", "kind": "status", "content": status_text})
             conversation_id = getattr(self, "conversation_id", None)
             if conversation_id:
                 await self.save_conversation(conversation_id, self.messages)
@@ -300,8 +318,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if params and params.get("new_session"):
             # REQ-65: CoS/user task asked for an empty session on this socket.
             self.messages = []
+            self.ui_events = []
 
-        self.messages.append(
+        self._append_turn(
             {
                 "role": "user",
                 "content": message_text,
@@ -333,19 +352,36 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         else:
             await self.respond_with_default_model(contents_div_id)
 
+    def _append_turn(self, item):
+        """Store a real user/assistant/tool turn (never chrome)."""
+        from swarm.core.transcript_roles import append_turn
+
+        if not hasattr(self, "ui_events") or self.ui_events is None:
+            self.ui_events = []
+        return append_turn(self.messages, self.ui_events, item)
+
+    def _append_chrome(self, item):
+        """Store status/info/hop metadata outside model turns."""
+        from swarm.core.transcript_roles import append_event, chrome_already_has_notice
+
+        if not hasattr(self, "ui_events") or self.ui_events is None:
+            self.ui_events = []
+        text = str(item.get("content") or item.get("text") or "").strip()
+        if text and chrome_already_has_notice(self.messages, self.ui_events, text):
+            return None
+        return append_event(self.messages, self.ui_events, item)
+
     async def _emit_new_cli_session_notice(self, blueprint_id, params):
         """REQ-92: send ``Started a new {cli} session.`` before assistant_start.
 
         Resume / same-session turns stay quiet here. The blueprint still yields
         the honest resumed/fallback line after it knows the outcome.
+        Chrome is a side-channel event; the UI reconstructs the line.
         """
         try:
             from swarm.core import chat_store
-            from swarm.core.chat_transcript import (
-                insert_status_before_turn_assistant,
-                new_cli_session_notice_if_needed,
-                transcript_already_has_notice,
-            )
+            from swarm.core.chat_transcript import new_cli_session_notice_if_needed
+            from swarm.core.transcript_roles import chrome_already_has_notice
 
             user_key = None
             if getattr(self.user, "is_authenticated", False):
@@ -361,13 +397,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 params=thread_params,
                 user_key=user_key,
             )
-            if not notice or transcript_already_has_notice(self.messages, notice):
+            if not notice or chrome_already_has_notice(self.messages, self.ui_events, notice):
                 return
             await self.send(text_data=_status_line_html(notice))
-            self.messages = insert_status_before_turn_assistant(
-                self.messages,
-                {"role": "status", "content": notice},
-            )
+            self._append_chrome({"role": "status", "kind": "status", "content": notice})
         except Exception:
             logger.debug("CLI new-session notice pre-emit skipped", exc_info=True)
 
@@ -381,7 +414,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         target = str(params.get("target") or "all")
         canned = f"[team:{team} target:{target}] {message_text}"
         await self.send(text_data=_oob_append_html(contents_div_id, canned))
-        self.messages.append({"role": "assistant", "content": canned})
+        self._append_turn({"role": "assistant", "content": canned})
         final_html = render_to_string(
             "websocket_partials/final_system_message.html",
             {"contents_div_id": contents_div_id, "message": canned},
@@ -407,7 +440,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             instruction = self.messages[-1]["content"] if self.messages else ""
             canned = f"[TEST-MODE] Jeeves at your service. You said: '{instruction}'" if blueprint_id == "jeeves" else f"[TEST-MODE] {blueprint_id} at your service. You said: '{instruction}'"
             await self.send(text_data=_oob_append_html(contents_div_id, canned))
-            self.messages.append({"role": "assistant", "content": canned, "ts": _message_ts()})
+            self._append_turn({"role": "assistant", "content": canned, "ts": _message_ts()})
             final_html = render_to_string(
                 "websocket_partials/final_system_message.html",
                 {"contents_div_id": contents_div_id, "message": canned},
@@ -535,24 +568,23 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 emit_fn=self.emit_tool_event,
             )
             token = install_safety_session(session)
+            from swarm.core.speaker_identity import adapter_id_for_blueprint
+
             model_messages = await _compacted_context(
                 getattr(self, "conversation_id", ""),
                 self.messages,
+                adapter_id=adapter_id_for_blueprint(blueprint_id, params if isinstance(params, dict) else None),
             )
             async for chunk in blueprint_instance.run(model_messages):
                 if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
                     notice = str(chunk.get("content") or "").strip()
                     if notice:
-                        from swarm.core.chat_transcript import (
-                            insert_status_before_turn_assistant,
-                            transcript_already_has_notice,
-                        )
+                        from swarm.core.transcript_roles import chrome_already_has_notice
 
-                        if not transcript_already_has_notice(self.messages, notice):
+                        if not chrome_already_has_notice(self.messages, getattr(self, "ui_events", []), notice):
                             await self.send(text_data=_status_line_html(notice))
-                            self.messages = insert_status_before_turn_assistant(
-                                self.messages,
-                                {"role": "status", "content": notice},
+                            self._append_chrome(
+                                {"role": "status", "kind": "status", "content": notice}
                             )
                     continue
                 message = _extract_message_from_chunk(chunk)
@@ -582,7 +614,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             if should_failover(e, rest, scale_out=scale_out):
                 notice = failover_notice(seats[0], rest[0])
                 await self.send(text_data=_status_line_html(notice))
-                self.messages.append({"role": "status", "content": notice})
+                self._append_chrome({"role": "status", "kind": "status", "content": notice})
                 await self.respond_with_blueprint(
                     blueprint_id,
                     contents_div_id,
@@ -598,7 +630,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             ):
                 notice = failover_notice(seats[0], None, exhausted=True)
                 await self.send(text_data=_status_line_html(notice))
-                self.messages.append({"role": "status", "content": notice})
+                self._append_chrome({"role": "status", "kind": "status", "content": notice})
             await self.send_error_message(
                 contents_div_id,
                 f"Error: blueprint '{blueprint_id}' failed while generating a reply.",
@@ -628,7 +660,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return
         await self.send(text_data=_oob_append_html(contents_div_id, full_message))
 
-        self.messages.append(
+        self._append_turn(
             {
                 "role": "assistant",
                 "content": full_message,
@@ -666,7 +698,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 conversation_id = getattr(self, "conversation_id", None) or ""
                 if conversation_id and not opener.get("conversation_id"):
                     opener["conversation_id"] = str(conversation_id)
-                persist_pr_opened_message(self.messages, payload)
+                if not hasattr(self, "ui_events") or self.ui_events is None:
+                    self.ui_events = []
+                persist_pr_opened_message(self.ui_events, payload)
             await self.send(text_data=json.dumps(payload))
         except Exception:
             logger.debug("tool event send failed", exc_info=True)
@@ -778,6 +812,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             model_messages = await _compacted_context(
                 getattr(self, "conversation_id", ""),
                 self.messages,
+                adapter_id="openai_compat",
             )
             stream = await client.chat.completions.create(
                 model=model,
@@ -813,7 +848,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
-        self.messages.append(
+        self._append_turn(
             {
                 "role": "assistant",
                 "content": full_message,
@@ -871,15 +906,27 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         each other's in-flight transcript list (interleaved appends previously
         corrupted both and double-persisted merged turns on disconnect).
         """
+        from swarm.core.transcript_roles import split_store
+
         cache_key = _conversation_cache_key(self.user, conversation_id)
         if cache_key in IN_MEMORY_CONVERSATIONS:
+            if not getattr(self, "ui_events", None):
+                disk = _load_agent_record(
+                    self.user,
+                    getattr(self, "default_blueprint", None),
+                    conversation_id=conversation_id,
+                )
+                self.ui_events = list(disk.get("ui_events") or [])
             return list(IN_MEMORY_CONVERSATIONS[cache_key])
 
         try:
             chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
-            messages = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
-            IN_MEMORY_CONVERSATIONS[cache_key] = messages  # Cache it
-            return list(messages)
+            raw = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
+            turns, events = split_store(raw, [])
+            IN_MEMORY_CONVERSATIONS[cache_key] = turns
+            if events and not getattr(self, "ui_events", None):
+                self.ui_events = events
+            return list(turns)
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
 
@@ -889,21 +936,23 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
             # REQ-65: on-mode tasks must not inherit the reused agent transcript.
             if agent_id and is_new_chat_per_task(agent_id):
-                disk = _load_agent_json(
+                disk = _load_agent_record(
                     self.user, agent_id, conversation_id=conversation_id
                 )
-                if disk:
-                    IN_MEMORY_CONVERSATIONS[cache_key] = disk
-                    return list(disk)
+                if disk["messages"] or disk["ui_events"]:
+                    IN_MEMORY_CONVERSATIONS[cache_key] = disk["messages"]
+                    self.ui_events = list(disk["ui_events"])
+                    return list(disk["messages"])
                 return []
         except Exception:
             logger.debug("new-chat-per-task check failed; using reuse fallback", exc_info=True)
 
         # Disk fallback: per-agent JSON (survives a new conversation UUID).
-        disk = _load_agent_json(self.user, agent_id)
-        if disk:
-            IN_MEMORY_CONVERSATIONS[cache_key] = disk
-            return list(disk)
+        disk = _load_agent_record(self.user, agent_id)
+        if disk["messages"] or disk["ui_events"]:
+            IN_MEMORY_CONVERSATIONS[cache_key] = disk["messages"]
+            self.ui_events = list(disk["ui_events"])
+            return list(disk["messages"])
         return []
 
     @database_sync_to_async
@@ -932,24 +981,32 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             chat.student = self.user
             chat.save(update_fields=["student"])
 
+        from swarm.core.transcript_roles import is_model_turn, split_store
+
+        turns, leftover = split_store(new_messages, [])
+        events = list(getattr(self, "ui_events", []) or [])
+        if leftover:
+            events = events + leftover
         chat_messages = [
             ChatMessage(
                 conversation=chat,
                 sender=message["role"],
                 content=message["content"],
             )
-            for message in new_messages
+            for message in turns
+            if is_model_turn(message)
         ]
         # Idempotent replace: delete then insert current transcript.
         ChatMessage.objects.filter(conversation=chat).delete()
         ChatMessage.objects.bulk_create(chat_messages)
 
-        IN_MEMORY_CONVERSATIONS[cache_key] = list(new_messages)
+        IN_MEMORY_CONVERSATIONS[cache_key] = list(turns)
         _save_agent_json(
             self.user,
             getattr(self, "active_agent", None) or getattr(self, "default_blueprint", None),
-            new_messages,
+            turns,
             conversation_id=conversation_id,
+            ui_events=events,
         )
 
     @database_sync_to_async

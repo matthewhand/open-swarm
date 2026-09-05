@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-70 reconstruction:** Status / info / hop chrome is side-channel metadata (`ui_events` with timestamps), not a mixed transcript the model later filters. The UI reconstructs those lines. Model context is built from real user / assistant / tool turns. Speaker identity uses the OpenAI `name` field or a tested delimiter wrap. Fixes #407.
 - **REQ-144 / REQ-168 server-side rail preferences:** Favourites (ordered id list), Hidden Bots, and hostname override persist on `GET/PATCH /v1/preferences/` in a first-party per-user `UserPreference` JSON bag (SQLite/Postgres; no Neon, no secrets). SPA loads on session start and writes on pin/hide/hostname change (debounce). If localStorage has values and the server bag is empty, import once, then server wins. Guest rows are session-scoped; logged-in users sync across browsers. Fixes #540 #592.
 - **REQ-189 look-only ADR-007:** local computer control — adapt OpenMausBot + Rakazo (browser / Docker sibling sandbox / host via placed remotes). SaaS deferred. Programme [#645](https://github.com/matthewhand/open-swarm/issues/645); this change does not close it.
 - **REQ-159 three kind bases:** ADR-005 (`ApiKindBase` / `CliKindBase` / `RemoteKindBase` in `swarm.core.kind_bases`). Support + shared author brief prefer those templates over raw `BlueprintBase`. README openai-agents section cross-links. Creator validator accepts a kind base. Wizard/library emit paths stay `BlueprintBase` until follow-up. Fixes #570.

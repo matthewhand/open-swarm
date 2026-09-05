@@ -1024,6 +1024,61 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(startedPos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('reconstructs status chrome from turns + ui_events with a timestamp', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'jeeves',
+              conversation_id: 'agt-1-jeeves',
+              turns: [
+                { role: 'user', content: 'hello', seq: 0 },
+                { role: 'assistant', content: 'hi', seq: 2 },
+              ],
+              ui_events: [
+                {
+                  kind: 'status',
+                  role: 'status',
+                  content: 'CLI: antigravity → grok',
+                  ts: '2026-09-05T12:04:00Z',
+                  seq: 1,
+                },
+              ],
+              messages: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'jeeves', name: 'Jeeves', description: 'API' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=jeeves')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const line = await screen.findByTestId('chat-status')
+    expect(line).toHaveTextContent('CLI: antigravity → grok')
+    expect(line.querySelector('[data-testid="chat-status-time"]')).toBeTruthy()
+    expect(line.querySelector('time')).toHaveAttribute('dateTime', '2026-09-05T12:04:00Z')
+    expect(screen.getByText('hello')).toBeInTheDocument()
+    expect(screen.getByText('hi')).toBeInTheDocument()
+  })
+
   it('REQ-92: live new-session status lands immediately before the assistant reply', async () => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()

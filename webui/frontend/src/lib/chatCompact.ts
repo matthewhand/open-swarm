@@ -87,14 +87,14 @@ export function buildDisplayItems(
   return items
 }
 
-/** Texts the token meter should count (summaries + uncovered raw). */
+/** Texts the token meter should count (summaries + uncovered raw turns). */
 export function contextTextsForMeter(
   messages: ChatBubble[],
   summaries: ConversationSummary[],
 ): string[] {
-  return buildDisplayItems(messages, summaries).map((item) =>
-    item.kind === 'summary' ? item.summary.body : item.message.text,
-  )
+  return buildDisplayItems(messages, summaries)
+    .filter((item) => item.kind === 'summary' || item.message.role !== 'status')
+    .map((item) => (item.kind === 'summary' ? item.summary.body : item.message.text))
 }
 
 export function isConversationSummary(value: unknown): value is ConversationSummary {

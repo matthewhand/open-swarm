@@ -82,6 +82,7 @@ def consumer(mock_scope, mock_user):
     consumer.scope = mock_scope
     consumer.user = mock_user  # Set user attribute directly (normally set in connect)
     consumer.messages = []
+    consumer.ui_events = []
     return consumer
 
 
@@ -663,9 +664,9 @@ class TestBlueprintSelection:
                 with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
                     await consumer.receive(text_data)
 
-        assert consumer.messages == [
-            {"role": "status", "content": "CLI: antigravity → grok"}
-        ]
+        assert consumer.messages == []
+        assert consumer.ui_events[0]["content"] == "CLI: antigravity → grok"
+        assert consumer.ui_events[0]["kind"] == "status"
         assert consumer.active_agent == "cli_agent"
         mock_save.assert_awaited_once()
         mock_bp.assert_not_awaited()
@@ -789,9 +790,15 @@ class TestBlueprintSelection:
                 assert any("chat-status-line" in frame for frame in frames)
                 assert any("Started a new echo session." in frame for frame in frames)
                 assert "Restored" not in "".join(frames)
-                assert {"role": "status", "content": "Started a new echo session."} in consumer.messages
-                roles = [m["role"] for m in consumer.messages]
-                assert roles.index("status") < roles.index("assistant")
+                assert not any(m.get("role") == "status" for m in consumer.messages)
+                assert any(
+                    row.get("content") == "Started a new echo session."
+                    for row in consumer.ui_events
+                )
+                from swarm.core.transcript_roles import reconstruct_display
+
+                display_roles = [m["role"] for m in reconstruct_display(consumer.messages, consumer.ui_events)]
+                assert display_roles.index("status") < display_roles.index("assistant")
                 status_i = next(i for i, frame in enumerate(frames) if "Started a new echo session." in frame)
                 assistant_i = next(i for i, frame in enumerate(frames) if "ok" in frame)
                 assert status_i < assistant_i
@@ -841,8 +848,14 @@ class TestBlueprintSelection:
         status_i = next(i for i, frame in enumerate(frames) if "Started a new grok session." in frame)
         start_i = next(i for i, frame in enumerate(frames) if "assistant-message" in frame)
         assert status_i < start_i
-        assert [m["role"] for m in consumer.messages[:2]] == ["user", "status"]
-        assert consumer.messages[1]["content"] == "Started a new grok session."
+        assert [m["role"] for m in consumer.messages] == ["user"]
+        assert consumer.ui_events[0]["content"] == "Started a new grok session."
+        from swarm.core.transcript_roles import reconstruct_display
+
+        assert [m["role"] for m in reconstruct_display(consumer.messages, consumer.ui_events)] == [
+            "user",
+            "status",
+        ]
 
     @pytest.mark.asyncio
     async def test_receive_resume_does_not_emit_spurious_new_session(

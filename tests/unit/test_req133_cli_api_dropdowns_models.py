@@ -66,7 +66,10 @@ def test_chat_thread_post_appends_status_line():
     assert resp.status_code == 200
     data = resp.json()
     assert any(m["role"] == "status" and m["content"] == "CLI: antigravity → grok" for m in data["messages"])
+    assert any(e["content"] == "CLI: antigravity → grok" for e in data["ui_events"])
+    assert all(m["role"] != "status" for m in data["turns"])
 
     loaded = chat_store.load(chat_store.user_key_for(user), "codey")
     assert loaded is not None
-    assert loaded["messages"][-1]["content"] == "CLI: antigravity → grok"
+    assert loaded["ui_events"][-1]["content"] == "CLI: antigravity → grok"
+    assert all(m.get("role") != "status" for m in loaded["messages"])

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from swarm.models import ChatConversation, ChatMessage, ConversationSummary
+from swarm.core.transcript_roles import is_chrome_item, turns_for_model
 
 
 class CompactError(ValueError):
@@ -85,10 +86,14 @@ def summarize_items(items: list[dict[str, Any]]) -> str:
         if item.get("kind") == "summary":
             lines.append(f"- [summary] {_clip(str(item.get('body') or ''))}")
             continue
+        if is_chrome_item(item):
+            continue
         role = item.get("role") or "user"
+        if str(role) in {"status", "info", "hop"}:
+            continue
         content = item.get("content") or item.get("text") or ""
         lines.append(f"- {role}: {_clip(str(content))}")
-    count = len(items)
+    count = len(lines)
     noun = "item" if count == 1 else "items"
     return f"Summary of {count} {noun}:\n" + "\n".join(lines)
 
@@ -178,13 +183,18 @@ def build_model_context(
             tree = _format_summary_tree(row, by_id) if row is not None else (item.get("body") or "")
             out.append({"role": "system", "content": f"[Conversation summary]\n{tree}"})
             continue
-        role = item.get("role") or "user"
-        if str(role) == "status":
-            continue  # bubble-less session/status lines are not model context
+        if is_chrome_item(item) or str(role) in {"status", "info", "hop"}:
+            continue
         role_s = "assistant" if str(role) == "assistant" else "user"
         if str(role) == "system":
             role_s = "system"
-        out.append({"role": role_s, "content": str(item.get("content") or "")})
+        if str(role) == "tool":
+            role_s = "tool"
+        row = {"role": role_s, "content": str(item.get("content") or "")}
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            row["name"] = name.strip()
+        out.append(row)
     return out
 
 
@@ -193,23 +203,16 @@ def context_for_conversation(
     messages: list[dict[str, Any]],
 ) -> list[dict[str, str]]:
     """Load sqlite summaries for ``conversation_id`` and build model context."""
+    turns = turns_for_model(messages)
     if not conversation_id:
-        return [
-            {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
-            for m in (messages or [])
-            if (m.get("role") or "user") != "status"
-        ]
+        return turns
     try:
         rows = list(
             ConversationSummary.objects.filter(conversation_id=conversation_id).order_by("id")
         )
     except Exception:
-        return [
-            {"role": (m.get("role") or "user"), "content": m.get("content") or ""}
-            for m in (messages or [])
-            if (m.get("role") or "user") != "status"
-        ]
-    return build_model_context(messages, rows)
+        return turns
+    return build_model_context(turns, rows)
 
 
 def list_summaries(conversation_id: str) -> list[ConversationSummary]:
@@ -275,10 +278,7 @@ def ensure_transcript(
     record = chat_store.load(user_key, agent_id)
     stored: list[dict[str, str]] = []
     if record:
-        stored = [
-            {"role": m.get("role", "user"), "content": m.get("content", "")}
-            for m in (record.get("messages") or [])
-        ]
+        stored = turns_for_model(record.get("messages") or [])
 
     chat, _created = ChatConversation.objects.get_or_create(
         conversation_id=conversation_id,
@@ -294,7 +294,7 @@ def ensure_transcript(
     if not stored and db_rows:
         stored = [{"role": row.sender, "content": row.content} for row in db_rows]
 
-    client = _normalize_client_messages(client_messages)
+    client = turns_for_model(client_messages) if client_messages else []
     raw = stored if stored else client
     if client and len(client) > len(raw):
         raw = client
@@ -353,6 +353,8 @@ def compact_backlog(
             if span["end"] < start or span["start"] > end:
                 continue
             mix.append(item)
+            continue
+        if is_chrome_item(item):
             continue
         offset = item.get("offset")
         if isinstance(offset, int) and start <= offset <= end:

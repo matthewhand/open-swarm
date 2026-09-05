@@ -138,6 +138,7 @@ import {
   shouldRecordDropdownChange,
   type DropdownKind,
 } from '../lib/chatStatus'
+import { formatChromeTime } from '../lib/transcriptReconstruct'
 import { insertCliSessionNotice } from '../lib/chatTranscript'
 import { restoreKindForAgent, restoredSessionNotice } from '../lib/sessionRestore'
 import {
@@ -163,12 +164,14 @@ interface ChatMessage {
   streaming: boolean
   tools?: ToolCallState[]
   edited?: boolean
+  /** Chrome timestamp from the side-channel event (REQ-70). */
+  ts?: string
   /** REQ-71 chrome — structured PR-opened tool result, not markdown. */
   prOpened?: PrOpenedEvent
 }
 
 function chatMessageFromThreadRow(
-  message: { role: string; content: string; edited?: boolean },
+  message: { role: string; content: string; edited?: boolean; ts?: string },
   index: number,
 ): ChatMessage {
   const prOpened = parsePrOpened(message.content) ?? undefined
@@ -178,6 +181,7 @@ function chatMessageFromThreadRow(
     text: prOpened ? '' : message.content,
     streaming: false,
     edited: message.edited === true,
+    ts: message.ts,
     prOpened,
   }
 }
@@ -534,6 +538,7 @@ const ChatPage = () => {
         role: 'status',
         text: statusText,
         streaming: false,
+        ts: new Date().toISOString(),
       }
       setThreads((prev) => ({
         ...prev,
@@ -902,6 +907,7 @@ const ChatPage = () => {
               role: 'status',
               text: event.text,
               streaming: false,
+              ts: new Date().toISOString(),
             })
             break
         }
@@ -1169,6 +1175,9 @@ const ChatPage = () => {
       const current = threads[threadKey] ?? []
       const target = current[index]
       if (!target || target.streaming) return
+      const turnIndex = current
+        .filter((row) => row.role === 'user' || row.role === 'assistant')
+        .findIndex((row) => row.key === target.key)
       setThreads((prev) => {
         const list = prev[threadKey] ?? []
         if (!list[index]) return prev
@@ -1177,13 +1186,14 @@ const ChatPage = () => {
         return { ...prev, [threadKey]: next }
       })
       setEditingKey(null)
+      const persistIndex = turnIndex >= 0 ? turnIndex : index
       const ws = wsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(buildChatWsEditFrame(index, nextText))
+        ws.send(buildChatWsEditFrame(persistIndex, nextText))
       }
       try {
         await patchAgentMessage(agentIdFromBlueprint(selectedBlueprint), {
-          index,
+          index: persistIndex,
           content: nextText,
           conversation_id: conversationIdRef.current,
         })
@@ -1859,6 +1869,7 @@ const ChatPage = () => {
               )
             }
             if (isStatusRole(message.role)) {
+              const when = formatChromeTime(message.ts)
               return (
                 <p
                   key={message.key}
@@ -1866,7 +1877,17 @@ const ChatPage = () => {
                   data-role="status"
                   data-testid="chat-status"
                 >
-                  <span>{message.text}</span>
+                  <span>
+                    {message.text}
+                    {when ? (
+                      <>
+                        {' '}
+                        <time dateTime={message.ts} data-testid="chat-status-time">
+                          {when}
+                        </time>
+                      </>
+                    ) : null}
+                  </span>
                 </p>
               )
             }

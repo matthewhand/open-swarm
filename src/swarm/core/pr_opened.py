@@ -194,4 +194,6 @@ def persist_pr_opened_message(messages: list[dict[str, Any]], payload: dict[str,
     for row in messages:
         if row.get("role") == "status" and row.get("content") == content:
             return
-    messages.append({"role": "status", "content": content})
+    from swarm.core.transcript_roles import stamp_event
+
+    messages.append(stamp_event({"role": "status", "kind": "status", "content": content}))

@@ -6,6 +6,13 @@ import {
 } from './chatCompact'
 import { newConversationId } from './chatWs'
 import { asTranscriptRole, isStatusRole } from './chatStatus'
+import {
+  parseTurn,
+  parseUiEvent,
+  reconstructTranscript,
+  splitMixedMessages,
+  type ReconstructedMessage,
+} from './transcriptReconstruct'
 
 export type { ConversationSummary } from './chatCompact'
 
@@ -96,12 +103,16 @@ export interface AgentThreadMessage {
   role: 'user' | 'assistant' | 'status'
   content: string
   edited?: boolean
+  ts?: string
+  kind?: string
 }
 
 export interface AgentThread {
   agent_id: string
   conversation_id: string
   messages: AgentThreadMessage[]
+  turns?: AgentThreadMessage[]
+  ui_events?: AgentThreadMessage[]
   summaries: ConversationSummary[]
   kind?: AgentKind
   editable?: boolean
@@ -115,7 +126,7 @@ export interface CompactResult {
 
 function parseThreadMessage(value: unknown): AgentThreadMessage | null {
   if (!value || typeof value !== 'object') return null
-  const row = value as { role?: unknown; content?: unknown; edited?: unknown }
+  const row = value as { role?: unknown; content?: unknown; edited?: unknown; ts?: unknown; kind?: unknown }
   if (typeof row.role !== 'string' || typeof row.content !== 'string') return null
   if (row.edited !== undefined && row.edited !== true) return null
   if (row.role !== 'user' && row.role !== 'assistant' && !isStatusRole(row.role)) {
@@ -126,7 +137,44 @@ function parseThreadMessage(value: unknown): AgentThreadMessage | null {
     content: row.content,
   }
   if (row.edited === true) parsed.edited = true
+  if (typeof row.ts === 'string' && row.ts) parsed.ts = row.ts
+  if (typeof row.kind === 'string' && row.kind) parsed.kind = row.kind
   return parsed
+}
+
+function reconstructedToThread(rows: ReconstructedMessage[]): AgentThreadMessage[] {
+  return rows.map((row) => {
+    const out: AgentThreadMessage = {
+      role: row.role === 'assistant' ? 'assistant' : row.role === 'user' ? 'user' : 'status',
+      content: row.content,
+    }
+    if (row.edited) out.edited = true
+    if (row.ts) out.ts = row.ts
+    if (row.kind) out.kind = row.kind
+    return out
+  })
+}
+
+/** Rebuild chrome from ``turns`` + ``ui_events``; fall back to a mixed list. */
+export function messagesFromThreadPayload(data: {
+  turns?: unknown
+  ui_events?: unknown
+  messages?: unknown
+}): AgentThreadMessage[] {
+  const hasSideChannel = Array.isArray(data.turns) || Array.isArray(data.ui_events)
+  if (hasSideChannel) {
+    const turns = Array.isArray(data.turns) ? data.turns.map(parseTurn).filter((row): row is NonNullable<typeof row> => row != null) : []
+    const events = Array.isArray(data.ui_events)
+      ? data.ui_events.map(parseUiEvent).filter((row): row is NonNullable<typeof row> => row != null)
+      : []
+    return reconstructedToThread(reconstructTranscript(turns, events))
+  }
+  const mixed = Array.isArray(data.messages) ? data.messages : []
+  const split = splitMixedMessages(mixed)
+  if (split.ui_events.length) {
+    return reconstructedToThread(reconstructTranscript(split.turns, split.ui_events))
+  }
+  return mixed.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
 }
 
 function parseSummaries(value: unknown): ConversationSummary[] {
@@ -145,9 +193,7 @@ export async function fetchAgentThread(
     const data = await apiGet<AgentThread>(
       `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
     )
-    const messages = Array.isArray(data?.messages)
-      ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
-      : []
+    const messages = messagesFromThreadPayload(data || {})
     const kind = classifyAgentKind(agent, data?.kind)
     return {
       agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
@@ -190,9 +236,7 @@ export async function patchAgentMessage(
     `/chat/thread/?agent=${encodeURIComponent(agent)}`,
     body,
   )
-  const messages = Array.isArray(data?.messages)
-    ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
-    : []
+  const messages = messagesFromThreadPayload(data || {})
   const kind = classifyAgentKind(agent, data?.kind)
   return {
     agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
@@ -207,7 +251,7 @@ export async function patchAgentMessage(
   }
 }
 
-/** POST /chat/thread/?agent= — append a status/turn message (REQ-46). */
+/** POST /chat/thread/?agent= — append chrome (status) or a real turn (REQ-46). */
 export async function appendAgentMessage(
   agentId: string,
   message: { role: string; content: string },
@@ -219,9 +263,7 @@ export async function appendAgentMessage(
     `/chat/thread/?agent=${encodeURIComponent(agent)}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ''}`,
     { message, conversation_id: conversationId },
   )
-  const messages = Array.isArray(data?.messages)
-    ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
-    : []
+  const messages = messagesFromThreadPayload(data || {})
   const kind = classifyAgentKind(agent, data?.kind)
   return {
     agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
@@ -248,7 +290,7 @@ export async function compactAgentThread(opts: {
   const data = await apiPost<CompactResult>('/chat/compact/', {
     conversation_id: opts.conversationId,
     agent,
-    messages: opts.messages,
+    messages: opts.messages.filter((row) => row.role === 'user' || row.role === 'assistant'),
     span_start: opts.spanStart,
     span_end: opts.spanEnd,
   })

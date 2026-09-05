@@ -75,9 +75,14 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
 
     A lone user message is passed through verbatim. A multi-turn conversation
     is rendered as a simple ``ROLE: content`` transcript so a one-shot CLI sees
-    the full context.
+    the full context. Chrome/status rows are a safety belt drop — the caller
+    should already pass real turns only.
     """
-    msgs = [m for m in (messages or []) if isinstance(m, dict) and m.get("content")]
+    from swarm.core.speaker_identity import apply_speaker_identity
+    from swarm.core.transcript_roles import turns_for_model
+
+    labeled = apply_speaker_identity(turns_for_model(messages), adapter_id="cli")
+    msgs = [m for m in labeled if isinstance(m, dict) and m.get("content")]
     if not msgs:
         return ""
     if len(msgs) == 1:

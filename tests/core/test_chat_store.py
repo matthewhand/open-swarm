@@ -60,7 +60,7 @@ def test_save_preserves_edited_flag(tmp_path):
     assert loaded["messages"][0]["edited"] is True
 
 
-def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
+def test_save_splits_chrome_into_ui_events(tmp_path):
     path = chat_store.save(
         "u1",
         "cli_agent",
@@ -75,7 +75,14 @@ def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
     )
     assert path is not None
     loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
-    assert [m["role"] for m in loaded["messages"]] == ["user", "status", "assistant"]
+    assert [m["role"] for m in loaded["messages"]] == ["user", "assistant"]
+    assert loaded["ui_events"][0]["content"] == "Started a new echo session."
+    assert loaded["ui_events"][0]["ts"]
+    assert [m["role"] for m in chat_store.display_messages(loaded)] == [
+        "user",
+        "status",
+        "assistant",
+    ]
     assert loaded["cli_sessions"] == {"echo": "sid-1"}
     chat_store.save(
         "u1",
@@ -86,6 +93,7 @@ def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
     again = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
     assert again["cli_sessions"] == {"echo": "sid-1"}
     assert again["cli_sessions"].get("echo") != "sk-secret"
+    assert again["ui_events"][0]["content"] == "Started a new echo session."
 
 
 def test_normalize_and_default_agent():
@@ -94,7 +102,7 @@ def test_normalize_and_default_agent():
     assert chat_store.normalize_agent_id("hybrid_team") == "hybrid_team"
 
 
-def test_normalize_keeps_status_role(tmp_path):
+def test_normalize_moves_status_to_ui_events(tmp_path):
     chat_store.save(
         "u1",
         "cli_agent",
@@ -105,8 +113,11 @@ def test_normalize_keeps_status_role(tmp_path):
         base_dir=tmp_path,
     )
     loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
-    assert loaded["messages"][0] == {"role": "status", "content": "CLI: antigravity → grok"}
-    assert loaded["messages"][1]["role"] == "user"
+    assert loaded["messages"][0]["role"] == "user"
+    assert loaded["messages"][0]["content"] == "hi"
+    assert loaded["ui_events"][0]["content"] == "CLI: antigravity → grok"
+    assert loaded["ui_events"][0]["ts"]
+    assert chat_store.display_messages(loaded)[0]["role"] == "status"
     assert chat_store.normalize_agent_id("../etc/passwd") == "etc-passwd"
 
 
