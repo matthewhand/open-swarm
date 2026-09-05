@@ -343,6 +343,11 @@ button.os-action-card:hover {
   font-size: 1.05rem;
   letter-spacing: 0.01em;
 }
+.os-navbar .os-brand-mark-geometric {
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+}
 .os-navbar .nav-link {
   font-size: 0.92rem;
   padding: 0.4rem 0.65rem !important;

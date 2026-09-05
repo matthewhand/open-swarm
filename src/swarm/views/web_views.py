@@ -64,7 +64,7 @@ def _safe_post_login_redirect(request, next_url: str | None) -> str:
     return candidate
 
 
-# REQ-106: root browser/PWA icon files live in assets/brand/ (not dist/).
+# REQ-106 / #768: root browser/PWA icon files live in assets/brand/ (not dist/).
 BRAND_ROOT_FILES = {
     "favicon.ico": "image/x-icon",
     "favicon-16.png": "image/png",
@@ -73,6 +73,8 @@ BRAND_ROOT_FILES = {
     "icon-192.png": "image/png",
     "icon-512.png": "image/png",
     "manifest.json": "application/manifest+json",
+    "favicon-minimal.svg": "image/svg+xml",
+    "webui-geometric.svg": "image/svg+xml",
 }
 
 

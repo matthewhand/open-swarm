@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Open Swarm">
+  <!--
+    option2-cyber-swarm-bee : marketing / website fanfare.
+    Faceted amber glow on dark #141318. Project-owned recreation of the
+    #537 taster. Photoreal companion: marketing-cyber-swarm.png.
+  -->
+  <title>Open Swarm</title>
+  <defs>
+    <radialGradient id="os-cyber-glow" cx="50%" cy="48%" r="52%">
+      <stop offset="0%" stop-color="#F3BA25"/>
+      <stop offset="38%" stop-color="#C45A12"/>
+      <stop offset="100%" stop-color="#141318" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="os-cyber-plate" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" stop-color="#F8D056"/>
+      <stop offset="45%" stop-color="#E08A14"/>
+      <stop offset="100%" stop-color="#6B2208"/>
+    </linearGradient>
+    <linearGradient id="os-cyber-wing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3BA25" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#3A220C" stop-opacity="0.35"/>
+    </linearGradient>
+    <filter id="os-cyber-bloom" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.1" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <pattern id="os-cyber-hex" width="4" height="3.5" patternUnits="userSpaceOnUse">
+      <path d="M2 0.2 L3.7 1.2 V2.6 L2 3.6 L0.3 2.6 V1.2 Z" fill="none" stroke="#F3BA25" stroke-width="0.28"/>
+    </pattern>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#141318"/>
+  <circle cx="32" cy="33" r="26" fill="url(#os-cyber-glow)" opacity="0.55"/>
+
+  <g filter="url(#os-cyber-bloom)" transform="rotate(-18 32 34)">
+    <!-- Crystalline wings -->
+    <g fill="url(#os-cyber-wing)" stroke="#F3BA25" stroke-width="0.9">
+      <path d="M16 16 L6 10 L4 22 L14 28 L20 22 Z" opacity="0.9"/>
+      <path d="M20 12 L14 2 L8 14 L18 22 Z" opacity="0.75"/>
+      <path d="M10 14 L14 20" fill="none"/>
+      <path d="M8 18 L16 22" fill="none"/>
+    </g>
+
+    <!-- Legs -->
+    <g fill="none" stroke="#C45A12" stroke-width="1.15" stroke-linecap="round">
+      <path d="M24 46 L20 56"/>
+      <path d="M30 50 L28 58"/>
+      <path d="M36 50 L38 58"/>
+      <path d="M42 46 L48 54"/>
+    </g>
+
+    <!-- Faceted abdomen -->
+    <polygon points="32,22 44,30 40,50 32,58 24,50 20,30" fill="url(#os-cyber-plate)" stroke="#F3BA25" stroke-width="0.7"/>
+    <polygon points="32,26 40,32 38,46 32,52 26,46 24,32" fill="#2A1408" opacity="0.35"/>
+    <path d="M22 34 H42" stroke="#F3BA25" stroke-width="1.4" opacity="0.85"/>
+    <path d="M23 42 H41" stroke="#F8D056" stroke-width="1.1" opacity="0.75"/>
+    <path d="M26 49 H38" stroke="#C45A12" stroke-width="0.9" opacity="0.8"/>
+
+    <!-- Thorax plates -->
+    <polygon points="32,16 40,22 32,30 24,22" fill="url(#os-cyber-plate)" stroke="#F8D056" stroke-width="0.7"/>
+
+    <!-- Head + honeycomb eye -->
+    <polygon points="32,6 38,12 32,18 26,12" fill="#2A1A0C" stroke="#F3BA25" stroke-width="0.9"/>
+    <circle cx="32" cy="12" r="3.1" fill="url(#os-cyber-hex)" stroke="#F8D056" stroke-width="0.6"/>
+
+    <!-- Antennae -->
+    <g fill="none" stroke="#F3BA25" stroke-width="1.2" stroke-linecap="round">
+      <path d="M28.6 8 C24 2 18 1 15 3"/>
+      <path d="M35.4 8 C40 2 46 1 49 3"/>
+    </g>
+    <circle cx="15" cy="3" r="1.2" fill="#F8D056"/>
+    <circle cx="49" cy="3" r="1.2" fill="#F8D056"/>
+  </g>
+</svg>

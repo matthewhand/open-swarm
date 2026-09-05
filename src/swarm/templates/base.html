@@ -31,7 +31,7 @@
                 <button type="button" class="os-sidebar-toggle d-lg-none" id="os-sidebar-open" aria-label="Open agents sidebar">
                     <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
-                <a class="navbar-brand fw-semibold" href="/" aria-label="Home"><i class="fas fa-robot" aria-hidden="true"></i></a>
+                <a class="navbar-brand fw-semibold" href="/" aria-label="Home"><img src="{% static 'brand/webui-geometric.svg' %}" alt="" width="28" height="28" class="os-brand-mark-geometric"></a>
                 <ul class="navbar-nav flex-row flex-nowrap align-items-center gap-1 me-auto mb-0">
                     <li class="nav-item">
                         <a class="nav-link {% if path == '/agents' or path|slice:':8' == '/agents/' %}active{% endif %}"
