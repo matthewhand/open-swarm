@@ -51,6 +51,9 @@ def test_own_diff_ci_exists():
     assert "own-diff" in text
     assert "overlapping_receives" in text
     assert "ChatPage.queued.test.tsx" in text
+    assert "ChatPage.test.tsx" in text
+    assert "team member dropdown" in text
+    assert "REQ-171A-3" in text
     assert ":8001" not in text
     assert "WAVE" not in text
     _no_secrets(text)

@@ -8,6 +8,7 @@ on:
       - "tests/unit/test_req171a3_serialise_turns.py"
       - "webui/frontend/src/pages/ChatPage.tsx"
       - "webui/frontend/src/pages/__tests__/ChatPage.queued.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
       - "webui/frontend/src/lib/chatQueue.ts"
       - "webui/frontend/src/lib/__tests__/chatQueue.test.ts"
       - ".github/workflows/req171a3-serialise-turns.yml"
@@ -19,6 +20,7 @@ on:
       - "tests/unit/test_req171a3_serialise_turns.py"
       - "webui/frontend/src/pages/ChatPage.tsx"
       - "webui/frontend/src/pages/__tests__/ChatPage.queued.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
       - "webui/frontend/src/lib/chatQueue.ts"
       - "webui/frontend/src/lib/__tests__/chatQueue.test.ts"
       - ".github/workflows/req171a3-serialise-turns.yml"
@@ -41,10 +43,9 @@ jobs:
 
       - name: Pytest overlapping-turn suite
         run: |
-          uv run pytest \
-            tests/unit/test_req171a3_serialise_turns.py \
-            tests/test_consumers.py \
-            -k "overlapping_receives or tool_decision_is_not_blocked or receive_tool_decision or receive_valid_json or own_diff or no_8001"
+          uv run pytest tests/unit/test_req171a3_serialise_turns.py
+          uv run pytest tests/test_consumers.py \
+            -k "overlapping_receives or tool_decision_is_not_blocked or receive_tool_decision or receive_valid_json"
         env:
           DJANGO_ALLOW_ASYNC_UNSAFE: "true"
 
@@ -66,4 +67,4 @@ jobs:
             src/lib/__tests__/chatQueue.test.ts \
             src/pages/__tests__/ChatPage.queued.test.tsx
           npx vitest run src/pages/__tests__/ChatPage.test.tsx \
-            -t "Send button honesty"
+            -t "Send path with mock inference|Send button honesty|team member dropdown|REQ-171A-3"
