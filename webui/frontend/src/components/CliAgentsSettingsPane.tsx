@@ -4,6 +4,13 @@ import { AlertCircle, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, useToast } from './DaisyUI'
 import { fetchCliAgents, fetchConfigSection, patchConfigSection } from '../lib/api'
 import { configuredCliNames, suggestedCliEntries } from '../lib/cliAgents'
+import {
+  DEFAULT_HOP_MODE,
+  DEFAULT_HOP_TOKEN_BUDGET,
+  loadHopPrefs,
+  saveHopPrefs,
+  type HopMode,
+} from '../lib/sessionHopPrefs'
 
 export default function CliAgentsSettingsPane() {
   const { success, error: toastError } = useToast()
@@ -21,6 +28,7 @@ export default function CliAgentsSettingsPane() {
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [cmdText, setCmdText] = useState('')
+  const [hopPrefs, setHopPrefs] = useState(() => loadHopPrefs())
 
   const data = (configQuery.data?.data || {}) as Record<string, { cmd?: string[] }>
   const names = Object.keys(data)
@@ -196,6 +204,42 @@ export default function CliAgentsSettingsPane() {
           Add CLI agent
         </Button>
       )}
+
+      <fieldset className="space-y-2 rounded-box border border-base-300 p-3">
+        <legend className="px-1 text-sm font-semibold">When switching CLI</legend>
+        <p className="text-sm text-base-content/70">
+          Quota hop starts a <strong>new</strong> session on the target CLI and seeds it with
+          prior swarm context. Switching back is also a new session. Secrets and tool noise are
+          omitted. Manual switch only — no automatic failover.
+        </p>
+        <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Hop context mode">
+          {(['summary', 'full'] as HopMode[]).map((mode) => (
+            <label key={mode} className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="session-hop-mode"
+                className="radio radio-sm"
+                checked={hopPrefs.mode === mode}
+                onChange={() => setHopPrefs(saveHopPrefs({ mode }))}
+              />
+              {mode === DEFAULT_HOP_MODE ? 'Summary (default)' : 'Full'}
+            </label>
+          ))}
+        </div>
+        <label className="form-control w-full max-w-xs">
+          <span className="label-text text-sm">Token budget for injected context</span>
+          <Input
+            name="hop-token-budget"
+            type="number"
+            min={64}
+            max={128000}
+            value={String(hopPrefs.tokenBudget || DEFAULT_HOP_TOKEN_BUDGET)}
+            onChange={(event) =>
+              setHopPrefs(saveHopPrefs({ tokenBudget: Number(event.target.value) }))
+            }
+          />
+        </label>
+      </fieldset>
     </div>
   )
 }

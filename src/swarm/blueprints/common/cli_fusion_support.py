@@ -443,5 +443,16 @@ def terminated_notice_chunk() -> dict:
     }
 
 
+def context_carried_chunk(text: str) -> dict:
+    """Bubble-less #531 line — distinct from the #362 dropdown-change status."""
+    return {
+        "type": SESSION_NOTICE_TYPE,
+        "content": text,
+        "kind": "context_carried",
+        "context_carried": True,
+        "session_notice": True,
+    }
+
+
 def format_cli_error(adapter: CliAdapter, error: str) -> str:
     return f"[{adapter.name}] failed: {error}"

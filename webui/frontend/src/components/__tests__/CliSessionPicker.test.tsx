@@ -101,4 +101,18 @@ describe('CliSessionPicker', () => {
     expect(onStartNew).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('Continue on another CLI hops the selected provider session', () => {
+    const onContinueOn = vi.fn()
+    const { onClose } = renderPicker({
+      continueTargets: ['agy', 'opencode'],
+      onContinueOn,
+    })
+    const select = screen.getByRole('combobox', { name: 'Continue on CLI' })
+    fireEvent.change(select, { target: { value: 'agy' } })
+    expect(onContinueOn).toHaveBeenCalledTimes(1)
+    expect(onContinueOn.mock.calls[0][0].id).toBe('sid-1')
+    expect(onContinueOn.mock.calls[0][1]).toBe('agy')
+    expect(onClose).toHaveBeenCalled()
+  })
 })

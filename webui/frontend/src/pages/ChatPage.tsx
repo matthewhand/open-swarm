@@ -219,6 +219,7 @@ import {
   switchedSessionNotice,
 } from '../lib/sessionRestore'
 import { CLI_SESSION_SWITCHED_EVENT } from '../lib/cliSessions'
+import { CLI_SESSION_HOPPED_EVENT, hopCliSession } from '../lib/cliSessionHop'
 import {
   SUGGESTION_CHIP_EVENT,
   generationIsInFlight,
@@ -742,6 +743,42 @@ const ChatPage = () => {
           { replace: true },
         )
         recordDropdownChange('cli', next.previous.agent, next.agent)
+        const fromCli = (next.previous.agent || '').trim()
+        const toCli = (next.agent || '').trim()
+        if (fromCli && toCli && fromCli !== toCli) {
+          const agent = teamFromUrl
+            ? `team-${teamFromUrl}`
+            : remoteFromUrl
+              ? `remote-${remoteFromUrl}`
+              : selectedBlueprint || DEFAULT_AGENT_ID
+          void hopCliSession({
+            agentId: agent,
+            fromCli,
+            toCli,
+            conversationId: conversationIdRef.current || undefined,
+            kind: 'cli',
+          })
+            .then((hop) => {
+              if (!hop?.status?.trim()) return
+              const statusMsg: ChatMessage = {
+                key: `hop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                role: 'status',
+                text: hop.status,
+                streaming: false,
+                ts: new Date().toISOString(),
+              }
+              setThreads((prev) => ({
+                ...prev,
+                [threadKey]: [...(prev[threadKey] ?? []), statusMsg],
+              }))
+              void appendAgentMessage(
+                agent,
+                { role: 'status', content: hop.status },
+                conversationIdRef.current || undefined,
+              ).catch(() => {})
+            })
+            .catch(() => {})
+        }
         return
       }
       persistAgentDropdownChoice(dropdownAgentId, {
@@ -762,7 +799,7 @@ const ChatPage = () => {
       }
       recordDropdownChange('model', next.previous.modelBase || next.previous.model, next.modelBase || next.model)
     },
-    [dropdownAgentId, recordDropdownChange, setSearchParams],
+    [dropdownAgentId, recordDropdownChange, setSearchParams, teamFromUrl, remoteFromUrl, selectedBlueprint, threadKey],
   )
 
   useEffect(() => {
@@ -797,13 +834,32 @@ const ChatPage = () => {
       if (detail.agentId && agentIdFromBlueprint(detail.agentId) !== agent) return
       setConversationId(detail.conversationId)
     }
+    const onHopped = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentId?: string; status?: string }>).detail
+      const agent = agentIdFromBlueprint(selectedBlueprint)
+      if (!detail?.status?.trim() || teamFromUrl || remoteFromUrl) return
+      if (detail.agentId && agentIdFromBlueprint(detail.agentId) !== agent) return
+      const statusMsg: ChatMessage = {
+        key: `hop-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        role: 'status',
+        text: detail.status,
+        streaming: false,
+        ts: new Date().toISOString(),
+      }
+      setThreads((prev) => ({
+        ...prev,
+        [threadKey]: [...(prev[threadKey] ?? []), statusMsg],
+      }))
+    }
     window.addEventListener(CLI_SESSION_SWITCHED_EVENT, onSwitched)
     window.addEventListener(AGENT_CONVERSATION_EVENT, onSwitched)
+    window.addEventListener(CLI_SESSION_HOPPED_EVENT, onHopped)
     return () => {
       window.removeEventListener(CLI_SESSION_SWITCHED_EVENT, onSwitched)
       window.removeEventListener(AGENT_CONVERSATION_EVENT, onSwitched)
+      window.removeEventListener(CLI_SESSION_HOPPED_EVENT, onHopped)
     }
-  }, [selectedBlueprint, teamFromUrl, remoteFromUrl])
+  }, [selectedBlueprint, teamFromUrl, remoteFromUrl, threadKey])
 
   useEffect(() => {
     const onEdits = () => setEditsTick((tick) => tick + 1)

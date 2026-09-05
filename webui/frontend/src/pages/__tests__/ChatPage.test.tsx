@@ -3330,6 +3330,36 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
             json: async () => DEMO_ROSTER,
           } as Response
         }
+        if (url.includes('/v1/cli-sessions/hop')) {
+          const body = JSON.parse(String(init?.body || '{}')) as {
+            from_cli?: string
+            to_cli?: string
+          }
+          const fromCli = body.from_cli || 'antigravity'
+          const toCli = body.to_cli || 'grok'
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'cli_session_hop',
+              agent_id: 'cli_agent',
+              conversation_id: 'thread-1',
+              from_cli: fromCli,
+              to_cli: toCli,
+              kind: 'cli',
+              cli_session_id: null,
+              mode: 'summary',
+              tokens: 12,
+              token_budget: 4000,
+              omitted: ['secrets', 'tool_noise'],
+              empty: false,
+              status: `Carried summary context from ${fromCli} → ${toCli} (12 tokens).`,
+              export_warning: null,
+              import: 'swarm',
+              injection: { text: 'seed', mode: 'summary', tokens: 12, empty: false },
+            }),
+          } as Response
+        }
         if (url.includes('/v1/cli-agents')) {
           return {
             ok: true,
@@ -3414,11 +3444,16 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
     fireEvent.click(cliPill)
     fireEvent.click(await screen.findByRole('menuitem', { name: 'grok' }))
 
-    const status = await screen.findByTestId('chat-status')
-    expect(status).toHaveTextContent('CLI: antigravity → grok')
-    expect(status.className).not.toMatch(/chat-start|chat-end/)
-    expect(status.querySelector('.chat-bubble')).toBeNull()
-    expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
+    const statuses = await screen.findAllByTestId('chat-status')
+    expect(statuses[0]).toHaveTextContent('CLI: antigravity → grok')
+    expect(statuses[0].className).not.toMatch(/chat-start|chat-end/)
+    expect(statuses[0].querySelector('.chat-bubble')).toBeNull()
+    const carried = await screen.findByText(/Carried summary context from antigravity → grok/)
+    expect(carried.closest('[data-testid="chat-status"]')).toHaveClass('os-chat-status')
+    expect(carried.closest('[data-testid="chat-status"]')?.className).not.toMatch(
+      /chat-start|chat-end/,
+    )
+    expect(screen.getAllByTestId('chat-status').length).toBeGreaterThanOrEqual(2)
   })
 
   it('renders one CLI routing picker and hides API and Remotes controls (REQ-133 / REQ-200)', async () => {
