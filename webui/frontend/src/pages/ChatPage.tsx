@@ -1292,7 +1292,7 @@ const ChatPage = () => {
   return (
     <div className="os-chat flex h-full min-h-0 w-full flex-col">
       <header className="os-chat-header">
-        <div className="os-chat-header__identity flex min-w-0 items-center gap-2 group" data-testid="selected-agent-header">
+        <div className="os-chat-header__identity flex min-w-0 items-center gap-2 group">
           {narrow ? (
             <button
               type="button"
@@ -1304,21 +1304,49 @@ const ChatPage = () => {
               <PanelLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           ) : null}
-          {!teamFromUrl ? (
-            <AgentAvatar
-              src={selectedAgent?.avatar_path}
-              agentId={agentIdFromBlueprint(selectedBlueprint)}
-              active={Boolean(streamingMessage)}
-              size="lg"
-              className="os-chat-header__avatar"
-            />
-          ) : null}
-          <h1 className="truncate text-base font-semibold tracking-tight">
-            <button
-              type="button"
-              className="os-identity-btn truncate text-left"
-              aria-label={`Open ${selectedAgentName} definition`}
-              onClick={() => {
+          <div
+            className="os-navbar-identity-card flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 -my-1 border border-transparent transition-colors hover:bg-base-200/50 hover:border-base-content/10 cursor-pointer"
+            data-testid="selected-agent-header"
+            role="button"
+            tabIndex={0}
+            aria-label={`Agent identity: ${selectedAgentName}`}
+            onClick={() => {
+              if (!teamFromUrl && selectedBlueprint) {
+                openAgentEditor({
+                  agentId: selectedBlueprint,
+                })
+                return
+              }
+              if (teamFromUrl) {
+                openSettingsSheet({
+                  section: 'definition',
+                  definitionKind: 'team',
+                  definitionId: teamFromUrl,
+                  teamId: teamFromUrl,
+                })
+                return
+              }
+              const role = agentRole({
+                id: selectedBlueprint,
+                name: selectedAgentName,
+                role: selectedAgent?.role,
+              })
+              openSettingsSheet({
+                section: 'definition',
+                definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
+                definitionId: selectedBlueprint,
+                blueprintId: selectedBlueprint,
+              })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                if (!teamFromUrl && selectedBlueprint) {
+                  openAgentEditor({
+                    agentId: selectedBlueprint,
+                  })
+                  return
+                }
                 if (teamFromUrl) {
                   openSettingsSheet({
                     section: 'definition',
@@ -1339,27 +1367,68 @@ const ChatPage = () => {
                   definitionId: selectedBlueprint,
                   blueprintId: selectedBlueprint,
                 })
-              }}
-            >
-              {selectedAgentName}
-            </button>
-          </h1>
-          {!teamFromUrl && selectedBlueprint ? (
-            <div className="tooltip tooltip-bottom" data-tip="Edit agent">
+              }
+            }}
+          >
+            {!teamFromUrl ? (
+              <AgentAvatar
+                src={selectedAgent?.avatar_path}
+                agentId={agentIdFromBlueprint(selectedBlueprint)}
+                active={Boolean(streamingMessage)}
+                size="lg"
+                className="os-chat-header__avatar shrink-0"
+              />
+            ) : null}
+            <h1 className="truncate text-base font-semibold tracking-tight">
               <button
                 type="button"
-                className="btn btn-ghost btn-sm btn-square os-navbar-edit-btn"
-                aria-label="Edit agent"
-                onClick={() =>
-                  openAgentEditor({
-                    agentId: selectedBlueprint,
+                className="os-identity-btn truncate text-left"
+                aria-label={`Open ${selectedAgentName} definition`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (teamFromUrl) {
+                    openSettingsSheet({
+                      section: 'definition',
+                      definitionKind: 'team',
+                      definitionId: teamFromUrl,
+                      teamId: teamFromUrl,
+                    })
+                    return
+                  }
+                  const role = agentRole({
+                    id: selectedBlueprint,
+                    name: selectedAgentName,
+                    role: selectedAgent?.role,
                   })
-                }
+                  openSettingsSheet({
+                    section: 'definition',
+                    definitionKind: isExampleRole(role) || isChiefOfStaff(role) ? 'role' : 'blueprint',
+                    definitionId: selectedBlueprint,
+                    blueprintId: selectedBlueprint,
+                  })
+                }}
               >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
+                {selectedAgentName}
               </button>
-            </div>
-          ) : null}
+            </h1>
+            {!teamFromUrl && selectedBlueprint ? (
+              <div className="tooltip tooltip-bottom shrink-0" data-tip="Edit agent">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm btn-square os-navbar-edit-btn"
+                  aria-label="Edit agent"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openAgentEditor({
+                      agentId: selectedBlueprint,
+                    })
+                  }}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {showRemotesControl ? (
