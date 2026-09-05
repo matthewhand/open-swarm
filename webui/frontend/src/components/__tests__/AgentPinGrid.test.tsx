@@ -138,6 +138,32 @@ describe('AgentPinGrid drag-to-pin', () => {
     ])
   })
 
+  it('REQ-171B: pins of each kind use kind-aware hrefs', async () => {
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([
+        { id: 'codey', name: 'Codey' },
+        { id: 'team:demo', name: 'Demo' },
+        { id: 'remote:omb', name: 'OpenMousBot' },
+        { id: 'herdr:w3:p1', name: 'w3:p1' },
+      ]),
+    )
+    renderChrome()
+
+    const grid = screen.getByTestId('agent-pin-grid')
+    const codey = await within(grid).findByRole('link', { name: /Codey/ })
+    const team = within(grid).getByRole('link', { name: /Demo/ })
+    const remote = within(grid).getByRole('link', { name: /OpenMousBot/ })
+    const herdr = within(grid).getByRole('link', { name: /w3:p1/ })
+
+    expect(codey).toHaveAttribute('href', '/chat?blueprint=codey')
+    expect(team).toHaveAttribute('href', '/chat?team=demo')
+    expect(team.getAttribute('href')).not.toMatch(/blueprint=/)
+    expect(remote).toHaveAttribute('href', '/chat?remote=omb')
+    expect(remote.getAttribute('href')).not.toMatch(/blueprint=/)
+    expect(herdr).toHaveAttribute('href', '/teams/#herdr-members')
+  })
+
   it('restores tiles from localStorage and lets the user remove one', async () => {
     localStorage.setItem(
       PINNED_AGENTS_STORAGE_KEY,

@@ -47,6 +47,14 @@ describe('conversationIdForAgent', () => {
     expect(conversationIdForAgent('codey')).toBe('sess-notes')
     expect(agentChatHref('codey')).toBe('/chat?blueprint=codey&session=sess-notes')
     expect(agentChatHref('stewie')).toBe('/chat?blueprint=stewie')
+    expect(agentChatHref('team:demo')).toBe('/chat?team=demo')
+    expect(agentChatHref('remote:omb')).toBe('/chat?remote=omb')
+    setConversationIdForAgent('team:demo', 'sess-team')
+    expect(agentChatHref('team:demo')).toBe('/chat?team=demo&session=sess-team')
+    expect(agentChatHref('team:demo')).not.toMatch(/blueprint=/)
+    setConversationIdForAgent('remote:omb', 'sess-remote')
+    expect(agentChatHref('remote:omb')).toBe('/chat?remote=omb&session=sess-remote')
+    expect(agentChatHref('remote:omb')).not.toMatch(/blueprint=/)
   })
 
   it('keeps the selected id after the module-level helpers are called again (unmount)', () => {

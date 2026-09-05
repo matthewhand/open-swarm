@@ -13,9 +13,12 @@ import {
   unpinAgent,
   type PinnedAgent,
 } from '../lib/pinnedAgents'
+import { chatHrefForRowId } from '../lib/agentNotifications'
+import { isHerdrAgent } from '../lib/railHotkeys'
 
-function chatHref(id: string): string {
-  return `/chat?blueprint=${encodeURIComponent(id)}`
+function pinHref(id: string): string {
+  if (isHerdrAgent({ id })) return '/teams/#herdr-members'
+  return chatHrefForRowId(id)
 }
 
 export default function AgentPinGrid() {
@@ -92,7 +95,7 @@ export default function AgentPinGrid() {
         return (
           <div key={pin.id} className={`os-agent-tile ${active ? 'is-active' : ''}`}>
             <Link
-              to={chatHref(pin.id)}
+              to={pinHref(pin.id)}
               className="os-agent-tile__link"
               aria-current={active ? 'page' : undefined}
             >

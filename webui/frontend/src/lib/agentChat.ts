@@ -1,5 +1,6 @@
 import { apiGet, apiPatch, apiPost, ensureCsrfCookie } from './api'
 import { classifyAgentKind, type AgentKind } from './agentKind'
+import { chatHrefForRowId } from './agentNotifications'
 import {
   isConversationSummary,
   type ConversationSummary,
@@ -70,13 +71,9 @@ export function peekConversationIdForAgent(agentId: string): string | null {
 export function agentChatHref(agentId: string): string {
   const agent = agentIdFromBlueprint(agentId)
   const session = peekConversationIdForAgent(agent)
-  if (session) {
-    const params = new URLSearchParams()
-    params.set('blueprint', agent)
-    params.set('session', session)
-    return `/chat?${params.toString()}`
-  }
-  return `/chat?blueprint=${encodeURIComponent(agent)}`
+  const base = chatHrefForRowId(agent)
+  if (!session) return base
+  return `${base}&session=${encodeURIComponent(session)}`
 }
 
 function tasksKey(agentId: string): string {

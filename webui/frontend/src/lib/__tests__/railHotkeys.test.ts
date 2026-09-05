@@ -79,6 +79,43 @@ describe('computeRailHotkeyTargets (REQ-172)', () => {
     expect(targets.some((t) => t.kind !== 'pin')).toBe(false)
   })
 
+  it('REQ-171B: pins of each kind use kind-aware hrefs (not always ?blueprint=)', () => {
+    const targets = computeRailHotkeyTargets({
+      visiblePins: [
+        { id: 'codey', name: 'Codey' },
+        { id: 'team:demo', name: 'Demo' },
+        { id: 'remote:omb', name: 'OpenMousBot' },
+        { id: 'herdr:w3:p1', name: 'w3:p1', kind: 'herdr' },
+      ],
+      orderedRows: [],
+    })
+
+    expect(targets).toHaveLength(4)
+    expect(targets[0]).toMatchObject({
+      id: 'codey',
+      kind: 'pin',
+      href: '/chat?blueprint=codey',
+    })
+    expect(targets[1]).toMatchObject({
+      id: 'team:demo',
+      kind: 'pin',
+      href: '/chat?team=demo',
+    })
+    expect(targets[1].href).not.toMatch(/blueprint=/)
+    expect(targets[2]).toMatchObject({
+      id: 'remote:omb',
+      kind: 'pin',
+      href: '/chat?remote=omb',
+    })
+    expect(targets[2].href).not.toMatch(/blueprint=/)
+    expect(targets[3]).toMatchObject({
+      id: 'herdr:w3:p1',
+      kind: 'pin',
+      href: '/teams/#herdr-members',
+      isHerdr: true,
+    })
+  })
+
   it('handles fewer than 9 total items gracefully', () => {
     const pins = [{ id: 'pin-1', name: 'Pin 1' }]
     const rows: RailRow[] = [
