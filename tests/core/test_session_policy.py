@@ -2,13 +2,25 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from swarm.core import agent_settings as settings_store
 from swarm.core import chat_store
 from swarm.core import session_policy as policy
 
 
+@pytest.fixture(autouse=True)
+def _reset_agent_settings():
+    settings_store.reset_agent_settings_cache()
+    policy.clear_active_sessions()
+    yield
+    settings_store.reset_agent_settings_cache()
+    policy.clear_active_sessions()
+
+
 def _isolate(tmp_path, monkeypatch):
     monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
     settings_store.reset_agent_settings_cache()
     policy.clear_active_sessions()
     return tmp_path / "chats"
@@ -80,6 +92,39 @@ def test_cli_and_api_do_not_resume_when_on(tmp_path, monkeypatch):
 
     settings_store.update_settings("reuse", {"new_chat_per_task": False})
     settings_store.set_cli_session_id("reuse", "sess-keep")
-    assert policy.resume_cli_session_id("reuse") == "sess-keep"
+    assert policy.resume_cli_session_id("reuse") is None
     assert policy.resume_cli_session_id("reuse", stored="--help") is None
     assert policy.continue_api_previous_response("reuse", "resp_prior") == "resp_prior"
+
+
+def test_resume_reads_cli_sessions_not_settings(tmp_path, monkeypatch):
+    chats = _isolate(tmp_path, monkeypatch)
+    settings_store.update_settings("reuse", {"new_chat_per_task": False})
+    settings_store.set_cli_session_id("reuse", "sess-from-settings")
+    assert policy.resume_cli_session_id("reuse", user_key="u7") is None
+
+    from swarm.core.cli_sessions import put_cli_session
+
+    put_cli_session("u7", "reuse", "reuse", "sess-from-chat", base_dir=chats)
+    assert (
+        policy.resume_cli_session_id("reuse", user_key="u7") == "sess-from-chat"
+    )
+    assert policy.resume_cli_session_id("reuse", stored="sess-explicit") == "sess-explicit"
+
+
+def test_allocate_on_mode_persists_empty_record(tmp_path, monkeypatch):
+    chats = _isolate(tmp_path, monkeypatch)
+    settings_store.update_settings("worker", {"new_chat_per_task": True})
+    user = SimpleNamespace(pk=7)
+    session = policy.allocate_task_session(user, "worker", task_id="alpha")
+    loaded = chat_store.load(
+        "u7",
+        "worker",
+        conversation_id=session.conversation_id,
+        session_id=session.conversation_id,
+        base_dir=chats,
+    )
+    assert loaded is not None
+    assert loaded["messages"] == []
+    assert loaded["conversation_id"] == session.conversation_id
+    assert loaded.get("cli_sessions") == {}

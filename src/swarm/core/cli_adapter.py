@@ -50,6 +50,8 @@ SESSION_TOKEN = "{session_id}"
 # Flags that consume the next argv token as the prompt. A bare `-p --help`
 # would otherwise treat the user text as a sibling flag; attach as `-p=`.
 _PROMPT_VALUE_FLAGS = frozenset({"-p", "--print", "--prompt", "--single"})
+# Boolean flags that contradict resume (--session / --resume / exec resume).
+_DEFAULT_RESUME_STRIP = ("--no-session", "--continue")
 
 DEFAULT_TIMEOUT = 180.0
 # Grace period between SIGTERM and SIGKILL when reaping a timed-out agent.
@@ -282,6 +284,23 @@ def _looks_like_argv_flag(text: str) -> bool:
     return bool(text) and text.startswith("-")
 
 
+def _strip_resume_conflicts(argv: list[str], extra: list[str] | None = None) -> list[str]:
+    """Drop flags that cancel resume (``--no-session``, ``--continue``, …)."""
+    drop = {flag for flag in _DEFAULT_RESUME_STRIP if flag}
+    for flag in extra or []:
+        if isinstance(flag, str) and flag:
+            drop.add(flag)
+    if not drop:
+        return list(argv)
+    out: list[str] = []
+    for part in argv:
+        name = part.split("=", 1)[0]
+        if name in drop:
+            continue
+        out.append(part)
+    return out
+
+
 def _protect_prompt_argv(cmd: list[str], prompt: str, workdir: str) -> list[str]:
     """Substitute tokens and keep user text from becoming extra flags.
 
@@ -383,12 +402,14 @@ class CliAdapter:
         paths = self.config.session_id_paths
         if paths is None:
             paths = list(catalog.get("session_id_paths") or [])
+        strip = catalog.get("resume_strip") or []
         return {
             "resume_argv": list(resume_argv) if resume_argv else [],
             "resume_insert": int(insert) if insert is not None else 1,
             "session_id_paths": list(paths),
             "can_resume": bool(resume_argv),
             "notes": catalog.get("notes") or "",
+            "resume_strip": list(strip) if isinstance(strip, (list, tuple)) else [],
         }
 
     def can_resume(self) -> bool:
@@ -441,6 +462,7 @@ class CliAdapter:
             elif self.config.resume_argv is None:
                 # No catalog/config policy: append the common --resume flag.
                 argv = argv + ["--resume", sid]
+            argv = _strip_resume_conflicts(argv, policy.get("resume_strip"))
         stdin_bytes: bytes | None = None
         if self.config.prompt_mode == "stdin":
             stdin_bytes = prompt.encode("utf-8")
@@ -823,7 +845,10 @@ class CliAdapter:
         if not self.is_available():
             return SmokeResult(self.name, SMOKE_NOT_INSTALLED)
         t = timeout if timeout is not None else min(self.config.timeout, SMOKE_TIMEOUT)
-        probe = CliAdapter(replace(self.config, timeout=t))
+        from swarm.core.cli_catalog import apply_smoke_flags
+
+        smoke_cmd = apply_smoke_flags(self.name, list(self.config.cmd))
+        probe = CliAdapter(replace(self.config, cmd=smoke_cmd, timeout=t))
         res = await probe.run(prompt)
         if res.timed_out:
             return SmokeResult(

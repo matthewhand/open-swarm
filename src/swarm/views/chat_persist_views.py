@@ -170,7 +170,7 @@ def _sync_django_and_memory(
 def chat_thread(request):
     """Hydrate (GET), append (POST), or edit (PATCH) the persisted transcript for one agent."""
     from swarm.core.agent_settings import is_new_chat_per_task
-    from swarm.core.session_policy import list_active_task_sessions
+    from swarm.core.session_policy import list_active_task_sessions, resolve_on_mode_conversation
 
     agent_raw = request.GET.get("agent")
     agent = chat_store.normalize_agent_id(agent_raw)
@@ -183,16 +183,26 @@ def chat_thread(request):
         if isinstance(body.get("conversation_id"), str) and body["conversation_id"].strip():
             requested_cid = body["conversation_id"].strip()
     fresh_task = is_new_chat_per_task(agent)
+    # REQ-171C-4 / C-H7: mint or refuse reuse before loading the old Django row.
+    minted = resolve_on_mode_conversation(request.user, agent, requested_cid)
     session_id = ""
-    if requested_cid and requested_cid != default_cid:
-        session_id = requested_cid
     turns: list[dict] = []
     events: list[dict] = []
     session_missing = False
-    if fresh_task and not requested_cid:
-        # New task: do not hydrate the reused agent transcript.
-        record = None
+    record = None
+    if minted is not None:
+        conversation_id = minted.conversation_id
+        session_id = minted.conversation_id
+        record = chat_store.load(
+            user_key,
+            agent,
+            conversation_id=conversation_id,
+            session_id=session_id,
+        )
+        turns, events = _thread_channels(record, [])
     else:
+        if requested_cid and requested_cid != default_cid:
+            session_id = requested_cid
         record = chat_store.load(
             user_key,
             agent,
@@ -200,16 +210,22 @@ def chat_thread(request):
             session_id=session_id,
         )
         db_id = requested_cid or (record or {}).get("conversation_id") or default_cid
-        db_messages = [] if record and record.get("messages") else _messages_from_db(
-            request.user, db_id
-        )
+        if fresh_task:
+            # Explicit task cid only — never fall back to the reused default row.
+            db_messages = [] if record and record.get("messages") else _messages_from_db(
+                request.user, requested_cid
+            )
+        else:
+            db_messages = [] if record and record.get("messages") else _messages_from_db(
+                request.user, db_id
+            )
         if (
             requested_cid
             and record is None
             and not db_messages
-            and requested_cid.startswith(("cli-", "sess-"))
+            and requested_cid.startswith(("cli-", "sess-", "task-"))
         ):
-            # Select-minted ids (CLI / Django picker) — honest miss, no swap.
+            # Select-minted / on-mode ids — honest miss, no swap.
             session_missing = True
             turns, events = [], []
         else:
@@ -226,12 +242,14 @@ def chat_thread(request):
                     )
                 except OSError:
                     logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
-    if requested_cid:
+    if minted is None and requested_cid:
         conversation_id = requested_cid
-    elif record and record.get("conversation_id") and not fresh_task:
+    elif minted is None and record and record.get("conversation_id") and not fresh_task:
         conversation_id = record["conversation_id"]
     # REQ-105: never fall back to another conversation's compact tree.
-    if requested_cid:
+    if minted is not None:
+        summaries = [summary_to_dict(row) for row in list_summaries(conversation_id)]
+    elif requested_cid:
         summaries = [summary_to_dict(row) for row in list_summaries(requested_cid)]
     else:
         conversation_id, summaries = _summaries_for(

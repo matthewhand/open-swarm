@@ -31,7 +31,13 @@ def test_every_catalog_cli_documents_session_resume():
     assert codex["resume_insert"] == 2
     opencode = cli_catalog.session_policy("opencode")
     assert opencode["resume_argv"] == ["--session", "{session_id}"]
+    assert opencode["resume_insert"] == 2
     assert opencode["list_argv"] == ["opencode", "session", "list", "--format", "json"]
+    pi = cli_catalog.session_policy("pi")
+    assert pi["resume_argv"] == ["--session", "{session_id}"]
+    assert pi["resume_insert"] == 2
+    assert "--no-session" not in cli_catalog.catalog_entry("pi")["cmd"]
+    assert "--no-session" in cli_catalog.smoke_flags("pi")
     agy = cli_catalog.session_policy("agy")
     assert agy["list_store"] == cli_catalog.AGY_CONVERSATIONS_STORE
 
@@ -195,6 +201,7 @@ def test_pi_catalog_print_mode_is_positional_prompt():
     assert "{prompt}" in e["cmd"]
     assert e["cmd"].index("-p") < e["cmd"].index("{prompt}")
     assert e["cmd"][-2:] == ["--", "{prompt}"]
+    assert "--no-session" not in e["cmd"]
     CliAdapter.from_config("pi", e)
 
 
