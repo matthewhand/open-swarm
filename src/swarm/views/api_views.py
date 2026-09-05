@@ -677,6 +677,8 @@ class CliAgentsView(APIView):
     suggestions, catalog, native_consensus, list_models, list_sessions, rail}.
     Discovery is PATH/stat only — no auth_check, no login, no network.
     Live model probes are GET /v1/cli-agents/<cli>/models.
+    Hop matrix is GET /v1/cli-sessions/hop/.
+
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]

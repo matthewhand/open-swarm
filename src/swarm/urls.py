@@ -122,6 +122,7 @@ from swarm.views.routines_api import (
 )
 from swarm.views.cli_runs_api import CliRunStatusAPIView, CliRunTerminateAPIView
 from swarm.views.cli_sessions_api import CliSessionListAPIView, CliSessionSelectAPIView
+from swarm.views.cli_session_hop_api import CliSessionHopAPIView
 from swarm.views.suggestions_api import AgentSuggestionsAPIView
 from swarm.views.image_gen_api import AgentAvatarGenerateView, ImageGenSettingsView
 from swarm.views.speech_api import SpeechSettingsView, SpeechSpeakView, SpeechTranscribeView
@@ -239,6 +240,8 @@ urlpatterns = [
     path("v1/cli-sessions/", CliSessionListAPIView.as_view(), name="cli-sessions-list"),
     path("v1/cli-sessions/select", CliSessionSelectAPIView.as_view(), name="cli-sessions-select-no-slash"),
     path("v1/cli-sessions/select/", CliSessionSelectAPIView.as_view(), name="cli-sessions-select"),
+    path("v1/cli-sessions/hop", CliSessionHopAPIView.as_view(), name="cli-sessions-hop-no-slash"),
+    path("v1/cli-sessions/hop/", CliSessionHopAPIView.as_view(), name="cli-sessions-hop"),
     path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),
     path("v1/llm-profiles/", LlmProfilesView.as_view(), name="llm-profiles-api"),
     path("v1/config-ownership", ConfigOwnershipView.as_view(), name="config-ownership-api-no-slash"),

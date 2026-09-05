@@ -108,7 +108,7 @@ import {
   unpinAgent,
   writeAgentDragPayload,
 } from '../lib/pinnedAgents'
-import { hydrateRailPrefs, saveUserPrefs } from '../lib/userPrefs'
+import { hydrateRailPrefs, persistAgentDropdownChoice, saveUserPrefs } from '../lib/userPrefs'
 import {
   loadAllAgentSessions,
   SCALE_OUT_SESSIONS_EVENT,
@@ -188,6 +188,12 @@ import {
   selectCliSession,
   type CliProviderSession,
 } from '../lib/cliSessions'
+import {
+  dispatchCliSessionHopped,
+  hopCliSession,
+  hopContinueTargets,
+} from '../lib/cliSessionHop'
+import { FALLBACK_CLIS } from '../lib/chatStatus'
 import PluginsPopup from './PluginsPopup'
 import { openSettingsSheet } from './SettingsSheet'
 import { OPEN_PLUGINS_EVENT } from '../lib/chromeOverlay'
@@ -974,6 +980,47 @@ export default function AgentSidebar({
         setCliPicker((current) =>
           current
             ? { ...current, emptyReason: current.emptyReason || 'Could not switch session' }
+            : current,
+        )
+      }
+    },
+    [navigate, onClose],
+  )
+
+  const continueCliSessionOn = useCallback(
+    async (opts: { agentId: string; fromCli: string; session: CliProviderSession; toCli: string }) => {
+      try {
+        const hop = await hopCliSession({
+          agentId: opts.agentId,
+          fromCli: opts.fromCli,
+          toCli: opts.toCli,
+          conversationId: conversationIdForAgent(opts.agentId),
+          importSessionId: opts.session.id,
+          kind: 'cli',
+        })
+        dispatchCliSessionHopped({
+          agentId: opts.agentId,
+          conversationId: hop.conversation_id,
+          status: hop.status,
+          fromCli: hop.from_cli,
+          toCli: hop.to_cli,
+        })
+        persistAgentDropdownChoice(opts.agentId, { cli: opts.toCli })
+        const href = sessionHref(
+          opts.agentId,
+          hop.conversation_id || conversationIdForAgent(opts.agentId),
+        )
+        navigate(`${href}&cli=${encodeURIComponent(opts.toCli)}`)
+        onClose?.()
+      } catch {
+        setCliPicker((current) =>
+          current
+            ? {
+                ...current,
+                emptyReason:
+                  current.emptyReason ||
+                  `${opts.fromCli} cannot export that session — try summary hop from the CLI dropdown.`,
+              }
             : current,
         )
       }
@@ -2761,6 +2808,10 @@ export default function AgentSidebar({
         canList={cliPicker?.canList ?? false}
         emptyReason={cliPicker?.emptyReason}
         loading={cliPicker?.loading}
+        continueTargets={hopContinueTargets(
+          cliPicker?.cli ?? '',
+          cliQuery.data?.clis?.length ? cliQuery.data.clis : FALLBACK_CLIS,
+        )}
         onClose={() => setCliPicker(null)}
         onSelect={(session) => {
           if (!cliPicker) return
@@ -2776,6 +2827,15 @@ export default function AgentSidebar({
             agentId: cliPicker.agentId,
             cli: cliPicker.cli,
             startNew: true,
+          })
+        }}
+        onContinueOn={(session, targetCli) => {
+          if (!cliPicker) return
+          void continueCliSessionOn({
+            agentId: cliPicker.agentId,
+            fromCli: cliPicker.cli,
+            session,
+            toCli: targetCli,
           })
         }}
       />

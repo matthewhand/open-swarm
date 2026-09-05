@@ -16,9 +16,11 @@ export interface CliSessionPickerProps {
   canList: boolean
   emptyReason?: string | null
   loading?: boolean
+  continueTargets?: readonly string[]
   onClose: () => void
   onSelect: (session: CliProviderSession) => void
   onStartNew: () => void
+  onContinueOn?: (session: CliProviderSession, targetCli: string) => void
 }
 
 /**
@@ -34,9 +36,11 @@ export default function CliSessionPicker({
   canList,
   emptyReason,
   loading = false,
+  continueTargets = [],
   onClose,
   onSelect,
   onStartNew,
+  onContinueOn,
 }: CliSessionPickerProps) {
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
@@ -217,7 +221,7 @@ export default function CliSessionPicker({
             })
           )}
         </ul>
-        <div className="border-t border-base-300 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-base-300 px-3 py-2">
           <button
             type="button"
             className="btn btn-ghost btn-xs gap-1 text-xs"
@@ -227,6 +231,32 @@ export default function CliSessionPicker({
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             Start new session
           </button>
+          {onContinueOn && continueTargets.length > 0 ? (
+            <label className="flex items-center gap-1 text-xs text-base-content/70">
+              <span className="sr-only">Continue selected session on another CLI</span>
+              <select
+                className="select select-ghost select-xs"
+                aria-label="Continue on CLI"
+                data-testid="cli-session-continue-on"
+                defaultValue=""
+                onChange={(event) => {
+                  const target = event.target.value
+                  event.target.value = ''
+                  const row = rows[activeIdx]
+                  if (!target || !row) return
+                  onContinueOn(row, target)
+                  onClose()
+                }}
+              >
+                <option value="">Continue on…</option>
+                {continueTargets.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
       </div>
     </div>
