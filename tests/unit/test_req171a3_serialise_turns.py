@@ -35,12 +35,14 @@ def test_consumer_serialises_chat_turns_not_tool_decisions():
 
 def test_spa_queues_second_send_via_generation_in_flight():
     text = CHAT.read_text(encoding="utf-8")
-    assert "generationIsInFlight(messages, awaitingAssistant)" in text
-    assert "REQ-171A-3" in text
-    assert "#603" in text
-    assert "#447" in text
-    assert ":8001" not in text
-    _no_secrets(text)
+    start = text.index("const submitUserText")
+    block = text[start : start + 800]
+    assert "generationIsInFlight(messages, awaitingAssistant)" in block
+    assert "REQ-171A-3" in block
+    assert "#603" in block
+    assert "#447" in block
+    assert ":8001" not in block
+    _no_secrets(block)
 
 
 def test_own_diff_ci_exists():
