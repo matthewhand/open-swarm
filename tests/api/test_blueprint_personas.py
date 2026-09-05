@@ -50,7 +50,8 @@ def test_software_dev_personas_are_three_named_seats(api_client):
 
 
 @pytest.mark.django_db
-def test_custom_three_agent_fixture_via_api(api_client, isolated_custom_blueprint):
+@pytest.mark.usefixtures("isolated_custom_blueprint")
+def test_custom_three_agent_fixture_via_api(api_client):
     code = (FIXTURES / "three_agents.py").read_text(encoding="utf-8")
     name = _unique_blueprint_name("req81_triad")
     created = api_client.post(
@@ -72,7 +73,8 @@ def test_custom_three_agent_fixture_via_api(api_client, isolated_custom_blueprin
 
 
 @pytest.mark.django_db
-def test_garbage_custom_blueprint_is_one_generic(api_client, isolated_custom_blueprint):
+@pytest.mark.usefixtures("isolated_custom_blueprint")
+def test_garbage_custom_blueprint_is_one_generic(api_client):
     name = _unique_blueprint_name("req81_junk")
     created = api_client.post(
         "/v1/blueprints/custom/",
@@ -93,7 +95,8 @@ def test_garbage_custom_blueprint_is_one_generic(api_client, isolated_custom_blu
 
 
 @pytest.mark.django_db
-def test_custom_fixture_teardown_leaves_empty_custom_list(api_client, isolated_custom_blueprint):
+@pytest.mark.usefixtures("isolated_custom_blueprint")
+def test_custom_fixture_teardown_leaves_empty_custom_list(api_client):
     """#826: leftover create must not fill GET /v1/blueprints/custom/ when empty."""
     from unittest.mock import patch
 
