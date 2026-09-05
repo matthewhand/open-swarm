@@ -125,10 +125,13 @@ Per [ADR-001](docs/ADR-001-primary-ui.md): SPA mounts `/` + `/chat` as Grok-Bot 
 
 ## 9. Blueprints (discoverable) — ✅ 5 · 🟡 many · 🗑 husks gone
 
-Re-verified 2026-08-18: `discover_blueprints('src/swarm/blueprints')` registers
-**38** model ids (canonical dirs + aliases). Prefer [docs/GLOSSARY.md](./docs/GLOSSARY.md)
-names (Blueprint vs `/v1/teams` LLM-profile alias). Empty husk dirs (no
-`blueprint_*.py`) were deleted this pulse — do not restore.
+Re-verified 2026-09-05: `discover_blueprints('src/swarm/blueprints')` registers
+canonical dirs + aliases. Blueprints are **CLI/API only** — they do not ship a
+webpage; the Grok-like WebUI is product chrome. Prefer
+[docs/GLOSSARY.md](./docs/GLOSSARY.md) names (Blueprint vs `/v1/teams`
+LLM-profile alias). Empty husk dirs (no `blueprint_*.py`) were deleted this
+pulse — do not restore. `django_chat` (web-chat-as-blueprint) was deleted
+(#419).
 
 | Feature | Status | Evidence |
 |---|---|---|
@@ -139,7 +142,7 @@ names (Blueprint vs `/v1/teams` LLM-profile alias). Empty husk dirs (no
 | chatbot | ✅ | Discoverable (`blueprint_chatbot.py`); `tests/blueprints/test_chatbot.py` — **not** removed (prior ❌ row was stale) |
 | jeeves | 🟡 | Discoverable; README + CLI + MCP-aware agents; `SWARM_TEST_MODE` short-circuit; spinner/box tests |
 | geese / zeus / poets / gawd / whiskeytango_foxtrot / chucks_angels / dynamic_team | 🟡 | Discoverable; thin or no dedicated collected coverage (zeus has CLI; dynamic_team backs `/v1/teams` aliases) |
-| django_chat | 🟡 | Discoverable only after Django setup; views/urls/templates; config tests |
+| django_chat / webui-as-blueprint | 🗑 removed | Package deleted (#419 / REQ-74). Blueprints are CLI/API only. Do not remount a webpage or add `kind=webui`. Tests: `tests/core/test_req74_blueprints_cli_api_only.py`. |
 | MoA / hybrid / persona / CLI-fusion family | 🟡 | Discoverable: `moa`, `moa_orchestrator`, `hybrid_moa`, `hybrid_team`, `hybrid_swarm`, `persona_council`, `cli_*`, `fs_introspect` — see FEATURE_STATUS / ROADMAP MoA rows + `tests/blueprints/test_cli_*.py` |
 | Empty husks | 🗑 removed | Deleted dirs with no `blueprint_*.py`: `flock`, `digitalbutlers`, `echocraft`, `mcp_demo`, `mission_improbable`, `monkai_magic`, `nebula_shellz`, `omniplex` (plus earlier `whinge_surf` / `family_ties` / `messenger`). API tests that named `echocraft` as a mocked model id are unaffected. |
 | `blueprint_audit_status.json` | 🗑 gone | Deleted earlier; do not restore. Status lives here + per-blueprint READMEs / tests. |

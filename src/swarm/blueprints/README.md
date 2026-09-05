@@ -1,8 +1,10 @@
 # Blueprints Overview
 
 Discoverable `BlueprintBase` packages under this tree (OpenAI-compatible `model`
-ids). Vocabulary: [docs/GLOSSARY.md](../../../docs/GLOSSARY.md) (Blueprint vs
-`/v1/teams` **LLM-profile alias**). Status evidence:
+ids). Blueprints are **CLI/API only** — they do not ship a webpage; the
+Grok-like WebUI is product chrome. Vocabulary:
+[docs/GLOSSARY.md](../../../docs/GLOSSARY.md) (Blueprint vs `/v1/teams`
+**LLM-profile alias**). Status evidence:
 [FEATURE_STATUS.md](../../../FEATURE_STATUS.md) §9.
 
 Shared helpers live in `common/` (not a blueprint). Empty husk directories without
@@ -59,7 +61,6 @@ registers aliases (e.g. `moa` ← `cli_fusion` / `ensemble`; `dynamic_team` ←
 | `gawd` | Django-ish demo package |
 | `whiskeytango_foxtrot` | Hierarchical search/ops demo |
 | `chucks_angels` | Minimal experimental coordination |
-| `django_chat` | Django-integrated chat (needs Django setup) |
 | `dynamic_team` | Backing implementation for `/v1/teams` **LLM-profile aliases** (not a multi-agent builder) |
 
 ## Removed / do not expect on disk
