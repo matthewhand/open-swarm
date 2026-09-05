@@ -60,10 +60,11 @@ def stamp_ui_event(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def messages_for_model(messages: Iterable[Any] | None) -> list[dict[str, Any]]:
-    """Transcript → LLM payload: drop status/info; keep real turns + tool rows.
+    """Transcript → LLM payload: drop status/info and prior_history archive.
 
-    Preserves ``name`` / ``tool_call_id`` / ``tool_calls`` so speaker identity
-    and tool pairing survive. Does not invent content or wrap speakers.
+    Keeps real turns + tool rows. Preserves ``name`` / ``tool_call_id`` /
+    ``tool_calls`` so speaker identity and tool pairing survive. Does not
+    invent content or wrap speakers.
     """
     out: list[dict[str, Any]] = []
     for raw in messages or []:
