@@ -25,6 +25,7 @@ export type RailMenuItemId =
   | 'copy-id'
   | 'hide'
   | 'unhide'
+  | 'notify'
   | 'delete'
 
 export interface RailMenuItemSpec {
@@ -45,6 +46,7 @@ export interface RailMenuOptions {
   hasSelectSession?: boolean
   hasNewSession?: boolean
   canCopyId?: boolean
+  notifyEnabled?: boolean
 }
 
 const CLI_NO_PROFILE = 'CLI agents have no swarm-owned profile'
@@ -106,6 +108,12 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
   } else {
     items.push({ id: 'hide', label: 'Hide from sidebar', group: 4 })
   }
+
+  items.push({
+    id: 'notify',
+    label: opts.notifyEnabled ? 'Notifications: On' : 'Notifications: Off',
+    group: 4,
+  })
 
   items.push({
     id: 'delete',
