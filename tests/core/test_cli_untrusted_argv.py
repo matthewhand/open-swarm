@@ -24,7 +24,7 @@ def test_apply_tokens_does_not_substitute_inside_prompt():
 
 
 def test_apply_tokens_does_not_substitute_inside_workdir():
-    assert _apply_tokens("{workdir}", "/tmp/{prompt}/x", "ignored") == "/tmp/{prompt}/x"
+    assert _apply_tokens("{workdir}", "ignored", "/tmp/{prompt}/x") == "/tmp/{prompt}/x"
     assert (
         _apply_tokens("{prompt}-{workdir}", "{workdir}", "{prompt}")
         == "{workdir}-{prompt}"
