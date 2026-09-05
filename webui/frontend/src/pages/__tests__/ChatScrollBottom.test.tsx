@@ -69,12 +69,14 @@ describe('REQ-202: Chat scrollbar to page bottom; composer inside pane but non-s
     expect(bottomDock).toHaveClass('sticky')
     expect(bottomDock).toHaveClass('bottom-0')
 
-    // Both the composer input and the token footer live inside this sticky dock
+    // The composer input lives inside this sticky dock
     const composerInput = screen.getByRole('textbox', { name: 'Chat message' })
     expect(bottomDock).toContainElement(composerInput)
 
+    // Token meter lives in top navbar header per REQ-201
     const tokenButton = screen.getByTestId('token-meter-button')
-    expect(bottomDock).toContainElement(tokenButton)
+    const header = screen.getByRole('banner')
+    expect(header).toContainElement(tokenButton)
 
     // Messages container has bottom padding so last message remains readable above dock
     const messagesContainer = screen.getByTestId('chat-messages-container')
