@@ -1,0 +1,54 @@
+name: REQ-171C-1 confine CLI/API workdirs
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/workdir.py"
+      - "src/swarm/core/cli_adapter.py"
+      - "src/swarm/core/agent_folder.py"
+      - "src/swarm/blueprints/common/cli_fusion_support.py"
+      - "src/swarm/blueprints/cli_agent/blueprint_cli_agent.py"
+      - "docs/AUTH.md"
+      - "tests/core/test_workdir.py"
+      - "tests/blueprints/test_cli_agent.py"
+      - "tests/api/test_cli_fusion_api.py"
+      - ".github/workflows/req171c1-confine-workdirs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/workdir.py"
+      - "src/swarm/core/cli_adapter.py"
+      - "src/swarm/core/agent_folder.py"
+      - "src/swarm/blueprints/common/cli_fusion_support.py"
+      - "src/swarm/blueprints/cli_agent/blueprint_cli_agent.py"
+      - "docs/AUTH.md"
+      - "tests/core/test_workdir.py"
+      - "tests/blueprints/test_cli_agent.py"
+      - "tests/api/test_cli_fusion_api.py"
+      - ".github/workflows/req171c1-confine-workdirs.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest C-H1 / C-H2 confine workdirs
+        run: |
+          uv run pytest \
+            tests/core/test_workdir.py \
+            tests/blueprints/test_cli_agent.py \
+            tests/api/test_cli_fusion_api.py \
+            tests/core/test_agent_folder.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"

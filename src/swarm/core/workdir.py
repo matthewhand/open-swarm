@@ -6,8 +6,9 @@ Paths resolve under ``SWARM_WORKSPACES_DIR`` / ``WORKSPACES_DIR`` or the XDG
 user data ``workspaces/`` directory. Absolute paths outside that root are
 rejected unless ``ALLOW_UNRESTRICTED_WORKDIR=true`` (local power-user escape).
 
-Auto-minted ``run-*`` directories are marked and may be deleted via
-:func:`cleanup_run_workdir` after the request finishes.
+Auto-minted ``run-*`` directories are marked with :data:`AUTO_RUN_MARKER`.
+:func:`cleanup_run_workdir` and :func:`prune_stale_run_workdirs` delete only
+when that marker is present — a user dir named ``run-<hex>`` is kept.
 """
 
 from __future__ import annotations
@@ -28,15 +29,21 @@ ENV_WORKSPACES_DIR_ALT = "WORKSPACES_DIR"
 ENV_ALLOW_UNRESTRICTED = "ALLOW_UNRESTRICTED_WORKDIR"
 ENV_RUN_WORKDIR_MAX_AGE_DAYS = "SWARM_RUN_WORKDIR_MAX_AGE_DAYS"
 
-#: Marker written into auto-minted run directories (cleanup requires this or name match).
+#: Marker written into auto-minted run directories. Cleanup/prune require this file.
 AUTO_RUN_MARKER = ".swarm-auto-run"
 #: Default name prefix for auto-minted dirs (``run-<12 hex>``).
 DEFAULT_RUN_PREFIX = "run-"
 #: Default age before opportunistic prune of leftover auto run dirs.
 DEFAULT_PRUNE_DAYS = 7.0
 
+#: Minted directory names still look like ``run-<12 hex>``; cleanup ignores the name.
 _AUTO_RUN_NAME = re.compile(r"^run-[0-9a-f]{12}$")
 _logger = logging.getLogger(__name__)
+
+
+def looks_like_auto_run_name(name: str) -> bool:
+    """True if *name* matches the minted ``run-<12 hex>`` pattern (not a delete grant)."""
+    return bool(_AUTO_RUN_NAME.match(name))
 
 
 class WorkdirEscapeError(ValueError):
@@ -91,14 +98,16 @@ def _mark_auto_run(path: Path) -> None:
         _logger.debug("failed to mark auto run workdir %s: %s", path, e)
 
 
-def _looks_like_auto_run_dir(path: Path) -> bool:
-    if (path / AUTO_RUN_MARKER).is_file():
-        return True
-    return bool(_AUTO_RUN_NAME.match(path.name))
+def _has_auto_run_marker(path: Path) -> bool:
+    """True only when the auto-run marker file exists.
+
+    A directory named ``run-<12 hex>`` without the marker is a user path.
+    """
+    return (path / AUTO_RUN_MARKER).is_file()
 
 
 def is_auto_run_workdir(path: str | os.PathLike[str] | Path) -> bool:
-    """True if *path* is under the workspaces root and looks auto-minted."""
+    """True if *path* is under the workspaces root and has :data:`AUTO_RUN_MARKER`."""
     root = get_workspaces_dir().expanduser().resolve()
     try:
         resolved = Path(path).expanduser().resolve()
@@ -108,16 +117,16 @@ def is_auto_run_workdir(path: str | os.PathLike[str] | Path) -> bool:
         return False
     if not resolved.is_dir():
         return False
-    return _looks_like_auto_run_dir(resolved)
+    return _has_auto_run_marker(resolved)
 
 
 def cleanup_run_workdir(path: str | os.PathLike[str] | Path | None) -> bool:
     """Delete an auto-minted run workdir.
 
     Returns True only when the path was removed. Refuses paths outside the
-    workspaces root, the root itself, and directories that do not look like
-    auto-created ``run-*`` dirs (marker file or ``run-<12 hex>`` name).
-    Never deletes user-provided workspace paths.
+    workspaces root, the root itself, and directories that lack
+    :data:`AUTO_RUN_MARKER`. A user dir named ``run-<12 hex>`` without the
+    marker is kept. Never deletes user-provided workspace paths.
     """
     if path is None:
         return False
@@ -128,7 +137,7 @@ def cleanup_run_workdir(path: str | os.PathLike[str] | Path | None) -> bool:
         return False
     if resolved == root or not _is_under(resolved, root):
         return False
-    if not resolved.is_dir() or not _looks_like_auto_run_dir(resolved):
+    if not resolved.is_dir() or not _has_auto_run_marker(resolved):
         return False
     try:
         shutil.rmtree(resolved)
@@ -154,10 +163,11 @@ def prune_stale_run_workdirs(
     max_age_days: float | None = None,
     root: Path | None = None,
 ) -> int:
-    """Best-effort delete of leftover auto ``run-*`` dirs older than *max_age_days*.
+    """Best-effort delete of leftover marked auto-run dirs older than *max_age_days*.
 
-    Only inspects immediate children of the workspaces root. Returns the number
-    of directories removed. Errors are swallowed.
+    Only inspects immediate children of the workspaces root that contain
+    :data:`AUTO_RUN_MARKER`. Name match alone is not a delete grant. Returns
+    the number of directories removed. Errors are swallowed.
     """
     age_days = DEFAULT_PRUNE_DAYS if max_age_days is None else float(max_age_days)
     if age_days <= 0:
@@ -173,7 +183,7 @@ def prune_stale_run_workdirs(
         return 0
     for child in children:
         try:
-            if not child.is_dir() or not _looks_like_auto_run_dir(child):
+            if not child.is_dir() or not _has_auto_run_marker(child):
                 continue
             if not _is_under(child.resolve(), base):
                 continue

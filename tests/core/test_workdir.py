@@ -15,6 +15,7 @@ from swarm.core.workdir import (
     get_workspaces_dir,
     is_auto_run_workdir,
     is_auto_workdir_request,
+    looks_like_auto_run_name,
     prune_stale_run_workdirs,
     resolve_confined_workdir,
     unrestricted_workdir_allowed,
@@ -111,8 +112,11 @@ def test_cli_fusion_support_resolve_workdir(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
     monkeypatch.delenv("ALLOW_UNRESTRICTED_WORKDIR", raising=False)
 
-    assert support.resolve_workdir({}) is None
-    assert support.resolve_workdir({}, required=True).startswith(str(root.resolve()))
+    minted = support.resolve_workdir({})
+    assert minted is not None
+    assert Path(minted).is_relative_to(root.resolve())
+    assert (Path(minted) / AUTO_RUN_MARKER).is_file()
+    assert support.resolve_workdir({}, required=False) is None
     got = support.resolve_workdir({"workdir": "rel-ok"})
     assert Path(got).is_relative_to(root.resolve())
 
@@ -168,6 +172,32 @@ def test_cleanup_run_workdir_none_and_missing(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
     assert cleanup_run_workdir(None) is False
     assert cleanup_run_workdir(root / "run-deadbeefcafe") is False
+
+
+def test_cleanup_and_prune_keep_user_run_hex_without_marker(tmp_path: Path, monkeypatch):
+    """A user dir named run-<12 hex> without AUTO_RUN_MARKER must survive."""
+    root = tmp_path / "workspaces"
+    root.mkdir()
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+
+    user = root / "run-deadbeefcafe"
+    user.mkdir()
+    assert looks_like_auto_run_name(user.name)
+    keep = user / "notes.txt"
+    keep.write_text("user workspace\n", encoding="utf-8")
+    old = time.time() - (10 * 86400)
+    os.utime(user, (old, old))
+
+    assert (user / AUTO_RUN_MARKER).is_file() is False
+    assert cleanup_run_workdir(user) is False
+    assert user.is_dir()
+    assert keep.read_text(encoding="utf-8") == "user workspace\n"
+
+    removed = prune_stale_run_workdirs(max_age_days=7, root=root.resolve())
+    assert removed == 0
+    assert user.is_dir()
+    assert keep.read_text(encoding="utf-8") == "user workspace\n"
+    assert not is_auto_run_workdir(user)
 
 
 def test_prune_stale_run_workdirs(tmp_path: Path, monkeypatch):

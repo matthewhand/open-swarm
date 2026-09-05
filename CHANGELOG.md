@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Security
+- **Confine CLI/API write workdirs (C-H1 + C-H2 / REQ-171C-1):** Blank `params.workdir`/`cwd` on `cli_agent` / fusion / WS chat mints a marked per-run temp under `SWARM_WORKSPACES_DIR` (or uses #588 Folder when set). `CliAdapter.stream_run` is not given process CWD on that path. `cleanup_run_workdir` / prune require `.swarm-auto-run`; a user `workspaces/run-<hex>` without the marker is kept. Fixes #610.
 - **Untrusted CLI argv (C-H8 / REQ-171C-6):** User prompts cannot become extra flags (`--` before positional prompts, or stdin / `-p=`). `{workdir}` is not substituted inside the prompt text. Session ids reject leading `-`, `.`, and `..`; `resume_cli_session_id` sanitizes. Fixes #615.
 
 ### Fixed

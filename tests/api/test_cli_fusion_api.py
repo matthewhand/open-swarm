@@ -112,6 +112,33 @@ def test_cli_agent_respects_cli_param_over_api(client, fake_cli_config):
     assert _content(resp) == "B:pick"
 
 
+@pytest.mark.django_db
+def test_cli_agent_api_blank_workdir_is_confined(client, tmp_path, monkeypatch):
+    """POST /v1/chat/completions cli_agent with no workdir stays under workspaces."""
+    from pathlib import Path
+
+    root = tmp_path / "workspaces"
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+    monkeypatch.delenv("ALLOW_UNRESTRICTED_WORKDIR", raising=False)
+    process_cwd = Path.cwd().resolve()
+    script = tmp_path / "cwd_cli.py"
+    script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
+    cfg = {
+        "cli_agents": {"cwdcli": {"cmd": [PY, str(script), "{prompt}"], "parse": "text"}},
+        "cli_fusion": {"default_cli": "cwdcli"},
+    }
+    app = apps.get_app_config("swarm")
+    monkeypatch.setattr(app, "config", cfg, raising=False)
+    monkeypatch.setenv("SWARM_TEST_MODE", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-test-mode")
+
+    resp = _post(client, "cli_agent", "hi", params={"cli": "cwdcli", "failover": False})
+    assert resp.status_code == 200, resp.content[:300]
+    ran = Path(_content(resp)).resolve()
+    assert ran.is_relative_to(root.resolve())
+    assert ran != process_cwd
+
+
 def _sse_text(response):
     import asyncio as _asyncio
 

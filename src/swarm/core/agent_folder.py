@@ -2,7 +2,8 @@
 
 A user-configured Folder is an explicit working directory. It is not remapped
 under the workspaces root (that would be a silent wrong cwd). Blank / unset
-keeps the existing default — callers pass no cwd and keep prior behaviour.
+is not the Django process CWD: callers mint a marked per-run temp under
+``SWARM_WORKSPACES_DIR`` (see ``resolve_workdir`` / REQ-171C-1).
 """
 
 from __future__ import annotations
@@ -84,7 +85,7 @@ def lookup_agent_folder(
 def resolve_agent_folder(raw: str | None) -> str | None:
     """Resolve a user-configured Folder as process cwd.
 
-    * Blank / ``None`` → ``None`` (caller keeps the existing default).
+    * Blank / ``None`` → ``None`` (caller mints a confined per-run temp).
     * Set → expanduser and resolve; must exist and be a directory.
     * Does not join under the workspaces root.
     """

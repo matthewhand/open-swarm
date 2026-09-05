@@ -132,12 +132,14 @@ When API auth is off, the Explorer aligns with open REST (does not fail-closed-h
 
 ## 5. Workdir confinement
 
-Per-request `params.workdir` / `params.cwd` (hybrid MoA, MoA orchestrator, CLI fusion consumers) and `swarm-cli moa --workdir` / `--cwd`:
+Per-request `params.workdir` / `params.cwd` (`cli_agent`, hybrid MoA, MoA orchestrator, CLI fusion consumers, WS chat) and `swarm-cli moa --workdir` / `--cwd`:
 
 - Resolve under `SWARM_WORKSPACES_DIR` (default XDG `…/swarm/workspaces`).
 - Relative paths are fine; **absolute paths outside the root are rejected**.
 - Escape hatch: `ALLOW_UNRESTRICTED_WORKDIR=true` — for local CLI power users only; **keep off on API servers**.
-- Unset write workdirs get a per-run temp directory under that root.
+- Unset write workdirs mint a **marked** per-run temp (`run-<12 hex>` + `.swarm-auto-run`) under that root. The API/WS path never uses the Django process CWD (`CliAdapter.stream_run` receives that confined path; it does not fall back to `os.getcwd()` on this path).
+- Explicit **Folder** (`params.folder` / agent settings, REQ-167 / #588) is used as process cwd when set. It is **not** remapped under the workspaces root.
+- `cleanup_run_workdir` / `prune_stale_run_workdirs` delete only directories that contain `.swarm-auto-run`. A user dir named `workspaces/run-deadbeefcafe` **without** the marker is kept.
 
 ---
 
