@@ -7,6 +7,7 @@ import {
   type AgentSession,
 } from '../lib/scaleOutSessions'
 import type { MemberSession } from '../lib/sessionPicker'
+import { sessionRelativeLabel } from '../lib/agentSessions'
 
 export type SessionPickerSession = (AgentSession | MemberSession) & {
   agentId?: string
@@ -20,6 +21,8 @@ export interface SessionPickerProps {
   sessions: readonly (AgentSession | MemberSession)[]
   onClose: () => void
   onSelect: (session: any) => void
+  /** REQ-105: empty list still offers New session. #468 can reuse this chrome. */
+  onNewSession?: () => void
 }
 
 function shortcutLabel(index: number): string {
@@ -52,6 +55,15 @@ function sessionFilter(sessions: readonly any[], query: string): any[] {
  * Search-palette chrome, pre-filtered to one agent, team, or remote's running + finished
  * sessions. Not a new SPA page — overlay only; chat stays mounted.
  */
+function sessionWhen(row: any): string {
+  const relative = sessionRelativeLabel({
+    updatedAt: row.updatedAt ?? row.updated_at_ms,
+    startedAt: row.startedAt ?? row.started_at_ms,
+  })
+  if (relative) return relative
+  return row.status === 'running' ? 'Running' : 'Finished'
+}
+
 export default function SessionPicker({
   open,
   title,
@@ -59,6 +71,7 @@ export default function SessionPicker({
   sessions,
   onClose,
   onSelect,
+  onNewSession,
 }: SessionPickerProps) {
   const displayName = title || agentName || ''
   const [query, setQuery] = useState('')
@@ -204,7 +217,7 @@ export default function SessionPicker({
                 <span className="min-w-0 flex-1">
                   <span className="os-search-row__name">{row.title}</span>
                   <span className="os-search-row__desc">
-                    {row.status === 'running' ? 'Running' : 'Finished'}
+                    {sessionWhen(row)}
                     {row.snippet ? ` · ${row.snippet}` : ''}
                   </span>
                 </span>
@@ -213,15 +226,32 @@ export default function SessionPicker({
             ))
           )}
         </ul>
-        {teamSession && (
-          <div className="border-t border-base-300 px-3 py-2 text-right">
-            <a
-              href={`/teams/#${encodeURIComponent(teamSession.groupId)}`}
-              className="btn btn-ghost btn-xs text-xs text-primary"
-              onClick={onClose}
-            >
-              Manage Team →
-            </a>
+        {(teamSession || onNewSession) && (
+          <div className="flex items-center justify-between gap-2 border-t border-base-300 px-3 py-2">
+            {onNewSession ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-xs text-primary"
+                data-testid="os-session-new"
+                onClick={() => {
+                  onNewSession()
+                  onClose()
+                }}
+              >
+                New session
+              </button>
+            ) : (
+              <span />
+            )}
+            {teamSession ? (
+              <a
+                href={`/teams/#${encodeURIComponent(teamSession.groupId)}`}
+                className="btn btn-ghost btn-xs text-xs text-primary"
+                onClick={onClose}
+              >
+                Manage Team →
+              </a>
+            ) : null}
           </div>
         )}
       </div>

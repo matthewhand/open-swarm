@@ -5,6 +5,7 @@ import {
   isRestoreStatusText,
   restoreKindForAgent,
   restoredSessionNotice,
+  switchedSessionNotice,
   withRestoredSession,
 } from '../sessionRestore'
 
@@ -59,5 +60,8 @@ describe('withRestoredSession', () => {
     ]
     expect(withRestoredSession(already, 'cli')).toEqual(already)
     expect(isRestoreStatusText('Started a new grok session.')).toBe(false)
+    expect(isRestoreStatusText('Switched to session Notes')).toBe(true)
+    expect(switchedSessionNotice('Notes')).toBe('Switched to session Notes')
+    expect(switchedSessionNotice('')).toBe('Switched to session')
   })
 })

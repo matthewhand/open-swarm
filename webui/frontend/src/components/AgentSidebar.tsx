@@ -124,6 +124,7 @@ import {
   loadLocalNewChatPerTask,
   openAgentEditor,
 } from '../lib/agentSettings'
+import { createAgentSession, loadPickerSessions } from '../lib/agentSessions'
 import { activeTaskSessionCount } from '../lib/agentChat'
 import {
   RAIL_LONG_PRESS_MS,
@@ -878,6 +879,25 @@ export default function AgentSidebar({
     [navigate, onClose],
   )
 
+  const openAgentSessionPicker = useCallback(
+    async (agentId: string, agentName: string) => {
+      const sessions = await loadPickerSessions(agentId)
+      setSessionPicker({ agentId, agentName, sessions })
+    },
+    [],
+  )
+
+  const startNewAgentSession = useCallback(
+    async (agentId: string) => {
+      const created = await createAgentSession(agentId)
+      const nextId = created?.id
+      if (!nextId) return
+      navigate(sessionHref(agentId, nextId))
+      onClose?.()
+    },
+    [navigate, onClose],
+  )
+
   const persistVisibleOrder = useCallback((nextVisible: string[]) => {
     setRailOrder(saveRailOrder(nextVisible))
   }, [])
@@ -1415,6 +1435,19 @@ export default function AgentSidebar({
       void openCliSessionPicker(agentId, name, cli)
       return
     }
+    if (id === 'select-agent-session' && (menu.kind === 'api' || menu.kind === 'cli')) {
+      const agentId = menu.agentId
+      const name = menu.agentName
+      closeMenu()
+      void openAgentSessionPicker(agentId, name)
+      return
+    }
+    if (id === 'new-session' && (menu.kind === 'api' || menu.kind === 'cli')) {
+      const agentId = menu.agentId
+      closeMenu()
+      void startNewAgentSession(agentId)
+      return
+    }
     if (id === 'unpin' || id === 'pin') {
       togglePin({ id: menu.agentId, name: menu.agentName })
       return
@@ -1461,6 +1494,7 @@ export default function AgentSidebar({
         unread: unreadIds.includes(menu.agentId),
         hasSelectAgent: shouldShowSelectAgent(menu.sessions),
         hasSelectSession: Boolean(menu.isCli),
+        hasAgentSessions: menu.kind === 'api' || menu.kind === 'cli',
         canCopyId:
           menu.kind === 'cli' || menu.kind === 'remote'
             ? Boolean(copyableConversationId(menu.kind, menu.agentId, menu.entityId))
@@ -2531,6 +2565,10 @@ export default function AgentSidebar({
         agentName={sessionPicker?.agentName ?? ''}
         sessions={sessionPicker?.sessions ?? []}
         onClose={() => setSessionPicker(null)}
+        onNewSession={() => {
+          const agentId = sessionPicker?.agentId
+          if (agentId) void startNewAgentSession(agentId)
+        }}
         onSelect={(session) => {
           const agentId = sessionPicker?.agentId || session.agentId
           navigate(sessionHref(agentId, session.id))
