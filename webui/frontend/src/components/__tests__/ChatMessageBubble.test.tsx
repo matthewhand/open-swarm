@@ -361,6 +361,29 @@ describe('REQ-122: No You / agent name labels above chat bubbles', () => {
     expect(pill).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('system-preload-content')).toHaveTextContent('Support · support')
   })
+
+  it('REQ-213: right-click on the system pill opens the compacted-card menu', () => {
+    render(
+      <ChatMessageBubble
+        role="system"
+        isSystemPreload={true}
+        agentName="Support"
+        text="preload body"
+        streaming={false}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+      />,
+    )
+    fireEvent.contextMenu(screen.getByTestId('system-preload-pill'))
+    const menu = screen.getByTestId('compacted-card-context-menu')
+    expect(menu).toHaveClass('menu')
+    expect(screen.getByRole('menuitem', { name: 'Expand' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Remove from view' })).toBeInTheDocument()
+  })
 })
 
 describe('REQ-212 inline skill chips', () => {

@@ -14,6 +14,7 @@ Oracle from anything in this tree.
 | REQ | Issue |
 |-----|-------|
 | [REQ-37](./REQ-37.md) | [nested conversation compact/summaries](https://github.com/matthewhand/open-swarm/issues/350) |
+| [REQ-213](./REQ-213.md) | [right-click menus to manage compacted cards](https://github.com/matthewhand/open-swarm/issues/693) |
 | [REQ-42](./REQ-42.md) | [role-badge click opens explained Settings pane + LLM summary](https://github.com/matthewhand/open-swarm/issues/356) |
 | [REQ-43](./REQ-43.md) | [Settings default LLM + per-task profile override](https://github.com/matthewhand/open-swarm/issues/358) |
 | [REQ-45](./REQ-45.md) | [bare-metal browser control default; sandbox/SaaS greyed TODO](https://github.com/matthewhand/open-swarm/issues/361) |

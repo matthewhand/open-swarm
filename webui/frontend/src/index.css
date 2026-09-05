@@ -1648,6 +1648,9 @@ html:not([data-theme="light"]) .os-composer__send,
   opacity: 0.65;
   margin-bottom: 0.35rem;
 }
+.chat-summary__chip {
+  margin-bottom: 0.4rem;
+}
 .chat-summary__body {
   font-size: 0.875rem;
 }

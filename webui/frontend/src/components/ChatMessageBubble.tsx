@@ -33,6 +33,8 @@ export interface ChatMessageBubbleProps {
   isSystemPreload?: boolean
   skillCatalog?: SkillInfo[]
   onOpenSkill?: (name: string) => void
+  /** REQ-213: view-only hide for compacted system pills. */
+  onRemoveCard?: () => void
 }
 
 function selectionIsActive(): boolean {
@@ -146,6 +148,7 @@ export function ChatMessageBubble({
   isSystemPreload,
   skillCatalog,
   onOpenSkill,
+  onRemoveCard,
 }: ChatMessageBubbleProps) {
   const startFromHere = contextStrategy === 'cull'
   const contextActionLabel = startFromHere ? 'Start context from here' : 'Compress to here'
@@ -164,7 +167,7 @@ export function ChatMessageBubble({
   if (role === 'system' || isSystemPreload) {
     return (
       <div className="flex justify-start w-full my-1" data-testid="chat-system-preload">
-        <SystemPreloadPill text={text} />
+        <SystemPreloadPill text={text} onRemove={onRemoveCard} />
       </div>
     )
   }

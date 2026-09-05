@@ -51,6 +51,7 @@ import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import { SkillPopup } from '../components/SkillPopup'
 import ReadAloudButton from '../components/ReadAloudButton'
 import { SystemPreloadPill } from '../components/SystemPreloadPill'
+import { CompactSummaryCard } from '../components/CompactSummaryCard'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
 import {
   type SlashItem,
@@ -364,6 +365,9 @@ const ChatPage = () => {
   const sttStopRef = useRef<(() => void) | null>(null)
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null)
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null)
+  /** REQ-213: view-only hide. Raw transcript / summary tree on disk stay. */
+  const [hiddenSummaryIds, setHiddenSummaryIds] = useState<number[]>([])
+  const [hiddenMessageKeys, setHiddenMessageKeys] = useState<string[]>([])
   const [slashDismissed, setSlashDismissed] = useState(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [recentSlashIds, setRecentSlashIds] = useState<string[]>(() => getRecentSlashIds())
@@ -494,6 +498,8 @@ const ChatPage = () => {
   useEffect(() => {
     setReplyTarget(null)
     setContextMenu(null)
+    setHiddenSummaryIds([])
+    setHiddenMessageKeys([])
   }, [threadKey])
 
   useEffect(() => {
@@ -2632,15 +2638,21 @@ const ChatPage = () => {
           <>
           {displayItems.map((item, idx) => {
             if (item.kind === 'summary') {
+              if (hiddenSummaryIds.includes(item.summary.id)) return null
               return (
                 <SummaryBlock
                   key={`sum-${item.summary.id}`}
                   summary={item.summary}
                   byId={summaryMap}
+                  hiddenIds={hiddenSummaryIds}
+                  onHide={(id) =>
+                    setHiddenSummaryIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+                  }
                 />
               )
             }
             const message = item.message
+            if (hiddenMessageKeys.includes(message.key)) return null
             const liveMessage = messages.find((row) => row.key === message.key)
             const teammateTask = liveMessage?.teammateTask
             if (teammateTask) {
@@ -2691,6 +2703,11 @@ const ChatPage = () => {
                   key={message.key}
                   text={message.text}
                   label="Prior history"
+                  onRemove={() =>
+                    setHiddenMessageKeys((prev) =>
+                      prev.includes(message.key) ? prev : [...prev, message.key],
+                    )
+                  }
                 />
               )
             }
@@ -2732,7 +2749,10 @@ const ChatPage = () => {
             return (
               <div
                 key={message.key}
-                onContextMenu={(e) => handleBubbleContextMenu(e, message)}
+                onContextMenu={(e) => {
+                  if (message.role === 'system') return
+                  handleBubbleContextMenu(e, message)
+                }}
               >
                 {showStartMarker ? (
                   <div
@@ -2754,6 +2774,11 @@ const ChatPage = () => {
                   edited={message.edited}
                   skillCatalog={skillCatalog}
                   onOpenSkill={setOpenSkillName}
+                  onRemoveCard={() =>
+                    setHiddenMessageKeys((prev) =>
+                      prev.includes(message.key) ? prev : [...prev, message.key],
+                    )
+                  }
                   canEdit={canEditThis}
                   canCompress={
                     !message.streaming &&
@@ -3127,25 +3152,38 @@ function SummaryBlock({
   summary,
   byId,
   depth = 0,
+  hiddenIds = [],
+  onHide,
 }: {
   summary: ConversationSummary
   byId: Record<number, ConversationSummary>
   depth?: number
+  hiddenIds?: number[]
+  onHide?: (id: number) => void
 }) {
   const parent =
     summary.parent_summary_id != null ? byId[summary.parent_summary_id] : undefined
   const replaced =
     summary.replaced_count ?? summary.span.end - summary.span.start + 1
   return (
-    <div
+    <CompactSummaryCard
+      title="Summary"
+      body={summary.body}
+      meta={`Replaced ${replaced} turns`}
       className={depth > 0 ? 'chat-summary chat-summary--nested' : 'chat-summary'}
-      data-testid="chat-summary"
-    >
-      <div className="chat-summary__label">Summary</div>
-      <div className="chat-summary__body whitespace-pre-wrap break-words">{summary.body}</div>
-      <div className="chat-summary__meta">Replaced {replaced} turns</div>
-      {parent ? <SummaryBlock summary={parent} byId={byId} depth={depth + 1} /> : null}
-    </div>
+      onRemove={() => onHide?.(summary.id)}
+      nested={
+        parent && !hiddenIds.includes(parent.id) ? (
+          <SummaryBlock
+            summary={parent}
+            byId={byId}
+            depth={depth + 1}
+            hiddenIds={hiddenIds}
+            onHide={onHide}
+          />
+        ) : null
+      }
+    />
   )
 }
 

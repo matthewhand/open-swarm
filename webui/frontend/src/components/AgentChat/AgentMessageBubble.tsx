@@ -15,6 +15,8 @@ import {
 } from '../../lib/clipboard'
 import { renderSafeMarkdown } from '../../lib/markdown'
 import { SystemPreloadPill } from '../SystemPreloadPill'
+import { useCompactedCardMenu } from '../CompactedCardContextMenu'
+import { compactedCardCopyText, messageFromLabel } from '../../lib/compactedCardMenu'
 
 interface AgentMessageBubbleProps {
   message: ChatMessage
@@ -27,6 +29,8 @@ interface AgentMessageBubbleProps {
   onRegenerateSummary?: (steer: string) => void
   onResolveApproval?: (status: 'approved' | 'rejected') => void
   onAddReaction?: (messageKey: string, emoji?: string) => void
+  /** REQ-213: view-only hide. Raw transcript stays on disk. */
+  onRemoveCard?: () => void
 }
 
 export function AgentMessageBubble({
@@ -40,17 +44,44 @@ export function AgentMessageBubble({
   onRegenerateSummary,
   onResolveApproval,
   onAddReaction,
+  onRemoveCard,
 }: AgentMessageBubbleProps) {
   const isUser = message.role === 'user'
   const isSummary = message.kind === 'summary'
   const [copied, setCopied] = useState(false)
   const [originalOpen, setOriginalOpen] = useState(false)
   const [steer, setSteer] = useState('')
+  const [summaryExpanded, setSummaryExpanded] = useState(true)
+  const [summaryRemoved, setSummaryRemoved] = useState(false)
   const { error } = useToast()
   const canCopy = messageHasCopyableText(message.text)
+  const summaryCopyText = compactedCardCopyText({
+    text: message.text,
+    compacted: message.compacted,
+  })
+  const summaryMenu = useCompactedCardMenu({
+    label: 'Conversation summary',
+    expanded: summaryExpanded,
+    copyText: summaryCopyText,
+    onToggleExpand: () => setSummaryExpanded((prev) => !prev),
+    onRemove: () => {
+      if (onRemoveCard) onRemoveCard()
+      else setSummaryRemoved(true)
+    },
+  })
 
   if (message.kind === 'system' || message.isSystemPreload || (message.role as string) === 'system') {
-    return <SystemPreloadPill text={message.text} />
+    const source =
+      message.agent && message.agent.trim() && message.agent !== 'System'
+        ? message.agent
+        : 'System'
+    return (
+      <SystemPreloadPill
+        text={message.text}
+        label={messageFromLabel(source)}
+        onRemove={onRemoveCard}
+      />
+    )
   }
 
   const handleCopy = async () => {
@@ -139,13 +170,25 @@ export function AgentMessageBubble({
   }
 
   if (isSummary) {
+    if (summaryRemoved) return null
     return (
-      <div className="flex justify-start group">
+      <div
+        className="flex justify-start group"
+        data-testid="conversation-summary-card"
+        onContextMenu={summaryMenu.onContextMenu}
+      >
         <div className="relative max-w-[85%] w-full rounded-none border border-base-content/25 bg-base-300/50 px-3.5 py-2.5 text-sm shadow-xs">
           <div className="flex items-center justify-between gap-2 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-base-content/55">
+            <button
+              type="button"
+              className="text-[11px] font-bold uppercase tracking-wider text-base-content/55 text-left"
+              aria-expanded={summaryExpanded}
+              aria-label="Conversation summary"
+              onClick={() => setSummaryExpanded((prev) => !prev)}
+              onKeyDown={summaryMenu.onKeyDown}
+            >
               Conversation summary
-            </span>
+            </button>
             <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 group-hover:md:opacity-100 group-focus-within:md:opacity-100 transition-opacity">
               <button
                 type="button"
@@ -180,6 +223,8 @@ export function AgentMessageBubble({
               </button>
             </div>
           </div>
+          {summaryExpanded ? (
+            <>
           <p className="whitespace-pre-wrap">{regenerating ? 'Regenerating summary…' : message.text}</p>
           <label className="mt-2 block">
             <span className="sr-only">Steer next regenerate</span>
@@ -190,7 +235,10 @@ export function AgentMessageBubble({
               placeholder="Steer next regenerate (optional)"
             />
           </label>
+            </>
+          ) : null}
         </div>
+        {summaryMenu.menuNode}
         {originalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
             <div

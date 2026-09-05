@@ -191,6 +191,8 @@ export default function AgentRouterPage() {
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [designerOpen, setDesignerOpen] = useState(false)
   const [compacting, setCompacting] = useState(false)
+  /** REQ-213: view-only hide. Raw transcript stays in memory / on disk. */
+  const [hiddenCardKeys, setHiddenCardKeys] = useState<string[]>([])
   const [dshLaunchNote, setDshLaunchNote] = useState<string | null>(null)
   const [quickstartNote, setQuickstartNote] = useState<string | null>(null)
   const briefingKeyRef = useRef<string | null>(null)
@@ -939,6 +941,7 @@ export default function AgentRouterPage() {
           ) : (
             <>
               {messages.map((msg, idx) => (
+                hiddenCardKeys.includes(msg.key) ? null : (
                 <AgentMessageBubble
                   key={msg.key}
                   message={msg}
@@ -946,6 +949,9 @@ export default function AgentRouterPage() {
                   canCompact={canCompactAt(messages, idx)}
                   compacting={compacting}
                   regenerating={compacting && msg.kind === 'summary'}
+                  onRemoveCard={() =>
+                    setHiddenCardKeys((prev) => (prev.includes(msg.key) ? prev : [...prev, msg.key]))
+                  }
                   onCompactToHere={() => handleCompactToHere(idx)}
                   onRegenerateSummary={(steer) => handleRegenerateSummary(idx, steer)}
                   onResolveApproval={(status) => {
@@ -962,6 +968,7 @@ export default function AgentRouterPage() {
                     if (found) setSelectedCommDelegation(found)
                   }}
                 />
+                )
               ))}
               <div ref={messagesEndRef} />
             </>

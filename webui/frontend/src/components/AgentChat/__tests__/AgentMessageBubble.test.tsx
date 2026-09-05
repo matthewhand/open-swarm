@@ -261,6 +261,40 @@ describe('AgentMessageBubble', () => {
     expect(screen.getByTestId('system-preload-content')).toBeInTheDocument()
     expect(screen.getByTestId('system-preload-content')).toHaveTextContent('Support · support')
   })
+
+  it('REQ-213: right-click on a Conversation summary opens Expand/Copy/Remove', () => {
+    renderBubble(<AgentMessageBubble message={summaryMsg} />)
+    fireEvent.contextMenu(screen.getByTestId('conversation-summary-card'))
+    const menu = screen.getByTestId('compacted-card-context-menu')
+    expect(menu).toHaveClass('menu')
+    expect(screen.getByRole('menuitem', { name: 'Collapse' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Remove from view' })).toHaveClass('text-error')
+  })
+
+  it('REQ-213: Remove from view hides the summary card without rewriting disk', () => {
+    const onRemove = vi.fn()
+    renderBubble(<AgentMessageBubble message={summaryMsg} onRemoveCard={onRemove} />)
+    fireEvent.contextMenu(screen.getByTestId('conversation-summary-card'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from view' }))
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('REQ-213: Message from Agent pill uses the shared System/Agent family', () => {
+    renderBubble(
+      <AgentMessageBubble
+        message={{
+          key: 'agent-pill',
+          role: 'system',
+          kind: 'system',
+          agent: 'Codey',
+          text: 'handoff from Codey',
+          timestamp: new Date(),
+        }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /Message from Codey/i })).toBeInTheDocument()
+  })
 })
 
 

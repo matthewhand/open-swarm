@@ -5,6 +5,8 @@ import {
   ArrowUp,
   Bell,
   Check,
+  ChevronDown,
+  ChevronUp,
   Circle,
   CircleStop,
   ClipboardCopy,
@@ -42,6 +44,9 @@ const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'section-move-up': ArrowUp,
   'section-move-down': ArrowDown,
   'section-delete': Trash2,
+  expand: ChevronDown,
+  collapse: ChevronUp,
+  copy: ClipboardCopy,
 }
 
 export interface RailMenuItemProps {
@@ -148,6 +153,8 @@ export interface RailContextMenuProps {
   menuRef?: Ref<HTMLUListElement>
   onSelect: (id: RailMenuItemId) => void
   onSubSelect?: (parentId: RailMenuItemId, childId: string) => void
+  /** Override `rail-context-menu` for compacted-card / other shared menus. */
+  testId?: string
 }
 
 export default function RailContextMenu({
@@ -158,6 +165,7 @@ export default function RailContextMenu({
   menuRef,
   onSelect,
   onSubSelect,
+  testId = 'rail-context-menu',
 }: RailContextMenuProps) {
   const groups: RailMenuItemSpec[][] = []
   for (const item of items) {
@@ -176,7 +184,7 @@ export default function RailContextMenu({
       aria-label={`Actions for ${agentName}`}
       className="menu menu-sm rounded-box fixed z-50 min-w-52 border border-base-300 bg-base-100 p-1 shadow-xl"
       style={{ left: x, top: y }}
-      data-testid="rail-context-menu"
+      data-testid={testId}
     >
       {groups.map((group, index) => (
         <Fragment key={group[0].id}>
