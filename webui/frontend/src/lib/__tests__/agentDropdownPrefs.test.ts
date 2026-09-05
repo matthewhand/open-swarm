@@ -17,12 +17,12 @@ describe('agent dropdown prefs (REQ-180)', () => {
   it('parses safe fields and drops secrets / empty ids', () => {
     expect(
       parseAgentDropdowns({
-        cli_agent: { cli: ' grok ', model: 'grok-4', api_key: 'sk-nope', token: 'x' },
+        cli_agent: { cli: ' grok ', model: 'grok-4', effort: 'medium', api_key: 'sk-nope', token: 'x' },
         '': { cli: 'agy' },
         remote: { remote: 'omb', blueprint: 'codey', api: 'auxiliary' },
       }),
     ).toEqual({
-      cli_agent: { cli: 'grok', model: 'grok-4' },
+      cli_agent: { cli: 'grok', model: 'grok-4', effort: 'medium' },
       remote: { remote: 'omb', blueprint: 'codey', api: 'auxiliary' },
     })
   })

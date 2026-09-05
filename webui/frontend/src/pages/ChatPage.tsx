@@ -31,7 +31,7 @@ import { persistAgentDropdownChoice } from '../lib/userPrefs'
 import { persistableMessages, putAgentChatSession } from '../lib/agentChatSessions'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
-import { RemoteSelect } from '../components/RemoteSelect'
+import { NavbarRoutingPicker, type RoutingPathChange } from '../components/NavbarRoutingPicker'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
 import { SystemPreloadPill } from '../components/SystemPreloadPill'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
@@ -113,7 +113,13 @@ import {
   teamThreadId,
 } from '../lib/teamRosters'
 import { fetchConfiguredRemotes, remoteDisplayName, remoteHideId } from '../lib/remotesCatalog'
-import { configuredRemotes } from '../lib/remotes'
+import {
+  ADD_REMOTE_VALUE,
+  configuredRemotes,
+  remoteKinds,
+  remoteOptionLabel,
+  remoteSelectPlaceholder,
+} from '../lib/remotes'
 import {
   AGENT_REMOTE_BINDINGS_CHANGED_EVENT,
   isRemoteKindAgent,
@@ -634,6 +640,48 @@ const ChatPage = () => {
       ).catch(() => {})
     },
     [threadKey, teamFromUrl, remoteFromUrl, selectedBlueprint],
+  )
+
+  const applyCliRoutingChange = useCallback(
+    (next: RoutingPathChange) => {
+      if (next.changed === 'agent') {
+        persistAgentDropdownChoice(dropdownAgentId, {
+          cli: next.agent,
+          ...(next.model ? { model: next.model } : {}),
+          effort: next.effort || '',
+        })
+        setSearchParams(
+          (prevParams) => {
+            const nextParams = new URLSearchParams(prevParams)
+            nextParams.set('cli', next.agent)
+            if (next.model) nextParams.set('model', next.model)
+            else nextParams.delete('model')
+            return nextParams
+          },
+          { replace: true },
+        )
+        recordDropdownChange('cli', next.previous.agent, next.agent)
+        return
+      }
+      persistAgentDropdownChoice(dropdownAgentId, {
+        model: next.model,
+        effort: next.effort || '',
+      })
+      setSearchParams(
+        (prevParams) => {
+          const nextParams = new URLSearchParams(prevParams)
+          if (next.model) nextParams.set('model', next.model)
+          return nextParams
+        },
+        { replace: true },
+      )
+      if (next.changed === 'effort') {
+        recordDropdownChange('effort', next.previous.effort || '', next.effort || '')
+        return
+      }
+      recordDropdownChange('model', next.previous.modelBase || next.previous.model, next.modelBase || next.model)
+    },
+    [dropdownAgentId, recordDropdownChange, setSearchParams],
   )
 
   useEffect(() => {
@@ -1972,10 +2020,24 @@ const ChatPage = () => {
               Add remote
             </button>
           ) : showRemotesControl ? (
-            <RemoteSelect
-              remotes={remotesCatalog}
-              value={selectedRemoteId}
-              onChange={(nextId) => {
+            <NavbarRoutingPicker
+              seatKind="remote"
+              aria-label="Remote"
+              placeholder={remoteSelectPlaceholder(configuredRemoteRows.length, selectedRemoteId)}
+              agents={configuredRemoteRows.map((remote) => ({
+                id: remote.id,
+                label: remoteOptionLabel(remote, remoteKinds(remotesCatalog)),
+              }))}
+              selectedAgent={selectedRemoteId}
+              models={[]}
+              selectedModel=""
+              footerAction={{
+                id: ADD_REMOTE_VALUE,
+                label: 'Add remote',
+                onSelect: () => openSettingsSheet({ section: 'remotes' }),
+              }}
+              onChange={(next) => {
+                const nextId = next.agent
                 setSelectedRemoteId(nextId)
                 const remote = configuredRemoteRows.find((row) => row.id === nextId)
                 if (bindingAgentId && remote) {
@@ -1997,8 +2059,6 @@ const ChatPage = () => {
                   })
                 }
               }}
-              size="sm"
-              className="h-8 max-w-[10rem]"
             />
           ) : null}
           {teamFromUrl ? (
@@ -2038,68 +2098,23 @@ const ChatPage = () => {
             </select>
           ) : null}
           {isCliAgent ? (
-            <>
-              <select
-                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
-                value={currentCli}
-                aria-label="CLI"
-                data-testid="cli-select"
-                onChange={(e) => {
-                  const nextCli = e.target.value
-                  if (nextCli === MANAGE_CLI_VALUE) {
-                    window.location.assign(MANAGE_CLI_HREF)
-                    return
-                  }
-                  const prev = currentCli
-                  persistAgentDropdownChoice(dropdownAgentId, { cli: nextCli })
-                  setSearchParams(
-                    (prevParams) => {
-                      const nextParams = new URLSearchParams(prevParams)
-                      nextParams.set('cli', nextCli)
-                      return nextParams
-                    },
-                    { replace: true },
-                  )
-                  recordDropdownChange('cli', prev, nextCli)
-                }}
-              >
-                {discoveredClis.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                <option disabled aria-hidden="true">
-                  ──────────
-                </option>
-                <option value={MANAGE_CLI_VALUE}>Manage Cli</option>
-              </select>
-              <select
-                className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
-                value={currentCliModel}
-                aria-label="Model"
-                data-testid="cli-model-select"
-                onChange={(e) => {
-                  const nextModel = e.target.value
-                  const prev = currentCliModel
-                  persistAgentDropdownChoice(dropdownAgentId, { model: nextModel })
-                  setSearchParams(
-                    (prevParams) => {
-                      const nextParams = new URLSearchParams(prevParams)
-                      nextParams.set('model', nextModel)
-                      return nextParams
-                    },
-                    { replace: true },
-                  )
-                  recordDropdownChange('model', prev, nextModel)
-                }}
-              >
-                {availableCliModels.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </>
+            <NavbarRoutingPicker
+              seatKind="cli"
+              aria-label="CLI"
+              agents={discoveredClis.map((cli) => ({ id: cli, label: cli }))}
+              selectedAgent={currentCli}
+              models={availableCliModels}
+              selectedModel={currentCliModel}
+              preferredEffort={persistedDropdown.effort}
+              footerAction={{
+                id: MANAGE_CLI_VALUE,
+                label: 'Manage Cli',
+                onSelect: () => {
+                  window.location.assign(MANAGE_CLI_HREF)
+                },
+              }}
+              onChange={applyCliRoutingChange}
+            />
           ) : null}
           <div
             className="flex items-center gap-2"

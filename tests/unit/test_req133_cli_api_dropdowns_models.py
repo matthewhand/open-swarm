@@ -24,10 +24,12 @@ def test_chat_page_renders_cli_dropdowns_with_models():
     assert "isApiAgent" in tsx
     assert "showRemotesControl" in tsx
 
-    # CLI + model picker still on ChatPage
-    assert 'data-testid="cli-select"' in tsx
-    assert 'aria-label="CLI"' in tsx
-    assert 'data-testid="cli-model-select"' in tsx
+    # REQ-200: one cascading picker owns CLI + model + effort
+    assert "NavbarRoutingPicker" in tsx
+    assert 'seatKind="cli"' in tsx
+    assert "applyCliRoutingChange" in tsx
+    assert 'data-testid="cli-select"' not in tsx
+    assert 'data-testid="cli-model-select"' not in tsx
 
     # #751 removed You/Default API chrome — do not require it here (REQ-186 forbids it)
     assert 'data-testid="api-select"' not in tsx
@@ -37,6 +39,7 @@ def test_chat_page_renders_cli_dropdowns_with_models():
     # Status tracking on remaining dropdowns
     assert "recordDropdownChange('cli'" in tsx
     assert "recordDropdownChange('model'" in tsx
+    assert "recordDropdownChange('effort'" in tsx
     assert "persistAgentDropdownChoice" in tsx
 
 
