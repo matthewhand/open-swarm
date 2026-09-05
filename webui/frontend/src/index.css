@@ -1408,6 +1408,12 @@ html:not([data-theme="light"]) .os-composer__send,
   max-width: 28rem;
   text-align: center;
 }
+.os-chat-status > time {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  opacity: 0.85;
+  white-space: nowrap;
+}
 
 /* REQ-71: structured PR-opened tool result is thread chrome, not a chat bubble. */
 .os-pr-opened-wrap {

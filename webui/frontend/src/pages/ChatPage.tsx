@@ -122,6 +122,7 @@ import {
   estimateTokensInContext,
   formatTokenCount,
 } from '../lib/chatMeter'
+import { formatGapLabel, parseCreatedAtMs } from '../lib/chatTime'
 import { workingLabel } from '../lib/chatBubble'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
@@ -171,10 +172,12 @@ interface ChatMessage {
   prOpened?: PrOpenedEvent
   /** REQ-104 — expandable archive of the previous swarm thread. */
   kind?: 'prior_history'
+  /** Persist/reload timestamp (ISO). Status/info chrome shows this. */
+  ts?: string
 }
 
 function chatMessageFromThreadRow(
-  message: { role: string; content: string; edited?: boolean; kind?: string },
+  message: { role: string; content: string; edited?: boolean; kind?: string; ts?: string },
   index: number,
 ): ChatMessage {
   const prOpened = parsePrOpened(message.content) ?? undefined
@@ -187,6 +190,7 @@ function chatMessageFromThreadRow(
     edited: message.edited === true,
     prOpened,
     kind: prior ? 'prior_history' : undefined,
+    ts: message.ts,
   }
 }
 
@@ -561,6 +565,7 @@ const ChatPage = () => {
         role: 'status',
         text: statusText,
         streaming: false,
+        ts: new Date().toISOString(),
       }
       setThreads((prev) => ({
         ...prev,
@@ -1909,14 +1914,21 @@ const ChatPage = () => {
               )
             }
             if (isStatusRole(message.role)) {
+              const statusMs = parseCreatedAtMs(message.ts)
               return (
                 <p
                   key={message.key}
                   className="os-chat-status"
                   data-role="status"
                   data-testid="chat-status"
+                  data-ts={message.ts || undefined}
                 >
                   <span>{message.text}</span>
+                  {statusMs != null ? (
+                    <time dateTime={message.ts} data-testid="chat-status-time">
+                      {formatGapLabel(statusMs)}
+                    </time>
+                  ) : null}
                 </p>
               )
             }

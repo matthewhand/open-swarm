@@ -17,6 +17,7 @@ export interface ChatBubble {
   streaming: boolean
   /** REQ-104 — expandable archive of the previous swarm thread. */
   kind?: 'prior_history'
+  ts?: string
 }
 
 export type DisplayItem =
@@ -94,9 +95,9 @@ export function contextTextsForMeter(
   messages: ChatBubble[],
   summaries: ConversationSummary[],
 ): string[] {
-  return buildDisplayItems(messages, summaries).map((item) =>
-    item.kind === 'summary' ? item.summary.body : item.message.text,
-  )
+  return buildDisplayItems(messages, summaries)
+    .filter((item) => item.kind === 'summary' || item.message.role !== 'status')
+    .map((item) => (item.kind === 'summary' ? item.summary.body : item.message.text))
 }
 
 export function isConversationSummary(value: unknown): value is ConversationSummary {

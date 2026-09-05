@@ -101,8 +101,7 @@ async def _compacted_context(conversation_id, messages):
     """Model context: summary tree replaces covered raw turns (REQ-37).
 
     Raw ``messages`` stay on the consumer and on disk. Failures fall back
-    to the raw list so tests without a DB and live sessions without
-    summaries keep working.
+    to the filtered list (status/info never reach the model — REQ-70).
     """
     try:
         from swarm.core.chat_compact import context_for_conversation
@@ -111,8 +110,11 @@ async def _compacted_context(conversation_id, messages):
             conversation_id, messages
         )
     except Exception:
-        logger.debug("compact context unavailable; using raw transcript", exc_info=True)
-        return list(messages or [])
+        logger.debug("compact context unavailable; using filtered transcript", exc_info=True)
+        from swarm.core.speaker_identity import apply_speaker_identity
+        from swarm.core.transcript_roles import messages_for_model
+
+        return apply_speaker_identity(messages_for_model(messages), adapter_id="openai_compat")
 
 
 def _status_line_html(text: str) -> str:
@@ -267,7 +269,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             agent = text_data_json.get("agent")
             if isinstance(agent, str) and agent.strip():
                 self.active_agent = agent.strip()
-            self.messages.append({"role": "status", "content": status_text})
+            self.messages.append(
+                {"role": "status", "content": status_text, "ts": _message_ts()}
+            )
             conversation_id = getattr(self, "conversation_id", None)
             if conversation_id:
                 await self.save_conversation(conversation_id, self.messages)
@@ -552,7 +556,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                             await self.send(text_data=_status_line_html(notice))
                             self.messages = insert_status_before_turn_assistant(
                                 self.messages,
-                                {"role": "status", "content": notice},
+                                {"role": "status", "content": notice, "ts": _message_ts()},
                             )
                     continue
                 message = _extract_message_from_chunk(chunk)

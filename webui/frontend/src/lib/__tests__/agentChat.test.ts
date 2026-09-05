@@ -70,7 +70,11 @@ describe('fetchAgentThread', () => {
           conversation_id: 'agt-1-jeeves',
           messages: [
             { role: 'user', content: 'hi' },
-            { role: 'status', content: 'Started a new grok session.' },
+            {
+              role: 'status',
+              content: 'Started a new grok session.',
+              ts: '2026-09-05T12:00:00Z',
+            },
             { role: 'assistant', content: 'hello' },
           ],
         }),
@@ -79,7 +83,11 @@ describe('fetchAgentThread', () => {
     const thread = await fetchAgentThread('jeeves')
     expect(thread.messages).toEqual([
       { role: 'user', content: 'hi' },
-      { role: 'status', content: 'Started a new grok session.' },
+      {
+        role: 'status',
+        content: 'Started a new grok session.',
+        ts: '2026-09-05T12:00:00Z',
+      },
       { role: 'assistant', content: 'hello' },
     ])
     expect(thread.conversation_id).toBe('agt-1-jeeves')
@@ -106,6 +114,35 @@ describe('fetchAgentThread', () => {
     expect(thread.messages).toEqual([
       { role: 'system', content: '**User:** old', kind: 'prior_history' },
       { role: 'status', content: 'Switched to grok session sid-1.' },
+    ])
+  })
+
+  it('keeps created_at as ts so status chrome can show when it occurred', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'jeeves',
+          conversation_id: 'agt-1-jeeves',
+          messages: [
+            {
+              role: 'info',
+              content: 'Rate limited — retrying with grok',
+              created_at: '2026-09-05T12:00:00Z',
+            },
+          ],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('jeeves')
+    expect(thread.messages).toEqual([
+      {
+        role: 'status',
+        content: 'Rate limited — retrying with grok',
+        ts: '2026-09-05T12:00:00Z',
+      },
     ])
   })
 
