@@ -40,9 +40,16 @@ ROLE_BRIEFS: dict[str, str] = {
         "right roster and coordinates across teams-of-teams instead of doing "
         "the specialist work itself."
     ),
+    "suggestions": (
+        "Suggestions prepares a short list of quick-select prompts. A consumer "
+        "with Use suggestions on shows those as chips after each turn, including "
+        "before the first message. Clicking a chip sends that exact string. "
+        "Chips are chrome, not extra LLM context."
+    ),
     "default": (
         "This is a worker blueprint: it runs its own system prompt, tools, and "
-        "handoffs. It is not a gate, skeptic, Support, or Chief of Staff seat."
+        "handoffs. It is not a gate, skeptic, Support, Chief of Staff, or "
+        "suggestions seat."
     ),
 }
 
@@ -75,6 +82,9 @@ ROLE_ALIASES = {
     "chief_of_staff": "cos",
     "chief-of-staff": "cos",
     "chiefofstaff": "cos",
+    "suggestions": "suggestions",
+    "suggestion": "suggestions",
+    "suggest": "suggestions",
 }
 
 ROLE_FALLBACK_SOURCE = {
@@ -104,6 +114,12 @@ ROLE_FALLBACK_SOURCE = {
         "COS_INSTRUCTIONS = (\n"
         '    "You are Chief of Staff. Route the operator to the right team. "\n'
         '    "Talk to any roster; do not do the specialist work yourself."\n'
+        ")\n"
+    ),
+    "suggestions": (
+        "# Blueprint recipe — Suggestions (quick-select chips)\n"
+        "SUGGESTIONS_INSTRUCTIONS = (\n"
+        '    "Return JSON {\\"suggestions\\": [2-5 short strings]} the operator can click."\n'
         ")\n"
     ),
 }
@@ -285,6 +301,11 @@ def _handoff_notes(kind: str, role: str, meta: dict[str, Any], roster: dict[str,
         parts.append("Support talks about other agents; it does not take over their tools.")
     elif role == "cos":
         parts.append("CoS can address any team roster (talk-to-any-team).")
+    elif role == "suggestions":
+        parts.append(
+            "Suggestions is invoked as_tool after a consumer turn "
+            "(and on an empty thread for kickstart)."
+        )
     gate_agent = meta.get("gate_agent")
     skeptic_agent = meta.get("skeptic_agent")
     if gate_agent:
@@ -318,6 +339,7 @@ def _system_prompt_from_source(source: str, role: str) -> str:
         "GATE_INSTRUCTIONS",
         "SKEPTIC_INSTRUCTIONS",
         "COS_INSTRUCTIONS",
+        "SUGGESTIONS_INSTRUCTIONS",
         "INSTRUCTIONS",
     ):
         if marker in source:

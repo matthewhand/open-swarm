@@ -21,6 +21,7 @@ export function roleDisplayName(role: AgentRole | string): string {
   if (key === 'gate' || key === 'safety' || key === 'tool_gate') return 'Safety'
   if (key === 'support') return 'Support'
   if (key === 'skeptic') return 'Skeptic'
+  if (key === 'suggestions' || key === 'suggestion') return 'Suggestions'
   return key
 }
 
