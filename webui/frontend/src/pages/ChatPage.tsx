@@ -31,6 +31,7 @@ import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { RemoteSelect } from '../components/RemoteSelect'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
+import { SystemPreloadPill } from '../components/SystemPreloadPill'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
 import {
   type SlashItem,
@@ -160,7 +161,7 @@ type ConnectionStatus = ChatConnectionStatus
 interface ChatMessage {
   /** Stable key; for assistant messages this is the server-issued container id. */
   key: string
-  role: 'user' | 'assistant' | 'status'
+  role: 'user' | 'assistant' | 'status' | 'system'
   text: string
   /** True while the assistant message is still streaming. */
   streaming: boolean
@@ -168,20 +169,24 @@ interface ChatMessage {
   edited?: boolean
   /** REQ-71 chrome — structured PR-opened tool result, not markdown. */
   prOpened?: PrOpenedEvent
+  /** REQ-104 — expandable archive of the previous swarm thread. */
+  kind?: 'prior_history'
 }
 
 function chatMessageFromThreadRow(
-  message: { role: string; content: string; edited?: boolean },
+  message: { role: string; content: string; edited?: boolean; kind?: string },
   index: number,
 ): ChatMessage {
   const prOpened = parsePrOpened(message.content) ?? undefined
+  const prior = message.kind === 'prior_history'
   return {
     key: `hist-${index}-${message.role}`,
-    role: asTranscriptRole(message.role),
+    role: prior ? 'system' : asTranscriptRole(message.role),
     text: prOpened ? '' : message.content,
     streaming: false,
     edited: message.edited === true,
     prOpened,
+    kind: prior ? 'prior_history' : undefined,
   }
 }
 
@@ -1892,6 +1897,15 @@ const ChatPage = () => {
                     onJumpToOpener={jumpToPrOpener}
                   />
                 </div>
+              )
+            }
+            if (message.kind === 'prior_history') {
+              return (
+                <SystemPreloadPill
+                  key={message.key}
+                  text={message.text}
+                  label="Prior history"
+                />
               )
             }
             if (isStatusRole(message.role)) {

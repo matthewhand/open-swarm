@@ -19,6 +19,7 @@ def test_every_catalog_cli_documents_session_resume():
         assert policy.get("resume_argv"), f"{name} has no resume_argv"
         assert "{session_id}" in " ".join(policy["resume_argv"])
         assert policy.get("notes")
+        assert "No non-interactive session list" in policy["notes"]
     assert cli_catalog.session_policy("antigravity") is None
     grok = cli_catalog.session_policy("grok")
     assert grok["resume_argv"] == ["--resume", "{session_id}"]
