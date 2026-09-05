@@ -244,10 +244,8 @@ describe('ChatPage team member ?session= (REQ-171A-1 / #601)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('search-probe')).toHaveTextContent('session=codey')
     })
-    expect(await screen.findByText('from disk')).toBeInTheDocument()
-    expect(await screen.findByTestId('chat-status')).toHaveTextContent(
-      'Team target: All members → Codey (agent/coder)',
-    )
+    expect(screen.getByText('from disk')).toBeInTheDocument()
+    expect(screen.getByText('Team target: All members → Codey (agent/coder)')).toBeInTheDocument()
     expect(threadGets).toBe(getsAfterHydrate)
   })
 })
