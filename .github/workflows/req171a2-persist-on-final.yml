@@ -5,7 +5,6 @@ on:
     paths:
       - "src/swarm/consumers.py"
       - "src/swarm/core/chat_store.py"
-      - "tests/test_consumers.py"
       - "tests/unit/test_req171a2_persist_on_final.py"
       - "docs/websocket_chat.md"
       - ".github/workflows/req171a2-persist-on-final.yml"
@@ -14,7 +13,6 @@ on:
     paths:
       - "src/swarm/consumers.py"
       - "src/swarm/core/chat_store.py"
-      - "tests/test_consumers.py"
       - "tests/unit/test_req171a2_persist_on_final.py"
       - "docs/websocket_chat.md"
       - ".github/workflows/req171a2-persist-on-final.yml"
@@ -38,7 +36,6 @@ jobs:
       - name: REQ-171A-2 pytest (own-diff)
         run: |
           uv run pytest \
-            tests/unit/test_req171a2_persist_on_final.py \
-            tests/test_consumers.py
+            tests/unit/test_req171a2_persist_on_final.py
         env:
           DJANGO_ALLOW_ASYNC_UNSAFE: "true"

@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from asgiref.sync import sync_to_async
 
 from swarm.consumers import DjangoChatConsumer
 from swarm.core import chat_store
@@ -40,6 +41,7 @@ def _consumer(user, conversation_id, agent="jeeves"):
     return consumer
 
 
+@sync_to_async
 def _db_contents(conversation_id):
     return list(
         ChatMessage.objects.filter(
@@ -107,14 +109,14 @@ async def test_blueprint_final_persists_before_disconnect(test_user, monkeypatch
     assert contents[1].startswith("[TEST-MODE]")
     assert [row["role"] for row in loaded["messages"]] == ["user", "assistant"]
 
-    db_rows = _db_contents(conv_id)
+    db_rows = await _db_contents(conv_id)
     assert len(db_rows) == 2
     assert db_rows[0] == ("user", "persist me")
     assert db_rows[1][0] == "assistant"
     assert db_rows[1][1].startswith("[TEST-MODE]")
 
     await consumer.disconnect(1000)
-    assert _db_contents(conv_id) == db_rows
+    assert await _db_contents(conv_id) == db_rows
     again = chat_store.load(chat_store.user_key_for(test_user), "jeeves")
     assert [row["content"] for row in again["messages"]] == contents
 
@@ -157,11 +159,11 @@ async def test_default_model_final_persists_before_disconnect(test_user, monkeyp
         "hello default",
         "final reply",
     ]
-    db_rows = _db_contents(conv_id)
+    db_rows = await _db_contents(conv_id)
     assert db_rows == [("user", "hello default"), ("assistant", "final reply")]
 
     await consumer.disconnect(1000)
-    assert _db_contents(conv_id) == db_rows
+    assert await _db_contents(conv_id) == db_rows
 
 
 @pytest.mark.asyncio
@@ -213,8 +215,8 @@ async def test_edit_frame_still_saves_immediately(test_user, monkeypatch):
     assert loaded is not None
     assert loaded["messages"][0]["content"] == "engineered question"
     assert loaded["messages"][0].get("edited") is True
-    db_rows = _db_contents(conv_id)
+    db_rows = await _db_contents(conv_id)
     assert db_rows[0] == ("user", "engineered question")
 
     await consumer.disconnect(1000)
-    assert _db_contents(conv_id) == db_rows
+    assert await _db_contents(conv_id) == db_rows
