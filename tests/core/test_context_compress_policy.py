@@ -88,7 +88,7 @@ def test_choose_auto_compact_span_keeps_recent_tail():
 
 
 @pytest.mark.django_db
-def test_default_threshold_persists_as_80(db):
+def test_default_threshold_persists_as_80():
     user = get_user_model().objects.create_user("compress-default", password="pw")
     assert load_auto_compress_threshold(user) == 80
     UserPreference.objects.create(
