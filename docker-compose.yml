@@ -34,8 +34,29 @@
 #   # For local open API only: SWARM_ALLOW_NO_AUTH=true  (NOT the default)
 #   docker compose up --build
 #   # …then add docker-compose.override.yml for host CLIs if needed.
+#
+# Durable DB (REQ-123 / #508): local Postgres in this stack is the happy path.
+# Cloud operators set DATABASE_URL (or POSTGRES_*) to any Postgres. Neon is
+# test/CI/experiments only — never a default hostname. Native pytest / desktop
+# still use SQLite when DATABASE_URL is unset. See docs/DATABASE.md.
 
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-swarm}"
+      POSTGRES_USER: "${POSTGRES_USER:-swarm}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-swarm}"
+    volumes:
+      - swarm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   swarm:
     build:
       context: .
@@ -70,10 +91,16 @@ services:
       DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
       DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
       API_AUTH_TOKEN: "${API_AUTH_TOKEN:-}"
-      # Durable Django DB + async /v1/responses store on the mounted volume.
-      # DJANGO_DB_NAME is what settings.py reads; SQLITE_DB_PATH is accepted as alias.
-      DJANGO_DB_NAME: "${HOME}/.local/share/swarm/db.sqlite3"
-      SQLITE_DB_PATH: "${HOME}/.local/share/swarm/db.sqlite3"
+      # Durable Django DB: local Compose Postgres by default. Override with
+      # DATABASE_URL for any cloud Postgres. Compose-internal user/password
+      # "swarm"/"swarm" is a local placeholder — not a production secret.
+      POSTGRES_HOST: "${POSTGRES_HOST:-postgres}"
+      POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
+      POSTGRES_DB: "${POSTGRES_DB:-swarm}"
+      POSTGRES_USER: "${POSTGRES_USER:-swarm}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-swarm}"
+      DATABASE_URL: "${DATABASE_URL:-postgres://swarm:swarm@postgres:5432/swarm}"
+      # Async /v1/responses store on the mounted volume (not the Django DB).
       SWARM_RESPONSES_DIR: "${HOME}/.local/share/swarm/responses"
       # Async /v1/responses cancel + inflight limits are process-local until a
       # shared queue exists. Keep a single uvicorn worker (see Dockerfile CMD).
@@ -87,8 +114,11 @@ services:
     volumes:
       # Your swarm config (llm profiles + any cli_agents) — read-only.
       - "${HOME}/.config/swarm:${HOME}/.config/swarm:ro"
-      # Writable state: SQLite DB + async /v1/responses task store.
+      # Writable state: async /v1/responses task store (Django DB is Postgres).
       - "${HOME}/.local/share/swarm:${HOME}/.local/share/swarm"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -101,4 +131,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
+    # Cap retries so an unreachable / quota-exhausted DATABASE_URL (e.g. Neon
+    # free-tier) fails fast with a clear log instead of crash-looping silently.
+    # systemd units also use RestartPreventExitStatus=78 — see the Neon runbook.
+    restart: "on-failure:5"
+
+volumes:
+  swarm_pgdata:

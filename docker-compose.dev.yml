@@ -32,8 +32,9 @@ services:
       - "8002:8000"
     # Image CMD is migrate-then-uvicorn without --reload. Override so saves under
     # the bind-mount restart the ASGI app. --reload requires a single process.
-    # Port 8000 is the in-container listen port (host maps 8002:8000); DB paths
-    # come from the merged environment, same as the production service.
+    # Port 8000 is the in-container listen port (host maps 8002:8000). The
+    # merged environment still points at the base-file `postgres` service
+    # (DATABASE_URL / POSTGRES_*). SQLite is not the compose happy path.
     command:
       - /bin/sh
       - -c

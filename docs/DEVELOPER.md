@@ -71,7 +71,7 @@ Worked configs, Mode A/B demo names, tests that lock the edges, and
 ├── webui/frontend/            # React SPA (rail + chat). dist/ is gitignored
 ├── tests/                     # pytest (keyless via SWARM_TEST_MODE)
 ├── docs/                      # Guides, ADRs, proofs
-├── docker-compose.yml         # API + baked SPA
+├── docker-compose.yml         # API + baked SPA + local Postgres (REQ-123)
 └── pyproject.toml             # Package metadata (open-swarm 0.5.4)
 ```
 

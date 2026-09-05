@@ -53,9 +53,12 @@ uv sync --all-extras
 cp .env.example .env          # set OPENAI_API_KEY, API_AUTH_TOKEN, DJANGO_SECRET_KEY
 cp swarm_config.example.json swarm_config.json   # optional local SoT; secrets stay ${VAR} in .env
 make frontend                 # builds webui/frontend/dist/
-docker compose up --build
+docker compose up --build     # API + local Postgres (not Neon / not SQLite)
 # open http://localhost:8000
 ```
+
+Compose’s durable DB is the `postgres` service. Set `DATABASE_URL` for any
+cloud Postgres. Neon is test/CI only — [docs/DATABASE.md](docs/DATABASE.md).
 
 Without `dist/`, `/` falls back to Django templates. Rebuild after SPA pulls. Auth: [docs/AUTH.md](docs/AUTH.md) (websocket needs a session cookie; bearer does not auth WS).
 

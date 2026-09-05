@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **REQ-123 local Compose Postgres:** `docker compose` starts official Postgres 16 (volume + healthcheck) and wires `swarm` to it via `DATABASE_URL`. Cloud operators override `DATABASE_URL` / `POSTGRES_*`. Neon is documented as test/CI/experiments only (free-tier ~day 17). Unreachable / quota Postgres **exits 78** with a clear redacted message. pytest stays on SQLite; CI adds a local Postgres `migrate` smoke job. Docs: `docs/DATABASE.md`. Fixes #508.
+
 ### Added
 - **REQ-80 computer-icon Routines pane:** Expanding the Chat tools Monitor icon opens a right pane over mounted Chat: placeholder `{Agent}'s screen` thumbnail, then **Routines** with **+**. A routine is a named, disableable GitHub PR-merge prompt with Test run, Delete, and relative-time history. API `/v1/agents/<id>/routines/` plus fake-merge delivery at `/v1/routines/github-merge/` (no live GitHub, no secrets, no `:8001`). Fixes #432.
 - **REQ-77 mic STT + read-aloud TTS:** Composer microphone uses the browser/OS speech recognizer by default and inserts the transcript into the composer (does not auto-send). Assistant messages get a Read aloud control that uses `speechSynthesis`. Settings → Speech can opt each of STT and TTS into a custom OpenAI-compatible endpoint (`/v1/audio/transcriptions`, `/v1/audio/speech`): base URL, model id, api-key env name only. System stays the source even if a custom URL is stored. Empty custom URL never guesses a host. Missing/DOWN is an honest info line. `GET/PATCH /v1/speech/`, `POST /v1/speech/transcribe/`, `POST /v1/speech/speak/`. Tests stub system APIs and HTTP — no live paid calls, no `:8001`, no secrets. Fixes #422.

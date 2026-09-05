@@ -72,6 +72,7 @@ class SwarmConfig(AppConfig):
             logger.warning("Test-mode guard check failed: %s", e)
 
         self._warn_if_api_auth_disabled()
+        self._check_database()
 
         # Resume async /v1/responses tasks left in-flight by a restart — server
         # processes only (not migrate/test), guarded against the runserver
@@ -80,6 +81,17 @@ class SwarmConfig(AppConfig):
         self._maybe_resume_async_tasks()
 
         logger.info("Swarm app initialization checks completed.")
+
+    @staticmethod
+    def _check_database() -> None:
+        """Fail fast (exit 78) when Postgres is configured but unusable.
+
+        Skipped under pytest and when SWARM_SKIP_DB_HEALTH is set. SQLite is
+        a no-op. See swarm.core.database_config and docs/DATABASE.md.
+        """
+        from swarm.core.database_config import check_database_or_exit
+
+        check_database_or_exit()
 
     @staticmethod
     def _warn_if_api_auth_disabled() -> None:

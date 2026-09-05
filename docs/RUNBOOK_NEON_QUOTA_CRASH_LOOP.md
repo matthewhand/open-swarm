@@ -1,5 +1,11 @@
 # Runbook: Crash-Loop on Neon Postgres Quota Exhaustion
 
+**Neon is test/CI/experiments only.** Do not use it as the implied default
+for compose, oracle, or Fly. Durable default is **local Postgres in
+`docker compose`**; cloud operators set `DATABASE_URL` to any reachable
+Postgres. Always-on Neon free-tier typically burns compute by **~day 17**.
+See [DATABASE.md](./DATABASE.md) (REQ-123 / #508).
+
 ## Incident summary
 
 - **Service**: `open-swarm-oracle.service` (systemd *user* unit; see
@@ -65,11 +71,13 @@ The database backend is fixed in the unit's environment instead.
 
 Edit `~/.config/systemd/user/open-swarm-oracle.service`:
 
-- **SQLite (default, recommended here)**: remove any
+- **SQLite (oracle unit default)**: remove any
   `Environment=DATABASE_URL=...` line and keep
   `Environment=DJANGO_DB_NAME=/home/YOURUSER/.local/share/swarm/db.sqlite3`.
+- **Compose / durable deploys**: use the local `postgres` service — do not
+  resume Neon for this host.
 - **Other Postgres**: set `DATABASE_URL` to an instance that is not
-  quota-limited.
+  quota-limited (any cloud or self-hosted Postgres — not Neon-as-default).
 
 ### 4. Add the restart exemption
 
