@@ -52,12 +52,14 @@ def test_chat_page_support_default_and_manage_teams():
     assert "Compact failed" in src
 
 
-def test_sidebar_team_hide_id_and_plugins_empty_copy():
-    """#342 team hide uses teamHideId; #322 Plugins dialog is empty; REQ-82 menu labels."""
+def test_sidebar_team_hide_id_and_plugins_popup():
+    """#342 team hide uses teamHideId; #805 Plugins mounts PluginsPopup; REQ-82 menu labels."""
     src = SIDEBAR.read_text(encoding="utf-8")
     menu = RAIL_MENU.read_text(encoding="utf-8")
     assert "teamHideId(team.id)" in src
-    assert "No plugins installed." in src
+    assert "<PluginsPopup" in src
+    assert "pluginsOpen" in src
+    assert "No plugins installed." not in src
     assert 'aria-label="Open agents sidebar"' not in src  # REQ-54: hamburger removed
     # Unpin / Delete / Edit live in the menu builder, not inline rail JSX.
     assert "id: 'unpin', label: 'Unpin'" in menu
