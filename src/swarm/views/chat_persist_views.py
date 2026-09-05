@@ -87,6 +87,12 @@ def _public_messages(messages) -> list[dict]:
             row["ts"] = ts
         if item.get("edited"):
             row["edited"] = True
+        kind = item.get("kind")
+        if isinstance(kind, str) and kind:
+            row["kind"] = kind
+        from_cid = item.get("from_conversation_id")
+        if isinstance(from_cid, str) and from_cid:
+            row["from_conversation_id"] = from_cid
         out.append(row)
     return out
 

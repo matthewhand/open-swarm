@@ -6,6 +6,7 @@ import {
   CopyPlus,
   Eye,
   EyeOff,
+  History,
   Pencil,
   Pin,
   PinOff,

@@ -220,6 +220,8 @@ def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
             role_s = "assistant"
         elif role_raw == "status":
             role_s = "status"
+        elif role_raw == "system":
+            role_s = "system"
         else:
             role_s = "user"
         msg: dict[str, Any] = {"role": role_s, "content": content}
@@ -228,6 +230,12 @@ def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
             msg["ts"] = ts
         if item.get("edited") is True or item.get("edited") == "true":
             msg["edited"] = True
+        kind = item.get("kind")
+        if isinstance(kind, str) and kind.strip():
+            msg["kind"] = kind.strip()[:64]
+        from_cid = item.get("from_conversation_id")
+        if isinstance(from_cid, str) and from_cid.strip():
+            msg["from_conversation_id"] = from_cid.strip()[:128]
         out.append(msg)
     return out
 

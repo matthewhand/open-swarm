@@ -77,7 +77,14 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
     is rendered as a simple ``ROLE: content`` transcript so a one-shot CLI sees
     the full context.
     """
-    msgs = [m for m in (messages or []) if isinstance(m, dict) and m.get("content")]
+    msgs = [
+        m
+        for m in (messages or [])
+        if isinstance(m, dict)
+        and m.get("content")
+        and m.get("kind") != "prior_history"
+        and (m.get("role") or "") != "status"
+    ]
     if not msgs:
         return ""
     if len(msgs) == 1:

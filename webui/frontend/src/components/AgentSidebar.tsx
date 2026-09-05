@@ -148,6 +148,14 @@ import {
   saveAgentEdit,
 } from '../lib/agentEdits'
 import SessionPicker from './SessionPicker'
+import CliSessionPicker from './CliSessionPicker'
+import {
+  dispatchCliSessionSwitched,
+  fetchCliSessions,
+  selectCliSession,
+  type CliProviderSession,
+} from '../lib/cliSessions'
+import { conversationIdForAgent } from '../lib/agentChat'
 import { openSettingsSheet } from './SettingsSheet'
 import { ConfirmModal } from './DaisyUI'
 import RailContextMenu from './RailContextMenu'
@@ -186,6 +194,18 @@ interface ContextMenuState {
   kind: RailMenuKind
   entityId: string
   sessions?: MemberSession[]
+  isCli?: boolean
+  cli?: string
+}
+
+interface CliPickerState {
+  agentId: string
+  agentName: string
+  cli: string
+  sessions: CliProviderSession[]
+  canList: boolean
+  emptyReason: string | null
+  loading: boolean
 }
 
 interface SessionPickerState {
@@ -336,6 +356,7 @@ export default function AgentSidebar({
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const [sessionTick, setSessionTick] = useState(0)
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
+  const [cliPicker, setCliPicker] = useState<CliPickerState | null>(null)
   const menuRef = useRef<HTMLUListElement | null>(null)
   const longPressRef = useRef<{ timer: number | null; opened: boolean }>({
     timer: null,
@@ -774,6 +795,79 @@ export default function AgentSidebar({
 
   const closePicker = useCallback(() => setPicker(null), [])
 
+  const openCliSessionPicker = useCallback(
+    async (agentId: string, agentName: string, cli: string) => {
+      const cliName = cli || 'grok'
+      setCliPicker({
+        agentId,
+        agentName,
+        cli: cliName,
+        sessions: [],
+        canList: false,
+        emptyReason: null,
+        loading: true,
+      })
+      try {
+        const list = await fetchCliSessions(agentId, cliName)
+        setCliPicker({
+          agentId,
+          agentName,
+          cli: list.cli || cliName,
+          sessions: list.sessions,
+          canList: list.can_list,
+          emptyReason: list.empty_reason,
+          loading: false,
+        })
+      } catch {
+        setCliPicker({
+          agentId,
+          agentName,
+          cli: cliName,
+          sessions: [],
+          canList: false,
+          emptyReason: "This CLI can't list sessions",
+          loading: false,
+        })
+      }
+    },
+    [],
+  )
+
+  const applyCliSession = useCallback(
+    async (opts: {
+      agentId: string
+      cli: string
+      session?: CliProviderSession
+      startNew?: boolean
+    }) => {
+      try {
+        const result = await selectCliSession({
+          agentId: opts.agentId,
+          cli: opts.cli,
+          sessionId: opts.session?.id,
+          startNew: opts.startNew,
+          fromConversationId: conversationIdForAgent(opts.agentId),
+          title: opts.session?.title,
+          snippet: opts.session?.snippet,
+        })
+        dispatchCliSessionSwitched({
+          agentId: opts.agentId,
+          conversationId: result.conversation_id,
+          status: result.status,
+        })
+        navigate(sessionHref(opts.agentId, result.conversation_id))
+        onClose?.()
+      } catch {
+        setCliPicker((current) =>
+          current
+            ? { ...current, emptyReason: current.emptyReason || 'Could not switch session' }
+            : current,
+        )
+      }
+    },
+    [navigate, onClose],
+  )
+
   const selectSession = useCallback(
     (session: MemberSession) => {
       setPicker(null)
@@ -905,6 +999,10 @@ export default function AgentSidebar({
     const x = Math.min(clientX, window.innerWidth - width - pad)
     const y = Math.min(clientY, window.innerHeight - height - pad)
     const resolvedKind = resolveMenuKind(hideId, kind)
+    const row = agents.find((agent) => agent.id === hideId)
+    const isCli = resolvedKind === 'cli' || Boolean(row && isCliRailAgent(row))
+    const cliFromUrl = searchParams.get('cli') || ''
+    const cliName = (isCli && (cliFromUrl || row?.cli)) || ''
     setMenu({
       agentId: hideId,
       agentName: label,
@@ -915,6 +1013,8 @@ export default function AgentSidebar({
       kind: resolvedKind,
       entityId: entityId || hideId,
       sessions,
+      isCli,
+      cli: cliName,
     })
   }
 
@@ -1306,6 +1406,14 @@ export default function AgentSidebar({
       openGroupPicker(title, sessions)
       return
     }
+    if (id === 'select-session' && menu.isCli) {
+      const agentId = menu.agentId
+      const name = menu.agentName
+      const cli = menu.cli || 'grok'
+      closeMenu()
+      void openCliSessionPicker(agentId, name, cli)
+      return
+    }
     if (id === 'unpin' || id === 'pin') {
       togglePin({ id: menu.agentId, name: menu.agentName })
       return
@@ -1351,6 +1459,7 @@ export default function AgentSidebar({
         hidden: menu.hidden,
         unread: unreadIds.includes(menu.agentId),
         hasSelectAgent: Boolean(menu.sessions && menu.sessions.length > 0),
+        hasSelectSession: Boolean(menu.isCli),
         canCopyId:
           menu.kind === 'cli' || menu.kind === 'remote'
             ? Boolean(copyableConversationId(menu.kind, menu.agentId, menu.entityId))
@@ -2425,6 +2534,33 @@ export default function AgentSidebar({
           const agentId = sessionPicker?.agentId || session.agentId
           navigate(sessionHref(agentId, session.id))
           onClose?.()
+        }}
+      />
+
+      <CliSessionPicker
+        open={cliPicker !== null}
+        agentName={cliPicker?.agentName ?? ''}
+        cli={cliPicker?.cli ?? ''}
+        sessions={cliPicker?.sessions ?? []}
+        canList={cliPicker?.canList ?? false}
+        emptyReason={cliPicker?.emptyReason}
+        loading={cliPicker?.loading}
+        onClose={() => setCliPicker(null)}
+        onSelect={(session) => {
+          if (!cliPicker) return
+          void applyCliSession({
+            agentId: cliPicker.agentId,
+            cli: cliPicker.cli,
+            session,
+          })
+        }}
+        onStartNew={() => {
+          if (!cliPicker) return
+          void applyCliSession({
+            agentId: cliPicker.agentId,
+            cli: cliPicker.cli,
+            startNew: true,
+          })
         }}
       />
 

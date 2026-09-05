@@ -43,6 +43,11 @@ describe('railMenuItems (REQ-82)', () => {
     expect(RAIL_MENU_REASONS.cliNoProfile).toMatch(/no swarm-owned profile/i)
   })
 
+  it('adds Select session for CLI when requested (REQ-104)', () => {
+    const items = railMenuItems({ ...base, kind: 'cli', hasSelectSession: true })
+    expect(items[0]).toMatchObject({ id: 'select-session', label: 'Select session' })
+  })
+
   it('keeps Edit / Duplicate for API, team, and remote', () => {
     for (const kind of ['api', 'team', 'remote'] as const) {
       const ids = railMenuItems({ ...base, kind }).map((item) => item.id)

@@ -15,6 +15,7 @@ export type RailMenuKind = 'api' | 'cli' | 'team' | 'remote'
 
 export type RailMenuItemId =
   | 'select-agent'
+  | 'select-session'
   | 'unpin'
   | 'pin'
   | 'unread'
@@ -40,6 +41,7 @@ export interface RailMenuOptions {
   hidden: boolean
   unread: boolean
   hasSelectAgent?: boolean
+  hasSelectSession?: boolean
   canCopyId?: boolean
 }
 
@@ -55,6 +57,9 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
   const items: RailMenuItemSpec[] = []
   if (opts.hasSelectAgent) {
     items.push({ id: 'select-agent', label: 'Select Agent', group: 0 })
+  }
+  if (opts.hasSelectSession) {
+    items.push({ id: 'select-session', label: 'Select session', group: 0 })
   }
   if (opts.pinned) {
     items.push({ id: 'unpin', label: 'Unpin', group: 1 })

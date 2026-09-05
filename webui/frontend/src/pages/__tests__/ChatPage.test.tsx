@@ -1024,6 +1024,63 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(startedPos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('renders prior history as a System/Agent family pill, not a deleted transcript', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'cli-cli_agent-abc',
+              messages: [
+                {
+                  role: 'system',
+                  content: '**User:** old question\n\n**Assistant:** old answer',
+                  kind: 'prior_history',
+                },
+                { role: 'status', content: 'Switched to grok session sid-1.' },
+                { role: 'user', content: 'from cli' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent&session=cli-cli_agent-abc')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const pill = await screen.findByRole('button', { name: /Prior history/i })
+    expect(pill).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('system-preload-content')).not.toBeInTheDocument()
+    const switchNotice = screen
+      .getAllByTestId('chat-status')
+      .find((n) => n.textContent?.includes('Switched to grok session sid-1.'))
+    expect(switchNotice).toBeTruthy()
+    expect(screen.getByText('from cli')).toBeInTheDocument()
+
+    fireEvent.click(pill)
+    expect(pill).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('system-preload-content')).toHaveTextContent('old question')
+    expect(screen.getByTestId('system-preload-content')).toHaveTextContent('old answer')
+  })
+
   it('REQ-92: live new-session status lands immediately before the assistant reply', async () => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
