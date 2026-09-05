@@ -66,6 +66,12 @@ class RemotesListView(APIView):
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
                 "session_cookie_env": serializers.CharField(required=False, allow_blank=True),
+                "herdr_mode": serializers.CharField(required=False, allow_blank=True),
+                "ssh_host": serializers.CharField(required=False, allow_blank=True),
+                "ssh_user": serializers.CharField(required=False, allow_blank=True),
+                "ssh_port": serializers.CharField(required=False, allow_blank=True),
+                "ssh_identity_env": serializers.CharField(required=False, allow_blank=True),
+                "ssh_agent": serializers.BooleanField(required=False),
             },
         ),
         responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
@@ -78,10 +84,24 @@ class RemotesListView(APIView):
                 {"error": "Provide kind (hermes, omb, rakazo, herdr, or swarm)."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie", "session_cookie_env"):
+        kwargs: dict = {}
+        for field in (
+            "base_url",
+            "api_key",
+            "api_key_env",
+            "ui_url",
+            "cookie",
+            "session_cookie_env",
+            "herdr_mode",
+            "ssh_host",
+            "ssh_user",
+            "ssh_port",
+            "ssh_identity_env",
+        ):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
+        if "ssh_agent" in body:
+            kwargs["ssh_agent"] = body["ssh_agent"]
         try:
             spec, path = remotes_core.persist_remote(str(kind), **kwargs)
         except remotes_core.RemoteError as exc:
@@ -125,19 +145,45 @@ class RemoteDetailView(APIView):
                 "ui_url": serializers.CharField(required=False, allow_blank=True),
                 "cookie": serializers.CharField(required=False, allow_blank=True),
                 "session_cookie_env": serializers.CharField(required=False, allow_blank=True),
+                "herdr_mode": serializers.CharField(required=False, allow_blank=True),
+                "ssh_host": serializers.CharField(required=False, allow_blank=True),
+                "ssh_user": serializers.CharField(required=False, allow_blank=True),
+                "ssh_port": serializers.CharField(required=False, allow_blank=True),
+                "ssh_identity_env": serializers.CharField(required=False, allow_blank=True),
+                "ssh_agent": serializers.BooleanField(required=False),
             },
         ),
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
     )
     def patch(self, request, remote_id: str, *_args, **_kwargs):
         body = request.data if isinstance(request.data, dict) else {}
-        kwargs: dict[str, str] = {}
-        for field in ("base_url", "api_key", "api_key_env", "ui_url", "cookie", "session_cookie_env"):
+        kwargs: dict = {}
+        for field in (
+            "base_url",
+            "api_key",
+            "api_key_env",
+            "ui_url",
+            "cookie",
+            "session_cookie_env",
+            "herdr_mode",
+            "ssh_host",
+            "ssh_user",
+            "ssh_port",
+            "ssh_identity_env",
+        ):
             if field in body:
                 kwargs[field] = "" if body[field] is None else str(body[field])
+        if "ssh_agent" in body:
+            kwargs["ssh_agent"] = body["ssh_agent"]
         if not kwargs:
             return Response(
-                {"error": "Provide at least one of base_url, api_key, api_key_env, ui_url, cookie, session_cookie_env."},
+                {
+                    "error": (
+                        "Provide at least one of base_url, api_key, api_key_env, "
+                        "ui_url, cookie, session_cookie_env, herdr_mode, "
+                        "ssh_host, ssh_user, ssh_port, ssh_identity_env, ssh_agent."
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
@@ -201,9 +247,13 @@ class RemoteOperateView(APIView):
         request=inline_serializer(
             name="RemoteOperateRequest",
             fields={
-                "op": serializers.CharField(required=False, help_text="list or send"),
+                "op": serializers.CharField(required=False, help_text="list, send, or interrogate (Herdr)"),
                 "prompt": serializers.CharField(required=False, allow_blank=True),
-                "target": serializers.CharField(required=False, allow_blank=True, help_text="OpenMousBot/Rakazo bot id"),
+                "target": serializers.CharField(
+                    required=False,
+                    allow_blank=True,
+                    help_text="OpenMousBot/Rakazo bot id, or Herdr pane/CLI id",
+                ),
             },
         ),
         responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},

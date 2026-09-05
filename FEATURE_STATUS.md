@@ -210,7 +210,8 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Open-in-{remote} task cards (REQ-84) | ✅ | Team compose targeting a configured remote member emits `teammate_task` chrome. SPA card: title + Running/Done + **Open in Hermes / OpenMousBot / Rakazo / Herdr / Open Swarm**. Href is the configured ui_url or base_url only; empty/DOWN disables with a reason; solo API and teams without remotes omit the button. Never `OMB`. Distinct from REQ-71 View PR. Tests: `test_teammate_task.py`, `teammateTask.test.ts`, `TeammateTaskCard.test.tsx`, `ChatPage.teammateTask.test.tsx`. Fixes #437. |
 | Agent-as-tool Team members | ✅ | Remotes are Team members (`consult_hermes`/`consult_omb`/`consult_rakazo`/`consult_swarm`) that see/talk via as_tool — **not** `/teams/` LLM-profile aliases. `GET /v1/remotes/` returns `vocabulary` + `team_members` |
 | Place remotes in a Team | ✅ | Persist `agent_team.members`; `swarm-cli remotes team\|place\|unplace`; `GET/PATCH /v1/agent-team/`; `remote_harness` attaches `as_tool` only for **placed** members |
-| Herdr remotes kind (REQ-64) | ✅ | Opt-in `kind=herdr` — add base URL + api-key-env; appears in Settings Remotes after add. No baked LAN host. CLI `--remote` uses configured base (localhost omits flag only when user set loopback). Health `GET /health` + list `GET /agents` stubbed in tests. Missing config is a clear error. |
+| Herdr remotes kind (REQ-64) | ✅ | Opt-in `kind=herdr` — addable in Settings Remotes. No baked LAN host. Missing config is a clear error. |
+| Herdr SSH-shaped remotes (REQ-100) | ✅ | Local Herdr (no SSH) vs remote Herdr = SSH to the Herdr host, then `herdr` CLI there. Not HTTP like OpenMousBot / Hermes / Rakazo. Health / list / send / interrogate over that hop. Stub SSH in tests; identity env-var name only. Fixes #463. |
 
 ---
 
@@ -230,6 +231,7 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. SQLite default (no DATABASE_URL / Neon) |
 | Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
 | Remotes kind + CLI `--remote` (REQ-64) | ✅ | `remotes.herdr` persist; Settings + Add; `HerdrClient.from_remote_config()`; stub HTTP health/list in `tests/core/test_herdr_remote.py` |
+| SSH-shaped remote Herdr (REQ-100) | ✅ | `SSHTransport` stub; `herdr_mode` local\|ssh; persist `ssh_host` / `ssh_user` / `ssh_identity_env`; operate list/send/interrogate. Tests: `tests/herdr/test_herdr_ssh.py`, `tests/core/test_herdr_ssh_remote.py` |
 
 ## 14. Desktop package (REQ-151) — 📋 planned
 

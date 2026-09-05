@@ -80,3 +80,17 @@ export function unusedRemoteKinds(
 export function remoteOptionLabel(remote: RemoteConnection, kinds?: RemoteKind[]): string {
   return remote.label || remoteKindLabel(remote.kind || remote.id, kinds)
 }
+
+export function isHerdrKind(id: string | undefined): boolean {
+  return (id || '').trim().toLowerCase() === 'herdr'
+}
+
+export function herdrLocationLabel(remote: Pick<RemoteConnection, 'herdr_mode' | 'transport' | 'ssh_host' | 'ssh_user' | 'ssh_port' | 'base_url'>): string {
+  const mode = remote.herdr_mode || remote.transport
+  if (mode === 'ssh' && remote.ssh_host && remote.ssh_user) {
+    const port = remote.ssh_port && remote.ssh_port !== 22 ? `:${remote.ssh_port}` : ''
+    return `SSH ${remote.ssh_user}@${remote.ssh_host}${port}`
+  }
+  if (mode === 'ssh') return 'Remote Herdr (SSH — host/user missing)'
+  return remote.base_url || 'Local Herdr (no SSH)'
+}

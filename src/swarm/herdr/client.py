@@ -238,7 +238,11 @@ def _parse_stdout(stdout: str) -> Any:
 
 
 class HerdrClient:
-    """Wrap ``herdr`` as argv lists. Empty ``remote`` means localhost (no flag)."""
+    """Wrap ``herdr`` as argv lists. Empty ``remote`` means localhost (no flag).
+
+    Optional ``transport`` runs those argv lists on another host (REQ-100 SSH
+    hop). When set, ``--remote`` is omitted — the hop *is* the remote.
+    """
 
     def __init__(
         self,
@@ -246,10 +250,12 @@ class HerdrClient:
         *,
         herdr_bin: str | None = None,
         runner: Runner | None = None,
+        transport: Any = None,
     ) -> None:
         self.remote = (remote or "").strip()
         self.herdr_bin = herdr_bin or os.environ.get("HERDR_BIN") or "herdr"
         self._runner = runner or _default_runner
+        self._transport = transport
 
     @classmethod
     def from_row(cls, row: Any, **kwargs: Any) -> HerdrClient:
@@ -261,14 +267,15 @@ class HerdrClient:
     def from_remote_config(cls, config: Mapping[str, Any] | None = None, **kwargs: Any) -> HerdrClient:
         """Build from persisted ``remotes.herdr``. Missing config is an error.
 
-        ``herdr --remote`` uses the configured base. A localhost base omits the
-        flag. There is no silent fallback to another host.
+        Local Herdr omits SSH and ``--remote``. Remote Herdr SSHs to the Herdr
+        host, then runs ``herdr`` there (REQ-100). A leftover non-localhost
+        HTTP base without SSH fields is a clear error — not a guessed host.
         """
         from swarm.core import remotes as remotes_core
-        from swarm.herdr.remote import cli_remote_from_base
+        from swarm.herdr.remote import herdr_client_from_spec
 
         spec = remotes_core.load_remote("herdr", config if isinstance(config, dict) else None)
-        return cls(remote=cli_remote_from_base(spec.base_url), **kwargs)
+        return herdr_client_from_spec(spec, **kwargs)
 
     def build_argv(self, *parts: str) -> list[str]:
         """``herdr [--remote VALUE] …parts``. Never shell-splits TEXT."""
@@ -286,7 +293,10 @@ class HerdrClient:
     ) -> tuple[subprocess.CompletedProcess, Any]:
         logger.debug("herdr argv: %s", argv)
         try:
-            result = self._runner(argv, timeout=timeout)
+            if self._transport is not None:
+                result = self._transport.run(argv, timeout=timeout)
+            else:
+                result = self._runner(argv, timeout=timeout)
         except FileNotFoundError as exc:
             raise HerdrCLIError(
                 "herdr CLI not found on PATH. Install Herdr or mock the client "

@@ -255,13 +255,17 @@ async function refreshHerdrRemoteKind() {
     const herdr = rows.find((row) => row && row.id === "herdr");
     if (!herdr) {
       setHerdrRemoteStatus(
-        "Not configured — add a base URL to list it under Settings Remotes.",
+        "Not configured — add local Herdr or SSH host + user.",
       );
       return;
     }
-    const auth = herdr.api_key_set ? "auth set" : "auth unset";
+    const mode = herdr.herdr_mode || herdr.transport || "local";
+    const loc =
+      mode === "ssh" && herdr.ssh_host
+        ? `SSH ${herdr.ssh_user || ""}@${herdr.ssh_host}`
+        : herdr.base_url || "local Herdr (no SSH)";
     setHerdrRemoteStatus(
-      `Configured kind=herdr · ${herdr.base_url || "(no base)"} · ${auth}. CLI --remote uses this base.`,
+      `Configured kind=herdr · ${loc}. Remote Herdr is SSH-shaped, not HTTP.`,
       "success",
     );
   } catch {
@@ -269,14 +273,43 @@ async function refreshHerdrRemoteKind() {
   }
 }
 
+function syncHerdrRemoteFormMode() {
+  const mode = (document.getElementById("herdr-remote-mode")?.value || "local").trim();
+  const localWrap = document.getElementById("herdr-remote-base-wrap");
+  const sshIds = [
+    "herdr-remote-ssh-host-wrap",
+    "herdr-remote-ssh-user-wrap",
+    "herdr-remote-ssh-ident-wrap",
+  ];
+  if (localWrap) localWrap.hidden = mode === "ssh";
+  for (const id of sshIds) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = mode !== "ssh";
+  }
+}
+
 async function addHerdrRemoteKind() {
+  const mode = (document.getElementById("herdr-remote-mode")?.value || "local").trim();
   const baseInput = document.getElementById("herdr-remote-base");
-  const envInput = document.getElementById("herdr-remote-key-env");
+  const hostInput = document.getElementById("herdr-remote-ssh-host");
+  const userInput = document.getElementById("herdr-remote-ssh-user");
+  const identInput = document.getElementById("herdr-remote-ssh-ident");
   const base = (baseInput?.value || "").trim();
-  const envName = (envInput?.value || "").trim() || "HERDR_API_KEY";
-  if (!base) {
-    setHerdrRemoteStatus("Base URL is required to add kind=herdr.", "danger");
-    return;
+  const sshHost = (hostInput?.value || "").trim();
+  const sshUser = (userInput?.value || "").trim();
+  const sshIdentityEnv = (identInput?.value || "").trim();
+  const payload = { herdr_mode: mode };
+  if (mode === "local") {
+    if (base) payload.base_url = base;
+  } else {
+    if (!sshHost || !sshUser) {
+      setHerdrRemoteStatus("SSH host and user are required for remote Herdr.", "danger");
+      return;
+    }
+    payload.ssh_host = sshHost;
+    payload.ssh_user = sshUser;
+    payload.ssh_agent = true;
+    if (sshIdentityEnv) payload.ssh_identity_env = sshIdentityEnv;
   }
   const headers = {
     Accept: "application/json",
@@ -288,10 +321,7 @@ async function addHerdrRemoteKind() {
     method: "PATCH",
     headers,
     credentials: "same-origin",
-    body: JSON.stringify({
-      base_url: base,
-      api_key: "${" + envName + "}",
-    }),
+    body: JSON.stringify(payload),
   });
   let body = {};
   try {
@@ -304,8 +334,14 @@ async function addHerdrRemoteKind() {
     return;
   }
   if (baseInput) baseInput.value = "";
+  if (hostInput) hostInput.value = "";
+  if (userInput) userInput.value = "";
+  const loc =
+    body.herdr_mode === "ssh" && body.ssh_host
+      ? `SSH ${body.ssh_user || ""}@${body.ssh_host}`
+      : body.base_url || base || "local Herdr (no SSH)";
   setHerdrRemoteStatus(
-    `Added kind=herdr · ${body.base_url || base}. CLI --remote uses this configured base.`,
+    `Added kind=herdr · ${loc}. Remote Herdr is SSH-shaped, not HTTP.`,
     "success",
   );
 }
@@ -537,6 +573,9 @@ document.getElementById('herdr-remote-form')?.addEventListener('submit', (event)
   event.preventDefault();
   addHerdrRemoteKind();
 });
+
+document.getElementById('herdr-remote-mode')?.addEventListener('change', syncHerdrRemoteFormMode);
+syncHerdrRemoteFormMode();
 
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.group-header[data-group-id]').forEach((header) => {

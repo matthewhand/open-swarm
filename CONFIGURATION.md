@@ -386,13 +386,18 @@ CRUD: `/v1/herdr-agents/`. Discover live panes: `/v1/herdr-agents/discover/`
 `/teams/#herdr-members`. Wrapper: `swarm.herdr.HerdrClient`. Full notes:
 [docs/HERDR.md](docs/HERDR.md) (not Hermes/OMB/Rakazo; cloud CI must mock `herdr`).
 
-**REQ-64 remotes kind:** add `herdr` like Hermes / OpenMousBot / Rakazo
-(`swarm-cli remotes set herdr --base-url … --api-key-env HERDR_API_KEY`, or
-Settings → Remotes → + Add remote). That configured base is what
-`herdr --remote` / `HerdrClient.from_remote_config()` use. Localhost omits the
-flag only when you set a loopback URL. Missing config is a clear error — not a
-silent other-host. Health/list use stub HTTP in tests (`GET /health`,
-`GET /agents`). No tokens in the repo.
+**REQ-64 remotes kind + REQ-100 SSH shape:** add `herdr` in Settings. This is
+**not** an HTTP remote like OpenMousBot / Hermes / Rakazo.
+
+* Local: `swarm-cli remotes set herdr --herdr-mode local` (localhost URL only
+  when you choose that). Open Swarm talks to Herdr on this host; no SSH.
+* Remote: `swarm-cli remotes set herdr --herdr-mode ssh --ssh-host <host>
+  --ssh-user <user> --ssh-identity-env HERDR_SSH_IDENTITY`. Health / list /
+  send / interrogate go over SSH to that Herdr host, then to Herdr’s CLIs.
+  Identity is an env-var *name* (path), never a private key.
+
+Missing SSH config is a clear error — not a silent other-host. Tests stub SSH
+(and leftover localhost HTTP). No tokens or guessed hosts in the repo.
 
 ---
 

@@ -24,3 +24,11 @@ catalog, or every CLI unless the user asks. Ask **one** question at a time.
 Chat stays the main view. Settings, Teams, and similar surfaces are overlays
 (#364). Do not send people to a full-page Settings/Teams route as if chat
 unmounts.
+
+## Herdr remotes are SSH-shaped
+
+Remote Herdr is **not** an HTTP remote like OpenMousBot / Hermes / Rakazo.
+Local Herdr talks to Herdr on this host (no SSH). Remote Herdr means SSH to
+that Herdr host, then Herdr’s CLIs there (agy / pi / grok). Health, list,
+send, and “interrogate CLI X” use that hop. Do not tell the user to paste a
+private key or guess a host.

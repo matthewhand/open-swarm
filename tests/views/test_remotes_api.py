@@ -83,6 +83,44 @@ class TestHerdrKind:
         assert "sk-" not in json.dumps(resp.json())
 
     @patch("swarm.views.remotes_api.remotes_core.persist_remote")
+    def test_create_herdr_ssh(self, mock_persist, api_client):
+        spec = RemoteSpec(
+            id="herdr",
+            title="Herdr",
+            host_label="",
+            base_url="",
+            source="config",
+            herdr_mode="ssh",
+            ssh_host="herdr.example.test",
+            ssh_user="herdr",
+            ssh_identity_env="HERDR_SSH_IDENTITY",
+        )
+        mock_persist.return_value = (spec, "/tmp/swarm_config.json")
+        resp = api_client.post(
+            "/v1/remotes/",
+            {
+                "kind": "herdr",
+                "herdr_mode": "ssh",
+                "ssh_host": "herdr.example.test",
+                "ssh_user": "herdr",
+                "ssh_identity_env": "HERDR_SSH_IDENTITY",
+                "ssh_agent": True,
+            },
+            format="json",
+        )
+        assert resp.status_code == 201
+        mock_persist.assert_called_once()
+        kwargs = mock_persist.call_args.kwargs
+        assert kwargs["herdr_mode"] == "ssh"
+        assert kwargs["ssh_host"] == "herdr.example.test"
+        assert kwargs["ssh_user"] == "herdr"
+        assert kwargs["ssh_identity_env"] == "HERDR_SSH_IDENTITY"
+        body = resp.json()
+        assert body["transport"] == "ssh"
+        assert body["ssh_shaped"] is True
+        assert "BEGIN" not in json.dumps(body)
+
+    @patch("swarm.views.remotes_api.remotes_core.persist_remote")
     def test_create(self, mock_persist, api_client):
         spec = _spec("omb")
         spec.title = "OpenMousBot"

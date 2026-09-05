@@ -22,39 +22,52 @@ That talks to the Herdr already on this host (local server + unix sockets,
 typically `~/.config/herdr/`). Live `.30` (ubuntu-max) runs `herdr server` plus
 the remote-client-bridge. This cloud agent does **not** SSH there.
 
-## Settings Remotes kind (REQ-64)
+## Settings Remotes kind (REQ-64 + REQ-100)
 
-Herdr is an **addable remotes kind** (`kind=herdr`), same persist shape as
-Hermes / OpenMousBot / Rakazo: base URL + api-key-env name. It is **opt-in**
+Herdr is an **addable remotes kind** (`kind=herdr`). It is **opt-in**
 (compatible with REQ-59): it does not appear in Settings Remotes until you add
 it. There is **no baked LAN host**.
 
+**Remote Herdr is SSH-shaped**, not an HTTP remote like OpenMousBot / Hermes /
+Rakazo.
+
+**Hop model:** one hop. Open Swarm SSHs to the Herdr host, then talks to Herdr
+on that host (official `herdr` CLI). Herdr wraps the CLIs it already manages
+there (agy / pi / grok / …). Local Herdr skips SSH and talks to Herdr on this
+host. We do not HTTP to a remote Herdr, and we do not SSH past Herdr as a
+second product hop.
+
 ```bash
-swarm-cli remotes set herdr --base-url http://127.0.0.1:9 --api-key-env HERDR_API_KEY
+# Local Herdr (this host, no SSH). Localhost URL only if you choose that.
+swarm-cli remotes set herdr --herdr-mode local
+
+# Remote Herdr — SSH to the Herdr host (env-var name for a key path; never a private key)
+swarm-cli remotes set herdr --herdr-mode ssh --ssh-host herdr.example.test --ssh-user herdr --ssh-identity-env HERDR_SSH_IDENTITY
 ```
 
 Settings → Remotes → **+ Add remote** (or Django `/settings/` **Add Herdr remote**)
 does the same `PATCH /v1/remotes/herdr/`. After add, Herdr shows in the Remotes
-list like the other kinds.
+list. Missing SSH config is a clear error — Open Swarm will not guess a host.
 
-`herdr --remote` and `HerdrClient.from_remote_config()` use that configured
-base. A **localhost / loopback** base omits `--remote` (the documented default)
-only when **you set** that URL. Missing config is a clear error — Open Swarm
-will not guess another host.
+Health / list / send / interrogate (stub SSH in tests; no live LAN in CI):
 
-HTTP health/list (stubbed in tests; no live LAN in CI):
-
-| Op | Request |
-|---|---|
-| Health | `GET {base}/health` |
-| List | `GET {base}/agents` |
+| Op | Local | Remote (SSH) |
+|---|---|---|
+| Health | `herdr workspace list` (optional leftover localhost `GET /health`) | `ssh user@host -- herdr workspace list` |
+| List | `herdr agent list` (+ workspace list) | same argv over SSH |
+| Send | `herdr agent prompt <TARGET> <TEXT>` | same argv over SSH |
+| Interrogate CLI X | `herdr agent get <TARGET>` | same argv over SSH |
 
 ```bash
 swarm-cli remotes health herdr
 swarm-cli remotes operate herdr --op list
+swarm-cli remotes operate herdr --op send --target w3:p1 --prompt HERDR_PING_OK
+swarm-cli remotes operate herdr --op interrogate --target w3:p1
 ```
 
-Do not commit tokens. Placeholders only (`${HERDR_API_KEY}`).
+Do not commit tokens or private keys. Identity is an env-var *name*
+(`HERDR_SSH_IDENTITY`) whose value is a key path. Placeholders only
+(`${HERDR_API_KEY}`).
 
 ## Optional `--remote`
 

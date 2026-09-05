@@ -691,8 +691,30 @@ def remotes_cmd(
         "--session-cookie-env",
         help="For set: store Rakazo session-cookie env-var name only",
     ),
-    prompt: str = typer.Option("", "--prompt", "-p", help="For operate send: job text"),
-    target: str = typer.Option("", "--target", help="For operate send: OMB/Rakazo bot id or swarm blueprint id"),
+    herdr_mode: str = typer.Option(
+        "",
+        "--herdr-mode",
+        help="For set herdr: local (this host, no SSH) or ssh (Herdr host)",
+    ),
+    ssh_host: str = typer.Option("", "--ssh-host", help="For set herdr SSH: Herdr host (no guessed hosts)"),
+    ssh_user: str = typer.Option("", "--ssh-user", help="For set herdr SSH: user"),
+    ssh_port: int = typer.Option(0, "--ssh-port", help="For set herdr SSH: port (default 22)"),
+    ssh_identity_env: str = typer.Option(
+        "",
+        "--ssh-identity-env",
+        help="For set herdr SSH: env-var *name* whose value is a key path (never a private key)",
+    ),
+    ssh_agent: bool = typer.Option(
+        True,
+        "--ssh-agent/--no-ssh-agent",
+        help="For set herdr SSH: use the SSH agent (default true)",
+    ),
+    prompt: str = typer.Option("", "--prompt", "-p", help="For operate send/interrogate: job text"),
+    target: str = typer.Option(
+        "",
+        "--target",
+        help="For operate send: OMB/Rakazo bot id, swarm blueprint, or Herdr pane/CLI",
+    ),
     config: str = typer.Option(None, "--config", help="path to swarm_config.json"),
 ):
     """Configure remotes and place them in a handoff Team (not /teams/ profile aliases)."""
@@ -726,7 +748,7 @@ def remotes_cmd(
         if not rid:
             typer.echo("remotes set requires a name (hermes|omb|rakazo|herdr|swarm)", err=True)
             raise typer.Exit(code=1)
-        kwargs: dict[str, str] = {}
+        kwargs: dict = {}
         if base_url:
             kwargs["base_url"] = base_url
         if api_key_env:
@@ -739,9 +761,23 @@ def remotes_cmd(
             kwargs["session_cookie_env"] = session_cookie_env
         elif cookie:
             kwargs["cookie"] = cookie
+        if herdr_mode:
+            kwargs["herdr_mode"] = herdr_mode
+        if ssh_host:
+            kwargs["ssh_host"] = ssh_host
+        if ssh_user:
+            kwargs["ssh_user"] = ssh_user
+        if ssh_port:
+            kwargs["ssh_port"] = ssh_port
+        if ssh_identity_env:
+            kwargs["ssh_identity_env"] = ssh_identity_env
+        if herdr_mode == "ssh" or ssh_host or ssh_user:
+            kwargs["ssh_agent"] = ssh_agent
         if not kwargs:
             typer.echo(
-                "Nothing to persist. Pass --base-url and/or --api-key-env / --session-cookie-env.",
+                "Nothing to persist. Pass --base-url and/or --api-key-env / "
+                "--session-cookie-env, or for Herdr --herdr-mode local|ssh "
+                "with --ssh-host / --ssh-user.",
                 err=True,
             )
             raise typer.Exit(code=1)

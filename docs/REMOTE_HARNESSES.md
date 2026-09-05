@@ -8,7 +8,9 @@ Grok / OMB / Rakazo seat clone, and **Grok-Bot chrome is not claimed live**.
 agents, and **remote** agents (Hermes / OMB / Rakazo / nested open-swarm) so
 they can see and talk to each other via openai-agents **handoff / as_tool**.
 Those remotes are Team *members* (`consult_hermes`, `consult_omb`,
-`consult_rakazo`, `consult_swarm`).
+`consult_rakazo`, `consult_swarm`). **Herdr** is also a remotes kind, but it
+is **SSH-shaped** (local Herdr vs SSH to a Herdr host + its CLIs) — not
+another HTTP remote. See [HERDR.md](./HERDR.md) (REQ-100 / #463).
 
 That is **not** the Django `/teams/` JSON registry. `/teams/` today is
 LLM-profile aliases (`DynamicTeamBlueprint`). New copy should not call those
@@ -94,6 +96,7 @@ report, not an exception. Auth-gated 401/403 on a live port counts as **UP**
 | OMB | `GET /api/health` → `{"app":"openmausbot",...}` |
 | Rakazo | `GET /health` → `{"ok":true,"runtime":"pi",...}` |
 | Nested swarm | `GET /health` → `{"status":"ok"}`; version via `GET /v1/models` |
+| **Herdr** | **Not HTTP.** Local: `herdr workspace list`. Remote: `ssh user@host -- herdr workspace list` (stub SSH in tests). |
 
 ## Operate today vs not
 
@@ -103,6 +106,7 @@ report, not an exception. Auth-gated 401/403 on a live port counts as **UP**
 | **OMB** | `GET /api/bots` | `POST /api/bots/{id}/messages` `{"text":"..."}` (202). Creates a bot if none exist. | HTTP only — no OMB source clone. Upstream default bind is `127.0.0.1:8799`; this LAN install is `:8802`. |
 | **Rakazo** | `POST /rpc/bots/list` | `POST /rpc/threads/send` `{botId,text}` | **Better Auth session required** for RPC. Public `GET /health` works without auth. Set `RAKAZO_SESSION_COOKIE` from a signed-in UI session. No unauthenticated job API in upstream. |
 | **swarm** | `GET /v1/blueprints/` (fallback `GET /v1/models/`) | `POST /v1/chat/completions/` `{"model":"<blueprint>","messages":[…]}` | Network remote only. Unreachable child is the same DOWN / operate-fail as other remotes (no hang). Do not persist this process listen URL. |
+| **Herdr** | `herdr agent list` (local or over SSH) | `herdr agent prompt` / `herdr agent get` (interrogate) | SSH-shaped. Not HTTP like the rows above. Missing ssh_host/ssh_user is a clear error. Stub SSH in tests; no live LAN. |
 
 ```bash
 swarm-cli remotes operate hermes --op list

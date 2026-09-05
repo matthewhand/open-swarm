@@ -123,7 +123,7 @@ An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id
 
 ## Herdr member (`kind=herdr`)
 
-A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). Optional `remote` becomes `herdr --remote <user@host>`. **Remotes kind** (REQ-64): add `herdr` in Settings (base URL + api-key-env); CLI `--remote` uses that configured base; missing config is an error, not a silent other-host. **Not** Hermes, OMB, or Rakazo. Docs: [HERDR.md](./HERDR.md).
+A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). **Remotes kind** (REQ-64 / REQ-100): add `herdr` in Settings. **Local Herdr** talks to Herdr on this host (no SSH). **Remote Herdr is SSH-shaped** — SSH to the Herdr host, then Herdr’s CLIs there — **not** an HTTP remote like OpenMousBot / Hermes / Rakazo. Missing SSH config is an error, not a silent other-host. Docs: [HERDR.md](./HERDR.md).
 
 ## Operator UI vs SPA Chat
 
