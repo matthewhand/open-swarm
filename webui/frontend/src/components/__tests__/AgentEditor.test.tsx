@@ -165,7 +165,9 @@ describe('AgentEditor (REQ-58)', () => {
     renderEditor({ agentId: 'codey' })
 
     const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
-    expect(within(dialog).getByLabelText('Name')).toHaveValue('Codey')
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText('Name')).toHaveValue('Codey')
+    })
     expect(within(dialog).getByTestId('blueprint-recipe-meta')).toHaveTextContent('Recipe: codey')
     expect(within(dialog).queryByText('Blueprint', { selector: 'label' })).not.toBeInTheDocument()
     expect(within(dialog).getByLabelText('Blueprint')).toHaveValue('codey')
