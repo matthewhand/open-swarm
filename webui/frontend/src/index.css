@@ -157,6 +157,7 @@ html[data-theme="light"] #root {
   background: var(--os-chrome-sidebar);
   border-right: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
   position: relative;
+  container-type: inline-size;
 }
 
 /* REQ-116: Left rail resizer affordance */
@@ -412,6 +413,20 @@ html[data-theme="light"] #root {
   padding: 0.4rem;
   border-radius: 0.75rem;
   border: 1px dashed color-mix(in srgb, var(--color-base-content) 12%, transparent);
+}
+
+/* REQ-206: Responsive pinned favourites grid (1, 2, or 3 columns based on sidepane width) */
+@container (max-width: 200px) {
+  .os-fav-grid {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}
+
+@container (min-width: 320px) {
+  .os-fav-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .os-fav-grid--active {
   border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-base-300));
