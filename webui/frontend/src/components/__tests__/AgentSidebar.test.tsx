@@ -12,6 +12,7 @@ import {
 } from '../../lib/railOrder'
 import { BUMP_COMPLETED_KEY } from '../../lib/settingsPrefs'
 import { saveAgentSessions, type AgentSession } from '../../lib/scaleOutSessions'
+import { publishChatConnection, resetChatConnection } from '../../lib/chatConnection'
 
 function blueprint(
   id: string,
@@ -395,6 +396,26 @@ describe('AgentSidebar Grok rail', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByTestId('remote-sessions-popup')).toBeNull()
+  })
+
+  it('paints a red dot on rail-server-icon when local WS is disconnected (REQ-195)', async () => {
+    resetChatConnection()
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    const serverBtn = screen.getByTestId('rail-server-icon')
+    expect(serverBtn).toBeInTheDocument()
+    expect(screen.queryByTestId('local-server-status-dot')).not.toBeInTheDocument()
+
+    act(() => {
+      publishChatConnection('closed')
+    })
+    expect(screen.getByTestId('local-server-status-dot')).toBeInTheDocument()
+
+    act(() => {
+      publishChatConnection('open')
+    })
+    expect(screen.queryByTestId('local-server-status-dot')).not.toBeInTheDocument()
+    resetChatConnection()
   })
 
   it('leaves the Hidden Bots area blank until something is hidden', async () => {
