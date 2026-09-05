@@ -177,6 +177,42 @@ started a new session — never a fake “restored”.
 Per-adapter config can override `resume_argv`, `resume_insert`, and
 `session_id_paths`. An empty `resume_argv` means the CLI cannot resume.
 
+### CLI Select session (REQ-104)
+
+From a CLI rail row, **Select session** browses that CLI’s existing sessions and
+switches the mounted chat onto one of them. This is not “resume whatever id we
+last stored” (REQ-52); it is an explicit hop between the CLI’s own sessions and
+open-swarm.
+
+**Design (A) — used:** selecting a session (or **Start new session**) **mints a
+new Django/chat-store conversation** bound to that CLI session id. The previous
+swarm thread is not deleted (still on disk / history). Old compressions stay on
+the old conversation and are not copied. Design **(B)** (wipe/rebuild the same
+Django conversation) is not used — wipe is not clean enough, and orphans keep
+user data reachable.
+
+**Prior-history pill:** if the current chat already has turns and the selected
+CLI session differs, those turns collapse into an expandable **Prior history**
+pill (same System/Agent family as Support preload / #685). The CLI session
+loads under that pill. Same session + same content → no double-collapse. The
+pill is a **UI archive** (`kind: prior_history`); `render_prompt` skips it so
+prior foreign history is never prepended as CLI turns.
+
+**Listing:** catalog CLIs have **no** verified non-interactive list. `can_list`
+is true only when `cli_agents.<name>.list_argv` (or a catalog `list_argv`) is
+set. Empty copy is “This CLI can’t list sessions” or “No sessions found” —
+never fake rows. The picker still accepts a **pasted session id**. Recents are
+the last 5–10 swarm-touch ids with a relative activity stamp (`2m ago` /
+`Yesterday`). **Activity SoT:** provider `updated_at` when `can_list`; else last
+swarm-touch.
+
+| CLI | List sessions |
+|---|---|
+| `grok` / `claude` / `gemini` / `codex` / `opencode` / `agy` / `pi` | No non-interactive list — paste-id + swarm recents |
+| Fixture / configured `list_argv` | JSON / JSONL of `{id,title,snippet,updated_at}` (or `session_id` / `thread_id`) |
+
+Antigravity is not in the catalog. If wired later, do not fake a list.
+
 ### Example adapters
 
 ```jsonc

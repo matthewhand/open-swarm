@@ -79,6 +79,29 @@ describe('fetchAgentThread', () => {
     expect(thread.summaries).toEqual([])
   })
 
+  it('keeps prior_history as a system archive row', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'cli_agent',
+          conversation_id: 'cli-cli_agent-abc',
+          messages: [
+            { role: 'system', content: '**User:** old', kind: 'prior_history' },
+            { role: 'status', content: 'Switched to grok session sid-1.' },
+          ],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('cli_agent')
+    expect(thread.messages).toEqual([
+      { role: 'system', content: '**User:** old', kind: 'prior_history' },
+      { role: 'status', content: 'Switched to grok session sid-1.' },
+    ])
+  })
+
   it('normalises info/system thread rows to status chrome', async () => {
     vi.stubGlobal(
       'fetch',

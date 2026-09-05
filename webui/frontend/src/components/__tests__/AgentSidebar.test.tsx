@@ -111,6 +111,22 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
         json: async () => ({ object: 'list', data: extraRosters }),
       } as Response
     }
+    if (url.includes('/v1/cli-sessions')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'cli_session_list',
+          agent_id: 'cli_agent',
+          cli: 'grok',
+          can_list: false,
+          sessions: [],
+          recent: [],
+          empty_reason: "This CLI can't list sessions",
+          activity_sot: 'swarm',
+        }),
+      } as Response
+    }
     if (url.includes('/v1/cli-agents')) {
       return {
         ok: true,
@@ -258,6 +274,31 @@ describe('AgentSidebar Grok rail', () => {
       '/chat?blueprint=cli_agent',
       '/chat?blueprint=api_agent',
     ])
+  })
+
+  it('offers Select session on a CLI rail row and omits it for Codey', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /cli_agent/ }))
+    expect(await screen.findByRole('menuitem', { name: 'Select session' })).toBeInTheDocument()
+
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Codey/ }))
+    expect(screen.queryByRole('menuitem', { name: 'Select session' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Hide from sidebar/i })).toBeInTheDocument()
+  })
+
+  it('opens the CLI session picker overlay from Select session without unmounting chat', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /cli_agent/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Select session' }))
+    const picker = await screen.findByTestId('os-cli-session-picker')
+    expect(picker).toBeInTheDocument()
+    expect(within(picker).getByTestId('cli-session-empty')).toHaveTextContent(
+      "This CLI can't list sessions",
+    )
+    expect(within(picker).getByTestId('cli-session-start-new')).toBeInTheDocument()
+    expect(list).toBeInTheDocument()
   })
 
   it('keeps cli_agent and api_agent listed even if they were previously hidden', async () => {

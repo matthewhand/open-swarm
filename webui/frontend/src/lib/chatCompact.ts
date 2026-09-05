@@ -12,9 +12,11 @@ export interface ConversationSummary {
 
 export interface ChatBubble {
   key: string
-  role: 'user' | 'assistant' | 'status'
+  role: 'user' | 'assistant' | 'status' | 'system'
   text: string
   streaming: boolean
+  /** REQ-104 — expandable archive of the previous swarm thread. */
+  kind?: 'prior_history'
 }
 
 export type DisplayItem =

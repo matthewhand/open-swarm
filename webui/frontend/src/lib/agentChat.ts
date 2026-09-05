@@ -93,9 +93,10 @@ export function conversationIdForTask(
 }
 
 export interface AgentThreadMessage {
-  role: 'user' | 'assistant' | 'status'
+  role: 'user' | 'assistant' | 'status' | 'system'
   content: string
   edited?: boolean
+  kind?: 'prior_history'
 }
 
 export interface AgentThread {
@@ -115,9 +116,18 @@ export interface CompactResult {
 
 function parseThreadMessage(value: unknown): AgentThreadMessage | null {
   if (!value || typeof value !== 'object') return null
-  const row = value as { role?: unknown; content?: unknown; edited?: unknown }
+  const row = value as { role?: unknown; content?: unknown; edited?: unknown; kind?: unknown }
   if (typeof row.role !== 'string' || typeof row.content !== 'string') return null
   if (row.edited !== undefined && row.edited !== true) return null
+  if (row.kind === 'prior_history') {
+    const prior: AgentThreadMessage = {
+      role: 'system',
+      content: row.content,
+      kind: 'prior_history',
+    }
+    if (row.edited === true) prior.edited = true
+    return prior
+  }
   if (row.role !== 'user' && row.role !== 'assistant' && !isStatusRole(row.role)) {
     return null
   }

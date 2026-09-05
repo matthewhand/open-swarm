@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Circle, Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
+import { Circle, Eye, EyeOff, History, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
 import AddAgentWizard, { type AgentKind } from './AddAgentWizard'
 import {
   UNREAD_CHANGED_EVENT,
@@ -119,6 +119,15 @@ import { openSearchPalette } from './SearchPalette'
 import { isMacPlatform, searchShortcutLabel } from '../lib/keybindingTips'
 import { AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
 import SessionPicker from './SessionPicker'
+import CliSessionPicker from './CliSessionPicker'
+import { RailContextMenu, type RailMenuItem } from './AgentSidebar/RailContextMenu'
+import {
+  dispatchCliSessionSwitched,
+  fetchCliSessions,
+  selectCliSession,
+  type CliProviderSession,
+} from '../lib/cliSessions'
+import { conversationIdForAgent } from '../lib/agentChat'
 import { openSettingsSheet } from './SettingsSheet'
 import AvatarStack from './AvatarStack'
 import StackedAvatars from './StackedAvatars'
@@ -154,6 +163,18 @@ interface ContextMenuState {
   y: number
   kind?: 'agent' | 'team' | 'remote'
   sessions?: MemberSession[]
+  isCli?: boolean
+  cli?: string
+}
+
+interface CliPickerState {
+  agentId: string
+  agentName: string
+  cli: string
+  sessions: CliProviderSession[]
+  canList: boolean
+  emptyReason: string | null
+  loading: boolean
 }
 
 interface SessionPickerState {
@@ -301,6 +322,7 @@ export default function AgentSidebar({
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const [sessionTick, setSessionTick] = useState(0)
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null)
+  const [cliPicker, setCliPicker] = useState<CliPickerState | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const hideDropDepth = useRef(0)
   const prefsHydrated = useRef(false)
@@ -700,6 +722,79 @@ export default function AgentSidebar({
 
   const closePicker = useCallback(() => setPicker(null), [])
 
+  const openCliSessionPicker = useCallback(
+    async (agentId: string, agentName: string, cli: string) => {
+      const cliName = cli || 'grok'
+      setCliPicker({
+        agentId,
+        agentName,
+        cli: cliName,
+        sessions: [],
+        canList: false,
+        emptyReason: null,
+        loading: true,
+      })
+      try {
+        const list = await fetchCliSessions(agentId, cliName)
+        setCliPicker({
+          agentId,
+          agentName,
+          cli: list.cli || cliName,
+          sessions: list.sessions,
+          canList: list.can_list,
+          emptyReason: list.empty_reason,
+          loading: false,
+        })
+      } catch {
+        setCliPicker({
+          agentId,
+          agentName,
+          cli: cliName,
+          sessions: [],
+          canList: false,
+          emptyReason: "This CLI can't list sessions",
+          loading: false,
+        })
+      }
+    },
+    [],
+  )
+
+  const applyCliSession = useCallback(
+    async (opts: {
+      agentId: string
+      cli: string
+      session?: CliProviderSession
+      startNew?: boolean
+    }) => {
+      try {
+        const result = await selectCliSession({
+          agentId: opts.agentId,
+          cli: opts.cli,
+          sessionId: opts.session?.id,
+          startNew: opts.startNew,
+          fromConversationId: conversationIdForAgent(opts.agentId),
+          title: opts.session?.title,
+          snippet: opts.session?.snippet,
+        })
+        dispatchCliSessionSwitched({
+          agentId: opts.agentId,
+          conversationId: result.conversation_id,
+          status: result.status,
+        })
+        navigate(sessionHref(opts.agentId, result.conversation_id))
+        onClose?.()
+      } catch {
+        setCliPicker((current) =>
+          current
+            ? { ...current, emptyReason: current.emptyReason || 'Could not switch session' }
+            : current,
+        )
+      }
+    },
+    [navigate, onClose],
+  )
+
   const selectSession = useCallback(
     (session: MemberSession) => {
       setPicker(null)
@@ -819,6 +914,10 @@ export default function AgentSidebar({
     const height = 120
     const x = Math.min(event.clientX, window.innerWidth - width - pad)
     const y = Math.min(event.clientY, window.innerHeight - height - pad)
+    const row = agents.find((agent) => agent.id === hideId)
+    const isCli = kind !== 'team' && kind !== 'remote' && Boolean(row && isCliRailAgent(row))
+    const cliFromUrl = searchParams.get('cli') || ''
+    const cliName = (isCli && (cliFromUrl || row?.cli)) || ''
     setMenu({
       agentId: hideId,
       agentName: label,
@@ -828,6 +927,8 @@ export default function AgentSidebar({
       y: Math.max(pad, y),
       kind,
       sessions,
+      isCli,
+      cli: cliName,
     })
   }
 
@@ -2097,90 +2198,114 @@ export default function AgentSidebar({
         }}
       />
 
+      <CliSessionPicker
+        open={cliPicker !== null}
+        agentName={cliPicker?.agentName ?? ''}
+        cli={cliPicker?.cli ?? ''}
+        sessions={cliPicker?.sessions ?? []}
+        canList={cliPicker?.canList ?? false}
+        emptyReason={cliPicker?.emptyReason}
+        loading={cliPicker?.loading}
+        onClose={() => setCliPicker(null)}
+        onSelect={(session) => {
+          if (!cliPicker) return
+          void applyCliSession({
+            agentId: cliPicker.agentId,
+            cli: cliPicker.cli,
+            session,
+          })
+        }}
+        onStartNew={() => {
+          if (!cliPicker) return
+          void applyCliSession({
+            agentId: cliPicker.agentId,
+            cli: cliPicker.cli,
+            startNew: true,
+          })
+        }}
+      />
+
       {menu && (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label={`Actions for ${menu.agentName}`}
-          className="fixed z-50 min-w-[12.5rem] rounded-lg border border-base-300 bg-neutral py-1 text-sm shadow-xl"
-          style={{ left: menu.x, top: menu.y }}
-        >
-          {menu.sessions && menu.sessions.length > 0 && (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-              onClick={() => {
-                const s = menu.sessions!
-                const title = menu.agentName
-                closeMenu()
-                openGroupPicker(title, s)
-              }}
-            >
-              <Users className="h-4 w-4" aria-hidden="true" />
-              Select Agent
-            </button>
-          )}
-          {menu.hidden ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-              onClick={() => unhideAgent(menu.agentId)}
-            >
-              <Eye className="h-4 w-4" aria-hidden="true" />
-              Unhide
-            </button>
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-              onClick={() => hideAgent(menu.agentId)}
-            >
-              <EyeOff className="h-4 w-4" aria-hidden="true" />
-              Hide from sidebar
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-            onClick={() => {
-              if (unreadIds.includes(menu.agentId)) {
-                setUnreadIds(markAgentRead(menu.agentId))
-              } else {
-                setUnreadIds(markAgentUnread(menu.agentId))
-              }
-              closeMenu()
-            }}
-          >
-            <Circle className="h-4 w-4" aria-hidden="true" />
-            {unreadIds.includes(menu.agentId) ? 'Mark as read' : 'Mark as unread'}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-            onClick={() => openAgentSettings({ id: menu.agentId, name: menu.agentName })}
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            Edit agent
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
-            onClick={() => togglePin({ id: menu.agentId, name: menu.agentName })}
-          >
-            {menu.pinned ? (
-              <PinOff className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Pin className="h-4 w-4" aria-hidden="true" />
-            )}
-            {menu.pinned ? 'Unpin' : 'Pin'}
-          </button>
-        </div>
+        <RailContextMenu
+          menuRef={menuRef}
+          agentName={menu.agentName}
+          x={menu.x}
+          y={menu.y}
+          items={
+            [
+              menu.sessions && menu.sessions.length > 0
+                ? {
+                    id: 'select-agent',
+                    label: 'Select Agent',
+                    icon: <Users className="h-4 w-4" aria-hidden="true" />,
+                    onSelect: () => {
+                      const s = menu.sessions!
+                      const title = menu.agentName
+                      closeMenu()
+                      openGroupPicker(title, s)
+                    },
+                  }
+                : null,
+              menu.isCli
+                ? {
+                    id: 'select-session',
+                    label: 'Select session',
+                    icon: <History className="h-4 w-4" aria-hidden="true" />,
+                    testId: 'rail-menu-select-session',
+                    onSelect: () => {
+                      const agentId = menu.agentId
+                      const name = menu.agentName
+                      const cli = menu.cli || 'grok'
+                      closeMenu()
+                      void openCliSessionPicker(agentId, name, cli)
+                    },
+                  }
+                : null,
+              menu.hidden
+                ? {
+                    id: 'unhide',
+                    label: 'Unhide',
+                    icon: <Eye className="h-4 w-4" aria-hidden="true" />,
+                    onSelect: () => unhideAgent(menu.agentId),
+                  }
+                : {
+                    id: 'hide',
+                    label: 'Hide from sidebar',
+                    icon: <EyeOff className="h-4 w-4" aria-hidden="true" />,
+                    onSelect: () => hideAgent(menu.agentId),
+                  },
+              {
+                id: 'unread',
+                label: unreadIds.includes(menu.agentId) ? 'Mark as read' : 'Mark as unread',
+                icon: <Circle className="h-4 w-4" aria-hidden="true" />,
+                onSelect: () => {
+                  if (unreadIds.includes(menu.agentId)) {
+                    setUnreadIds(markAgentRead(menu.agentId))
+                  } else {
+                    setUnreadIds(markAgentUnread(menu.agentId))
+                  }
+                  closeMenu()
+                },
+              },
+              {
+                id: 'edit',
+                label: 'Edit agent',
+                icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
+                onSelect: () => openAgentSettings({ id: menu.agentId, name: menu.agentName }),
+              },
+              {
+                id: 'pin',
+                label: menu.pinned ? 'Unpin' : 'Pin',
+                icon: menu.pinned ? (
+                  <PinOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Pin className="h-4 w-4" aria-hidden="true" />
+                ),
+                onSelect: () => togglePin({ id: menu.agentId, name: menu.agentName }),
+              },
+            ].filter((item): item is RailMenuItem => item != null)
+          }
+        />
       )}
       <AddAgentWizard
         isOpen={addWizardOpen}
