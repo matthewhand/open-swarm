@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **#776 CI after #775 example-only SoT:** `GET /v1/agents/llm-profiles/` reads the shared `SWARM_CONFIG_PATH` / XDG loader (not a hunt for a committed live file). Designer + Codey tests use placeholder fixtures. README points at `swarm_config.example.json`.
 - **Tidy repo root (#775):** Move PyInstaller helpers to `scripts/packaging/` and Pinokio install/start/update/menu into `pinokio/`. Root `pinokio.js` and `manage.py` stay (Pinokio and Django require those paths). Replace committed `swarm_config.json` with sanitized `swarm_config.example.json`; gitignore a local `swarm_config.json`. Fixes #775.
 
 ### Added

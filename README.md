@@ -51,6 +51,7 @@ git clone https://github.com/matthewhand/open-swarm.git
 cd open-swarm
 uv sync --all-extras
 cp .env.example .env          # set OPENAI_API_KEY, API_AUTH_TOKEN, DJANGO_SECRET_KEY
+cp swarm_config.example.json swarm_config.json   # optional local SoT; secrets stay ${VAR} in .env
 make frontend                 # builds webui/frontend/dist/
 docker compose up --build
 # open http://localhost:8000
@@ -138,7 +139,7 @@ Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=san
 - [docs/GLOSSARY.md](docs/GLOSSARY.md) — kinds, Team vs Profiles vs roster
 - [USERGUIDE.md](./USERGUIDE.md) — `swarm-cli` tasks
 - [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md) · [docs/HERDR.md](docs/HERDR.md)
-- [docs/AUTH.md](docs/AUTH.md) · [CONFIGURATION.md](./CONFIGURATION.md)
+- [docs/AUTH.md](docs/AUTH.md) · [CONFIGURATION.md](./CONFIGURATION.md) (`swarm_config.example.json`)
 - [FEATURE_STATUS.md](./FEATURE_STATUS.md) · [ROADMAP.md](./ROADMAP.md)
 - [docs/DEVELOPER.md](docs/DEVELOPER.md) — gateway, `/v1/responses`, dated history, contribution pointers
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
