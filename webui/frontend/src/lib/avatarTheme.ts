@@ -8,11 +8,11 @@
 export const AVATAR_THEME_STORAGE_KEY = 'swarm_avatar_theme'
 export const AVATAR_THEME_SET_EVENT = 'swarm:set-avatar-theme'
 
-export const AVATAR_THEMES = ['blobs', 'bland', 'default'] as const
+export const AVATAR_THEMES = ['blobs', 'bland', 'default', 'bee'] as const
 export type AvatarTheme = (typeof AVATAR_THEMES)[number]
 
 export function isAvatarTheme(value: unknown): value is AvatarTheme {
-  return value === 'blobs' || value === 'bland' || value === 'default'
+  return value === 'blobs' || value === 'bland' || value === 'default' || value === 'bee'
 }
 
 export function defaultAvatarTheme(): AvatarTheme {

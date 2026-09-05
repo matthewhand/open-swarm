@@ -28,6 +28,12 @@ describe('avatar theme persist', () => {
     expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBeNull()
   })
 
+  it('persists Bee as its own theme and does not collapse it to Blobs', () => {
+    expect(saveAvatarTheme('bee')).toBe('bee')
+    expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBe('bee')
+    expect(loadAvatarTheme()).toBe('bee')
+  })
+
   it('migrates legacy default to bland', () => {
     localStorage.setItem(AVATAR_THEME_STORAGE_KEY, 'default')
     expect(loadAvatarTheme()).toBe('bland')

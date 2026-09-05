@@ -1605,6 +1605,22 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
   })
 
+  it('shows Bee header avatars when the Bee theme is selected', async () => {
+    saveAvatarTheme('bee')
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const headerBee = document.querySelector('.os-chat-header [data-avatar-theme="bee"]')
+    expect(headerBee).toBeInTheDocument()
+    expect(headerBee?.querySelector('[data-googly="true"]')).toBeTruthy()
+    expect(['side-on', 'face-only']).toContain(
+      headerBee?.querySelector('svg')?.getAttribute('data-bee-variant')
+      || headerBee?.getAttribute('data-bee-variant'),
+    )
+    localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
+  })
+
   it('opens a unique websocket thread per agent', async () => {
     const first = renderChat('/chat?blueprint=codey')
     expect(MockWebSocket.instances[0]?.url).toContain('/ws/ai-demo/')

@@ -46,6 +46,64 @@ describe('AgentAvatar', () => {
     expect(shape2).toBeDefined()
   })
 
+  it('renders Bee brand marks when the Bee theme is selected', () => {
+    saveAvatarTheme('bee')
+    const { container } = render(<AgentAvatar agentId="codey" />)
+    const face = container.querySelector('[data-agent-avatar]')
+    expect(face).toHaveAttribute('data-agent-avatar', 'default')
+    expect(face).toHaveAttribute('data-avatar-theme', 'bee')
+    const svg = container.querySelector('svg[data-avatar-theme="bee"]')
+    expect(svg).toBeInTheDocument()
+    expect(svg).toHaveAttribute('data-agent-id', 'codey')
+    expect(['side-on', 'face-only']).toContain(svg?.getAttribute('data-bee-variant'))
+    expect(svg?.querySelector('[data-googly="true"]')).toBeInTheDocument()
+  })
+
+  it('assigns side-on and face-only Bee variants deterministically by agent id', () => {
+    saveAvatarTheme('bee')
+    const ids = ['codey', 'stewie', 'reachy', 'jeeves', 'atlas', 'nova', 'oriole', 'pip']
+    const variants = new Set<string>()
+    for (const id of ids) {
+      const view = render(<AgentAvatar agentId={id} />)
+      const svg = view.container.querySelector('svg[data-avatar-theme="bee"]')
+      const variant = svg?.getAttribute('data-bee-variant')
+      expect(variant === 'side-on' || variant === 'face-only').toBe(true)
+      if (variant) variants.add(variant)
+      view.unmount()
+    }
+    expect(variants.has('side-on')).toBe(true)
+    expect(variants.has('face-only')).toBe(true)
+  })
+
+  it('sets Bee eye state idle unless active', () => {
+    saveAvatarTheme('bee')
+    const idle = render(<AgentAvatar agentId="codey" active={false} />)
+    expect(idle.container.querySelector('svg[data-avatar-theme="bee"]')).toHaveAttribute(
+      'data-eye-state',
+      'idle',
+    )
+    idle.unmount()
+    const active = render(<AgentAvatar agentId="codey" active />)
+    expect(active.container.querySelector('svg[data-avatar-theme="bee"]')).toHaveAttribute(
+      'data-eye-state',
+      'active',
+    )
+    active.unmount()
+  })
+
+  it('keeps a custom still avatar over the Bee theme', () => {
+    saveAvatarTheme('bee')
+    const { container } = render(
+      <AgentAvatar src="/avatars/codey_avatar.png" alt="Codey" agentId="codey" />,
+    )
+    expect(container.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-agent-avatar',
+      'custom',
+    )
+    expect(container.querySelector('svg[data-avatar-theme="bee"]')).not.toBeInTheDocument()
+    expect(container.querySelector('img')).toHaveAttribute('src', '/avatars/codey_avatar.png')
+  })
+
   it('uses the bland default static circle when opted in via settings', () => {
     saveAvatarTheme('bland')
     const { container } = render(<AgentAvatar agentId="codey" />)
@@ -107,6 +165,7 @@ describe('AgentAvatar', () => {
     const css = fs.readFileSync(path.resolve(__dirname, '../../index.css'), 'utf8')
     expect(css).toMatch(/\.os-agent-avatar--xs\s*\{[^}]*max-width:\s*1\.5rem/)
     expect(css).toMatch(/\.os-blob-avatar--xs\s*\{[^}]*max-width:\s*1\.5rem/)
+    expect(css).toMatch(/\.os-bee-avatar--xs\s*\{[^}]*max-width:\s*1\.5rem/)
 
     const { container } = render(
       <div style={{ display: 'flex', width: 400, height: 400 }}>
