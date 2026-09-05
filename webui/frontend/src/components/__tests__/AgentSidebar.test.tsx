@@ -1512,16 +1512,16 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
     expect(delays).toContain('0ms')
   })
 
-  it('keeps a single-agent remote as one avatar (no stack)', async () => {
+  it('keeps a single-agent remote as one normal avatar (no mini stack)', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     const hermes = await within(list).findByRole('link', { name: /Hermes \(remote\)/ })
     expect(hermes).toHaveAttribute('data-stack-count', '1')
     expect(hermes).toHaveAttribute('data-remainder', '0')
-    const stack = within(hermes).getByLabelText('Hermes members')
-    expect(stack).toHaveAttribute('data-avatar-stack', 'false')
+    expect(within(hermes).queryByLabelText('Hermes members')).not.toBeInTheDocument()
     expect(within(hermes).queryByText(/^\+\d+$/)).not.toBeInTheDocument()
-    expect(hermes.querySelectorAll('.os-avatar-stack__face')).toHaveLength(1)
+    expect(hermes.querySelector('[data-agent-avatar]')).toBeInTheDocument()
+    expect(hermes.querySelectorAll('.os-avatar-stack__face')).toHaveLength(0)
   })
 
   it('labels OpenMousBot (not OMB) and stacks CoS + workers; left-click opens directly, right-click Select Agent opens picker', async () => {
