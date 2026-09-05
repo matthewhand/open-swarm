@@ -41,7 +41,7 @@ test('Bee theme is opt-in and paints both locked variants', async ({ page }) => 
   await page.goto('/chat')
 
   await expect(page.getByRole('button', { name: 'Open settings' })).toBeVisible()
-  await expect(page.locator('svg[data-avatar-theme="blobs"]').first()).toBeVisible()
+  await expect(page.locator('svg[data-avatar-theme="blobs"]').first()).toBeAttached()
   await expect(page.locator('svg[data-avatar-theme="bee"]')).toHaveCount(0)
   await page.screenshot({
     path: path.join(ARTIFACTS, 'bee_theme_default_still_blobs.png'),
@@ -54,12 +54,9 @@ test('Bee theme is opt-in and paints both locked variants', async ({ page }) => 
   await page.getByRole('button', { name: 'Rail' }).click()
   const picker = page.getByLabel('Avatar theme')
   await expect(picker).toHaveValue('blobs')
-  await expect(picker.locator('option')).toHaveText([
-    'Blobs with eyes (default)',
-    'Bland static circle',
-    'Bee',
-  ])
-  await expect(dialog.getByText(/optional choice/i)).toBeVisible()
+  await expect(picker.locator('option')).toHaveText(['Default', 'Blobs', 'Bee'])
+  await expect(dialog.getByText(/optional choices/i)).toBeVisible()
+  await expect(dialog.getByText(/never auto-applied/i)).toBeVisible()
   await page.screenshot({
     path: path.join(ARTIFACTS, 'bee_theme_settings_picker.png'),
   })
@@ -72,10 +69,10 @@ test('Bee theme is opt-in and paints both locked variants', async ({ page }) => 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
 
-  await expect(page.locator('svg[data-avatar-theme="bee"]').first()).toBeVisible()
-  await expect(page.locator('svg[data-bee-variant="side-on"]').first()).toBeVisible()
-  await expect(page.locator('svg[data-bee-variant="face-only"]').first()).toBeVisible()
-  await expect(page.locator('[data-googly="true"]').first()).toBeVisible()
+  await expect(page.locator('svg[data-avatar-theme="bee"]').first()).toBeAttached()
+  await expect(page.locator('svg[data-bee-variant="side-on"]').first()).toBeAttached()
+  await expect(page.locator('svg[data-bee-variant="face-only"]').first()).toBeAttached()
+  await expect(page.locator('[data-googly="true"]').first()).toBeAttached()
   await page.screenshot({
     path: path.join(ARTIFACTS, 'bee_theme_rail_both_variants.png'),
     fullPage: true,

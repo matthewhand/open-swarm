@@ -28,7 +28,11 @@ def test_req801_bee_is_opt_in_not_forced_default():
     assert 'value="blobs"' in picker
     assert 'value="bland"' in picker
     assert 'value="bee"' in picker
-    assert "optional choice" in picker
+    assert ">Default<" in picker
+    assert ">Blobs<" in picker
+    assert ">Bee<" in picker
+    assert "optional choices" in picker
+    assert "never auto-applied" in picker
 
 
 def test_req801_both_locked_variants_are_assigned():
