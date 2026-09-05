@@ -100,16 +100,15 @@ export default function DefinitionPane({
 
   const handleSave = async () => {
     const next = draft
-    setSavedSource(next)
-    setNeedResummarise(true)
     setMode('explain')
     try {
       await updateCustomBlueprint(definitionId, { code: next })
+      setSavedSource(next)
+      setNeedResummarise(true)
       setSaveHint('Saved. Re-summarise to refresh the LLM against the new source.')
-    } catch {
-      setSaveHint(
-        'Draft stored for this pane. Re-summarise to refresh the LLM against the new source plus injections.',
-      )
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Blueprint or role not customizable'
+      setSaveHint(`Failed to save definition: ${msg}`)
     }
   }
 

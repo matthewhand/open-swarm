@@ -153,7 +153,7 @@ describe('DefinitionPane', () => {
           })
         }
         if (url.includes('/blueprints/custom/')) {
-          return jsonResponse({ id: 'support', code: 'edited' }, 404)
+          return jsonResponse({ id: 'support', code: 'edited' }, 200)
         }
         return jsonResponse({
           kind: 'role',
