@@ -1364,6 +1364,20 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
   text-align: center;
 }
 
+/* REQ-71: structured PR-opened tool result is thread chrome, not a chat bubble. */
+.os-pr-opened-wrap {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+.os-pr-opened-card {
+  text-align: left;
+}
+.os-pr-opened-card .card-body {
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+}
+
 .os-search-overlay {
   position: fixed;
   inset: 0;

@@ -69,6 +69,13 @@ import {
   type ChatWsEvent,
 } from '../lib/chatWs'
 import { ToolCallPopup } from '../components/ToolCallPopup'
+import { PrOpenedCard } from '../components/PrOpenedCard'
+import {
+  openerChatSearch,
+  parsePrOpened,
+  type PrOpenedEvent,
+  type PrOpenedOpener,
+} from '../lib/prOpened'
 import { TokenDiagnosticsModal } from '../components/TokenDiagnosticsModal'
 import {
   isToolAlwaysAllowed,
@@ -153,6 +160,23 @@ interface ChatMessage {
   streaming: boolean
   tools?: ToolCallState[]
   edited?: boolean
+  /** REQ-71 chrome — structured PR-opened tool result, not markdown. */
+  prOpened?: PrOpenedEvent
+}
+
+function chatMessageFromThreadRow(
+  message: { role: string; content: string; edited?: boolean },
+  index: number,
+): ChatMessage {
+  const prOpened = parsePrOpened(message.content) ?? undefined
+  return {
+    key: `hist-${index}-${message.role}`,
+    role: asTranscriptRole(message.role),
+    text: prOpened ? '' : message.content,
+    streaming: false,
+    edited: message.edited === true,
+    prOpened,
+  }
 }
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
@@ -630,13 +654,7 @@ const ChatPage = () => {
         setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
         setThreads((prev) => ({
           ...prev,
-          [key]: thread.messages.map((message, index) => ({
-            key: `hist-${index}-${message.role}`,
-            role: asTranscriptRole(message.role),
-            text: message.content,
-            streaming: false,
-            edited: message.edited === true,
-          })),
+          [key]: thread.messages.map(chatMessageFromThreadRow),
         }))
       })()
       return () => {
@@ -672,13 +690,7 @@ const ChatPage = () => {
         setRestoreNotice(restoredSessionNotice(thread.messages, 'remote'))
         setThreads((prev) => ({
           ...prev,
-          [key]: thread.messages.map((message, index) => ({
-            key: `hist-${index}-${message.role}`,
-            role: asTranscriptRole(message.role),
-            text: message.content,
-            streaming: false,
-            edited: message.edited === true,
-          })),
+          [key]: thread.messages.map(chatMessageFromThreadRow),
         }))
       })()
       return () => {
@@ -735,13 +747,7 @@ const ChatPage = () => {
       setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
       setThreads((prev) => ({
         ...prev,
-        [threadKey]: thread.messages.map((message, index) => ({
-          key: `hist-${index}-${message.role}`,
-          role: asTranscriptRole(message.role),
-          text: message.content,
-          streaming: false,
-          edited: message.edited === true,
-        })),
+        [threadKey]: thread.messages.map(chatMessageFromThreadRow),
       }))
     })()
     return () => {
@@ -787,6 +793,13 @@ const ChatPage = () => {
     ws.send(buildToolDecisionFrame(id, decision))
   }, [])
 
+  const jumpToPrOpener = useCallback(
+    (opener: PrOpenedOpener) => {
+      setSearchParams(openerChatSearch(opener))
+    },
+    [setSearchParams],
+  )
+
   const handleWsEvent = useCallback(
     (event: ChatWsEvent) => {
       if (event.kind === 'unknown') {
@@ -800,6 +813,25 @@ const ChatPage = () => {
           status: event.status,
           agentId: event.agentId,
           needsApproval: false,
+        })
+        return
+      }
+      if (event.kind === 'pr_opened') {
+        setThreads((prev) => {
+          const current = prev[threadKey] ?? []
+          return {
+            ...prev,
+            [threadKey]: [
+              ...current,
+              {
+                key: `pr-opened-${current.length}-${Date.now()}`,
+                role: 'status' as const,
+                text: '',
+                streaming: false,
+                prOpened: event.event,
+              },
+            ],
+          }
         })
         return
       }
@@ -1772,6 +1804,35 @@ const ChatPage = () => {
               )
             }
             const message = item.message
+            const liveMessage = messages.find((row) => row.key === message.key)
+            const prOpened = liveMessage?.prOpened
+            if (prOpened) {
+              const openerId = prOpened.opener?.agentId
+              const openerAgent = openerId
+                ? blueprints.find((bp) => bp.id === openerId) ||
+                  cliAgents.find((row) => row.id === openerId)
+                : undefined
+              const openerLabel =
+                prOpened.opener?.name ||
+                (openerAgent
+                  ? editedAgentLabel({
+                      id: openerId || '',
+                      name: openerAgent.name || openerId,
+                    })
+                  : openerId)
+              return (
+                <div key={message.key} className="os-pr-opened-wrap my-2">
+                  <PrOpenedCard
+                    event={prOpened}
+                    currentAgentId={activeChatAgentId}
+                    currentConversationId={conversationId}
+                    openerName={openerLabel}
+                    openerAvatarSrc={(openerAgent as { avatar_path?: string } | undefined)?.avatar_path}
+                    onJumpToOpener={jumpToPrOpener}
+                  />
+                </div>
+              )
+            }
             if (isStatusRole(message.role)) {
               return (
                 <p

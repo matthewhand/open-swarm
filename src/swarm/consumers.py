@@ -513,8 +513,27 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=final_message_html)
 
     async def emit_tool_event(self, payload: dict) -> None:
-        """JSON tool-status / approval frames for the SPA (not HTMx HTML)."""
+        """JSON tool-status / approval / PR-opened frames for the SPA."""
         try:
+            from swarm.core.pr_opened import persist_pr_opened_message
+
+            if isinstance(payload, dict) and payload.get("type") == "pr_opened":
+                opener = payload.get("opener")
+                if not isinstance(opener, dict):
+                    opener = {}
+                    payload["opener"] = opener
+                agent_id = (
+                    opener.get("agent_id")
+                    or getattr(self, "active_agent", None)
+                    or getattr(self, "default_blueprint", None)
+                    or ""
+                )
+                if agent_id and not opener.get("agent_id"):
+                    opener["agent_id"] = str(agent_id)
+                conversation_id = getattr(self, "conversation_id", None) or ""
+                if conversation_id and not opener.get("conversation_id"):
+                    opener["conversation_id"] = str(conversation_id)
+                persist_pr_opened_message(self.messages, payload)
             await self.send(text_data=json.dumps(payload))
         except Exception:
             logger.debug("tool event send failed", exc_info=True)

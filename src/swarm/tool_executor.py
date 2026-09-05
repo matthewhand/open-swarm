@@ -257,6 +257,7 @@ async def handle_tool_calls(
                 "content": result_content_json
             })
             await _emit_tool_status(tool_call_id, tool_name, "done")
+            await _emit_pr_opened_if_any(result_content_json)
 
             # Update context variables from the result
             if processed_result.context_variables:
@@ -329,6 +330,25 @@ async def _maybe_deny_tool(tool_name: str, tool_call_id: str, args: dict) -> dic
         "name": tool_name,
         "content": json.dumps({"error": f"DENIED: tool call {tool_name!r} was not approved"}),
     }
+
+
+async def _emit_pr_opened_if_any(result_content: str) -> None:
+    """REQ-71: structured PR-opened chrome when a tool result is a GitHub PR."""
+    try:
+        from swarm.core.pr_opened import parse_pr_opened
+        from swarm.core.safety import current_safety_session, maybe_await
+    except Exception:
+        return
+    session = current_safety_session()
+    if session is None or session.emit_fn is None:
+        return
+    payload = parse_pr_opened(
+        result_content,
+        agent_id=getattr(session, "agent_id", "") or "",
+    )
+    if payload is None:
+        return
+    await maybe_await(session.emit_fn(payload))
 
 
 async def _emit_tool_status(tool_call_id: str, tool_name: str, status: str) -> None:
