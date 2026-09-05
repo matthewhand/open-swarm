@@ -218,14 +218,19 @@ def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
         role_raw = str(role)
         if role_raw == "assistant":
             role_s = "assistant"
-        elif role_raw == "status":
-            role_s = "status"
+        elif role_raw in ("status", "info"):
+            role_s = role_raw
+        elif role_raw in ("system", "tool"):
+            role_s = role_raw
         else:
             role_s = "user"
         msg: dict[str, Any] = {"role": role_s, "content": content}
-        ts = item.get("ts") or item.get("timestamp")
+        ts = item.get("ts") or item.get("timestamp") or item.get("created_at")
         if isinstance(ts, str) and ts:
             msg["ts"] = ts
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            msg["name"] = name.strip()
         if item.get("edited") is True or item.get("edited") == "true":
             msg["edited"] = True
         out.append(msg)

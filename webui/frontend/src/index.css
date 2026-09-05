@@ -1383,6 +1383,12 @@ html:not([data-theme="light"]) .os-composer__send,
   max-width: 28rem;
   text-align: center;
 }
+.os-chat-status > time {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  opacity: 0.85;
+  white-space: nowrap;
+}
 
 .os-search-overlay {
   position: fixed;

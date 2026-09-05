@@ -96,6 +96,8 @@ export interface AgentThreadMessage {
   role: 'user' | 'assistant' | 'status'
   content: string
   edited?: boolean
+  /** ISO timestamp so status/info chrome can show when it occurred after reload. */
+  ts?: string
 }
 
 export interface AgentThread {
@@ -115,7 +117,14 @@ export interface CompactResult {
 
 function parseThreadMessage(value: unknown): AgentThreadMessage | null {
   if (!value || typeof value !== 'object') return null
-  const row = value as { role?: unknown; content?: unknown; edited?: unknown }
+  const row = value as {
+    role?: unknown
+    content?: unknown
+    edited?: unknown
+    ts?: unknown
+    timestamp?: unknown
+    created_at?: unknown
+  }
   if (typeof row.role !== 'string' || typeof row.content !== 'string') return null
   if (row.edited !== undefined && row.edited !== true) return null
   if (row.role !== 'user' && row.role !== 'assistant' && !isStatusRole(row.role)) {
@@ -126,6 +135,8 @@ function parseThreadMessage(value: unknown): AgentThreadMessage | null {
     content: row.content,
   }
   if (row.edited === true) parsed.edited = true
+  const ts = row.ts || row.timestamp || row.created_at
+  if (typeof ts === 'string' && ts.trim()) parsed.ts = ts.trim()
   return parsed
 }
 
