@@ -1075,8 +1075,9 @@ export default function AgentSidebar({
         aria-label={`Open ${role} settings`}
         style={{
           position: 'absolute',
-          bottom: '-0.2rem',
-          right: '-0.25rem',
+          bottom: '0',
+          left: '50%',
+          transform: 'translateX(-50%)',
           zIndex: 10,
           fontSize: '0.55rem',
           padding: '0 0.25rem',
@@ -1317,8 +1318,9 @@ export default function AgentSidebar({
             data-definition-id={team.id}
             style={{
               position: 'absolute',
-              bottom: '-0.25rem',
-              right: '-0.25rem',
+              bottom: '0',
+              left: '50%',
+              transform: 'translateX(-50%)',
               zIndex: 10,
               fontSize: '0.55rem',
               padding: '0 0.25rem',
@@ -1473,8 +1475,9 @@ export default function AgentSidebar({
             data-avatar-overlay="true"
             style={{
               position: 'absolute',
-              bottom: '-0.25rem',
-              right: '-0.25rem',
+              bottom: '0',
+              left: '50%',
+              transform: 'translateX(-50%)',
               zIndex: 10,
               fontSize: '0.55rem',
               padding: '0 0.25rem',
@@ -1556,8 +1559,9 @@ export default function AgentSidebar({
                         aria-label={`Open ${m.team_id || m.id} team settings`}
                         style={{
                           position: 'absolute',
-                          bottom: '-0.25rem',
-                          right: '-0.25rem',
+                          bottom: '0',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
                           zIndex: 10,
                           fontSize: '0.55rem',
                           padding: '0 0.25rem',

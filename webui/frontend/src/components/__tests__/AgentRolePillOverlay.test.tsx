@@ -132,13 +132,40 @@ describe('AgentSidebar Role Badges Overlay Avatar (REQ-175)', () => {
     expect(teamBadge).toHaveAttribute('data-kind', 'team')
     expect(teamBadge).toHaveTextContent('Team')
 
-    // Badge is inside avatar container
+    // Badge is inside avatar container and aligned to bottom
     const avatarContainer = teamBadge?.parentElement
     expect(avatarContainer).toHaveClass('relative')
+    expect(teamBadge).toHaveStyle({ bottom: '0' })
 
     // Second row contains team snippet without badge
     const textColumn = teamRow.querySelector('.min-w-0.flex-1')
     expect(textColumn?.querySelector('.os-agent-role-badge')).toBeNull()
     expect(textColumn?.querySelector('.block.truncate')).not.toBeNull()
+  })
+
+  it('aligns role badge to bottom of sidepane avatar card and renders pinned role badge in dead centre', async () => {
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([{ id: 'support', name: 'Support' }]),
+    )
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/chat']}>
+          <AgentSidebar open />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    // Pinned section tile badge is present with .os-fav-tile__badge
+    const grid = screen.getByTestId('agent-fav-grid')
+    const pinnedSupport = await within(grid).findByRole('link', { name: /Support/i })
+    const pinnedBadge = pinnedSupport.querySelector('.os-fav-tile__badge')
+    expect(pinnedBadge).not.toBeNull()
+    expect(pinnedBadge).toHaveClass('os-agent-role-badge')
+    expect(pinnedBadge).toHaveAttribute('data-role', 'support')
   })
 })
