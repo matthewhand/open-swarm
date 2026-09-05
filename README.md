@@ -4,7 +4,7 @@
 <img src="assets/images/openswarm-project-image.jpg" alt="Project Logo" width="70%"/>
 </div>
 
-The bee mark used for the tab favicon and app icons lives under [`assets/brand/`](assets/brand/).
+Brand marks live under [`assets/brand/`](assets/brand/): **minimal** for the tab favicon and PWA icons, **geometric** for in-app WebUI chrome, and **cyber-swarm** for marketing / website fanfare ([#768](https://github.com/matthewhand/open-swarm/issues/768)).
 
 **Open Swarm** is a Python framework for building, running, and deploying multi-agent AI workflows. Agent teams are defined as **Blueprints** — self-contained, discoverable Python modules — and can be used two ways:
 

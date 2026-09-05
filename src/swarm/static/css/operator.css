@@ -49,6 +49,12 @@ body.os-login .brand {
     text-align: center;
     margin-bottom: 1.5rem;
 }
+body.os-login .brand-mark {
+    display: block;
+    width: 4rem;
+    height: 4rem;
+    margin: 0 auto 0.75rem;
+}
 body.os-login .brand-name {
     margin: 0;
     font-size: 1.5rem;

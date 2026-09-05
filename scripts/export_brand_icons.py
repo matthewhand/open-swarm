@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Rasterise assets/brand SVG masters into checked-in PNG/ICO (+ SPA public copies).
 
+Surfaces (#768 / #537 tasters):
+  favicon-minimal.svg     → tab / PWA / small chrome rasters
+  webui-geometric.svg     → in-app navbar / splash / settings copies
+  marketing-cyber-swarm   → marketing PNG companion (from SVG + taster JPG)
+
 Optional one-off tools (not runtime deps): Pillow + cairosvg.
 
     uv run --with pillow --with cairosvg python scripts/export_brand_icons.py
@@ -18,23 +23,20 @@ REPO = Path(__file__).resolve().parents[1]
 BRAND = REPO / "assets" / "brand"
 PUBLIC = REPO / "webui" / "frontend" / "public"
 HERO_FAVICON = REPO / "assets" / "images" / "favicon.ico"
+TASTER_CYBER = BRAND / "tasters" / "option2-cyber-swarm-bee.jpg"
 
-COLOUR_SVG = BRAND / "bee-mark.svg"
-MONO_SVG = BRAND / "bee-mark-mono.svg"
-MONO_DARK_SVG = BRAND / "bee-mark-mono-on-dark.svg"
+MINIMAL_SVG = BRAND / "favicon-minimal.svg"
+MINIMAL_MONO_SVG = BRAND / "favicon-minimal-mono.svg"
+MINIMAL_DARK_SVG = BRAND / "favicon-minimal-mono-on-dark.svg"
+GEOMETRIC_SVG = BRAND / "webui-geometric.svg"
+CYBER_SVG = BRAND / "marketing-cyber-swarm.svg"
 
-# Cream field for opaque Apple / PWA colour icons (iOS paints transparent as black).
-PWA_BG = (255, 248, 236, 255)  # #FFF8EC
-DARK_BG = (17, 17, 17, 255)  # DaisyUI rail #111111
-
-# Colour transparent favicons (tab).
 FAVICON_SIZES = (16, 32, 48)
-# Colour opaque app icons.
 APP_COLOUR = (120, 152, 180, 192, 512)
-# Mono transparent (masks / light UI).
 MONO_SIZES = (16, 32, 192, 512)
-# White-on-#111111 (dark chrome).
 MONO_DARK_SIZES = (16, 32, 192, 512)
+GEOMETRIC_SIZES = (32, 64, 128, 256)
+CYBER_SIZES = (256, 512, 1024)
 
 SPA_COPIES = (
     "favicon.ico",
@@ -44,6 +46,8 @@ SPA_COPIES = (
     "icon-192.png",
     "icon-512.png",
     "manifest.json",
+    "webui-geometric.svg",
+    "favicon-minimal.svg",
 )
 
 
@@ -66,18 +70,6 @@ def svg_png(svg: Path, size: int) -> "Image.Image":
 
     raw = cairosvg.svg2png(url=str(svg), output_width=size, output_height=size)
     return Image.open(io.BytesIO(raw)).convert("RGBA")
-
-
-def on_field(bee: "Image.Image", rgba: tuple[int, int, int, int], pad_ratio: float = 0.10) -> "Image.Image":
-    from PIL import Image
-
-    size = bee.size[0]
-    field = Image.new("RGBA", (size, size), rgba)
-    inset = max(1, int(size * pad_ratio))
-    inner = size - inset * 2
-    scaled = bee.resize((inner, inner), Image.Resampling.LANCZOS)
-    field.paste(scaled, (inset, inset), scaled)
-    return field
 
 
 def save_png(image: "Image.Image", path: Path) -> None:
@@ -120,33 +112,58 @@ def write_ico(pngs: list["Image.Image"], path: Path) -> None:
     path.write_bytes(header + entries + payload)
 
 
+def _export_taster_png() -> None:
+    """Keep a lossless marketing PNG next to the SVG (fanfare photoreal)."""
+    from PIL import Image
+
+    if not TASTER_CYBER.is_file():
+        return
+    src = Image.open(TASTER_CYBER).convert("RGBA")
+    src.save(BRAND / "marketing-cyber-swarm.png", format="PNG", optimize=True)
+
+
 def main() -> int:
     _require_tools()
-    if not COLOUR_SVG.is_file():
-        print(f"missing {COLOUR_SVG}", file=sys.stderr)
+    if not MINIMAL_SVG.is_file():
+        print(f"missing {MINIMAL_SVG}", file=sys.stderr)
+        return 1
+    if not GEOMETRIC_SVG.is_file():
+        print(f"missing {GEOMETRIC_SVG}", file=sys.stderr)
         return 1
 
-    colour = {s: svg_png(COLOUR_SVG, s) for s in sorted(set(FAVICON_SIZES + APP_COLOUR))}
-    mono = {s: svg_png(MONO_SVG, s) for s in MONO_SIZES}
-    mono_dark_bee = {s: svg_png(MONO_DARK_SVG, s) for s in MONO_DARK_SIZES}
+    colour = {s: svg_png(MINIMAL_SVG, s) for s in sorted(set(FAVICON_SIZES + APP_COLOUR))}
+    mono = {s: svg_png(MINIMAL_MONO_SVG, s) for s in MONO_SIZES}
+    mono_dark = {s: svg_png(MINIMAL_DARK_SVG, s) for s in MONO_DARK_SIZES}
+    geometric = {s: svg_png(GEOMETRIC_SVG, s) for s in GEOMETRIC_SIZES}
+    cyber = {s: svg_png(CYBER_SVG, s) for s in CYBER_SIZES if CYBER_SVG.is_file()}
 
     save_png(colour[16], BRAND / "favicon-16.png")
     save_png(colour[32], BRAND / "favicon-32.png")
     save_png(colour[48], BRAND / "favicon-48.png")
     write_ico([colour[16], colour[32], colour[48]], BRAND / "favicon.ico")
 
-    save_png(on_field(colour[120], PWA_BG), BRAND / "apple-touch-icon-120.png")
-    save_png(on_field(colour[152], PWA_BG), BRAND / "apple-touch-icon-152.png")
-    apple_180 = on_field(colour[180], PWA_BG)
-    save_png(apple_180, BRAND / "apple-touch-icon.png")
-    save_png(on_field(colour[192], PWA_BG), BRAND / "icon-192.png")
-    save_png(on_field(colour[512], PWA_BG), BRAND / "icon-512.png")
+    # Masters already include the rounded-square field; do not re-pad.
+    save_png(colour[120], BRAND / "apple-touch-icon-120.png")
+    save_png(colour[152], BRAND / "apple-touch-icon-152.png")
+    save_png(colour[180], BRAND / "apple-touch-icon.png")
+    save_png(colour[192], BRAND / "icon-192.png")
+    save_png(colour[512], BRAND / "icon-512.png")
 
     for size in MONO_SIZES:
-        save_png(mono[size], BRAND / f"bee-mark-mono-{size}.png")
+        save_png(mono[size], BRAND / f"favicon-minimal-mono-{size}.png")
 
     for size in MONO_DARK_SIZES:
-        save_png(on_field(mono_dark_bee[size], DARK_BG, pad_ratio=0.12), BRAND / f"bee-mark-mono-on-dark-{size}.png")
+        save_png(mono_dark[size], BRAND / f"favicon-minimal-mono-on-dark-{size}.png")
+
+    for size in GEOMETRIC_SIZES:
+        save_png(geometric[size], BRAND / f"webui-geometric-{size}.png")
+
+    for size, im in cyber.items():
+        save_png(im, BRAND / f"marketing-cyber-swarm-{size}.png")
+    if 512 in cyber:
+        save_png(cyber[512], BRAND / "marketing-cyber-swarm.png")
+    else:
+        _export_taster_png()
 
     # Retired path: keep a copy so anything still pointing at the hero tree works.
     shutil.copy2(BRAND / "favicon.ico", HERO_FAVICON)
