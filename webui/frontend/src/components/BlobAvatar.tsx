@@ -88,10 +88,7 @@ export default function BlobAvatar({
       data-blob-shape={spec.shape}
       data-eye-state={eyeState}
       data-agent-id={agentId}
-      style={{
-        ...(size === 'xs' ? { width: '100%', height: '100%' } : {}),
-        ...style,
-      }}
+      style={style}
     >
       <BlobShapePath shape={spec.shape} color={spec.color} />
       <g

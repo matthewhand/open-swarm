@@ -92,9 +92,9 @@ import {
 import {
   CONTEXT_METER_TOKENS,
   estimateTokensInContext,
-  formatElapsed,
   formatTokenCount,
 } from '../lib/chatMeter'
+import { workingLabel } from '../lib/chatBubble'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
@@ -207,7 +207,6 @@ const ChatPage = () => {
   const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
   const [authRejected, setAuthRejected] = useState(false)
-  const [nowMs, setNowMs] = useState(() => Date.now())
   const [plusOpen, setPlusOpen] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [agentKind, setAgentKind] = useState<AgentKind>(() =>
@@ -268,7 +267,6 @@ const ChatPage = () => {
   const backoffAttemptRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
-  const streamStartedAtRef = useRef<number | null>(null)
   const lastUserTextRef = useRef('')
   /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
   const lastHydratedAgentRef = useRef<string | null>(null)
@@ -1192,17 +1190,6 @@ const ChatPage = () => {
       }
     }
   }, [streamingMessage, activeChatAgentId])
-  useEffect(() => {
-    if (!streamingMessage) {
-      streamStartedAtRef.current = null
-      return
-    }
-    if (streamStartedAtRef.current == null) {
-      streamStartedAtRef.current = Date.now()
-    }
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [streamingMessage])
 
   const handleCompact = useCallback(async () => {
     setPlusOpen(false)
@@ -1339,12 +1326,8 @@ const ChatPage = () => {
     () => messages.filter((m) => m.role === 'assistant').length,
     [messages],
   )
-  const streamElapsed =
-    streamingMessage && streamStartedAtRef.current != null
-      ? formatElapsed(nowMs - streamStartedAtRef.current)
-      : null
-
   const composerPlaceholder = replyTarget ? 'Reply…' : 'Message …'
+  const workingTip = workingLabel(selectedAgentName)
 
   const statusLabel = useMemo(() => {
     if (status === 'open') return ''
@@ -1809,6 +1792,27 @@ const ChatPage = () => {
           className="os-chat-bottom-dock sticky bottom-0 z-20 mt-auto -mx-2 sm:-mx-3 -mb-3 bg-base-100/95 backdrop-blur-xs border-t border-base-content/5"
           data-testid="chat-bottom-dock"
         >
+          {streamingMessage ? (
+            <div
+              className="os-composer-working"
+              data-testid="composer-working-indicator"
+              role="status"
+              aria-live="polite"
+              aria-label={workingTip}
+            >
+              <span className="tooltip tooltip-top os-composer-working__tip" data-tip={workingTip}>
+                <span className="os-composer-working__avatar">
+                  <AgentAvatar
+                    src={selectedAgent?.avatar_path}
+                    agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
+                    active={true}
+                    size="xs"
+                    className="shrink-0"
+                  />
+                </span>
+              </span>
+            </div>
+          ) : null}
           <form onSubmit={handleSend} className="os-composer-wrap">
             <div className="relative" ref={composerWrapRef}>
               <ComposerSlashPopup
@@ -1930,23 +1934,6 @@ const ChatPage = () => {
               Send
             </button>
           </form>
-
-          <footer className="os-chat-footer" aria-live="polite">
-            {streamingMessage ? (
-              <span className="flex items-center gap-1.5 min-w-0 truncate" data-testid="composer-working-indicator">
-                <AgentAvatar
-                  src={selectedAgent?.avatar_path}
-                  agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
-                  active={true}
-                  size="xs"
-                  className="shrink-0"
-                />
-                <span className="truncate">
-                  {selectedAgentName} · {streamElapsed ?? '0s'}
-                </span>
-              </span>
-            ) : null}
-          </footer>
         </div>
       </div>
 

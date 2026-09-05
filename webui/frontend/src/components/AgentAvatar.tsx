@@ -68,20 +68,17 @@ export default function AgentAvatar({
       <div
         className={`avatar ${className}`.trim()}
         data-agent-avatar="custom"
+        data-avatar-size={size}
         aria-hidden={alt ? undefined : true}
         style={style}
       >
-        <div
-          className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}
-          style={size === 'xs' ? { width: '100%', height: '100%' } : undefined}
-        >
+        <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
           <img
             src={customSrc}
             alt={alt}
             draggable={false}
             data-agent-avatar="custom"
             onError={() => setBroken(true)}
-            style={size === 'xs' ? { width: '100%', height: '100%', objectFit: 'cover' } : undefined}
           />
         </div>
       </div>
@@ -95,6 +92,7 @@ export default function AgentAvatar({
         className={`avatar ${className}`.trim()}
         data-agent-avatar="default"
         data-avatar-theme="blobs"
+        data-avatar-size={size}
         data-eye-state={active ? 'active' : 'idle'}
         aria-hidden={alt ? undefined : true}
         style={style}
@@ -104,7 +102,6 @@ export default function AgentAvatar({
           active={active}
           size={size}
           className=""
-          style={size === 'xs' ? { width: '100%', height: '100%' } : undefined}
         />
       </div>
     )
@@ -115,19 +112,16 @@ export default function AgentAvatar({
     <div
       className={`avatar ${className}`.trim()}
       data-agent-avatar="default"
+      data-avatar-size={size}
       aria-hidden={alt ? undefined : true}
       style={style}
     >
-      <div
-        className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}
-        style={size === 'xs' ? { width: '100%', height: '100%' } : undefined}
-      >
+      <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
         <img
           src={DEFAULT_AGENT_AVATAR_SRC}
           alt={alt}
           draggable={false}
           data-agent-avatar="default"
-          style={size === 'xs' ? { width: '100%', height: '100%', objectFit: 'cover' } : undefined}
         />
       </div>
     </div>
