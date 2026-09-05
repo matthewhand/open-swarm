@@ -114,9 +114,9 @@ CATALOG: dict[str, dict[str, Any]] = {
     "grok": {
         # xAI's grok CLI (also installed as `agent`). -p/--single is the
         # non-interactive print mode; --always-approve auto-approves tool use.
-        # Flags before -p so later argv cannot be swallowed as the prompt.
-        # Inherits the full env (auth is file-based, not a single known var).
-        "cmd": ["grok", "--output-format", "json", "--always-approve", "-p", "{prompt}"],
+        # Attach the prompt (-p={prompt}) so user text cannot become a sibling
+        # flag. Inherits the full env (auth is file-based, not a single known var).
+        "cmd": ["grok", "--output-format", "json", "--always-approve", "-p={prompt}"],
         "parse": "json:.text",
         "mode": "write",
         "timeout": 240,
@@ -137,7 +137,7 @@ CATALOG: dict[str, dict[str, Any]] = {
         "timeout": 240,
     },
     "claude": {
-        "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
+        "cmd": ["claude", "-p={prompt}", "--output-format", "json",
                 "--dangerously-skip-permissions"],
         "parse": "json:.result",
         "mode": "write",
@@ -146,14 +146,15 @@ CATALOG: dict[str, dict[str, Any]] = {
     },
     "gemini": {
         # --skip-trust: gemini refuses to run in an untrusted dir without it.
-        "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
+        "cmd": ["gemini", "-p={prompt}", "-o", "json", "--yolo", "--skip-trust"],
         "parse": "json:.response",
         "mode": "write",
         "timeout": 240,
         "env_allowlist": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     },
     "codex": {
-        "cmd": ["codex", "exec", "{prompt}", "--dangerously-bypass-approvals-and-sandbox"],
+        # Flags before `--` so a positional prompt cannot swallow them.
+        "cmd": ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--", "{prompt}"],
         "parse": "text",
         "mode": "write",
         "timeout": 240,
@@ -163,16 +164,18 @@ CATALOG: dict[str, dict[str, Any]] = {
         # --model: opencode's built-in default errors as "not supported"; an
         # explicit model is required. This value is account/version-specific —
         # run `opencode models` to pick one available to you.
-        "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
+        # --model before `--` so a positional prompt cannot turn it into text.
+        "cmd": ["opencode", "run", "--model", "opencode/big-pickle", "--", "{prompt}"],
         "parse": "text",
         "mode": "write",
         "timeout": 240,
     },
     "pi": {
         # pi -p/--print is non-interactive; prompt is a positional message
-        # (not attached to -p). --mode text; --no-session keeps verify runs
-        # ephemeral. --approve trusts project-local files for that run.
-        "cmd": ["pi", "-p", "--mode", "text", "--no-session", "--approve", "{prompt}"],
+        # (not attached to -p). `--` keeps user text from becoming flags.
+        # --mode text; --no-session keeps verify runs ephemeral.
+        # --approve trusts project-local files for that run.
+        "cmd": ["pi", "-p", "--mode", "text", "--no-session", "--approve", "--", "{prompt}"],
         "parse": "text",
         "mode": "write",
         "timeout": 240,
@@ -660,12 +663,16 @@ def apply_model(entry: dict[str, Any], name: str, model: str) -> dict[str, Any]:
         return entry  # no command to pin a model on; don't fabricate a flag-only cmd
     if flag in cmd:
         i = cmd.index(flag)
-        if i + 1 < len(cmd):
+        nxt = cmd[i + 1] if i + 1 < len(cmd) else None
+        if nxt is not None and nxt != "--":
             cmd[i + 1] = model
+        elif nxt == "--":
+            cmd.insert(i + 1, model)
         else:
             cmd.append(model)
     else:
-        cmd += [flag, model]
+        insert_at = cmd.index("--") if "--" in cmd else len(cmd)
+        cmd[insert_at:insert_at] = [flag, model]
     entry["cmd"] = cmd
     return entry
 

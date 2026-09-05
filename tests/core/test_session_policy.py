@@ -81,4 +81,5 @@ def test_cli_and_api_do_not_resume_when_on(tmp_path, monkeypatch):
     settings_store.update_settings("reuse", {"new_chat_per_task": False})
     settings_store.set_cli_session_id("reuse", "sess-keep")
     assert policy.resume_cli_session_id("reuse") == "sess-keep"
+    assert policy.resume_cli_session_id("reuse", stored="--help") is None
     assert policy.continue_api_previous_response("reuse", "resp_prior") == "resp_prior"

@@ -21,6 +21,7 @@ from swarm.core.agent_settings import (
     stored_remote_session_id,
 )
 from swarm.core.chat_store import conversation_id_for, normalize_agent_id, user_key_for
+from swarm.core.cli_sessions import sanitize_cli_session_id
 
 # In-process registry of concurrent task sessions (also mirrored on disk).
 _ACTIVE: dict[tuple[str, str], list[str]] = {}
@@ -55,11 +56,10 @@ def resume_cli_session_id(agent_id: str | None, stored: str | None = None) -> st
     if not should_resume_external_session(agent_id):
         return None
     if stored:
-        text = str(stored).strip()
-        return text or None
+        return sanitize_cli_session_id(stored)
     if not (agent_id or "").strip():
         return None
-    return stored_cli_session_id(agent_id)
+    return sanitize_cli_session_id(stored_cli_session_id(agent_id))
 
 
 def resume_remote_session_id(agent_id: str | None, stored: str | None = None) -> str | None:
