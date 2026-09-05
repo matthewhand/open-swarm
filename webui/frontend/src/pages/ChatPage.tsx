@@ -1522,7 +1522,7 @@ const ChatPage = () => {
 
       <div
         ref={scrollBoxRef}
-        className="os-chat-transcript min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3 sm:px-3 select-none outline-none focus:outline-none"
+        className="os-chat-transcript min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3 sm:px-3 select-none outline-none focus:outline-none flex flex-col justify-between relative"
         aria-live="polite"
         role="log"
         aria-label="Conversation"
@@ -1540,8 +1540,9 @@ const ChatPage = () => {
           pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
         }}
       >
+        <div className="space-y-1 flex-1 pb-4" data-testid="chat-messages-container">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-base-content/45">
+          <div className="flex h-full min-h-64 flex-col items-center justify-center gap-2 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
           </div>
         ) : (
@@ -1643,137 +1644,143 @@ const ChatPage = () => {
           </>
         )}
         <div ref={listEndRef} />
-      </div>
+        </div>
 
-      <form onSubmit={handleSend} className="os-composer-wrap">
-        <div className="relative" ref={composerWrapRef}>
-          <ComposerSlashPopup
-            open={isSlashOpen}
-            query={slashQuery}
-            items={filteredSlashItems}
-            selectedIndex={slashSelectedIndex}
-            onSelectIndex={setSlashSelectedIndex}
-            onSelectItem={handleSelectSlashItem}
-            recentIds={recentSlashIds}
-          />
-          <div className="os-composer">
-            <div className="relative" ref={plusRef}>
-              <button
-                type="button"
-                className="os-composer__icon"
-                aria-label="Add"
-                aria-haspopup="menu"
-                aria-expanded={plusOpen}
-                onClick={() => setPlusOpen((value) => !value)}
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </button>
-              {plusOpen && (
-                <ul
-                  role="menu"
-                  aria-label="Chat actions"
-                  className="os-plus-menu"
-                >
-                  <li role="none">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="os-plus-menu__item"
-                      onClick={() => {
-                        void handleCompact()
-                      }}
+        <div
+          className="os-chat-bottom-dock sticky bottom-0 z-20 mt-auto -mx-2 sm:-mx-3 -mb-3 bg-base-100/95 backdrop-blur-xs border-t border-base-content/5"
+          data-testid="chat-bottom-dock"
+        >
+          <form onSubmit={handleSend} className="os-composer-wrap">
+            <div className="relative" ref={composerWrapRef}>
+              <ComposerSlashPopup
+                open={isSlashOpen}
+                query={slashQuery}
+                items={filteredSlashItems}
+                selectedIndex={slashSelectedIndex}
+                onSelectIndex={setSlashSelectedIndex}
+                onSelectItem={handleSelectSlashItem}
+                recentIds={recentSlashIds}
+              />
+              <div className="os-composer">
+                <div className="relative" ref={plusRef}>
+                  <button
+                    type="button"
+                    className="os-composer__icon"
+                    aria-label="Add"
+                    aria-haspopup="menu"
+                    aria-expanded={plusOpen}
+                    onClick={() => setPlusOpen((value) => !value)}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  {plusOpen && (
+                    <ul
+                      role="menu"
+                      aria-label="Chat actions"
+                      className="os-plus-menu"
                     >
-                      <Layers className="h-4 w-4" aria-hidden="true" />
-                      Compact
-                    </button>
-                  </li>
-                </ul>
-              )}
+                      <li role="none">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="os-plus-menu__item"
+                          onClick={() => {
+                            void handleCompact()
+                          }}
+                        >
+                          <Layers className="h-4 w-4" aria-hidden="true" />
+                          Compact
+                        </button>
+                      </li>
+                    </ul>
+                  )}
+                </div>
+                <textarea
+                  ref={composerRef}
+                  rows={1}
+                  className="os-composer__input"
+                  placeholder={composerPlaceholder}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleComposerKeyDown}
+                  disabled={status !== 'open'}
+                  aria-label="Chat message"
+                  aria-haspopup="listbox"
+                  aria-expanded={isSlashOpen}
+                  aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
+                />
+                {!input ? (
+                  <kbd
+                    className="os-composer__hint kbd kbd-xs"
+                    data-testid="composer-send-hint"
+                    title="Enter to send"
+                  >
+                    ↵
+                  </kbd>
+                ) : (
+                  <kbd
+                    className="os-composer__hint kbd kbd-xs"
+                    data-testid="composer-clear-hint"
+                    title="Esc to clear"
+                  >
+                    Esc
+                  </kbd>
+                )}
+                <button
+                  type="button"
+                  className="os-composer__icon"
+                  aria-label="Voice input"
+                  onClick={handleMic}
+                >
+                  <Mic className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             </div>
-            <textarea
-              ref={composerRef}
-              rows={1}
-              className="os-composer__input"
-              placeholder={composerPlaceholder}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleComposerKeyDown}
-              disabled={status !== 'open'}
-              aria-label="Chat message"
-              aria-haspopup="listbox"
-              aria-expanded={isSlashOpen}
-              aria-controls={isSlashOpen ? 'composer-slash-menu' : undefined}
-            />
-            {!input ? (
-              <kbd
-                className="os-composer__hint kbd kbd-xs"
-                data-testid="composer-send-hint"
-                title="Enter to send"
-              >
-                ↵
-              </kbd>
-            ) : (
-              <kbd
-                className="os-composer__hint kbd kbd-xs"
-                data-testid="composer-clear-hint"
-                title="Esc to clear"
-              >
-                Esc
-              </kbd>
-            )}
+            <button type="submit" className="sr-only" disabled={!canSend}>
+              Send
+            </button>
+          </form>
+
+          <footer className="os-chat-footer" aria-live="polite">
             <button
               type="button"
-              className="os-composer__icon"
-              aria-label="Voice input"
-              onClick={handleMic}
+              className="btn btn-ghost btn-xs h-auto p-0.5 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case"
+              aria-label="Session token usage"
+              data-testid="token-meter-button"
+              onClick={() => setTokenDiagOpen(true)}
             >
-              <Mic className="h-4 w-4" aria-hidden="true" />
+              <div
+                className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
+                role="meter"
+                aria-label="Tokens in context"
+                aria-valuemin={0}
+                aria-valuemax={CONTEXT_METER_TOKENS}
+                aria-valuenow={tokenCount}
+              >
+                <div
+                  className="h-full rounded-full bg-base-content/45"
+                  style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+                />
+              </div>
+              <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
             </button>
-          </div>
+            {streamingMessage ? (
+              <span className="flex items-center gap-1.5 min-w-0 truncate" data-testid="composer-working-indicator">
+                <AgentAvatar
+                  src={selectedAgent?.avatar_path}
+                  agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
+                  active={true}
+                  size="xs"
+                  className="shrink-0"
+                />
+                <span className="truncate">
+                  {selectedAgentName} · {streamElapsed ?? '0s'}
+                </span>
+              </span>
+            ) : null}
+          </footer>
         </div>
-        <button type="submit" className="sr-only" disabled={!canSend}>
-          Send
-        </button>
-      </form>
-
-      <footer className="os-chat-footer" aria-live="polite">
-        <button
-          type="button"
-          className="btn btn-ghost btn-xs h-auto p-0.5 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case"
-          aria-label="Session token usage"
-          data-testid="token-meter-button"
-          onClick={() => setTokenDiagOpen(true)}
-        >
-          <div
-            className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
-            role="meter"
-            aria-label="Tokens in context"
-            aria-valuemin={0}
-            aria-valuemax={CONTEXT_METER_TOKENS}
-            aria-valuenow={tokenCount}
-          >
-            <div
-              className="h-full rounded-full bg-base-content/45"
-              style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
-            />
-          </div>
-          <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
-        </button>
-        {streamingMessage ? (
-          <span className="flex items-center gap-1.5 min-w-0 truncate" data-testid="composer-working-indicator">
-            <AgentAvatar
-              src={selectedAgent?.avatar_path}
-              agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
-              active={true}
-              size="xs"
-              className="shrink-0"
-            />
-            <span className="truncate">
-              {selectedAgentName} · {streamElapsed ?? '0s'}
-            </span>
-          </span>
-        ) : null}
-      </footer>
+      </div>
 
       <TokenDiagnosticsModal
         isOpen={tokenDiagOpen}
