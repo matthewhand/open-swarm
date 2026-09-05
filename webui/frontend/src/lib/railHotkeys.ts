@@ -3,6 +3,7 @@
  */
 
 import type { Team, RemoteConnection } from './api'
+import { chatHrefForRowId } from './agentNotifications'
 
 export function isHerdrAgent(agent?: { id?: string; kind?: string } | null): boolean {
   if (!agent) return false
@@ -43,7 +44,7 @@ export function computeRailHotkeyTargets({
       kind: 'pin',
       name: pin.name || pin.id,
       isHerdr: herdr,
-      href: herdr ? '/teams/#herdr-members' : `/chat?blueprint=${encodeURIComponent(pin.id)}`,
+      href: herdr ? '/teams/#herdr-members' : chatHrefForRowId(pin.id),
     })
   }
 

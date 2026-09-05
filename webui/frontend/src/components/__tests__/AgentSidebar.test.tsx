@@ -1596,6 +1596,155 @@ describe('AgentSidebar favourites grid (REQ-94)', () => {
   })
 })
 
+describe('AgentSidebar favourite kind hrefs (REQ-171B #608)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    rememberEmptyFavourites()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/preferences')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: true,
+              favourites: [],
+              hidden_agents: [],
+            }),
+          } as Response
+        }
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'demo',
+                  object: 'team_roster',
+                  name: 'Demo',
+                  description: 'Example roster',
+                  members: [{ id: 'codey', name: 'Codey', kind: 'agent', role: 'coder' }],
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/remotes') || url.includes('remotes_catalog')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'omb',
+                  title: 'OpenMousBot',
+                  configured: true,
+                  agents: [],
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/herdr-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 1,
+                  object: 'herdr.agent',
+                  kind: 'herdr',
+                  name: 'w3:p1',
+                  remote: '',
+                  created_at: '2026-09-03T00:00:00Z',
+                  updated_at: '2026-09-03T00:00:00Z',
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              clis: [],
+              native_consensus: {},
+              catalog: {},
+              rail: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.clear()
+  })
+
+  it('pins blueprint / team / remote / herdr and uses kind-aware hrefs', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    const team = await within(list).findByRole('link', { name: /Demo \(team\)/ })
+    const remote = await within(list).findByRole('link', { name: /OpenMousBot \(remote\)/ })
+    const herdr = await within(list).findByRole('link', { name: /w3:p1/ })
+    const grid = screen.getByTestId('agent-fav-grid')
+
+    fireEvent.contextMenu(codey)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+    fireEvent.contextMenu(team)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+    fireEvent.contextMenu(remote)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+    fireEvent.contextMenu(herdr)
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Pin$/i }))
+
+    const codeyTile = await within(grid).findByRole('link', { name: 'Codey' })
+    const teamTile = within(grid).getByRole('link', { name: 'Demo' })
+    const remoteTile = within(grid).getByRole('link', { name: 'OpenMousBot' })
+    const herdrTile = within(grid).getByRole('link', { name: 'w3:p1' })
+
+    expect(codeyTile).toHaveAttribute('href', '/chat?blueprint=codey')
+    expect(teamTile).toHaveAttribute('href', '/chat?team=demo')
+    expect(teamTile.getAttribute('href')).not.toMatch(/blueprint=/)
+    expect(remoteTile).toHaveAttribute('href', '/chat?remote=omb')
+    expect(remoteTile.getAttribute('href')).not.toMatch(/blueprint=/)
+    expect(herdrTile).toHaveAttribute('href', '/teams/#herdr-members')
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '2', altKey: true, bubbles: true, cancelable: true }),
+      )
+    })
+    expect(screen.getByTestId('os-test-search')).toHaveTextContent('team=demo')
+    expect(screen.getByTestId('os-test-search')).not.toHaveTextContent('blueprint=')
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '3', altKey: true, bubbles: true, cancelable: true }),
+      )
+    })
+    expect(screen.getByTestId('os-test-search')).toHaveTextContent('remote=omb')
+    expect(screen.getByTestId('os-test-search')).not.toHaveTextContent('blueprint=')
+  })
+})
+
 describe('AgentSidebar Django prefs (REQ-144)', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
