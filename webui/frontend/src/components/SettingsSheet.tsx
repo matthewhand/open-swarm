@@ -38,9 +38,12 @@ import {
 import { TASK_CLASS_LABELS, missingProfileWarning, uiStatusWarnings } from '../lib/llmProfiles'
 import {
   agentRole,
+  assignableBlueprints,
   exampleRoleAgents,
   fallbackBlueprintSource,
   isExampleRole,
+  roleBadgeLabel,
+  roleCssClass,
   runtimeModulesFor,
 } from '../lib/agentRoles'
 import { roleDisplayName } from '../lib/safety'
@@ -416,7 +419,9 @@ export function BlueprintsListPane({
     queryFn: fetchBlueprints,
     retry: 1,
   })
-  const catalog = exampleRoleAgents(blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS)
+  const catalog = assignableBlueprints(
+    exampleRoleAgents(blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS),
+  )
   const ids = new Set(catalog.map((item) => item.id))
   const extras =
     selectedId && !ids.has(selectedId)
@@ -443,6 +448,8 @@ export function BlueprintsListPane({
         <ul role="listbox" aria-label="Blueprints" className="menu menu-md rounded-box border border-base-300 bg-base-200 p-2 os-scrollable-picker-list">
           {items.map((item) => {
             const selected = item.id === selectedId
+            const role = agentRole(item)
+            const badge = roleBadgeLabel(role)
             return (
               <li key={item.id}>
                 <button
@@ -450,9 +457,19 @@ export function BlueprintsListPane({
                   role="option"
                   aria-selected={selected}
                   className={selected ? 'menu-active' : undefined}
+                  data-role={role !== 'default' ? role : undefined}
                   onClick={() => onSelect(item.id)}
                 >
-                  {catalogLabel(item)}
+                  <span>{catalogLabel(item)}</span>
+                  {badge ? (
+                    <span
+                      className={`os-agent-role-badge ${roleCssClass(role)}`}
+                      data-role={role}
+                      aria-hidden="true"
+                    >
+                      {badge}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             )

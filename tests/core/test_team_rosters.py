@@ -44,6 +44,11 @@ def test_role_cos_persists_on_member():
     assert set(member) >= {"id", "kind", "role", "source"}
 
 
+def test_role_engineer_persists_on_member():
+    member = normalize_member({"id": "pat", "kind": "api", "role": "engineer"})
+    assert member["role"] == "engineer"
+
+
 def test_persist_nested_and_herdr_members(tmp_path, monkeypatch):
     stored = upsert_roster(
         {

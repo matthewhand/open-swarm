@@ -20,8 +20,10 @@ export const ROLE_BRIEFS: Record<string, string> = {
     'Chief of Staff (CoS) talks to any team. It routes the operator to the right roster and coordinates across teams-of-teams instead of doing the specialist work itself.',
   suggestions:
     'Suggestions prepares a short list of quick-select prompts. A consumer with Use suggestions on shows those as chips after each turn, including before the first message. Clicking a chip sends that exact string. Chips are chrome, not extra LLM context.',
+  engineer:
+    'Engineer implements the quoted work. It writes only after a gate or CoS has unblocked it. It is a specialist seat (as_tool / handoff), not an extra Grok chrome row.',
   default:
-    'This is a worker blueprint: it runs its own system prompt, tools, and handoffs. It is not a gate, skeptic, Support, Chief of Staff, or suggestions seat.',
+    'This is a worker blueprint: it runs its own system prompt, tools, and handoffs. It is not a gate, skeptic, Support, Chief of Staff, engineer, or suggestions seat.',
 }
 
 export const TEAM_BRIEF =
@@ -131,6 +133,9 @@ export function defaultExtra(kind: DefinitionKind, role: string): string {
   if (role === 'suggestions') {
     return 'Runtime injects the latest consumer turn so the specialist can propose the next chips.'
   }
+  if (role === 'engineer') {
+    return 'Runtime injects the quoted issue and feasibility so the engineer may write.'
+  }
   if (kind === 'team') {
     return 'Runtime injects member as-tool / handoff handles for this roster.'
   }
@@ -152,6 +157,9 @@ export function handoffNote(kind: DefinitionKind, role: string): string {
   }
   if (role === 'suggestions') {
     return 'Suggestions is invoked as_tool after a consumer turn (and on an empty thread for kickstart).'
+  }
+  if (role === 'engineer') {
+    return 'Engineer is invoked as_tool / handoff by CoS after a quoted issue.'
   }
   if (kind === 'team') {
     return 'Team members may be addressed together or invoked as tools.'

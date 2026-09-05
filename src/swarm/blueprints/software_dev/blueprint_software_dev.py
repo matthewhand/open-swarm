@@ -68,6 +68,7 @@ class SoftwareDevBlueprint(BlueprintBase):
         "author": "Open Swarm Team",
         "tags": ["software-dev", "team", "cos", "engineer", "skeptic", "as-tool"],
         "aliases": ["software-dev", "software_dev_team"],
+        "workflow": "as_tool",
         "required_mcp_servers": [],
         "env_vars": [],
         "agents": [

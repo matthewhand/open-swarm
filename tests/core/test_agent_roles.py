@@ -4,6 +4,7 @@ from swarm.core.agent_roles import (
     CANONICAL_ROLES,
     ROLE_CHIEF_OF_STAFF,
     ROLE_DEFAULT,
+    ROLE_ENGINEER,
     ROLE_GATE,
     ROLE_SKEPTIC,
     ROLE_SUGGESTIONS,
@@ -30,6 +31,7 @@ def test_role_enum_includes_cos_and_existing_seats():
         ROLE_GATE,
         ROLE_SKEPTIC,
         ROLE_CHIEF_OF_STAFF,
+        ROLE_ENGINEER,
         ROLE_SUGGESTIONS,
     } <= set(CANONICAL_ROLES)
 
@@ -61,6 +63,15 @@ def test_blueprint_role_fields_surface_cos():
     )
     assert fields["role"] == ROLE_CHIEF_OF_STAFF
     assert fields["chief_of_staff_agent"] == "Pat"
+
+
+def test_engineer_role_and_blueprint_fields():
+    assert normalize_agent_role("engineer") == ROLE_ENGINEER
+    assert role_badge_label("engineer") == "Engineer"
+    assert role_css_class("engineer") == "os-agent-role-engineer"
+    fields = blueprint_role_fields({"role": "engineer", "workflow": "as_tool"})
+    assert fields["role"] == ROLE_ENGINEER
+    assert fields["workflow"] == "as_tool"
 
 
 def test_suggestions_role_and_blueprint_fields():

@@ -4,10 +4,15 @@ import type { Blueprint } from '../api'
 import {
   ROLE_CHIEF_OF_STAFF,
   agentRole,
+  applyBlueprintAssignment,
+  assignableBlueprints,
+  catalogPickerLabel,
   exampleRoleAgents,
   fallbackBlueprintSource,
   isChiefOfStaff,
+  isWebuiBlueprint,
   normalizeAgentRole,
+  normalizeWorkflow,
   roleBadgeLabel,
   roleCssClass,
   roleFromAgent,
@@ -40,6 +45,9 @@ describe('agentRoles', () => {
     expect(normalizeAgentRole('suggestions')).toBe('suggestions')
     expect(normalizeAgentRole('chief-of-staff')).toBe('chief_of_staff')
     expect(normalizeAgentRole('Writer')).toBe('default')
+    expect(normalizeAgentRole('none')).toBe('default')
+    expect(normalizeAgentRole('engineer')).toBe('engineer')
+    expect(normalizeAgentRole('eng')).toBe('engineer')
     expect(normalizeAgentRole(null)).toBe('default')
   })
 
@@ -90,6 +98,9 @@ describe('agentRoles (REQ-28)', () => {
     expect(roleBadgeLabel('chief')).toBe('CoS')
     expect(roleBadgeLabel('suggestions')).toBe('Suggest')
     expect(roleCssClass('suggestions')).toBe('os-agent-role-suggestions')
+    expect(roleBadgeLabel('engineer')).toBe('Engineer')
+    expect(roleCssClass('engineer')).toBe('os-agent-role-engineer')
+    expect(roleBadgeLabel('none')).toBe('')
   })
 
   it('detects CoS from id when role is omitted', () => {
@@ -98,5 +109,63 @@ describe('agentRoles (REQ-28)', () => {
 
   it('does not hover-edit CoS (badge only; hover-edit is REQ-25 example roles)', () => {
     expect(showsBlueprintEdit({ id: 'cos', name: 'Pat', role: 'chief_of_staff' })).toBe(false)
+  })
+})
+
+describe('REQ-75 blueprint role apply + picker filter', () => {
+  afterEach(() => {
+    localStorage.removeItem(AGENT_EDITS_KEY)
+  })
+
+  const fixtureGate: Blueprint = {
+    ...codey,
+    id: 'fixture_gate',
+    name: 'Fixture Gate',
+    role: 'gate',
+    workflow: 'as_tool',
+  }
+  const fixturePlain: Blueprint = {
+    ...codey,
+    id: 'fixture_plain',
+    name: 'Fixture Plain',
+  }
+  const djangoChat: Blueprint = {
+    ...codey,
+    id: 'django_chat',
+    name: 'Django Chat',
+    webui: true,
+  }
+
+  it('creates an agent from role=gate with a Gate badge, and no role when omitted', () => {
+    const gated = applyBlueprintAssignment('new-gate', fixtureGate)
+    expect(gated.role).toBe('gate')
+    expect(roleBadgeLabel(gated.role)).toBe('Gate')
+    expect(gated.workflow).toBe('as_tool')
+    const plain = applyBlueprintAssignment('new-plain', fixturePlain)
+    expect(plain.role).toBeUndefined()
+    expect(roleBadgeLabel(plain.role)).toBe('')
+  })
+
+  it('re-applies the blueprint role unless the editor overrode it', () => {
+    applyBlueprintAssignment('seat', fixtureGate)
+    saveAgentEdit('seat', { role: 'skeptic', roleOverridden: true })
+    const kept = applyBlueprintAssignment('seat', fixturePlain)
+    expect(kept.role).toBe('skeptic')
+    expect(kept.roleOverridden).toBe(true)
+    saveAgentEdit('seat', { roleOverridden: false })
+    const restored = applyBlueprintAssignment('seat', fixtureGate)
+    expect(restored.role).toBe('gate')
+  })
+
+  it('picker helpers hide webui / django_chat and show role on catalog labels', () => {
+    expect(isWebuiBlueprint(djangoChat)).toBe(true)
+    expect(isWebuiBlueprint({ id: 'legacy', kind: 'webui' })).toBe(true)
+    expect(isWebuiBlueprint(fixtureGate)).toBe(false)
+    const picked = assignableBlueprints([fixtureGate, fixturePlain, djangoChat, codey])
+    expect(picked.map((item) => item.id)).toEqual(['fixture_gate', 'fixture_plain', 'codey'])
+    expect(catalogPickerLabel(fixtureGate)).toBe('Fixture Gate · Gate')
+    expect(catalogPickerLabel(fixturePlain)).toBe('Fixture Plain')
+    expect(normalizeWorkflow('as-tool')).toBe('as_tool')
+    expect(normalizeWorkflow('handoff')).toBe('handoff')
   })
 })

@@ -10,7 +10,7 @@
  * blueprint is what the websocket / run uses.
  */
 
-import type { AgentRole } from './api'
+import type { AgentRole, BlueprintWorkflow } from './api'
 import {
   normalizeInferenceList,
   serializeInferenceList,
@@ -20,7 +20,15 @@ import {
 export const AGENT_EDITS_KEY = 'swarm_agent_edits'
 export const AGENT_EDITS_CHANGED_EVENT = 'swarm:agent-edits-changed'
 
-const AGENT_ROLES: readonly AgentRole[] = ['default', 'support', 'gate', 'skeptic', 'chief_of_staff', 'suggestions']
+const AGENT_ROLES: readonly AgentRole[] = [
+  'default',
+  'support',
+  'gate',
+  'skeptic',
+  'chief_of_staff',
+  'engineer',
+  'suggestions',
+]
 
 function isAgentRole(value: unknown): value is AgentRole {
   return typeof value === 'string' && (AGENT_ROLES as readonly string[]).includes(value)
@@ -29,7 +37,15 @@ function isAgentRole(value: unknown): value is AgentRole {
 export interface AgentEdit {
   name?: string
   role?: AgentRole
+  /**
+   * True after the operator changes Role in the agent editor.
+   * Re-picking a blueprint re-applies that blueprint's default role unless
+   * this flag is set (REQ-75).
+   */
+  roleOverridden?: boolean
   blueprintId?: string
+  /** Optional openai-agents workflow hint copied from the assigned blueprint. */
+  workflow?: BlueprintWorkflow
   llmOverride?: string
   folder?: string
   command?: string
@@ -95,6 +111,15 @@ export function saveAgentEdit(agentId: string, patch: AgentEdit): AgentEdit {
     const role = isAgentRole(patch.role) ? patch.role : 'default'
     if (role !== 'default') next.role = role
     else delete next.role
+  }
+  if (patch.roleOverridden !== undefined) {
+    if (patch.roleOverridden) next.roleOverridden = true
+    else delete next.roleOverridden
+  }
+  if (patch.workflow !== undefined) {
+    const workflow = patch.workflow
+    if (workflow === 'handoff' || workflow === 'as_tool') next.workflow = workflow
+    else delete next.workflow
   }
   if (patch.blueprintId !== undefined) {
     const blueprintId = patch.blueprintId.trim()

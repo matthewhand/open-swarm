@@ -46,10 +46,15 @@ ROLE_BRIEFS: dict[str, str] = {
         "before the first message. Clicking a chip sends that exact string. "
         "Chips are chrome, not extra LLM context."
     ),
+    "engineer": (
+        "Engineer implements the quoted work. It writes only after a gate or "
+        "CoS has unblocked it. It is a specialist seat (as_tool / handoff), "
+        "not an extra Grok chrome row."
+    ),
     "default": (
         "This is a worker blueprint: it runs its own system prompt, tools, and "
-        "handoffs. It is not a gate, skeptic, Support, Chief of Staff, or "
-        "suggestions seat."
+        "handoffs. It is not a gate, skeptic, Support, Chief of Staff, "
+        "engineer, or suggestions seat."
     ),
 }
 
@@ -82,6 +87,9 @@ ROLE_ALIASES = {
     "chief_of_staff": "cos",
     "chief-of-staff": "cos",
     "chiefofstaff": "cos",
+    "engineer": "engineer",
+    "eng": "engineer",
+    "none": "default",
     "suggestions": "suggestions",
     "suggestion": "suggestions",
     "suggest": "suggestions",
@@ -120,6 +128,13 @@ ROLE_FALLBACK_SOURCE = {
         "# Blueprint recipe — Suggestions (quick-select chips)\n"
         "SUGGESTIONS_INSTRUCTIONS = (\n"
         '    "Return JSON {\\"suggestions\\": [2-5 short strings]} the operator can click."\n'
+        ")\n"
+    ),
+    "engineer": (
+        "# Blueprint recipe — Engineer (implementer)\n"
+        "ENGINEER_INSTRUCTIONS = (\n"
+        '    "You are the engineer. Implement the quoted issue after the gate. "\n'
+        '    "Do not start without a quoted Intent/Success and feasibility."\n'
         ")\n"
     ),
 }

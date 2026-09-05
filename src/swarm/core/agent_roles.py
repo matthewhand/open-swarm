@@ -2,11 +2,12 @@
 
 Canonical roles:
 
-* ``default`` — ordinary worker
+* ``default`` / ``none`` — ordinary worker (no badge)
 * ``support`` — Support seat (REQ-7). Teal badge.
 * ``gate`` — tool-call classifier (alias ``tool_gate``). Amber badge.
 * ``skeptic`` — post-run reviewer. Violet badge.
 * ``chief_of_staff`` — talks to any team (aliases ``cos``, ``chief``). Ice-steel badge.
+* ``engineer`` — implementer seat (software-dev / Chatty). Slate badge.
 * ``suggestions`` — quick-select chips after a turn (REQ-85). Sage badge.
 
 Sidepane class names (reuse these; do not invent a parallel set):
@@ -14,6 +15,10 @@ Sidepane class names (reuse these; do not invent a parallel set):
 * ``os-agent-role-badge`` is the only role colour (chip + ``os-agent-role-<role>``)
 * ``data-role="<role>"`` may appear on the row for identification
 * Rows have no role fill, left-border accent, or outline (REQ-67)
+
+REQ-75: a blueprint may declare ``metadata.role`` (applied on create / re-pick)
+and an optional ``metadata.workflow`` hint (``handoff`` / ``as_tool``). The
+agent editor role wins once the operator explicitly overrides it.
 
 REQ-28: Chief of Staff keeps a distinct **badge** colour — not support / gate /
 skeptic. REQ-67 removed role row chrome. Hover-edit (REQ-25) can later target
@@ -29,11 +34,13 @@ ROLE_SUPPORT = "support"
 ROLE_GATE = "gate"
 ROLE_SKEPTIC = "skeptic"
 ROLE_CHIEF_OF_STAFF = "chief_of_staff"
+ROLE_ENGINEER = "engineer"
 ROLE_SUGGESTIONS = "suggestions"
 
 # User-facing / config aliases → canonical role.
 ROLE_ALIASES: dict[str, str] = {
     "default": ROLE_DEFAULT,
+    "none": ROLE_DEFAULT,
     "worker": ROLE_DEFAULT,
     "agent": ROLE_DEFAULT,
     "coordinator": ROLE_DEFAULT,
@@ -50,6 +57,8 @@ ROLE_ALIASES: dict[str, str] = {
     "chiefofstaff": ROLE_CHIEF_OF_STAFF,
     "cos": ROLE_CHIEF_OF_STAFF,
     "chief": ROLE_CHIEF_OF_STAFF,
+    "engineer": ROLE_ENGINEER,
+    "eng": ROLE_ENGINEER,
     "suggestions": ROLE_SUGGESTIONS,
     "suggestion": ROLE_SUGGESTIONS,
     "suggest": ROLE_SUGGESTIONS,
@@ -61,6 +70,7 @@ CANONICAL_ROLES: tuple[str, ...] = (
     ROLE_GATE,
     ROLE_SKEPTIC,
     ROLE_CHIEF_OF_STAFF,
+    ROLE_ENGINEER,
     ROLE_SUGGESTIONS,
 )
 
@@ -70,8 +80,25 @@ ROLE_BADGE_LABELS: dict[str, str] = {
     ROLE_GATE: "Gate",
     ROLE_SKEPTIC: "Skeptic",
     ROLE_CHIEF_OF_STAFF: "CoS",
+    ROLE_ENGINEER: "Engineer",
     ROLE_SUGGESTIONS: "Suggest",
 }
+
+WORKFLOW_HANDOFF = "handoff"
+WORKFLOW_AS_TOOL = "as_tool"
+WORKFLOW_ALIASES: dict[str, str] = {
+    "handoff": WORKFLOW_HANDOFF,
+    "handoffs": WORKFLOW_HANDOFF,
+    "as_tool": WORKFLOW_AS_TOOL,
+    "as-tool": WORKFLOW_AS_TOOL,
+    "astool": WORKFLOW_AS_TOOL,
+}
+CANONICAL_WORKFLOWS: tuple[str, ...] = (WORKFLOW_HANDOFF, WORKFLOW_AS_TOOL)
+
+# WebUI-as-blueprint leftovers (#419 retires them). REQ-75 pickers must not
+# offer a webui kind; do not delete django_chat from this PR.
+WEBUI_BLUEPRINT_IDS = frozenset({"django_chat"})
+WEBUI_KINDS = frozenset({"webui", "django_chat", "webpage", "django-chat"})
 
 # CSS contract for the AGENTS sidepane badge (Django + SPA). REQ-67: not on the row.
 ROLE_CSS_CLASS_PREFIX = "os-agent-role-"
@@ -84,14 +111,62 @@ def normalize_agent_role(value: Any) -> str:
     """Map a free-text / alias role to a canonical visual/wiring role.
 
     Unknown values become ``default`` so they never accidentally enable
-    gate, skeptic, or chief-of-staff wiring.
+    gate, skeptic, or chief-of-staff wiring. ``none`` is an alias of
+    ``default`` (no badge).
     """
     if value is None:
         return ROLE_DEFAULT
-    key = str(value).strip().lower().replace(" ", "_")
+    key = str(value).strip().lower().replace(" ", "_").replace("-", "_")
     if not key:
         return ROLE_DEFAULT
     return ROLE_ALIASES.get(key, ROLE_DEFAULT)
+
+
+def normalize_workflow(value: Any) -> str | None:
+    """Map a blueprint workflow hint to ``handoff`` / ``as_tool``, or ``None``.
+
+    v1 is metadata only — not a new orchestration engine.
+    """
+    if value is None:
+        return None
+    key = str(value).strip().lower().replace(" ", "_")
+    if not key:
+        return None
+    return WORKFLOW_ALIASES.get(key)
+
+
+def is_webui_blueprint(blueprint_id: Any = None, meta: dict[str, Any] | None = None) -> bool:
+    """True when a catalog row is a leftover webui/django-chat recipe.
+
+    Pickers must not offer a webui kind (REQ-75). Retirement of
+    ``django_chat`` itself is #419 — this helper only classifies.
+    """
+    bid = str(blueprint_id or "").strip().lower().replace("-", "_")
+    if bid in WEBUI_BLUEPRINT_IDS:
+        return True
+    meta = meta or {}
+    kind = str(meta.get("kind") or "").strip().lower().replace("-", "_")
+    if kind in WEBUI_KINDS:
+        return True
+    if meta.get("urls_module") or meta.get("url_prefix"):
+        return True
+    return False
+
+
+def apply_blueprint_role(
+    blueprint_role: Any,
+    *,
+    current_role: Any = None,
+    role_overridden: bool = False,
+) -> str:
+    """Apply a blueprint default role unless the agent editor overrode it.
+
+    Re-picking a blueprint re-applies ``blueprint_role`` when
+    ``role_overridden`` is False. An explicit editor change wins.
+    """
+    if role_overridden:
+        return normalize_agent_role(current_role)
+    return normalize_agent_role(blueprint_role)
 
 
 def is_chief_of_staff(role: Any) -> bool:
@@ -192,9 +267,11 @@ def normalize_roster(agents: Any) -> list[dict[str, str]]:
 def blueprint_role_fields(meta: dict[str, Any] | None) -> dict[str, Any]:
     """Serialize role + roster + wiring names for ``/v1/blueprints/``.
 
-    Blueprint-level ``role`` is explicit metadata (Support / gate / CoS).
-    Member wiring lives on ``agents[]`` plus ``gate_agent`` / ``skeptic_agent``
-    / ``suggestions_agent``.
+    Blueprint-level ``role`` is explicit metadata (Support / gate / CoS /
+    engineer). ``none`` / missing becomes ``default`` (no badge). Member
+    wiring lives on ``agents[]`` plus ``gate_agent`` / ``skeptic_agent``
+    / ``suggestions_agent``. ``workflow`` is an optional handoff / as_tool
+    hint (apply-on-create metadata, not a new engine).
     """
     meta = meta or {}
     raw_agents = meta.get("agents")
@@ -217,4 +294,5 @@ def blueprint_role_fields(meta: dict[str, Any] | None) -> dict[str, Any]:
         "skeptic_agent": skeptic,
         "chief_of_staff_agent": cos,
         "suggestions_agent": suggestions,
+        "workflow": normalize_workflow(meta.get("workflow")),
     }

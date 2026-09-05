@@ -1,5 +1,5 @@
-import type { AgentRole, Blueprint } from './api'
-import { loadAgentEdit } from './agentEdits'
+import type { AgentRole, Blueprint, BlueprintWorkflow } from './api'
+import { loadAgentEdit, saveAgentEdit, type AgentEdit } from './agentEdits'
 import { SUPPORT_AGENT_ID, SYNTHETIC_SUPPORT, isSupportAgent } from './supportAgent'
 
 /** Example roles that demonstrate blueprint design (REQ-25). */
@@ -29,6 +29,9 @@ const ROLE_ALIASES: Record<string, AgentRole> = {
   chiefofstaff: 'chief_of_staff',
   cos: 'chief_of_staff',
   chief: 'chief_of_staff',
+  engineer: 'engineer',
+  eng: 'engineer',
+  none: 'default',
   suggestions: 'suggestions',
   suggestion: 'suggestions',
   suggest: 'suggestions',
@@ -126,7 +129,7 @@ def run_with_skeptic(prompt: str, output: str) -> str:
 
 export function normalizeAgentRole(value: unknown): AgentRole {
   if (value == null) return 'default'
-  const key = String(value).trim().toLowerCase().replace(/\s+/g, '_')
+  const key = String(value).trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_')
   if (!key) return 'default'
   return ROLE_ALIASES[key] ?? 'default'
 }
@@ -176,6 +179,7 @@ export const ROLE_BADGE_LABELS: Record<AgentRole, string> = {
   gate: 'Gate',
   skeptic: 'Skeptic',
   chief_of_staff: 'CoS',
+  engineer: 'Engineer',
   suggestions: 'Suggest',
 }
 
@@ -270,6 +274,15 @@ export function fallbackBlueprintSource(blueprintId: string, role: AgentRole): s
       `)\n`
     )
   }
+  if (role === 'engineer') {
+    return (
+      `# Blueprint recipe — Engineer (implementer)\n` +
+      `ENGINEER_INSTRUCTIONS = (\n` +
+      `    "You are the engineer. Implement the quoted issue after the gate. "\n` +
+      `    "Do not start without a quoted Intent/Success and feasibility."\n` +
+      `)\n`
+    )
+  }
   return (
     `# Blueprint ${blueprintId}\n` +
     `# No source is published for this agent yet.\n` +
@@ -279,6 +292,69 @@ export function fallbackBlueprintSource(blueprintId: string, role: AgentRole): s
 
 export function runtimeModulesFor(role: AgentRole): { label: string; path: string }[] {
   return isExampleRole(role) ? ROLE_RUNTIME_MODULES[role] : []
+}
+
+export function normalizeWorkflow(value: unknown): BlueprintWorkflow | null {
+  if (value == null) return null
+  const key = String(value).trim().toLowerCase().replace(/\s+/g, '_')
+  if (key === 'handoff' || key === 'handoffs') return 'handoff'
+  if (key === 'as_tool' || key === 'as-tool' || key === 'astool') return 'as_tool'
+  return null
+}
+
+/** Leftover webui/django-chat recipes. Pickers must not offer a webui kind. */
+export function isWebuiBlueprint(bp: {
+  id?: string | null
+  kind?: string | null
+  webui?: boolean | null
+  urls_module?: string | null
+  url_prefix?: string | null
+}): boolean {
+  if (bp.webui === true) return true
+  const id = (bp.id || '').trim().toLowerCase().replace(/-/g, '_')
+  if (id === 'django_chat') return true
+  const kind = (bp.kind || '').trim().toLowerCase().replace(/-/g, '_')
+  if (kind === 'webui' || kind === 'django_chat' || kind === 'webpage') return true
+  if (bp.urls_module || bp.url_prefix) return true
+  return false
+}
+
+/** Catalog recipes a picker may assign. Never a webui kind. */
+export function assignableBlueprints(items: Blueprint[]): Blueprint[] {
+  return items.filter((item) => !isWebuiBlueprint(item))
+}
+
+export function catalogPickerLabel(item: {
+  id: string
+  name?: string | null
+  role?: string | null
+}): string {
+  const name = item.name || item.id
+  const badge = roleBadgeLabel(item.role ?? agentRole(item))
+  if (!badge) return name
+  if (name.toLowerCase() === badge.toLowerCase()) return name
+  return `${name} · ${badge}`
+}
+
+/**
+ * Assign a catalog blueprint to a seat (REQ-75).
+ *
+ * Re-applies the blueprint default role unless the operator has explicitly
+ * overridden the role in the agent editor. Workflow hint is metadata only.
+ */
+export function applyBlueprintAssignment(
+  agentId: string,
+  blueprint: { id: string; role?: string | null; workflow?: string | null },
+): AgentEdit {
+  const current = loadAgentEdit(agentId)
+  const patch: AgentEdit = {
+    blueprintId: blueprint.id,
+    workflow: normalizeWorkflow(blueprint.workflow),
+  }
+  if (!current.roleOverridden) {
+    patch.role = normalizeAgentRole(blueprint.role)
+  }
+  return saveAgentEdit(agentId, patch)
 }
 
 export { SUPPORT_AGENT_ID }

@@ -1,4 +1,4 @@
-# Agent roles: support, gate, skeptic
+# Agent roles: support, gate, skeptic, engineer
 
 Users assign a first-class **role** on each agent so the AGENTS sidepane can
 highlight them and so a team can relate one agent's output to another's input
@@ -7,11 +7,38 @@ Rakazo seats.
 
 | Role | Sidepane classes | What it does |
 |---|---|---|
-| `default` | `os-agent-role-default` `data-role="default"` | Ordinary worker. No special wiring. |
+| `default` / `none` | (no badge) | Ordinary worker. No special wiring. |
 | `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7). Introduces the concept; copy below. |
 | `gate` (`tool_gate`) | `os-agent-role-gate` `data-role="gate"` | Classifies a **pending tool call** as dangerous or not (single-token YES/NO). |
 | `skeptic` | `os-agent-role-skeptic` `data-role="skeptic"` | Reviews whether the original prompt was accomplished. |
+| `chief_of_staff` (`cos`) | `os-agent-role-chief_of_staff` `data-role="chief_of_staff"` | Talks to any team. Badge only (`CoS`). |
+| `engineer` | `os-agent-role-engineer` `data-role="engineer"` | Implementer seat (software-dev / Chatty). Badge only. |
 | `suggestions` | `os-agent-role-suggestions` `data-role="suggestions"` | Prepares 2–5 quick-select chips after a turn (REQ-85). |
+
+Chrome stays **badge-only** (REQ-67 / #396): no row fill or left-border accent.
+
+## Blueprint default role (REQ-75)
+
+Python blueprints remain the source. A recipe may declare:
+
+```python
+metadata = {
+    "role": "gate",          # gate / skeptic / cos / engineer / support / none
+    "workflow": "as_tool",   # optional: handoff | as_tool (hint only)
+}
+```
+
+Creating an agent from that blueprint (or re-picking it in the agent editor)
+assigns that default role. Catalog / picker show the role as a badge.
+
+**Override rule:** changing Role in the agent editor is agent-scoped and wins
+over the blueprint default. Re-picking a blueprint re-applies that recipe's
+default role **unless** the operator has explicitly overridden Role. `none`
+and a missing `role` mean no badge.
+
+v1 `workflow` is metadata + apply-on-create — not a new orchestration engine.
+There is no `webui` blueprint kind; pickers hide leftover `django_chat` /
+`kind=webui` rows (retirement of that recipe is #419).
 
 Also: `.os-agent-role-badge` for the optional label chip; `.os-agent-dot[data-role=…]`
 for the accent. Support should **reuse these class names**, not invent a parallel set.
@@ -53,7 +80,7 @@ Code:
 * `swarm.core.skeptic` — `run_with_skeptic` (bounded as-tool loop)
 * Team Creator select **Agent role** → generated `AGENT_SPECS[].role` + metadata
   `gate_agent` / `skeptic_agent` / `agents[{name,role}]`
-* `GET /v1/blueprints/` includes `role`, `agents`, `gate_agent`, `skeptic_agent`, `suggestions_agent`
+* `GET /v1/blueprints/` includes `role`, `agents`, `gate_agent`, `skeptic_agent`, `suggestions_agent`, `workflow`, `webui`
 * Consumer **Use suggestions** toggle (`use_suggestions` on `/v1/agents/<id>/settings/`) wires the role as-tool. Chips are chrome, not LLM context.
 
 Unwired gate proof: `tests/core/test_tool_gate.py` asserts `elicit_fn` is never

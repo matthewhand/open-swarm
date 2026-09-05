@@ -38,4 +38,13 @@ describe('agentEdits', () => {
     expect(editedAgentLabel({ id: 'support', name: 'Support' })).toBe('Desk')
     expect(loadAgentEdit('support')).toEqual({ name: 'Desk', role: 'gate' })
   })
+
+  it('records an explicit role override separately from the value', () => {
+    saveAgentEdit('codey', { role: 'engineer', roleOverridden: true, workflow: 'handoff' })
+    expect(loadAgentEdit('codey')).toEqual({
+      role: 'engineer',
+      roleOverridden: true,
+      workflow: 'handoff',
+    })
+  })
 })
