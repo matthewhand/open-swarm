@@ -60,6 +60,10 @@ class SwarmConfig(AppConfig):
         # behavior is unchanged, we only *add* XDG.
         self.config = self._load_swarm_config()
 
+        # REQ-157: PATH-only CLI discovery. Seeds the addable/suggested set.
+        # Never writes cli_agents. Never auth-checks or talks to the network.
+        self.discovered_clis = self._discover_host_clis()
+
         # Refuse SWARM_TEST_MODE in non-debug production (silent canned answers).
         try:
             from swarm.utils.env_utils import assert_test_mode_allowed
@@ -187,4 +191,20 @@ class SwarmConfig(AppConfig):
         except Exception as e:
             logger.warning("Failed to load swarm config (%s); using empty config.", e)
             return {}
+
+    @staticmethod
+    def _discover_host_clis() -> list:
+        """Detect catalog CLIs on PATH / known locations. No auth, no network."""
+        try:
+            from swarm.core.cli_catalog import discover_host_clis
+
+            found = discover_host_clis()
+            logger.info(
+                "Discovered host CLIs (no auth): %s",
+                ", ".join(found) or "none",
+            )
+            return found
+        except Exception as e:
+            logger.warning("CLI host discovery skipped: %s", e)
+            return []
 

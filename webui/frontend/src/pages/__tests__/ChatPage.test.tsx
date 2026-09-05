@@ -3334,7 +3334,11 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({ clis: ['antigravity', 'grok'] }),
+            json: async () => ({
+              clis: ['antigravity', 'grok'],
+              configured: ['antigravity', 'grok'],
+              discovered: ['grok'],
+            }),
           } as Response
         }
         if (url.includes('/v1/models')) {
@@ -3596,7 +3600,11 @@ describe('ChatPage cascading navbar picker (REQ-200)', () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({ clis: ['agy', 'grok'], installed: ['agy', 'grok'] }),
+            json: async () => ({
+              clis: ['agy', 'grok'],
+              installed: ['agy', 'grok'],
+              configured: ['agy', 'grok'],
+            }),
           } as Response
         }
         return {

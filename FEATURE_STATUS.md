@@ -180,6 +180,7 @@ one-shot, API-addressable subagents. See `docs/CLI_FUSION.md`.
 |---|---|---|
 | CliAdapter one-shot layer | ✅ | `src/swarm/core/cli_adapter.py`; argv/stdin prompt modes, text/`json:<path>` parse, process-group timeout kill; `tests/core/test_cli_adapter.py` |
 | `cli_agent` / `cli_fusion` blueprints | ✅ | `src/swarm/blueprints/cli_{agent,fusion}/`; panel→judge→synthesize + bounded master plan; `tests/blueprints/test_cli_{agent,fusion}.py` |
+| Opt-in CLI catalog (REQ-157) | ✅ | Configured `cli_agents` empty until + Add. Startup / `GET /v1/cli-agents/` PATH-discovers known CLIs (`grok` / `agy` / `claude` / `gemini` / `codex` / `opencode` / `pi`) with no auth check; suggestions are one-click add. Chat dropdown lists configured only. Tests: `test_req157_cli_agents.py`, `test_cli_agents_opt_in.py`, `cliAgents.test.ts`. Own-diff `.github/workflows/req157-cli-agents.yml`. Fixes #565. |
 | Install autodiscovery | ✅ | `CliAdapterRegistry.discover()` + `swarm-cli cli-agents` (PR 2) |
 | Auth autodiscovery | ✅ | `CliAgentConfig.auth_check` + `discover_auth()` + `--check-auth` (PR 3) |
 | Full-capability panelists + workdir isolation | ✅ | Yolo-flag example adapters; `cli_fusion.isolate_workdir` git-worktree/temp-dir isolation (PR 4); isolation tests incl. real-git end-to-end |

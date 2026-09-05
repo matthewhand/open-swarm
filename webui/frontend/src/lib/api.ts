@@ -1096,6 +1096,16 @@ export interface CliRailAgent {
 
 export interface CliAgentsInfo {
   clis: string[]
+  known?: string[]
+  /** Opt-in names from swarm_config.cli_agents — empty until the user adds. */
+  configured?: string[]
+  /** PATH / known-location seed. No auth check. */
+  discovered?: string[]
+  /** Alias of discovered (chat dropdown / older clients). */
+  installed?: string[]
+  /** Discovered-minus-configured catalog entries for one-click add. */
+  suggestions?: Record<string, Record<string, unknown>>
+  default_cli?: string
   native_consensus: Record<string, string[]>
   catalog: Record<string, Record<string, unknown>>
   rail?: CliRailAgent[]

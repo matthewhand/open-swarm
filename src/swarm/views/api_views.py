@@ -657,12 +657,26 @@ class BlueprintSourceView(APIView):
         return Response(payload, status=code)
 
 
-class CliAgentsView(APIView):
-    """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
+def _swarm_runtime_config() -> dict:
+    """App-cached swarm_config, or an empty dict. Never raises."""
+    try:
+        from django.apps import apps
 
-    GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]},
-    list_models: {cli: [argv…]}, list_sessions: {cli: {capability, list_argv,
-    list_store, resume_argv}}}. Live probes are GET /v1/cli-agents/<cli>/models.
+        cfg = getattr(apps.get_app_config("swarm"), "config", None)
+        if isinstance(cfg, dict):
+            return cfg
+    except Exception:
+        pass
+    return {}
+
+
+class CliAgentsView(APIView):
+    """CLI-agent catalog + opt-in configured list + PATH discovery (REQ-157).
+
+    GET /v1/cli-agents/ -> {clis, known, configured, discovered, installed,
+    suggestions, catalog, native_consensus, list_models, list_sessions, rail}.
+    Discovery is PATH/stat only — no auth_check, no login, no network.
+    Live model probes are GET /v1/cli-agents/<cli>/models.
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
@@ -670,21 +684,7 @@ class CliAgentsView(APIView):
     def get(self, _request, *_args, **_kwargs):
         from swarm.core import cli_catalog
 
-        return Response({
-            "clis": cli_catalog.catalog_names(),
-            "native_consensus": cli_catalog.NATIVE_CONSENSUS,
-            "catalog": {n: cli_catalog.catalog_entry(n) for n in cli_catalog.catalog_names()},
-            "rail": cli_catalog.rail_cli_rows(),
-            # Tiny Settings / #358 hook: the real list-models argv per CLI.
-            # Does not run the probe (that would block this catalog GET).
-            "list_models": {
-                n: cli_catalog.list_models_argv(n)
-                for n in cli_catalog.catalog_names()
-                if cli_catalog.has_list_models(n)
-            },
-            # #795: list/resume capability table (argv or provider store).
-            "list_sessions": cli_catalog.list_sessions_catalog(),
-        })
+        return Response(cli_catalog.cli_agents_catalog_payload(_swarm_runtime_config()))
 
 
 class CliAgentModelsView(APIView):

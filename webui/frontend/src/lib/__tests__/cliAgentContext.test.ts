@@ -59,11 +59,12 @@ describe('isCliAgentContext', () => {
 })
 
 describe('discoverChatClis', () => {
-  it('prefers installed + extra configured names over the catalog', () => {
+  it('lists only configured names, not every PATH-discovered binary', () => {
     expect(
       discoverChatClis({
         clis: ['claude', 'codex', 'gemini', 'grok', 'opencode'],
-        installed: ['grok'],
+        installed: ['grok', 'claude'],
+        discovered: ['grok', 'claude'],
         configured: ['grok', 'my_custom_cli'],
         native_consensus: {},
         catalog: {},
@@ -71,16 +72,17 @@ describe('discoverChatClis', () => {
     ).toEqual(['grok', 'my_custom_cli'])
   })
 
-  it('falls back to the catalog when the host exposes nothing', () => {
+  it('stays empty when nothing is configured (no catalog fallback)', () => {
     expect(
       discoverChatClis({
         clis: ['grok', 'claude'],
-        installed: [],
+        installed: ['grok'],
+        discovered: ['grok'],
         configured: [],
         native_consensus: {},
         catalog: {},
       }),
-    ).toEqual(['grok', 'claude'])
+    ).toEqual([])
   })
 
   it('returns empty when the payload is missing', () => {

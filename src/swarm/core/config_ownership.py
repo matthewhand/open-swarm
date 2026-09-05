@@ -300,7 +300,7 @@ _INVENTORY: tuple[dict[str, Any], ...] = (
         "ui": "pane",
         "secret_fields": [],
         "env_twins": {},
-        "notes": "Wrapped CLI adapters. Auth stays in each CLI — never stored here.",
+        "notes": "Opt-in catalog (REQ-157). Empty until + Add. PATH discovery seeds suggestions only — never auth-check or store CLI secrets.",
     },
     {
         "key": "agent_team",

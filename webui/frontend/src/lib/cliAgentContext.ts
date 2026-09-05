@@ -34,13 +34,12 @@ export function isCliAgentContext(options: {
 }
 
 /**
- * CLIs the chat dropdown should list.
+ * CLIs the chat dropdown should list (REQ-157 / #565).
  *
- * Prefer host-discovered (`installed` PATH + extra `configured` names) so a
- * custom `cli_agents` entry the catalog does not know (e.g. antigravity) still
- * appears. Always include the selected / default / running CLI even when it is
- * outside the static catalog. Fall back to the catalog when the host exposes
- * nothing (empty CI / no PATH).
+ * Only **configured** names (Settings / + add). Discovered PATH binaries stay
+ * off the dropdown until the user adds them — same opt-in as remotes.
+ * Always include the selected / running CLI so a mid-chat switch stays visible.
+ * Do not fall back to the static catalog (that was surprise clutter).
  */
 export function discoverChatClis(
   info: CliAgentsInfo | null | undefined,
@@ -61,20 +60,10 @@ export function discoverChatClis(
     seen.add(trimmed)
     out.push(trimmed)
   }
-  const installedOrConfigured = [
-    ...(info?.installed ?? []),
-    ...(info?.configured ?? []),
-  ]
-  if (installedOrConfigured.length > 0) {
-    for (const name of installedOrConfigured) {
-      push(name)
-    }
-    push(info?.default_cli)
-  } else {
-    for (const name of info?.clis ?? []) {
-      push(name)
-    }
+  for (const name of info?.configured ?? []) {
+    push(name)
   }
+  push(info?.default_cli)
   push(selected)
   return out
 }
