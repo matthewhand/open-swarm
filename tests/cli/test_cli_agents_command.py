@@ -40,12 +40,23 @@ def _write_config(tmp_path, cli_agents):
     return str(cfg)
 
 
-def test_json_empty_config_emits_empty_agents(tmp_path):
+def test_json_empty_config_emits_empty_agents(tmp_path, monkeypatch):
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "discover_host_clis", lambda: ["gemini"])
+    monkeypatch.setattr(
+        cli_catalog,
+        "suggested_cli_agents",
+        lambda _cfg=None: {"gemini": cli_catalog.catalog_entry("gemini")},
+    )
     cfg = _write_config(tmp_path, {})
     result = runner.invoke(app, ["cli-agents", "--json", "--config", cfg])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["agents"] == []
+    assert payload["configured"] == []
+    assert payload["discovered"] == ["gemini"]
+    assert "gemini" in payload["suggestions"]
     assert payload["native_consensus"] == {}  # no configured agents -> none
 
 
@@ -119,3 +130,20 @@ def test_table_output_without_json(tmp_path):
     assert result.exit_code == 0
     assert "AGENT" in result.stdout and "echo" in result.stdout
     assert "1/1 configured CLI agents installed" in result.stdout
+
+
+def test_table_empty_config_prints_path_suggestions(tmp_path, monkeypatch):
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "discover_host_clis", lambda: ["grok"])
+    monkeypatch.setattr(
+        cli_catalog,
+        "suggested_cli_agents",
+        lambda _cfg=None: {"grok": cli_catalog.catalog_entry("grok")},
+    )
+    cfg = _write_config(tmp_path, {})
+    result = runner.invoke(app, ["cli-agents", "--config", cfg])
+    assert result.exit_code == 0
+    assert "No CLI agents configured" in result.stdout
+    assert "Suggested cli_agents" in result.stdout
+    assert "grok" in result.stdout

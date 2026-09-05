@@ -236,6 +236,17 @@ def test_suggest_installed_only_filters_by_path(monkeypatch):
     monkeypatch.setattr(cli_catalog.shutil, "which", fake_which)
     s = cli_catalog.suggest_unconfigured([], installed_only=True)
     assert set(s) == {"codex"}
+    assert cli_catalog.discover_host_clis() == ["codex"]
+    payload = cli_catalog.cli_agents_catalog_payload({"cli_agents": {}})
+    assert payload["configured"] == []
+    assert payload["discovered"] == ["codex"]
+    assert set(payload["suggestions"]) == {"codex"}
+
+
+def test_configured_names_ignore_blank_and_non_dict():
+    assert cli_catalog.configured_cli_names(None) == []
+    assert cli_catalog.configured_cli_names({"cli_agents": "nope"}) == []
+    assert cli_catalog.configured_cli_names({"cli_agents": {" grok ": {}, "": {}}}) == ["grok"]
 
 
 def test_suggest_returns_deep_copies(monkeypatch):

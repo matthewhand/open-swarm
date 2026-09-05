@@ -1,0 +1,91 @@
+name: REQ-157 CLI agents opt-in
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/cli_catalog.py"
+      - "src/swarm/core/swarm_cli.py"
+      - "src/swarm/core/config_ownership.py"
+      - "src/swarm/apps.py"
+      - "src/swarm/views/api_views.py"
+      - "src/swarm/blueprints/common/cli_fusion_support.py"
+      - "tests/core/test_cli_catalog.py"
+      - "tests/core/test_req157_cli_agents.py"
+      - "tests/api/test_cli_agents_opt_in.py"
+      - "tests/api/test_blueprint_source.py"
+      - "tests/cli/test_cli_agents_command.py"
+      - "webui/frontend/src/lib/cliAgents.ts"
+      - "webui/frontend/src/lib/cliAgentContext.ts"
+      - "webui/frontend/src/lib/api.ts"
+      - "webui/frontend/src/lib/__tests__/cliAgents.test.ts"
+      - "webui/frontend/src/lib/__tests__/cliAgentContext.test.ts"
+      - "webui/frontend/src/components/CliAgentsSettingsPane.tsx"
+      - "webui/frontend/src/components/__tests__/CliAgentsSettingsPane.test.tsx"
+      - ".github/workflows/req157-cli-agents.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/cli_catalog.py"
+      - "src/swarm/core/swarm_cli.py"
+      - "src/swarm/core/config_ownership.py"
+      - "src/swarm/apps.py"
+      - "src/swarm/views/api_views.py"
+      - "src/swarm/blueprints/common/cli_fusion_support.py"
+      - "tests/core/test_cli_catalog.py"
+      - "tests/core/test_req157_cli_agents.py"
+      - "tests/api/test_cli_agents_opt_in.py"
+      - "tests/api/test_blueprint_source.py"
+      - "tests/cli/test_cli_agents_command.py"
+      - "webui/frontend/src/lib/cliAgents.ts"
+      - "webui/frontend/src/lib/cliAgentContext.ts"
+      - "webui/frontend/src/lib/api.ts"
+      - "webui/frontend/src/lib/__tests__/cliAgents.test.ts"
+      - "webui/frontend/src/lib/__tests__/cliAgentContext.test.ts"
+      - "webui/frontend/src/components/CliAgentsSettingsPane.tsx"
+      - "webui/frontend/src/components/__tests__/CliAgentsSettingsPane.test.tsx"
+      - ".github/workflows/req157-cli-agents.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-157 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/core/test_req157_cli_agents.py \
+            tests/core/test_cli_catalog.py \
+            tests/api/test_cli_agents_opt_in.py \
+            tests/cli/test_cli_agents_command.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-157 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/cliAgents.test.ts \
+            src/lib/__tests__/cliAgentContext.test.ts \
+            src/components/__tests__/CliAgentsSettingsPane.test.tsx

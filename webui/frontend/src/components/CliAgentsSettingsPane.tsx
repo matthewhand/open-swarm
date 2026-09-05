@@ -2,37 +2,46 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, useToast } from './DaisyUI'
-import { fetchConfigSection, patchConfigSection } from '../lib/api'
+import { fetchCliAgents, fetchConfigSection, patchConfigSection } from '../lib/api'
+import { configuredCliNames, suggestedCliEntries } from '../lib/cliAgents'
 
 export default function CliAgentsSettingsPane() {
   const { success, error: toastError } = useToast()
   const queryClient = useQueryClient()
-  const query = useQuery({
+  const configQuery = useQuery({
     queryKey: ['settings-cli-agents'],
     queryFn: () => fetchConfigSection('cli_agents'),
+    retry: 1,
+  })
+  const catalogQuery = useQuery({
+    queryKey: ['cli-agents'],
+    queryFn: fetchCliAgents,
     retry: 1,
   })
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [cmdText, setCmdText] = useState('')
 
-  const data = (query.data?.data || {}) as Record<string, { cmd?: string[] }>
+  const data = (configQuery.data?.data || {}) as Record<string, { cmd?: string[] }>
   const names = Object.keys(data)
+  const configuredFromCatalog = configuredCliNames(catalogQuery.data)
+  const configured = names.length > 0 ? names : configuredFromCatalog
+  const suggestions = suggestedCliEntries(catalogQuery.data)
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['settings-cli-agents'] })
+    void queryClient.invalidateQueries({ queryKey: ['cli-agents'] })
+  }
 
   const addMutation = useMutation({
-    mutationFn: () => {
-      const cmd = cmdText
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean)
-      return patchConfigSection('cli_agents', { upsert: { [name.trim()]: { cmd } } })
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['settings-cli-agents'] })
+    mutationFn: (entry: { name: string; cmd: string[] }) =>
+      patchConfigSection('cli_agents', { upsert: { [entry.name]: { cmd: entry.cmd } } }),
+    onSuccess: (_void, entry) => {
+      invalidate()
       setAdding(false)
       setName('')
       setCmdText('')
-      success('CLI agent saved', 'Stored in swarm_config.json cli_agents.')
+      success('CLI agent saved', `${entry.name} is now configured.`)
     },
     onError: (err: Error) => {
       toastError('Could not save CLI agent', err.message)
@@ -42,8 +51,8 @@ export default function CliAgentsSettingsPane() {
   const removeMutation = useMutation({
     mutationFn: (cliName: string) => patchConfigSection('cli_agents', { delete: [cliName] }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['settings-cli-agents'] })
-      success('CLI agent removed', 'Dropped from swarm_config.json.')
+      invalidate()
+      success('CLI agent removed', 'Dropped from swarm_config.json. It may still appear as a suggestion if the binary is on PATH.')
     },
     onError: (err: Error) => {
       toastError('Could not remove CLI agent', err.message)
@@ -53,32 +62,45 @@ export default function CliAgentsSettingsPane() {
   const handleAdd = (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim() || !cmdText.trim()) return
-    addMutation.mutate()
+    const cmd = cmdText
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    addMutation.mutate({ name: name.trim(), cmd })
   }
+
+  const handleSuggestAdd = (cliName: string, cmd: string[]) => {
+    addMutation.mutate({ name: cliName, cmd: cmd.length ? cmd : [cliName] })
+  }
+
+  const loading = configQuery.isPending || catalogQuery.isPending
+  const failed = configQuery.isError && catalogQuery.isError
 
   return (
     <div className="space-y-4">
       <div>
         <h4 className="text-lg font-semibold">CLI agents</h4>
         <p className="mt-1 text-sm text-base-content/70">
-          Wrapped CLIs in <code>cli_agents</code>. Each CLI keeps its own auth — Open Swarm
-          never stores those secrets.
+          Only CLIs you add appear here and in the chat CLI dropdown. Startup
+          discovers installed binaries (grok, agy, claude, gemini, codex,
+          opencode, pi) without checking auth. Each CLI keeps its own login —
+          Open Swarm never stores those secrets.
         </p>
       </div>
 
-      {query.isPending ? (
+      {loading ? (
         <p className="text-sm text-base-content/60">Loading CLI agents…</p>
-      ) : query.isError ? (
+      ) : failed ? (
         <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
           <span className="text-sm">Could not load cli_agents from config.</span>
         </Alert>
-      ) : names.length === 0 && !adding ? (
+      ) : configured.length === 0 && !adding ? (
         <Alert type="info" icon={<Server className="h-5 w-5" />}>
-          <span className="text-sm">No CLI agents in swarm_config yet.</span>
+          <span className="text-sm">No CLI agents configured yet.</span>
         </Alert>
-      ) : (
+      ) : configured.length === 0 ? null : (
         <ul className="space-y-2" aria-label="Configured CLI agents">
-          {names.map((cliName) => (
+          {configured.map((cliName) => (
             <li
               key={cliName}
               className="flex items-start justify-between gap-3 rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
@@ -102,6 +124,37 @@ export default function CliAgentsSettingsPane() {
           ))}
         </ul>
       )}
+
+      {suggestions.length > 0 ? (
+        <div className="space-y-2">
+          <h5 className="text-sm font-semibold">Suggested</h5>
+          <p className="text-xs text-base-content/60">
+            Found on this host (no auth check). One-click add persists like remotes.
+          </p>
+          <ul className="space-y-2" aria-label="Suggested CLI agents">
+            {suggestions.map((row) => (
+              <li
+                key={row.name}
+                className="flex items-start justify-between gap-3 rounded-lg border border-dashed border-base-300 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="font-mono text-sm">{row.name}</p>
+                  <p className="truncate text-xs text-base-content/60">{row.cmd.join(' ')}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => handleSuggestAdd(row.name, row.cmd)}
+                  disabled={addMutation.isPending}
+                >
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {adding ? (
         <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>

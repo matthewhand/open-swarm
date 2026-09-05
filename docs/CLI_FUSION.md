@@ -24,19 +24,27 @@ them with no changes — just point at the Open Swarm API and pick the model nam
 ```bash
 pip install open-swarm
 
-# Generate a complete config wiring every mode over the CLIs you already have
-# installed (claude/gemini/codex/opencode), gotchas baked in:
+# Optional: write every discovered CLI into swarm_config (explicit accept).
+# Fresh install stays empty until you add from Settings suggestions or here:
 swarm-cli cli-agents --init --write
 
 export OPENAI_API_KEY=sk-...          # for the llm block
-swarm-cli cli-agents                  # confirm what's installed
+swarm-cli cli-agents                  # configured list + PATH suggestions (no auth)
 swarm-cli cli-agents --smoke          # confirm they answer non-interactively
 ```
 
-`--init` autodiscovers your installed CLIs and writes a ready-to-run
-`swarm_config.json` with `cli_agents` + `cli_fusion` + `cli_orchestrator` +
-`cli_map` all pointed at them. Then start the API (`swarm-api` / `docker compose
-up`) and call any mode by `model` name. To wire it by hand instead:
+**Opt-in catalog (REQ-157 / #565).** `cli_agents` starts **empty**. On startup
+(and `GET /v1/cli-agents/`) Open Swarm **discovers** known CLIs on PATH /
+user-local bins **without an auth check**: `grok`, `agy` (antigravity),
+`claude`, `gemini`, `codex`, `opencode`, `pi`. Those appear as **Suggested**
+one-click add in Settings (same shape as remotes). Adding persists; removing
+clears the configured list (the binary may still be rediscovered as a
+candidate). The chat CLI dropdown lists configured names only.
+
+`--init --write` is the explicit "accept all discovered" path: it writes
+`cli_agents` + `cli_fusion` + `cli_orchestrator` + `cli_map`. Then start the
+API (`swarm-api` / `docker compose up`) and call any mode by `model` name. To
+wire it by hand instead:
 
 1. Add a `cli_agents` block (and optionally `cli_fusion`) to your
    `~/.config/swarm/swarm_config.json` — see [the example](#full-example) below.
@@ -63,14 +71,15 @@ curl -sf http://localhost:8000/v1/chat/completions \
 
 ### Autodiscovery
 
-See which of your configured CLIs are actually installed on the host:
+See which of your **configured** CLIs are installed, and which catalog CLIs
+were **discovered** on PATH (no auth probe unless you pass `--check-auth`):
 
 ```bash
-swarm-cli cli-agents               # install status only (fast)
-swarm-cli cli-agents --check-auth  # also probe each CLI's auth_check
-swarm-cli cli-agents --suggest     # propose config for installed-but-unconfigured CLIs
-swarm-cli cli-agents --smoke       # run one trivial one-shot per CLI to confirm it returns
-swarm-cli cli-agents --json        # machine-readable output (for CI / scripts / Open WebUI)
+swarm-cli cli-agents               # configured status + PATH suggestions (fast, no auth)
+swarm-cli cli-agents --check-auth  # also probe each configured CLI's auth_check
+swarm-cli cli-agents --suggest     # print the same suggestion block (also on by default)
+swarm-cli cli-agents --smoke       # run one trivial one-shot per configured CLI
+swarm-cli cli-agents --json        # includes configured, discovered, suggestions
 swarm-cli cli-agents --list-models # live {cli, models: [...]} per catalog CLI (REQ-44)
 swarm-cli cli-agents --list-models --cli grok
 swarm-cli list-models grok         # same probe; omit the name to probe every catalog CLI
@@ -78,8 +87,10 @@ swarm-cli cli-agents --config ./swarm_config.json
 ```
 
 `--json` emits one JSON object on stdout (logs stay on stderr, so `| jq` is
-clean): `{"agents": [...]}`, plus `"smoke"` and `"suggestions"` keys when
-`--smoke` / `--suggest` are combined. Use it to wire discovery into automation.
+clean): `{"agents": [...], "configured": [...], "discovered": [...],
+"suggestions": {...}}`, plus `"smoke"` when `--smoke` is set. Discovery never
+runs `auth_check` unless you pass `--check-auth`. Use it to wire Settings /
+automation.
 
 `--smoke` is the counterpart to `--check-auth`: auth tells you the CLI is logged
 in; smoke tells you its configured `cmd` actually **returns** in non-interactive

@@ -6,6 +6,16 @@ supported CLI that is installed on the host but not yet in the user's swarm
 config. ``LIST_MODELS`` documents each CLI's real non-interactive list-models
 argv (see :mod:`swarm.core.cli_models` and ``swarm-cli list-models``).
 
+REQ-157 / #565: the **configured** ``cli_agents`` list stays empty until the
+user adds (Settings one-click or ``swarm-cli cli-agents --init --write``).
+Startup / ``GET /v1/cli-agents/`` **discovers** binaries on PATH (and known
+user-local dirs) and prepopulates the **suggested / addable** set. Discovery
+is ``which`` / ``stat`` only — never ``auth_check``, never a login probe,
+never a network call.
+
+Known catalog names (agy is the antigravity CLI): grok, agy, claude, gemini,
+codex, opencode, pi.
+
 Each entry runs the CLI **one-shot, non-interactive, auto-approve** (full
 capability) — the flag that matters is the auto-approve one, without which the
 CLI blocks on a permission prompt and is killed on timeout (see
@@ -700,6 +710,64 @@ def session_policy(name: str) -> dict[str, Any] | None:
 def catalog_names() -> list[str]:
     """Names of every CLI the catalog knows about (sorted)."""
     return sorted(CATALOG)
+
+
+KNOWN_CLIS: tuple[str, ...] = tuple(catalog_names())
+
+
+def configured_cli_names(config: dict[str, Any] | None = None) -> list[str]:
+    """Names the user (or ``--init --write``) added to ``cli_agents``.
+
+    Empty until add. PATH-discovered binaries are **not** listed here.
+    """
+    raw = (config or {}).get("cli_agents") or {}
+    if not isinstance(raw, dict):
+        return []
+    return sorted({str(name).strip() for name in raw if str(name).strip()})
+
+
+def discover_host_clis() -> list[str]:
+    """Catalog CLIs whose executable is on PATH or a known user-local dir.
+
+    PATH / ``stat`` only. Does not run the binary, does not probe auth, and
+    does not touch the network. Unauthenticated installs still appear.
+    """
+    return installed_catalog_clis()
+
+
+def suggested_cli_agents(config: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+    """Discovered catalog CLIs that are not yet in ``cli_agents`` (one-click add)."""
+    return suggest_unconfigured(configured_cli_names(config), installed_only=True)
+
+
+def cli_agents_catalog_payload(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Public ``GET /v1/cli-agents/`` body: configured vs discovered candidates.
+
+    ``configured`` is opt-in (empty until add). ``discovered`` / ``installed``
+    are the PATH seed. ``suggestions`` is discovered-minus-configured with a
+    ready catalog entry for one-click add. Never includes secrets.
+    """
+    configured = configured_cli_names(config)
+    discovered = discover_host_clis()
+    suggestions = suggested_cli_agents(config)
+    return {
+        "clis": catalog_names(),
+        "known": list(KNOWN_CLIS),
+        "configured": configured,
+        "discovered": discovered,
+        "installed": discovered,
+        "suggestions": suggestions,
+        "default_cli": next((name for name in configured if name), ""),
+        "native_consensus": dict(NATIVE_CONSENSUS),
+        "catalog": {name: catalog_entry(name) for name in catalog_names()},
+        "rail": rail_cli_rows(),
+        "list_models": {
+            name: list_models_argv(name)
+            for name in catalog_names()
+            if has_list_models(name)
+        },
+        "list_sessions": list_sessions_catalog(),
+    }
 
 
 def installed_catalog_clis() -> list[str]:
