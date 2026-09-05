@@ -299,24 +299,24 @@ transcript path (`{session_id}` substituted).
 ```jsonc
 "cli_agents": {
   "claude": {
-    "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
+    "cmd": ["claude", "-p={prompt}", "--output-format", "json",
             "--dangerously-skip-permissions"],
     "parse": "json:.result",
     "mode": "write",
     "timeout": 240
   },
   "gemini": {
-    "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
+    "cmd": ["gemini", "-p={prompt}", "-o", "json", "--yolo", "--skip-trust"],
     "parse": "json:.response",
     "mode": "write"
   },
   "codex": {
-    "cmd": ["codex", "exec", "{prompt}", "--dangerously-bypass-approvals-and-sandbox"],
+    "cmd": ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--", "{prompt}"],
     "parse": "text",
     "mode": "write"
   },
   "opencode": {
-    "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
+    "cmd": ["opencode", "run", "--model", "opencode/big-pickle", "--", "{prompt}"],
     "parse": "text",
     "mode": "write"
   }

@@ -126,9 +126,10 @@ def test_grok_is_in_catalog():
     e = cli_catalog.catalog_entry("grok")
     assert e["cmd"][0] == "grok" and e["parse"] == "json:.text"
     assert "--always-approve" in e["cmd"]
-    # -p consumes the next argv token; flags must not follow a bare -p.
-    p = e["cmd"].index("-p")
-    assert e["cmd"][p + 1] == "{prompt}"
+    # Prompt is attached so user text cannot become a sibling flag.
+    assert "-p={prompt}" in e["cmd"]
+    assert "-p" not in e["cmd"]
+    p = e["cmd"].index("-p={prompt}")
     assert "--output-format" in e["cmd"][:p]
 
 
@@ -193,7 +194,18 @@ def test_pi_catalog_print_mode_is_positional_prompt():
     assert "-p" in e["cmd"]
     assert "{prompt}" in e["cmd"]
     assert e["cmd"].index("-p") < e["cmd"].index("{prompt}")
+    assert e["cmd"][-2:] == ["--", "{prompt}"]
     CliAdapter.from_config("pi", e)
+
+
+def test_positional_catalog_prompts_sit_after_end_of_options():
+    opencode = cli_catalog.catalog_entry("opencode")["cmd"]
+    assert opencode[-2:] == ["--", "{prompt}"]
+    assert opencode.index("--model") < opencode.index("--")
+    codex = cli_catalog.catalog_entry("codex")["cmd"]
+    assert codex[-2:] == ["--", "{prompt}"]
+    assert "--dangerously-bypass-approvals-and-sandbox" in codex
+    assert codex.index("--dangerously-bypass-approvals-and-sandbox") < codex.index("--")
 
 
 def test_build_starter_config_prefers_grok_for_single_agent_roles():

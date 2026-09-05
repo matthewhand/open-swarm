@@ -12,13 +12,13 @@
 
   "cli_agents": {
     "grok": {
-      "cmd": ["grok", "-p", "{prompt}", "--output-format", "json", "--always-approve"],
+      "cmd": ["grok", "--output-format", "json", "--always-approve", "-p={prompt}"],
       "parse": "json:.text",
       "mode": "write",
       "timeout": 240
     },
     "claude": {
-      "cmd": ["claude", "-p", "{prompt}", "--output-format", "json",
+      "cmd": ["claude", "-p={prompt}", "--output-format", "json",
               "--dangerously-skip-permissions"],
       "parse": "json:.result",
       "mode": "write",
@@ -26,21 +26,21 @@
       "env_allowlist": ["ANTHROPIC_API_KEY"]
     },
     "gemini": {
-      "cmd": ["gemini", "-p", "{prompt}", "-o", "json", "--yolo", "--skip-trust"],
+      "cmd": ["gemini", "-p={prompt}", "-o", "json", "--yolo", "--skip-trust"],
       "parse": "json:.response",
       "mode": "write",
       "timeout": 240,
       "env_allowlist": ["GEMINI_API_KEY", "GOOGLE_API_KEY"]
     },
     "codex": {
-      "cmd": ["codex", "exec", "{prompt}", "--dangerously-bypass-approvals-and-sandbox"],
+      "cmd": ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "--", "{prompt}"],
       "parse": "text",
       "mode": "write",
       "timeout": 240,
       "env_allowlist": ["OPENAI_API_KEY"]
     },
     "opencode": {
-      "cmd": ["opencode", "run", "{prompt}", "--model", "opencode/big-pickle"],
+      "cmd": ["opencode", "run", "--model", "opencode/big-pickle", "--", "{prompt}"],
       "parse": "text",
       "mode": "write",
       "timeout": 240

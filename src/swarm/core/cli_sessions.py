@@ -54,13 +54,20 @@ _RESUME_FAILURE_NEEDLES = (
 
 
 def sanitize_cli_session_id(raw: Any) -> str | None:
-    """Return a storeable CLI session id, or None if it looks unsafe / secret."""
+    """Return a storeable CLI session id, or None if it looks unsafe / secret.
+
+    Rejects leading ``-`` (``--help``) and leading ``.`` (``.``, ``..``) so
+    an id cannot become a flag or a path hop. Mid-id dashes stay valid for
+    UUIDs.
+    """
     if raw is None:
         return None
     if isinstance(raw, bool) or isinstance(raw, (dict, list)):
         return None
     text = str(raw).strip()
     if not text or len(text) > 128:
+        return None
+    if text.startswith("-") or text.startswith("."):
         return None
     if any(ch in text for ch in ("=", " ", "\n", "\t", "/", "\\")):
         return None

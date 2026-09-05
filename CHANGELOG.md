@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- **Untrusted CLI argv (C-H8 / REQ-171C-6):** User prompts cannot become extra flags (`--` before positional prompts, or stdin / `-p=`). `{workdir}` is not substituted inside the prompt text. Session ids reject leading `-`, `.`, and `..`; `resume_cli_session_id` sanitizes. Fixes #615.
+
 ### Fixed
 - **REQ-171C-7 Vitest PR gate:** `Python Tests` sibling `vitest` job runs `npm ci` then `npm test` so SPA contract tests cannot go red on `main` unnoticed. Golden-journey / `visual-regression.yml` stays HOLD (REQ-89). Shrunk `test_req133_*` source greps that only checked TSX testids — those are not coverage. Fixes #616.
 

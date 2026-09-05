@@ -29,6 +29,9 @@ def test_sanitize_rejects_secrets_and_assignments():
     assert sanitize_cli_session_id({"token": "x"}) is None
     assert sanitize_cli_session_id("id with spaces") is None
     assert sanitize_cli_session_id("../etc/passwd") is None
+    assert sanitize_cli_session_id("--help") is None
+    assert sanitize_cli_session_id(".") is None
+    assert sanitize_cli_session_id("..") is None
 
 
 def test_extract_session_id_from_claude_shaped_json():

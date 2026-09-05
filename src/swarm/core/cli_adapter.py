@@ -11,7 +11,10 @@ Design notes
 ------------
 * **No shell.** The command is an argv list executed directly
   (``asyncio.create_subprocess_exec``); the prompt is passed as a discrete
-  argument or on stdin, so there is no shell-injection surface.
+  argument or on stdin, so there is no shell-injection surface. User text is
+  still untrusted argv (C-H8): attach ``-p=``, feed stdin, or insert ``--``
+  before a flag-shaped positional prompt. Token replacement does not rescan
+  the prompt or workdir values.
 * **Lifecycle.** Every launch runs in its own OS process *group*
   (``start_new_session=True``) so a hung or runaway agent — and any children it
   spawned — can be killed as a group on timeout, ``aclose``, cancel, or a rail
@@ -44,6 +47,9 @@ PROMPT_TOKEN = "{prompt}"
 WORKDIR_TOKEN = "{workdir}"
 # Injected into resume_argv when a stored CLI session id is replayed.
 SESSION_TOKEN = "{session_id}"
+# Flags that consume the next argv token as the prompt. A bare `-p --help`
+# would otherwise treat the user text as a sibling flag; attach as `-p=`.
+_PROMPT_VALUE_FLAGS = frozenset({"-p", "--print", "--prompt", "--single"})
 
 DEFAULT_TIMEOUT = 180.0
 # Grace period between SIGTERM and SIGKILL when reaping a timed-out agent.
@@ -84,7 +90,9 @@ class CliAgentConfig:
         Logical adapter name (e.g. ``"claude"``).
     cmd:
         argv list. Use ``{prompt}`` where the prompt should be injected and
-        ``{workdir}`` for the working directory. When ``prompt_mode == "stdin"``
+        ``{workdir}`` for the working directory. Prefer ``-p={prompt}``, stdin,
+        or a positional ``{prompt}`` after ``--``. A bare ``-p {prompt}`` is
+        rewritten to ``-p=`` at launch. When ``prompt_mode == "stdin"``
         the ``{prompt}`` token is optional and the prompt is written to stdin.
     prompt_mode:
         ``"arg"`` (default) substitutes ``{prompt}`` into ``cmd``; ``"stdin"``
@@ -243,7 +251,68 @@ class CliStreamChunk:
 
 
 def _apply_tokens(value: str, prompt: str, workdir: str) -> str:
-    return value.replace(PROMPT_TOKEN, prompt).replace(WORKDIR_TOKEN, workdir)
+    """Replace ``{prompt}`` / ``{workdir}`` in *value* only.
+
+    Replacement values are inserted literally. A user prompt that contains
+    ``{workdir}`` (or a workdir that contains ``{prompt}``) must not be
+    scanned for further tokens.
+    """
+    if not value:
+        return value
+    out: list[str] = []
+    i = 0
+    n = len(value)
+    prompt_len = len(PROMPT_TOKEN)
+    workdir_len = len(WORKDIR_TOKEN)
+    while i < n:
+        if value.startswith(PROMPT_TOKEN, i):
+            out.append(prompt)
+            i += prompt_len
+        elif value.startswith(WORKDIR_TOKEN, i):
+            out.append(workdir)
+            i += workdir_len
+        else:
+            out.append(value[i])
+            i += 1
+    return "".join(out)
+
+
+def _looks_like_argv_flag(text: str) -> bool:
+    """True when *text* would be parsed as an option if left positional."""
+    return bool(text) and text.startswith("-")
+
+
+def _protect_prompt_argv(cmd: list[str], prompt: str, workdir: str) -> list[str]:
+    """Substitute tokens and keep user text from becoming extra flags.
+
+    * ``-p {prompt}`` (and ``--print`` / ``--prompt`` / ``--single``) become
+      ``-p=<prompt>`` so the value cannot be parsed as a sibling flag.
+    * A standalone ``{prompt}`` already after ``--`` is left positional.
+    * Other positional ``{prompt}`` slots: insert ``--`` before a flag-shaped
+      prompt, moving it to the end when later argv still holds options.
+    * Innocent positional prompts stay in place so fixture ``python -c``
+      cmds keep ``sys.argv[1]``.
+    """
+    argv: list[str] = []
+    deferred: str | None = None
+    for part in cmd:
+        if part == PROMPT_TOKEN:
+            prev = argv[-1] if argv else ""
+            if prev in _PROMPT_VALUE_FLAGS:
+                argv[-1] = f"{prev}={prompt}"
+            elif prev == "--":
+                argv.append(prompt)
+            elif _looks_like_argv_flag(prompt):
+                deferred = prompt
+            else:
+                argv.append(prompt)
+        else:
+            argv.append(_apply_tokens(part, prompt, workdir))
+    if deferred is not None:
+        if argv[-1:] != ["--"]:
+            argv.append("--")
+        argv.append(deferred)
+    return argv
 
 
 def _extract_json_path(data: Any, dotpath: str) -> Any:
@@ -356,8 +425,11 @@ class CliAdapter:
         when ``session_id`` / ``resume_session_id`` is set and this CLI has a
         resume policy. ``resume_session_id`` is an alias of ``session_id``.
         """
-        sid = resume_session_id or session_id
-        argv = [_apply_tokens(part, prompt, workdir) for part in self.config.cmd]
+        raw_sid = resume_session_id or session_id
+        from swarm.core.cli_sessions import sanitize_cli_session_id
+
+        sid = sanitize_cli_session_id(raw_sid)
+        argv = _protect_prompt_argv(self.config.cmd, prompt, workdir)
         if sid:
             policy = self.session_policy()
             extra = [
