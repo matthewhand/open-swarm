@@ -821,6 +821,7 @@ Remember to provide a clear, unified response to the user, even when multiple ag
             format_herdr_roster,
             herdr_list_agents,
             resolve_herdr_target,
+            resolve_remote_api_key,
         )
 
         agent_name = getattr(agent, "name", "Remote team")
@@ -835,7 +836,7 @@ Remember to provide a clear, unified response to the user, even when multiple ag
             framework = fid
             overlay = parent_spec_for_framework(fid, getattr(self, "_config", None))
             if overlay:
-                for key in ("base_url", "target", "model", "transport", "name"):
+                for key in ("base_url", "target", "model", "transport", "name", "api_key"):
                     if overlay.get(key):
                         spec[key] = overlay[key]
                 transport = spec.get("transport") or transport
@@ -896,9 +897,12 @@ Remember to provide a clear, unified response to the user, even when multiple ag
             or "default"
         )
         child_id = getattr(agent, "remote_id", None) or spec.get("remote_id") or ""
+        api_key = getattr(agent, "api_key", None) or spec.get("api_key") or None
         if not override and not child_id and (framework or "").lower() == "openmausbot" and base_url:
             try:
-                members = await asyncio.to_thread(discover_http_members, str(base_url), str(framework))
+                members = await asyncio.to_thread(
+                    discover_http_members, str(base_url), str(framework), api_key=api_key
+                )
                 pick = default_remote_member(str(framework), members)
                 if pick:
                     model = pick
@@ -946,8 +950,22 @@ Remember to provide a clear, unified response to the user, even when multiple ag
             for m in messages
             if m.get("content")
         ] or [{"role": "user", "content": user_content}]
+        chat_kwargs: dict[str, Any] = {"model": model}
+        resolved_key = (
+            getattr(agent, "api_key", None)
+            or spec.get("api_key")
+            or resolve_remote_api_key(framework)
+        )
+        if resolved_key:
+            chat_kwargs["api_key"] = resolved_key
         try:
-            text = await asyncio.to_thread(chat_remote, base_url, payload, model=model)
+            text = await asyncio.to_thread(
+                chat_remote,
+                base_url,
+                payload,
+                **chat_kwargs,
+            )
+
         except Exception as exc:
             yield {
                 "content": f"[{agent_name}] Remote team call failed: {exc}",

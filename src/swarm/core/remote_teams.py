@@ -142,6 +142,36 @@ def completions_url(base_url: str) -> str:
     return url + "/v1/chat/completions"
 
 
+def resolve_remote_api_key(
+    framework: str | None = None,
+    config: dict[str, Any] | None = None,
+) -> str | None:
+    """Resolve API key for a remote framework.
+
+    Checks per-remote config/env (remotes.<id>.api_key or <ID>_API_KEY),
+    falling back to REMOTE_TEAM_API_KEY. Never falls back to API_AUTH_TOKEN
+    or API_SERVER_KEY (REQ-171C-2 / C-H3).
+    """
+    if framework:
+        fid = normalize_framework(framework) or framework.strip().lower()
+        if isinstance(config, dict):
+            rt_block = config.get("remote_teams")
+            if isinstance(rt_block, dict):
+                fw_cfg = rt_block.get(framework) or rt_block.get(fid)
+                if isinstance(fw_cfg, dict) and fw_cfg.get("api_key"):
+                    return str(fw_cfg["api_key"]).strip()
+        try:
+            from swarm.core.remotes import load_remote
+
+            spec = load_remote(fid, config=config)
+            if spec.api_key:
+                return spec.api_key
+        except Exception:
+            pass
+    token = os.getenv("REMOTE_TEAM_API_KEY")
+    return token.strip() if token else None
+
+
 def chat_remote(
     base_url: str,
     messages: list[dict[str, Any]],
@@ -149,15 +179,17 @@ def chat_remote(
     model: str = "default",
     timeout: float = 60.0,
     api_key: str | None = None,
+    framework: str | None = None,
 ) -> str:
     """POST OpenAI-style chat completions to a remote agentic team."""
     endpoint = completions_url(base_url)
     payload = json.dumps({"model": model or "default", "messages": messages}).encode("utf-8")
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
-    token = api_key or os.getenv("REMOTE_TEAM_API_KEY") or os.getenv("API_AUTH_TOKEN")
+    token = api_key or resolve_remote_api_key(framework)
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
+
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(req, timeout=timeout) as resp:
@@ -244,6 +276,8 @@ def listed_remote_specs(
             base["target"] = str(overlay["target"])[:64]
         if overlay.get("specialty"):
             base["specialty"] = str(overlay["specialty"])[:160]
+        if overlay.get("api_key"):
+            base["api_key"] = str(overlay["api_key"]).strip()
         specs[fid] = base
     for fid, spec in specs.items():
         _apply_runtime_overlay(fid, spec)
@@ -303,7 +337,7 @@ def _hermes_fleet_url() -> str:
 
 
 def _apply_runtime_overlay(fid: str, spec: dict[str, Any]) -> None:
-    """Fill empty base_url/target from env (and Hermes fleet), never invent TBD ports."""
+    """Fill empty base_url/target/api_key from env/remotes config, never invent TBD ports."""
     if not spec.get("base_url"):
         raw = _env_first(*(_ENV_URLS.get(fid) or ()))
         if raw:
@@ -325,6 +359,11 @@ def _apply_runtime_overlay(fid: str, spec: dict[str, Any]) -> None:
         target = _env_first(*(_ENV_TARGETS.get(fid) or ()))
         if target:
             spec["target"] = target[:64]
+    if not spec.get("api_key"):
+        api_key = resolve_remote_api_key(fid)
+        if api_key:
+            spec["api_key"] = api_key
+
 
 
 def persist_remote_overlay(spec: dict[str, Any]) -> None:
@@ -503,9 +542,15 @@ def _members_from_list(items: list[Any]) -> list[dict[str, str]]:
     return out
 
 
-def _http_get_json(url: str, *, timeout: float = _DISCOVERY_TIMEOUT_S) -> Any:
+def _http_get_json(
+    url: str,
+    *,
+    timeout: float = _DISCOVERY_TIMEOUT_S,
+    api_key: str | None = None,
+    framework: str | None = None,
+) -> Any:
     headers = {"Accept": "application/json"}
-    token = os.getenv("REMOTE_TEAM_API_KEY") or os.getenv("API_AUTH_TOKEN") or os.getenv("API_SERVER_KEY")
+    token = api_key or resolve_remote_api_key(framework)
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers, method="GET")
@@ -514,13 +559,19 @@ def _http_get_json(url: str, *, timeout: float = _DISCOVERY_TIMEOUT_S) -> Any:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def discover_http_members(base_url: str, framework: str) -> list[dict[str, str]]:
+def discover_http_members(
+    base_url: str,
+    framework: str,
+    *,
+    api_key: str | None = None,
+) -> list[dict[str, str]]:
     """Live agents/models/bots from an HTTP remote. Empty on any failure."""
     try:
         origin = origin_from_base_url(base_url)
     except ValueError:
         return []
-    cache_key = f"{framework}|{origin}"
+    token = api_key or resolve_remote_api_key(framework)
+    cache_key = f"{framework}|{origin}|{token or ''}"
     now = time.time()
     hit = _DISCOVERY_CACHE.get(cache_key)
     if hit and now - hit[0] < _DISCOVERY_TTL_S:
@@ -530,7 +581,7 @@ def discover_http_members(base_url: str, framework: str) -> list[dict[str, str]]
     for path in paths:
         url = origin + path
         try:
-            body = _http_get_json(url)
+            body = _http_get_json(url, api_key=token, framework=framework)
         except Exception:
             continue
         members = parse_remote_catalog(body)
@@ -563,7 +614,16 @@ def expand_remote_members(parents: list[dict[str, Any]]) -> list[dict[str, Any]]
                     "description": str(row.get("cwd") or row.get("agent_status") or ""),
                 })
         elif parent.get("base_url"):
-            children = discover_http_members(str(parent["base_url"]), fid)
+            api_key = parent.get("api_key")
+            if api_key:
+                try:
+                    children = discover_http_members(str(parent["base_url"]), fid, api_key=api_key)
+                except TypeError:
+                    children = discover_http_members(str(parent["base_url"]), fid)
+            else:
+                children = discover_http_members(str(parent["base_url"]), fid)
+
+
         if not children:
             continue
         names = ", ".join(c["name"] for c in children[:6])
