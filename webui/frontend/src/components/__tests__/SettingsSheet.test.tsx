@@ -1048,6 +1048,69 @@ describe('SettingsSheet definition pane (REQ-42)', () => {
       const pane = screen.getByLabelText('Auto-compress at percent').closest('section')
       expect(pane?.textContent).not.toMatch(/Django/i)
     })
+
+    it('shows Compress vs Cull defaults and PATCHes cull knobs without Django copy', async () => {
+      const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/v1/preferences/') && init?.method === 'PATCH') {
+          const body = JSON.parse(String(init.body || '{}'))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: false,
+              favourites: [],
+              hidden_agents: [],
+              hostname_override: '',
+              context_auto_compress_pct: 80,
+              context_strategy: body.context_strategy ?? 'compress',
+              context_cull_trigger_pct: body.context_cull_trigger_pct ?? 90,
+              context_cull_fraction_pct: body.context_cull_fraction_pct ?? 50,
+              values: {},
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/preferences/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: true,
+              favourites: [],
+              hidden_agents: [],
+              hostname_override: '',
+              context_auto_compress_pct: 80,
+              context_strategy: 'compress',
+              context_cull_trigger_pct: 90,
+              context_cull_fraction_pct: 50,
+              values: {},
+            }),
+          } as Response
+        }
+        return { ok: true, status: 200, json: async () => ({ data: [] }) } as Response
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderSheet()
+      fireEvent.click(screen.getByRole('button', { name: 'General' }))
+      expect(await screen.findByTestId('cull-trigger-pct')).toHaveValue(90)
+      expect(screen.getByTestId('cull-fraction-pct')).toHaveValue(50)
+      fireEvent.click(screen.getByTestId('context-strategy-cull'))
+      fireEvent.change(screen.getByTestId('cull-trigger-pct'), { target: { value: '85' } })
+      fireEvent.change(screen.getByTestId('cull-fraction-pct'), { target: { value: '40' } })
+      await waitFor(() => {
+        const patches = fetchMock.mock.calls.filter(
+          (entry) => String(entry[0]).includes('/v1/preferences/') && entry[1]?.method === 'PATCH',
+        )
+        const bodies = patches.map((entry) => JSON.parse(String(entry[1]?.body || '{}')))
+        expect(bodies.some((body) => body.context_strategy === 'cull')).toBe(true)
+        expect(bodies.some((body) => body.context_cull_trigger_pct === 85)).toBe(true)
+        expect(bodies.some((body) => body.context_cull_fraction_pct === 40)).toBe(true)
+      })
+      const pane = screen.getByTestId('context-strategy').closest('section')
+      expect(pane?.textContent).not.toMatch(/Django/i)
+    })
   })
 
   it('writes an MCP server via PATCH /v1/config/sections/mcpServers/', async () => {

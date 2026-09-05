@@ -26,6 +26,7 @@ export interface ChatMessageBubbleProps {
   onSaveEdit: (text: string) => void
   onCompressToHere?: () => void
   canCompress?: boolean
+  contextStrategy?: 'compress' | 'cull'
   children?: ReactNode
   isSystemPreload?: boolean
 }
@@ -94,9 +95,12 @@ export function ChatMessageBubble({
   onSaveEdit,
   onCompressToHere,
   canCompress,
+  contextStrategy = 'compress',
   children,
   isSystemPreload,
 }: ChatMessageBubbleProps) {
+  const startFromHere = contextStrategy === 'cull'
+  const contextActionLabel = startFromHere ? 'Start context from here' : 'Compress to here'
   const [draft, setDraft] = useState(text)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -206,12 +210,13 @@ export function ChatMessageBubble({
             <button
               type="button"
               className="btn btn-ghost btn-xs gap-1"
-              aria-label="Compress to here"
-              data-testid="compress-to-here"
+              aria-label={contextActionLabel}
+              title={startFromHere ? 'Start context from here.' : 'Compress to here'}
+              data-testid={startFromHere ? 'start-context-from-here' : 'compress-to-here'}
               onClick={onCompressToHere}
             >
               <FoldVertical className="h-3 w-3" aria-hidden="true" />
-              Compress to here
+              {contextActionLabel}
             </button>
           ) : null}
         </div>

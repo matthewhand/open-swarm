@@ -14,7 +14,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUp, FoldVertical, Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings, Users } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
-import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
+import { ConfirmModal, TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
 import { OPEN_TEAM_COMPOSER_EVENT } from '../components/TeamComposer'
@@ -31,7 +31,18 @@ import {
 import { openTeamEditor } from '../components/TeamEditor'
 import PersonaRoster from '../components/PersonaRoster'
 import { declaredRosterForTeam } from '../lib/declaredRoster'
-import { persistAgentDropdownChoice } from '../lib/userPrefs'
+import { fetchUserPrefs, persistAgentDropdownChoice } from '../lib/userPrefs'
+import {
+  DEFAULT_CONTEXT_STRATEGY,
+  DEFAULT_CULL_TRIGGER_PCT,
+  START_CONTEXT_FROM_HERE_LABEL,
+  START_CONTEXT_FROM_HERE_TOOLTIP,
+  overFullWarningCopy,
+  parseContextStrategy,
+  parseCullTriggerPct,
+  type ContextMeta,
+  type ContextStrategy,
+} from '../lib/contextCull'
 import { persistableMessages, putAgentChatSession } from '../lib/agentChatSessions'
 import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
@@ -76,6 +87,7 @@ import {
   conversationIdForTask,
   DEFAULT_AGENT_ID,
   fetchAgentThread,
+  startContextFromHere,
   patchAgentMessage,
   peekConversationIdForAgent,
   setConversationIdForAgent,
@@ -331,6 +343,14 @@ const ChatPage = () => {
   const [summariesByThread, setSummariesByThread] = useState<
     Record<string, ConversationSummary[]>
   >({})
+  const [contextStrategy, setContextStrategy] = useState<ContextStrategy>(DEFAULT_CONTEXT_STRATEGY)
+  const [cullTriggerPct, setCullTriggerPct] = useState(DEFAULT_CULL_TRIGGER_PCT)
+  const [contextMeta, setContextMeta] = useState<ContextMeta>({ start_offset: 0, last_event: null })
+  const [startFromHereWarning, setStartFromHereWarning] = useState<{
+    message: ChatMessage
+    copy: string
+    startOffset: number
+  } | null>(null)
   const [input, setInput] = useState('')
   const [sttListening, setSttListening] = useState(false)
   const [sttPathUsed, setSttPathUsed] = useState<SpeechPath | null>(null)
@@ -396,6 +416,7 @@ const ChatPage = () => {
   const emptyRemoteOpenedForRef = useRef('')
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
+  const contextMaxRef = useRef<number | null>(null)
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
   const bottomDockRef = useRef<HTMLDivElement | null>(null)
@@ -854,6 +875,14 @@ const ChatPage = () => {
     return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
   }, [selectedBlueprint, teamFromUrl])
 
+  useEffect(() => {
+    void fetchUserPrefs().then((server) => {
+      if (!server) return
+      setContextStrategy(parseContextStrategy(server.context_strategy))
+      setCullTriggerPct(parseCullTriggerPct(server.context_cull_trigger_pct))
+    })
+  }, [])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
@@ -882,6 +911,7 @@ const ChatPage = () => {
           ...prev,
           [key]: thread.summaries,
         }))
+        if (thread.context_meta) setContextMeta(thread.context_meta)
         if (thread.messages.length === 0) {
           setRestoreNotice(null)
           setThreadReady(true)
@@ -920,6 +950,7 @@ const ChatPage = () => {
           ...prev,
           [key]: thread.summaries,
         }))
+        if (thread.context_meta) setContextMeta(thread.context_meta)
         if (thread.messages.length === 0) {
           setRestoreNotice(null)
           setThreadReady(true)
@@ -985,6 +1016,7 @@ const ChatPage = () => {
         ...prev,
         [threadKey]: thread.summaries,
       }))
+      if (thread.context_meta) setContextMeta(thread.context_meta)
       if (thread.session_missing) {
         setRestoreNotice(missingSessionNotice(resolvedSession || nextId))
         setThreads((prev) => ({ ...prev, [threadKey]: [] }))
@@ -1926,6 +1958,75 @@ const ChatPage = () => {
     [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey],
   )
 
+  const applyStartFromHere = useCallback(
+    async (message: ChatMessage, confirm: boolean) => {
+      const rawMessages = messages.filter(
+        (row) => row.role === 'user' || row.role === 'assistant',
+      )
+      const startOffset = rawOffsetForMessage(messages, message.key)
+      if (startOffset < 0 || rawMessages.length === 0) {
+        addToast({
+          type: 'info',
+          title: START_CONTEXT_FROM_HERE_LABEL,
+          message: 'Nothing to start from yet.',
+        })
+        return
+      }
+      try {
+        const result = await startContextFromHere({
+          conversationId,
+          agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
+          messages: rawMessages.map((row) => ({
+            role: row.role,
+            content: row.text,
+          })),
+          startOffset,
+          confirm,
+          contextMax: contextMaxRef.current,
+        })
+        if (result.warning && !result.applied) {
+          const pct = typeof result.estimated_pct === 'number' ? result.estimated_pct : 0
+          const trigger = result.cull_trigger_pct ?? cullTriggerPct
+          setStartFromHereWarning({
+            message,
+            startOffset,
+            copy: result.info || overFullWarningCopy(pct, trigger),
+          })
+          return
+        }
+        if (result.context_meta) setContextMeta(result.context_meta)
+        setStartFromHereWarning(null)
+      } catch {
+        addToast({
+          type: 'error',
+          title: START_CONTEXT_FROM_HERE_LABEL,
+          message: 'Could not start context from here. Sign in and try again.',
+        })
+      }
+    },
+    [addToast, conversationId, cullTriggerPct, messages, selectedBlueprint, teamFromUrl],
+  )
+
+  const handleStartContextFromHere = useCallback(
+    (message: ChatMessage) => {
+      setPlusOpen(false)
+      setContextMenu(null)
+      void applyStartFromHere(message, false)
+    },
+    [applyStartFromHere],
+  )
+
+  const handleContextToHere = useCallback(
+    (message: ChatMessage) => {
+      if (contextStrategy === 'cull') {
+        handleStartContextFromHere(message)
+        return
+      }
+      void handleCompressToHere(message)
+    },
+    [contextStrategy, handleCompressToHere, handleStartContextFromHere],
+  )
+
   const handleSelectSlashItem = useCallback(
     (item: SlashItem) => {
       recordRecentSlashId(item.id)
@@ -2015,6 +2116,7 @@ const ChatPage = () => {
     llmProfilesQuery.data?.profiles,
     selectedModelId || llmProfilesQuery.data?.default_llm_profile,
   )
+  contextMaxRef.current = contextMax
   const meterMax = contextMax ?? CONTEXT_METER_TOKENS
   const tokenPct = Math.min(100, Math.round((tokenCount / meterMax) * 100))
   const [tokenDiagOpen, setTokenDiagOpen] = useState(false)
@@ -2517,11 +2619,26 @@ const ChatPage = () => {
               !selectedCli &&
               !message.streaming &&
               (message.role === 'user' || message.role === 'assistant')
+            const rawOffset = rawOffsetForMessage(messages, message.key)
+            const showStartMarker =
+              contextMeta.start_offset > 0 && rawOffset === contextMeta.start_offset
             return (
               <div
                 key={message.key}
                 onContextMenu={(e) => handleBubbleContextMenu(e, message)}
               >
+                {showStartMarker ? (
+                  <div
+                    className="my-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-base-content/50"
+                    data-testid="context-starts-here"
+                    role="separator"
+                    aria-label={START_CONTEXT_FROM_HERE_LABEL}
+                  >
+                    <span className="h-px flex-1 bg-base-300" />
+                    <span>{START_CONTEXT_FROM_HERE_LABEL}</span>
+                    <span className="h-px flex-1 bg-base-300" />
+                  </div>
+                ) : null}
                 <ChatMessageBubble
                   role={message.role}
                   agentName={selectedAgentName}
@@ -2534,6 +2651,7 @@ const ChatPage = () => {
                     (message.role === 'user' || message.role === 'assistant') &&
                     rawOffsetForMessage(messages, message.key) >= 0
                   }
+                  contextStrategy={contextStrategy}
                   editing={editingKey === message.key}
                   onStartEdit={() => setEditingKey(message.key)}
                   onCancelEdit={() => setEditingKey(null)}
@@ -2541,7 +2659,7 @@ const ChatPage = () => {
                     if (messageIndex >= 0) void saveEditedMessage(messageIndex, next)
                   }}
                   onCompressToHere={() => {
-                    void handleCompressToHere(message)
+                    handleContextToHere(message)
                   }}
                 >
                   {(message.tools ?? []).map((tool) => (
@@ -2829,13 +2947,20 @@ const ChatPage = () => {
                 type="button"
                 role="menuitem"
                 className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm hover:bg-base-200 cursor-pointer"
-                data-testid="context-menu-compress-to-here"
+                data-testid={
+                  contextStrategy === 'cull'
+                    ? 'context-menu-start-from-here'
+                    : 'context-menu-compress-to-here'
+                }
+                title={
+                  contextStrategy === 'cull' ? START_CONTEXT_FROM_HERE_TOOLTIP : 'Compress to here'
+                }
                 onClick={() => {
-                  void handleCompressToHere(contextMenu.message)
+                  handleContextToHere(contextMenu.message)
                 }}
               >
                 <FoldVertical className="h-4 w-4 opacity-70" aria-hidden="true" />
-                Compress to here
+                {contextStrategy === 'cull' ? START_CONTEXT_FROM_HERE_LABEL : 'Compress to here'}
               </button>
             ) : null}
           </div>
@@ -2856,7 +2981,28 @@ const ChatPage = () => {
         messageCount={messages.length}
         userMessageCount={userMessageCount}
         assistantMessageCount={assistantMessageCount}
+        contextStrategy={contextStrategy}
+        lastContextEvent={contextMeta.last_event}
       />
+
+      <ConfirmModal
+        isOpen={startFromHereWarning != null}
+        onClose={() => setStartFromHereWarning(null)}
+        onConfirm={async () => {
+          const pending = startFromHereWarning
+          if (!pending) return
+          await applyStartFromHere(pending.message, true)
+        }}
+        title={START_CONTEXT_FROM_HERE_LABEL}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        confirmVariant="warning"
+        aria-label="Start context from here warning"
+      >
+        <p className="text-sm" data-testid="start-from-here-warning">
+          {startFromHereWarning?.copy}
+        </p>
+      </ConfirmModal>
     </div>
   )
 }

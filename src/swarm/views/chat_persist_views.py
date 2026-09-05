@@ -264,7 +264,17 @@ def chat_thread(request):
         "turns": _public_messages(turns),
         "ui_events": _public_messages(events),
         "summaries": summaries if not (fresh_task and not requested_cid) else [],
+        "context_meta": {},
     }
+    try:
+        from swarm.core.context_cull_policy import last_context_event_for_popup, load_context_meta
+
+        meta = load_context_meta(conversation_id)
+        if not meta.get("last_event"):
+            meta["last_event"] = last_context_event_for_popup(conversation_id)
+        payload["context_meta"] = meta
+    except Exception:
+        payload["context_meta"] = {"start_offset": 0, "last_event": None}
     if request.method == "GET":
         return JsonResponse(payload)
 
@@ -484,6 +494,17 @@ def chat_compact(request):
         return JsonResponse({"error": str(exc)}, status=exc.status)
     summaries = [summary_to_dict(item) for item in list_summaries(conversation_id)]
     from swarm.core.chat_compact import build_model_context
+    from swarm.core.context_cull_policy import EVENT_COMPRESS, record_context_event
+
+    try:
+        record_context_event(
+            conversation_id,
+            EVENT_COMPRESS,
+            user=request.user,
+            agent_id=agent,
+        )
+    except Exception:
+        logger.debug("compress last-event stamp skipped", exc_info=True)
 
     return JsonResponse(
         {
@@ -493,6 +514,81 @@ def chat_compact(request):
             "raw_count": len(raw),
         }
     )
+
+
+@login_required
+@require_http_methods(["POST"])
+def chat_context_start(request):
+    """REQ-121: start chat context from a chosen message (cull mode)."""
+    payload = _json_body(request)
+    agent = chat_store.normalize_agent_id(
+        payload.get("agent") or payload.get("agent_id") or request.POST.get("agent_id")
+    )
+    conversation_id = (
+        (payload.get("conversation_id") or request.POST.get("conversation_id") or "")
+        .strip()
+    )
+    if not conversation_id:
+        conversation_id = chat_store.conversation_id_for(request.user, agent)
+    messages = payload.get("messages")
+    start_offset = payload.get("start_offset", payload.get("start"))
+    through_message_id = (
+        payload.get("through_message_id")
+        or payload.get("message_id")
+        or payload.get("through")
+    )
+    confirm = payload.get("confirm") in (True, "true", "1", 1)
+    model_id = payload.get("model_id") or payload.get("model")
+    inference_entry = None
+    for key in ("context_length", "context_window", "max_context"):
+        raw_max = payload.get(key)
+        try:
+            value = int(raw_max)
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            inference_entry = {key: value}
+            break
+    try:
+        start = int(start_offset) if start_offset is not None and start_offset != "" else None
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "start_offset must be an integer."}, status=400)
+
+    from swarm.core.context_cull_policy import preview_start_from_here
+
+    result = preview_start_from_here(
+        user=request.user,
+        conversation_id=conversation_id,
+        agent_id=agent,
+        messages=messages if isinstance(messages, list) else None,
+        start_offset=start,
+        through_message_id=through_message_id,
+        model_id=str(model_id).strip() if isinstance(model_id, str) and model_id.strip() else None,
+        inference_entry=inference_entry,
+        confirm=confirm,
+    )
+    body = {
+        "applied": result.acted,
+        "warning": result.warning,
+        "reason": result.reason,
+        "info": result.info,
+        "start_offset": result.start_offset,
+        "estimated_tokens": result.estimated_tokens,
+        "estimated_pct": result.estimated_pct,
+        "cull_trigger_pct": result.threshold_pct,
+        "max_context": result.max_context,
+        "context": result.context,
+        "last_event": result.last_event,
+        "context_meta": {
+            "start_offset": result.start_offset,
+            "last_event": result.last_event,
+        },
+    }
+    if result.reason == "unknown_message":
+        return JsonResponse({"error": result.info or "Unknown message id.", **body}, status=400)
+    if result.reason == "missing_start":
+        return JsonResponse({"error": result.info or "start_offset required.", **body}, status=400)
+    return JsonResponse(body)
 
 
 @login_required

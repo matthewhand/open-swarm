@@ -449,7 +449,7 @@ class ChatCompletionsView(APIView):
             raise PermissionDenied(f"You do not have permission to access the model '{model_name}'.")
 
         try:
-            from swarm.core.context_compress_policy import auto_compact_before_send
+            from swarm.core.context_cull_policy import prepare_context_before_send
 
             conversation_id = ""
             if isinstance(blueprint_params, dict):
@@ -458,14 +458,16 @@ class ChatCompletionsView(APIView):
                     or blueprint_params.get("conversation")
                     or ""
                 )
-            result = await sync_to_async(auto_compact_before_send)(
+            result = await sync_to_async(prepare_context_before_send)(
                 user=getattr(request, "user", None),
                 conversation_id=conversation_id,
                 agent_id=str(model_name or ""),
                 messages=messages,
                 model_id=str(model_name or ""),
             )
-            if result.acted and result.context:
+            if result.context and (
+                result.acted or getattr(result, "strategy", "") == "cull"
+            ):
                 messages = result.context
         except Exception:
             logger.debug("auto-compress hook skipped", exc_info=True)

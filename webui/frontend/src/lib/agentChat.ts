@@ -8,6 +8,9 @@ import {
 import { newConversationId } from './chatWs'
 import { asTranscriptRole, isStatusRole } from './chatStatus'
 import { messagesFromThreadPayload } from './transcriptReconstruct'
+import { parseContextMeta, type ContextMeta } from './contextCull'
+
+export type { ContextMeta } from './contextCull'
 
 export type { ConversationSummary } from './chatCompact'
 
@@ -153,6 +156,22 @@ export interface AgentThread {
   editable?: boolean
   /** Requested session was not on disk/DB — do not silently swap. */
   session_missing?: boolean
+  context_meta?: ContextMeta
+}
+
+export interface ContextStartResult {
+  applied: boolean
+  warning: boolean
+  reason: string
+  info?: string | null
+  start_offset: number
+  estimated_tokens?: number
+  estimated_pct?: number | null
+  cull_trigger_pct?: number
+  max_context?: number | null
+  context?: Array<{ role?: string; content?: string }>
+  last_event?: ContextMeta['last_event']
+  context_meta?: ContextMeta
 }
 
 export interface CompactResult {
@@ -226,6 +245,7 @@ export async function fetchAgentThread(
       session_title: typeof data?.session_title === 'string' ? data.session_title : '',
       messages,
       summaries: parseSummaries(data?.summaries),
+      context_meta: parseContextMeta(data?.context_meta),
       kind,
       editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
       session_missing: data?.session_missing === true,
@@ -338,5 +358,41 @@ export async function compactAgentThread(opts: {
     summary,
     summaries: summaries.length ? summaries : [summary],
     raw_count: data?.raw_count,
+  }
+}
+
+/** POST /chat/context-start/ — start chat context from a chosen message (REQ-121). */
+export async function startContextFromHere(opts: {
+  conversationId: string
+  agentId: string
+  messages: AgentThreadMessage[]
+  startOffset?: number
+  throughMessageId?: string | number
+  confirm?: boolean
+  contextMax?: number | null
+}): Promise<ContextStartResult> {
+  const agent = agentIdFromBlueprint(opts.agentId)
+  const data = await apiPost<ContextStartResult>('/chat/context-start/', {
+    conversation_id: opts.conversationId,
+    agent,
+    messages: opts.messages.filter((row) => row.role === 'user' || row.role === 'assistant'),
+    start_offset: opts.startOffset,
+    through_message_id: opts.throughMessageId,
+    confirm: opts.confirm === true,
+    context_length: opts.contextMax != null && opts.contextMax > 0 ? opts.contextMax : undefined,
+  })
+  return {
+    applied: data?.applied === true,
+    warning: data?.warning === true,
+    reason: typeof data?.reason === 'string' ? data.reason : '',
+    info: typeof data?.info === 'string' ? data.info : data?.info ?? null,
+    start_offset: typeof data?.start_offset === 'number' ? data.start_offset : opts.startOffset ?? 0,
+    estimated_tokens: data?.estimated_tokens,
+    estimated_pct: data?.estimated_pct ?? null,
+    cull_trigger_pct: data?.cull_trigger_pct,
+    max_context: data?.max_context ?? null,
+    context: data?.context,
+    last_event: data?.last_event ?? null,
+    context_meta: parseContextMeta(data?.context_meta ?? { start_offset: data?.start_offset, last_event: data?.last_event }),
   }
 }

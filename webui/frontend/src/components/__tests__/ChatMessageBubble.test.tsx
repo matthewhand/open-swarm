@@ -224,6 +224,33 @@ describe('REQ-117: Fenced code blocks collapse, hover expand, copy, re-collapse'
   })
 })
 
+describe('REQ-121: Start context from here hover action', () => {
+  it('shows Start context from here when strategy is cull', () => {
+    const onStart = vi.fn()
+    render(
+      <ChatMessageBubble
+        role="user"
+        agentName="You"
+        text="later turn"
+        streaming={false}
+        canEdit={false}
+        canCompress={true}
+        contextStrategy="cull"
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+        onCompressToHere={onStart}
+      />,
+    )
+    const button = screen.getByRole('button', { name: 'Start context from here' })
+    expect(button).toHaveAttribute('title', 'Start context from here.')
+    expect(screen.getByTestId('start-context-from-here')).toBeInTheDocument()
+    fireEvent.click(button)
+    expect(onStart).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('REQ-87: Compress to here hover action', () => {
   it('shows Compress to here on hover when canCompress is set', () => {
     const onCompress = vi.fn()

@@ -20,6 +20,7 @@ class ChatConversation(models.Model):
     snippet = models.CharField(max_length=255, blank=True, default="")
     labels = models.JSONField(blank=True, default=list)
     cli_session_id = models.CharField(max_length=128, blank=True, default="")
+    context_meta = models.JSONField(blank=True, default=dict)
 
     class Meta:
         app_label = "swarm"

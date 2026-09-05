@@ -40,8 +40,14 @@ def test_get_empty_when_no_row(api_client):
         "hidden_agents",
         "hostname_override",
         "context_auto_compress_pct",
+        "context_strategy",
+        "context_cull_trigger_pct",
+        "context_cull_fraction_pct",
     ]
     assert body["context_auto_compress_pct"] == 80
+    assert body["context_strategy"] == "compress"
+    assert body["context_cull_trigger_pct"] == 90
+    assert body["context_cull_fraction_pct"] == 50
     blob = json.dumps(body)
     assert "api_key" not in blob
     assert "sk-" not in blob

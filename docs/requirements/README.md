@@ -35,6 +35,7 @@ Oracle from anything in this tree.
 | [REQ-70](./REQ-70.md) | [Status/info as reconstructed UI metadata](https://github.com/matthewhand/open-swarm/issues/789) (parent [#407](https://github.com/matthewhand/open-swarm/issues/407)) |
 | [REQ-80](./REQ-80.md) | [Agent right pane — Routines (PR-merge trigger, history, Test run)](https://github.com/matthewhand/open-swarm/issues/432) |
 | [REQ-87](./REQ-87.md) | [Context compress at N% (default 80%) — Settings, + menu, hover-to-here; CLI/API](https://github.com/matthewhand/open-swarm/issues/444) |
+| [REQ-121](./REQ-121.md) | [API context — optional cull-head vs compress (cache-friendly)](https://github.com/matthewhand/open-swarm/issues/504) |
 | [REQ-137](./REQ-137.md) | [First-run Support agent as journey onboarder](https://github.com/matthewhand/open-swarm/issues/530) |
 | [REQ-105](./REQ-105.md) | [Any agent — Select / New session (Django-backed session list)](https://github.com/matthewhand/open-swarm/issues/469) |
 | [REQ-114](./REQ-114.md) | [Rail right-click — Terminate running CLI process](https://github.com/matthewhand/open-swarm/issues/495) |

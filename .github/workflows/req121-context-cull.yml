@@ -1,0 +1,111 @@
+name: REQ-121 context cull
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/context_cull_policy.py"
+      - "src/swarm/core/user_preferences.py"
+      - "src/swarm/views/preferences_api.py"
+      - "src/swarm/views/chat_persist_views.py"
+      - "src/swarm/views/chat_views.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/urls.py"
+      - "src/swarm/models/__init__.py"
+      - "src/swarm/migrations/0017_chatconversation_context_meta.py"
+      - "tests/core/test_context_cull_policy.py"
+      - "tests/core/test_user_preferences.py"
+      - "tests/views/test_preferences_api.py"
+      - "webui/frontend/src/lib/contextCull.ts"
+      - "webui/frontend/src/lib/userPrefs.ts"
+      - "webui/frontend/src/lib/agentChat.ts"
+      - "webui/frontend/src/lib/__tests__/contextCull.test.ts"
+      - "webui/frontend/src/lib/__tests__/userPrefs.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentChat.test.ts"
+      - "webui/frontend/src/components/SettingsSheet.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - "webui/frontend/src/components/TokenDiagnosticsModal.tsx"
+      - "webui/frontend/src/components/__tests__/SettingsSheet.test.tsx"
+      - "webui/frontend/src/components/__tests__/ChatMessageBubble.test.tsx"
+      - "webui/frontend/src/components/__tests__/TokenDiagnosticsModal.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.contextCull.test.tsx"
+      - ".github/workflows/req121-context-cull.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/context_cull_policy.py"
+      - "src/swarm/core/user_preferences.py"
+      - "src/swarm/views/preferences_api.py"
+      - "src/swarm/views/chat_persist_views.py"
+      - "src/swarm/views/chat_views.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/urls.py"
+      - "src/swarm/models/__init__.py"
+      - "src/swarm/migrations/0017_chatconversation_context_meta.py"
+      - "tests/core/test_context_cull_policy.py"
+      - "tests/core/test_user_preferences.py"
+      - "tests/views/test_preferences_api.py"
+      - "webui/frontend/src/lib/contextCull.ts"
+      - "webui/frontend/src/lib/userPrefs.ts"
+      - "webui/frontend/src/lib/agentChat.ts"
+      - "webui/frontend/src/lib/__tests__/contextCull.test.ts"
+      - "webui/frontend/src/lib/__tests__/userPrefs.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentChat.test.ts"
+      - "webui/frontend/src/components/SettingsSheet.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - "webui/frontend/src/components/TokenDiagnosticsModal.tsx"
+      - "webui/frontend/src/components/__tests__/SettingsSheet.test.tsx"
+      - "webui/frontend/src/components/__tests__/ChatMessageBubble.test.tsx"
+      - "webui/frontend/src/components/__tests__/TokenDiagnosticsModal.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.contextCull.test.tsx"
+      - ".github/workflows/req121-context-cull.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-121 suite
+        run: |
+          uv run pytest \
+            tests/core/test_context_cull_policy.py \
+            tests/core/test_user_preferences.py \
+            tests/views/test_preferences_api.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-121 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/contextCull.test.ts \
+            src/lib/__tests__/userPrefs.test.ts \
+            src/lib/__tests__/agentChat.test.ts \
+            src/components/__tests__/ChatMessageBubble.test.tsx \
+            src/components/__tests__/TokenDiagnosticsModal.test.tsx
+          npx vitest run src/components/__tests__/SettingsSheet.test.tsx \
+            -t "Compress vs Cull|Auto-compress at"
+          npx vitest run src/pages/__tests__/ChatPage.contextCull.test.tsx

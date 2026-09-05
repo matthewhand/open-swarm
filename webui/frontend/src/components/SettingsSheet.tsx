@@ -67,6 +67,15 @@ import {
   saveUserPrefs,
 } from '../lib/userPrefs'
 import {
+  DEFAULT_CONTEXT_STRATEGY,
+  DEFAULT_CULL_FRACTION_PCT,
+  DEFAULT_CULL_TRIGGER_PCT,
+  parseContextStrategy,
+  parseCullFractionPct,
+  parseCullTriggerPct,
+  type ContextStrategy,
+} from '../lib/contextCull'
+import {
   initialNavbarThemeVisible,
   initialTheme,
   dispatchSetNavbarThemeVisible,
@@ -141,6 +150,9 @@ export default function SettingsSheet({
   const [section, setSection] = useState<SettingsSection>('retention')
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
   const [autoCompressPct, setAutoCompressPct] = useState(80)
+  const [contextStrategy, setContextStrategy] = useState<'compress' | 'cull'>('compress')
+  const [cullTriggerPct, setCullTriggerPct] = useState(90)
+  const [cullFractionPct, setCullFractionPct] = useState(50)
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(blueprintId || '')
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const resolvedDefinitionId = definitionId || teamId || blueprintId || ''
@@ -154,11 +166,23 @@ export default function SettingsSheet({
         applyHostnameOverride(server.hostname_override)
         setHostname(server.hostname_override)
         setAutoCompressPct(parseAutoCompressPct(server.context_auto_compress_pct))
+        setContextStrategy(parseContextStrategy(server.context_strategy))
+        setCullTriggerPct(parseCullTriggerPct(server.context_cull_trigger_pct))
+        setCullFractionPct(parseCullFractionPct(server.context_cull_fraction_pct))
         return
       }
       setHostname(loadHostnameOverride())
       setAutoCompressPct(
         server ? parseAutoCompressPct(server.context_auto_compress_pct) : DEFAULT_AUTO_COMPRESS_PCT,
+      )
+      setContextStrategy(
+        server ? parseContextStrategy(server.context_strategy) : DEFAULT_CONTEXT_STRATEGY,
+      )
+      setCullTriggerPct(
+        server ? parseCullTriggerPct(server.context_cull_trigger_pct) : DEFAULT_CULL_TRIGGER_PCT,
+      )
+      setCullFractionPct(
+        server ? parseCullFractionPct(server.context_cull_fraction_pct) : DEFAULT_CULL_FRACTION_PCT,
       )
     })
     setBumpCompleted(loadBumpCompleted())
@@ -370,6 +394,24 @@ export default function SettingsSheet({
                 const clamped = parseAutoCompressPct(next)
                 setAutoCompressPct(clamped)
                 void saveUserPrefs({ context_auto_compress_pct: clamped })
+              }}
+              contextStrategy={contextStrategy}
+              onContextStrategy={(next) => {
+                const strategy = parseContextStrategy(next)
+                setContextStrategy(strategy)
+                void saveUserPrefs({ context_strategy: strategy })
+              }}
+              cullTriggerPct={cullTriggerPct}
+              onCullTriggerPct={(next) => {
+                const clamped = parseCullTriggerPct(next)
+                setCullTriggerPct(clamped)
+                void saveUserPrefs({ context_cull_trigger_pct: clamped })
+              }}
+              cullFractionPct={cullFractionPct}
+              onCullFractionPct={(next) => {
+                const clamped = parseCullFractionPct(next)
+                setCullFractionPct(clamped)
+                void saveUserPrefs({ context_cull_fraction_pct: clamped })
               }}
             />
           )}
@@ -1083,9 +1125,21 @@ function HostnamePane({
 function GeneralPane({
   autoCompressPct,
   onAutoCompressPct,
+  contextStrategy,
+  onContextStrategy,
+  cullTriggerPct,
+  onCullTriggerPct,
+  cullFractionPct,
+  onCullFractionPct,
 }: {
   autoCompressPct: number
   onAutoCompressPct: (next: number) => void
+  contextStrategy: ContextStrategy
+  onContextStrategy: (next: ContextStrategy) => void
+  cullTriggerPct: number
+  onCullTriggerPct: (next: number) => void
+  cullFractionPct: number
+  onCullFractionPct: (next: number) => void
 }) {
   const [themePref, setThemePref] = useState<Theme>(initialTheme)
   const [navbarVisible, setNavbarVisible] = useState<boolean>(initialNavbarThemeVisible)
@@ -1180,6 +1234,38 @@ function GeneralPane({
         >
           Context
         </h5>
+        <fieldset className="space-y-2" data-testid="context-strategy">
+          <legend className="label-text font-medium">Strategy</legend>
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="radio"
+              name="os-context-strategy"
+              className="radio radio-sm"
+              checked={contextStrategy === 'compress'}
+              onChange={() => onContextStrategy('compress')}
+              aria-label="Compress strategy"
+              data-testid="context-strategy-compress"
+            />
+            <span className="label-text">Compress</span>
+          </label>
+          <label className="label cursor-pointer justify-start gap-3 py-0">
+            <input
+              type="radio"
+              name="os-context-strategy"
+              className="radio radio-sm"
+              checked={contextStrategy === 'cull'}
+              onChange={() => onContextStrategy('cull')}
+              aria-label="Cull strategy"
+              data-testid="context-strategy-cull"
+            />
+            <span className="label-text">Cull</span>
+          </label>
+          <p className="text-xs text-base-content/60">
+            Compress summarises older turns. Cull drops the oldest slice so the
+            recent suffix stays stable for input token caching. API agents only
+            for cull; hover action becomes Start context from here.
+          </p>
+        </fieldset>
         <div className="form-control w-full max-w-xs space-y-1">
           <label htmlFor="os-auto-compress-pct" className="label py-0">
             <span className="label-text font-medium">Auto-compress at</span>
@@ -1203,6 +1289,52 @@ function GeneralPane({
             percent of the model&apos;s known context length (1–99, default 80).
             CLI and API use the same value. If the max is unknown, auto-compress
             is skipped; Compact and Compress to here still work.
+          </p>
+        </div>
+        <div className="form-control w-full max-w-xs space-y-1">
+          <label htmlFor="os-cull-trigger-pct" className="label py-0">
+            <span className="label-text font-medium">Cull trigger</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="os-cull-trigger-pct"
+              type="number"
+              min={1}
+              max={99}
+              className="input input-bordered w-24"
+              value={cullTriggerPct}
+              onChange={(event) => onCullTriggerPct(Number(event.target.value))}
+              aria-label="Cull trigger percent"
+              data-testid="cull-trigger-pct"
+            />
+            <span className="text-sm text-base-content/70">%</span>
+          </div>
+          <p className="text-xs text-base-content/60">
+            Auto-cull when estimated tokens reach this percent of a known max
+            (1–99, default 90). Separate from compress. Unknown max skips auto.
+          </p>
+        </div>
+        <div className="form-control w-full max-w-xs space-y-1">
+          <label htmlFor="os-cull-fraction-pct" className="label py-0">
+            <span className="label-text font-medium">Cull fraction</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="os-cull-fraction-pct"
+              type="number"
+              min={1}
+              max={99}
+              className="input input-bordered w-24"
+              value={cullFractionPct}
+              onChange={(event) => onCullFractionPct(Number(event.target.value))}
+              aria-label="Cull fraction percent"
+              data-testid="cull-fraction-pct"
+            />
+            <span className="text-sm text-base-content/70">%</span>
+          </div>
+          <p className="text-xs text-base-content/60">
+            Oldest slice dropped on auto-cull (1–99, default 50). Recent turns
+            stay in the prompt for caching.
           </p>
         </div>
       </section>
