@@ -168,6 +168,12 @@ export function isSameOpenerChat(
   return true
 }
 
+/** Accessible region name — number only; title stays in visible text (React-escaped). */
+export function prOpenedRegionLabel(event: PrOpenedEvent): string {
+  if (typeof event.number === 'number') return `Pull request #${event.number}`
+  return 'Pull request opened'
+}
+
 export function openerChatSearch(opener: PrOpenedOpener): URLSearchParams {
   const params = new URLSearchParams()
   params.set('blueprint', opener.agentId)

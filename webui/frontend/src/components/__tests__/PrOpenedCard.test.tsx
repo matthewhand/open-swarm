@@ -83,6 +83,16 @@ describe('PrOpenedCard', () => {
     })
   })
 
+  it('does not put a quoted title into aria-label (title stays React text)', () => {
+    const nasty = '"><img src=x onerror=alert(1)>'
+    render(<PrOpenedCard event={event({ title: nasty })} currentAgentId="codey" />)
+    const card = screen.getByTestId('pr-opened-card')
+    expect(card).toHaveAttribute('aria-label', 'Pull request #416')
+    expect(card.getAttribute('aria-label')).not.toContain('<')
+    expect(card.querySelector('img[src="x"]')).toBeNull()
+    expect(screen.getByTestId('pr-opened-title')).toHaveTextContent(nasty)
+  })
+
   it('malformed or missing PR URL: no fake View PR', () => {
     const { rerender } = render(
       <PrOpenedCard event={event({ url: 'https://example.com/pull/1' })} currentAgentId="codey" />,

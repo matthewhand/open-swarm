@@ -4,6 +4,7 @@ import {
   formatPrFileStats,
   isGithubPrUrl,
   isSameOpenerChat,
+  prOpenedRegionLabel,
   type PrOpenedEvent,
   type PrOpenedOpener,
 } from '../lib/prOpened'
@@ -46,7 +47,7 @@ export function PrOpenedCard({
       className="os-pr-opened-card bg-base-100 w-full max-w-xl"
       data-testid="pr-opened-card"
       role="region"
-      aria-label={event.title ? `Pull request ${event.title}` : 'Pull request opened'}
+      aria-label={prOpenedRegionLabel(event)}
     >
       <div className="os-pr-opened-card__header flex flex-wrap items-center gap-2">
         {event.status ? (

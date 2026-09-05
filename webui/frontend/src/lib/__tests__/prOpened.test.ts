@@ -5,6 +5,7 @@ import {
   isSameOpenerChat,
   openerChatSearch,
   parsePrOpened,
+  prOpenedRegionLabel,
 } from '../prOpened'
 
 const GH = 'https://github.com/matthewhand/open-swarm/pull/416'
@@ -107,5 +108,12 @@ describe('same-opener chat helpers', () => {
     expect(formatPrFileStats({ type: 'pr_opened', additions: 4, deletions: 1 })).toBe('+4 -1')
     expect(formatPrFileStats({ type: 'pr_opened', additions: 4 })).toBe('+4')
     expect(formatPrFileStats({ type: 'pr_opened' })).toBeUndefined()
+  })
+
+  it('region label uses PR number, not the raw title', () => {
+    expect(prOpenedRegionLabel({ type: 'pr_opened', number: 416, title: '"><img src=x>' })).toBe(
+      'Pull request #416',
+    )
+    expect(prOpenedRegionLabel({ type: 'pr_opened', title: 'only title' })).toBe('Pull request opened')
   })
 })
