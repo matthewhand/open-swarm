@@ -264,9 +264,25 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
     Auth is Django **session** only (``AuthMiddlewareStack`` cookie). A
     Settings-page API bearer token does not authenticate this socket.
+
+    Chat turns (``{"message": ...}``) are serialised per connection
+    (REQ-171A-3 / #603). Overlapping frames queue on ``_chat_turn_lock``
+    so ``self.messages`` and HTML frames cannot interleave. SPA composer
+    queue chrome is REQ-90 / #447 — this lock is the transcript-correctness
+    boundary. ``tool_decision``, ``status``, and ``edit`` frames stay off
+    that lock so an in-flight ``respond_with_*`` can still elicit tool
+    approval.
     """
 
+    def _ensure_chat_turn_lock(self):
+        lock = getattr(self, "_chat_turn_lock", None)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._chat_turn_lock = lock
+        return lock
+
     async def connect(self):
+        self._ensure_chat_turn_lock()
         self.user = self.scope["user"]
         self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
         # Optional connection-level default blueprint (?blueprint=<id>).
@@ -407,45 +423,50 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         if not message_text.strip():
             return
 
-        # Per-message blueprint selection wins over the connection default.
-        blueprint_id = text_data_json.get("blueprint") or getattr(
-            self, "default_blueprint", None
-        )
-        self.active_agent = blueprint_id or getattr(self, "active_agent", None)
-        params = text_data_json.get("params")
-        if not isinstance(params, dict):
-            params = None
+        await self._run_serialised_chat_turn(text_data_json, message_text)
 
-        if params and params.get("new_session"):
-            # REQ-65: CoS/user task asked for an empty session on this socket.
-            self.messages = []
-            self.ui_events = []
+    async def _run_serialised_chat_turn(self, text_data_json, message_text):
+        """One ``respond_with_*`` at a time on this socket (REQ-171A-3 / #603)."""
+        async with self._ensure_chat_turn_lock():
+            # Per-message blueprint selection wins over the connection default.
+            blueprint_id = text_data_json.get("blueprint") or getattr(
+                self, "default_blueprint", None
+            )
+            self.active_agent = blueprint_id or getattr(self, "active_agent", None)
+            params = text_data_json.get("params")
+            if not isinstance(params, dict):
+                params = None
 
-        _record_turn(self, "user", message_text, ts=_message_ts())
+            if params and params.get("new_session"):
+                # REQ-65: CoS/user task asked for an empty session on this socket.
+                self.messages = []
+                self.ui_events = []
 
-        user_message_html = render_to_string(
-            "websocket_partials/user_message.html",
-            {"message_text": message_text},
-        )
-        await self.send(text_data=user_message_html)
+            _record_turn(self, "user", message_text, ts=_message_ts())
 
-        # REQ-92: new-session status must precede the assistant bubble on the wire.
-        await self._emit_new_cli_session_notice(blueprint_id, params)
+            user_message_html = render_to_string(
+                "websocket_partials/user_message.html",
+                {"message_text": message_text},
+            )
+            await self.send(text_data=user_message_html)
 
-        message_id = uuid.uuid4().hex
-        contents_div_id = f"message-response-{message_id}"
-        system_message_html = render_to_string(
-            "websocket_partials/system_message.html",
-            {"contents_div_id": contents_div_id},
-        )
-        await self.send(text_data=system_message_html)
+            # REQ-92: new-session status must precede the assistant bubble on the wire.
+            await self._emit_new_cli_session_notice(blueprint_id, params)
 
-        if params and params.get("team"):
-            await self.respond_with_team_stub(params, message_text, contents_div_id)
-        elif blueprint_id:
-            await self.respond_with_blueprint(blueprint_id, contents_div_id, params=params)
-        else:
-            await self.respond_with_default_model(contents_div_id)
+            message_id = uuid.uuid4().hex
+            contents_div_id = f"message-response-{message_id}"
+            system_message_html = render_to_string(
+                "websocket_partials/system_message.html",
+                {"contents_div_id": contents_div_id},
+            )
+            await self.send(text_data=system_message_html)
+
+            if params and params.get("team"):
+                await self.respond_with_team_stub(params, message_text, contents_div_id)
+            elif blueprint_id:
+                await self.respond_with_blueprint(blueprint_id, contents_div_id, params=params)
+            else:
+                await self.respond_with_default_model(contents_div_id)
 
     async def _emit_new_cli_session_notice(self, blueprint_id, params):
         """REQ-92: send ``Started a new {cli} session.`` before assistant_start.

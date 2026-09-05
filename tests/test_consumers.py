@@ -4,7 +4,8 @@ Unit tests for src/swarm/consumers.py
 Covers:
 - connect: authenticated vs unauthenticated, ?blueprint= query param default
 - disconnect: cleanup, save, delete empty conversations
-- receive: valid JSON, missing keys, invalid JSON, empty messages
+- receive: valid JSON, missing keys, invalid JSON, empty messages,
+  overlapping frames serialised (REQ-171A-3 / #603)
 - blueprint selection: message field, connection default, override,
   unknown-blueprint error partial
 - fetch_conversation: cache hit, DB hit, DoesNotExist
@@ -12,7 +13,9 @@ Covers:
 - delete_conversation: existing, missing
 """
 
+import asyncio
 import json
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -492,6 +495,143 @@ class TestReceive:
         await consumer.receive(text_data)
 
         assert len(consumer.messages) == 0
+
+    @pytest.mark.asyncio
+    async def test_overlapping_receives_serialise_turns_before_run_completes(
+        self, consumer, monkeypatch
+    ):
+        """REQ-171A-3 / #603: two frames before first run() stay ordered.
+
+        Consumer queues the second ``respond_with_*`` (does not interleave
+        ``self.messages`` or mix ``message-response-*`` ids). Full #447
+        queue-pane chrome is not required here.
+        """
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.messages = []
+        consumer.conversation_id = "test-conv-123"
+        consumer.default_blueprint = "jeeves"
+
+        first_run_entered = asyncio.Event()
+        release_first_run = asyncio.Event()
+        run_started = 0
+        concurrent_run = False
+
+        async def fake_run(messages, **kwargs):
+            nonlocal run_started, concurrent_run
+            idx = run_started
+            run_started += 1
+            if idx == 0:
+                first_run_entered.set()
+                await release_first_run.wait()
+            elif not release_first_run.is_set():
+                concurrent_run = True
+            users = [m.get("content") for m in messages if m.get("role") == "user"]
+            yield {"messages": [{"role": "assistant", "content": f"reply:{users[-1]}"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+        instance._params = {}
+        sent = []
+
+        async def capture_send(*, text_data=None, **_kwargs):
+            sent.append(text_data or "")
+
+        def fake_render(template, context):
+            name = str(template)
+            if "user_message" in name:
+                return f'<div class="user-message">{context.get("message_text", "")}</div>'
+            cid = context.get("contents_div_id", "")
+            if "final_system" in name:
+                return f'<div id="{cid}" class="assistant-final">{context.get("message", "")}</div>'
+            return f'<div id="{cid}" class="assistant-start"></div>'
+
+        with patch("swarm.consumers.render_to_string", side_effect=fake_render):
+            with patch.object(consumer, "send", new_callable=AsyncMock, side_effect=capture_send):
+                with patch(
+                    "swarm.views.utils.get_blueprint_instance",
+                    new_callable=AsyncMock,
+                    return_value=instance,
+                ):
+                    first = asyncio.create_task(
+                        consumer.receive(
+                            json.dumps({"message": "alpha", "blueprint": "jeeves"})
+                        )
+                    )
+                    await asyncio.wait_for(first_run_entered.wait(), timeout=2)
+                    second = asyncio.create_task(
+                        consumer.receive(
+                            json.dumps({"message": "beta", "blueprint": "jeeves"})
+                        )
+                    )
+                    await asyncio.sleep(0.05)
+                    assert [m.get("content") for m in consumer.messages] == ["alpha"]
+                    assert [m.get("role") for m in consumer.messages] == ["user"]
+                    assert run_started == 1
+                    assert not concurrent_run
+                    release_first_run.set()
+                    await asyncio.gather(first, second)
+
+        contents = [m.get("content") for m in consumer.messages]
+        roles = [m.get("role") for m in consumer.messages]
+        assert roles == ["user", "assistant", "user", "assistant"]
+        assert contents == ["alpha", "reply:alpha", "beta", "reply:beta"]
+        assert run_started == 2
+        assert not concurrent_run
+
+        ids = []
+        for frame in sent:
+            ids.extend(re.findall(r"message-response-[0-9a-f]+", frame))
+        unique = []
+        for mid in ids:
+            if mid not in unique:
+                unique.append(mid)
+        assert len(unique) == 2
+        first_id, second_id = unique
+        first_last = max(i for i, mid in enumerate(ids) if mid == first_id)
+        second_first = min(i for i, mid in enumerate(ids) if mid == second_id)
+        assert first_last < second_first
+        joined = "".join(sent)
+        assert joined.index("reply:alpha") < joined.index("reply:beta")
+        assert first_id in joined and second_id in joined
+
+    @pytest.mark.asyncio
+    async def test_tool_decision_is_not_blocked_by_in_flight_turn(self, consumer):
+        """Tool approval must resolve while the turn lock is held."""
+        hold = asyncio.Event()
+        entered = asyncio.Event()
+
+        async def fake_respond(*_args, **_kwargs):
+            entered.set()
+            await hold.wait()
+
+        consumer.messages = []
+        consumer.default_blueprint = "jeeves"
+        future = asyncio.get_running_loop().create_future()
+        consumer._pending_tool_decisions = {"appr-1": future}
+
+        with patch("swarm.consumers.render_to_string", return_value="<div/>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                with patch.object(
+                    consumer, "respond_with_blueprint", side_effect=fake_respond
+                ):
+                    turn = asyncio.create_task(
+                        consumer.receive(
+                            json.dumps({"message": "hello", "blueprint": "jeeves"})
+                        )
+                    )
+                    await asyncio.wait_for(entered.wait(), timeout=2)
+                    await consumer.receive(
+                        json.dumps(
+                            {
+                                "type": "tool_decision",
+                                "id": "appr-1",
+                                "decision": "allow",
+                            }
+                        )
+                    )
+                    assert future.result() == "allow"
+                    hold.set()
+                    await turn
 
     @pytest.mark.asyncio
     async def test_receive_tool_decision_resolves_pending_and_skips_chat(self, consumer):
