@@ -108,6 +108,9 @@ html[data-theme="light"] #root {
 
 [data-theme="light"] {
   --os-chrome-sidebar: #ececee;
+  /* Same #464 token names — light-readable variants, not a second theme system */
+  --os-grok-code-inline: #c43d4e;
+  --os-grok-link: var(--color-primary);
 }
 
 /* REQ-101: Grok colour parity for dark chrome */
@@ -145,18 +148,90 @@ html:not([data-theme="light"]) .os-composer,
   background: var(--os-grok-composer, #262626);
 }
 
-html:not([data-theme="light"]) .chat-md code:not(pre code),
-[data-theme="dark"] .chat-md code:not(pre code),
-html:not([data-theme="light"]) .os-chat-md code:not(pre code),
-[data-theme="dark"] .os-chat-md code:not(pre code) {
-  color: var(--os-grok-code-inline, #ff5667);
+/* REQ-804: in-bubble markdown follows data-theme via DaisyUI / #464 tokens */
+.chat-md,
+.os-chat-md {
+  color: inherit;
 }
 
-html:not([data-theme="light"]) .chat-md a,
-[data-theme="dark"] .chat-md a,
-html:not([data-theme="light"]) .os-chat-md a,
-[data-theme="dark"] .os-chat-md a {
-  color: var(--os-grok-link, #4194eb);
+.chat-md a,
+.os-chat-md a {
+  color: var(--os-grok-link, var(--color-primary));
+}
+
+.chat-md code:not(pre code),
+.os-chat-md code:not(pre code) {
+  color: var(--os-grok-code-inline, var(--color-error));
+  background: color-mix(
+    in srgb,
+    var(--os-grok-code-inline, var(--color-error)) 16%,
+    var(--color-base-200)
+  );
+  padding: 0.08em 0.35em;
+  border-radius: 0.3rem;
+}
+
+.chat-md pre,
+.os-chat-md pre,
+.os-code,
+.os-code-python {
+  background: color-mix(in srgb, var(--color-base-300) 72%, var(--color-base-200));
+  color: var(--color-base-content);
+}
+
+.chat-md blockquote,
+.os-chat-md blockquote {
+  margin: 0.5rem 0;
+  padding: 0.35rem 0.75rem;
+  border-left: 3px solid color-mix(in srgb, var(--color-base-content) 28%, transparent);
+  background: color-mix(in srgb, var(--color-base-content) 5%, transparent);
+  color: color-mix(in srgb, var(--color-base-content) 82%, transparent);
+}
+
+.chat-md hr,
+.os-chat-md hr {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  margin: 0.75rem 0;
+}
+
+.chat-md table,
+.os-chat-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.chat-md th,
+.chat-md td,
+.os-chat-md th,
+.os-chat-md td {
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+}
+
+.chat-md th,
+.os-chat-md th {
+  background: color-mix(in srgb, var(--color-base-content) 7%, var(--color-base-200));
+  font-weight: 650;
+}
+
+.chat-md h1,
+.chat-md h2,
+.chat-md h3,
+.chat-md h4,
+.chat-md h5,
+.chat-md h6,
+.os-chat-md h1,
+.os-chat-md h2,
+.os-chat-md h3,
+.os-chat-md h4,
+.os-chat-md h5,
+.os-chat-md h6 {
+  color: inherit;
+  font-weight: 650;
+  margin: 0.65rem 0 0.35rem;
 }
 
 /* Large dashboard action cards — chrome panels, not rainbow buttons */
@@ -848,8 +923,6 @@ button.os-agent-row {
   max-height: min(36rem, 70vh);
   padding: 0.9rem 1rem;
   border-radius: 0.6rem;
-  background: #101218;
-  color: #d6deeb;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.78rem;
   line-height: 1.5;
@@ -858,11 +931,14 @@ button.os-agent-row {
 .os-code-python code {
   font-family: inherit;
 }
-.os-py-kw { color: #c792ea; }
-.os-py-str { color: #c3e88d; }
-.os-py-cmt { color: #697098; font-style: italic; }
-.os-py-num { color: #f78c6c; }
+.os-py-kw { color: #7eb8ff; font-weight: 650; }
+.os-py-str { color: #9ad4a0; }
+.os-py-cmt,
+.os-py-com { color: #8b93a7; font-style: italic; }
+.os-py-num { color: #e0b36a; }
 .os-py-fn { color: #82aaff; }
+.os-py-dec { color: #d7a1ff; }
+.os-py-bi { color: #7fd4d0; }
 
 .os-hidden-bots {
   margin: 0 0.5rem 0.15rem;
@@ -1307,11 +1383,12 @@ pre:focus-within .os-code-copy {
   left: 0;
   right: 0;
   height: 3.5rem;
-  background: linear-gradient(to bottom, transparent, rgba(20, 20, 20, 0.85));
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--color-base-200) 92%, transparent)
+  );
   pointer-events: none;
-}
-html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
-  background: linear-gradient(to bottom, transparent, rgba(240, 240, 240, 0.9));
 }
 .os-code--collapsible.os-code--collapsed .os-code-expand {
   opacity: 0;
@@ -1849,16 +1926,12 @@ html:not([data-theme="light"]) .os-composer__send,
 .os-code-python {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.os-py-kw { color: #7eb8ff; font-weight: 650; }
-.os-py-str { color: #9ad4a0; }
-.os-py-com { color: #8b93a7; font-style: italic; }
-.os-py-num { color: #e0b36a; }
-.os-py-dec { color: #d7a1ff; }
-.os-py-bi { color: #7fd4d0; }
 [data-theme="light"] .os-py-kw { color: #1d4f91; }
 [data-theme="light"] .os-py-str { color: #2d6a38; }
+[data-theme="light"] .os-py-cmt,
 [data-theme="light"] .os-py-com { color: #667085; }
 [data-theme="light"] .os-py-num { color: #9a5b10; }
+[data-theme="light"] .os-py-fn { color: #1d4f91; }
 [data-theme="light"] .os-py-dec { color: #7a3ea8; }
 [data-theme="light"] .os-py-bi { color: #0e6e6a; }
 
@@ -1877,4 +1950,113 @@ html:not([data-theme="light"]) .os-composer__send,
   text-align: left;
   font-weight: 550;
   line-height: 1.25;
+  color: var(--color-base-content);
+  background: color-mix(in srgb, var(--color-base-200) 80%, var(--color-base-100));
+  border-color: color-mix(in srgb, var(--color-base-content) 14%, transparent);
+}
+
+/* REQ-804: in-bubble chrome (pills / chips / support cards) uses DaisyUI tokens */
+.os-handoff-chip-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.35rem 0;
+}
+
+.os-handoff-chip,
+.os-question-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  background: color-mix(in srgb, var(--color-base-200) 80%, var(--color-base-100));
+  color: color-mix(in srgb, var(--color-base-content) 82%, transparent);
+  padding: 0.28rem 0.7rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.os-handoff-chip:hover,
+.os-question-choice:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-base-200) 55%, var(--color-base-300));
+  color: var(--color-base-content);
+}
+
+.os-handoff-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.os-handoff-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-base-content) 10%, var(--color-base-300));
+  color: var(--color-base-content);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.os-briefing-popover,
+.os-question-card {
+  margin-top: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+}
+
+.os-question-choices,
+.os-support-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.os-question-other-input {
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+}
+
+.os-attach-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.os-attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+  background: color-mix(in srgb, var(--color-base-200) 80%, var(--color-base-100));
+  color: var(--color-base-content);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.os-chat-gap,
+.os-chat-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.55rem 0;
+  color: color-mix(in srgb, var(--color-base-content) 48%, transparent);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.os-chat-new__rule {
+  flex: 1 1 2rem;
+  max-width: 4rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
 }
