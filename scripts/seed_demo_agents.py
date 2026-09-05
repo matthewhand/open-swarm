@@ -10,7 +10,7 @@ SCRIPTS = Path(__file__).resolve().parent
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from seed_req156_demo import main  # noqa: E402
+from seed_req156_demo import main  # noqa: E402,I001
 
 
 if __name__ == "__main__":
