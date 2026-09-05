@@ -96,7 +96,7 @@ export function contextTextsForMeter(
   summaries: ConversationSummary[],
 ): string[] {
   return buildDisplayItems(messages, summaries)
-    .filter((item) => item.kind === 'summary' || item.message.role !== 'status')
+    .filter((item) => item.kind === 'summary' || (item.message.role !== 'status' && item.message.role !== 'system'))
     .map((item) => (item.kind === 'summary' ? item.summary.body : item.message.text))
 }
 

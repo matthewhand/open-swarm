@@ -66,6 +66,7 @@ import {
   contextTextsForMeter,
   summariesById,
 } from '../lib/chatCompact'
+import { turnIndexFromDisplay } from '../lib/transcriptReconstruct'
 import {
   buildChatWsEditFrame,
   buildChatWsFrame,
@@ -1264,13 +1265,14 @@ const ChatPage = () => {
         return { ...prev, [threadKey]: next }
       })
       setEditingKey(null)
+      const turnIndex = turnIndexFromDisplay(current, index)
       const ws = wsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(buildChatWsEditFrame(index, nextText))
+        ws.send(buildChatWsEditFrame(turnIndex, nextText))
       }
       try {
         await patchAgentMessage(agentIdFromBlueprint(selectedBlueprint), {
-          index,
+          index: turnIndex,
           content: nextText,
           conversation_id: conversationIdRef.current,
         })
@@ -1458,10 +1460,12 @@ const ChatPage = () => {
       const result = await compactAgentThread({
         conversationId,
         agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.text,
-        })),
+        messages: messages
+          .filter((message) => message.role === 'user' || message.role === 'assistant')
+          .map((message) => ({
+            role: message.role,
+            content: message.text,
+          })),
       })
       setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
     } catch {

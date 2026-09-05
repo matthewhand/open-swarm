@@ -117,6 +117,39 @@ describe('fetchAgentThread', () => {
     ])
   })
 
+  it('reconstructs chrome from turns + ui_events', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          agent_id: 'jeeves',
+          conversation_id: 'agt-1-jeeves',
+          turns: [{ role: 'user', content: 'hi', seq: 0 }],
+          ui_events: [
+            {
+              role: 'status',
+              content: 'Started a new grok session.',
+              ts: '2026-09-05T12:00:00Z',
+              seq: 1,
+            },
+          ],
+          messages: [{ role: 'user', content: 'stale' }],
+        }),
+      } as Response),
+    )
+    const thread = await fetchAgentThread('jeeves')
+    expect(thread.messages).toEqual([
+      { role: 'user', content: 'hi' },
+      {
+        role: 'status',
+        content: 'Started a new grok session.',
+        ts: '2026-09-05T12:00:00Z',
+      },
+    ])
+  })
+
   it('keeps created_at as ts so status chrome can show when it occurred', async () => {
     vi.stubGlobal(
       'fetch',

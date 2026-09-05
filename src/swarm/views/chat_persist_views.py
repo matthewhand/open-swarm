@@ -97,8 +97,26 @@ def _public_messages(messages) -> list[dict]:
         from_cid = item.get("from_conversation_id")
         if isinstance(from_cid, str) and from_cid:
             row["from_conversation_id"] = from_cid
+        seq = item.get("seq")
+        if isinstance(seq, int) and not isinstance(seq, bool):
+            row["seq"] = seq
         out.append(row)
     return out
+
+
+def _thread_channels(record, db_messages=None) -> tuple[list[dict], list[dict]]:
+    """Model turns + UI events. Schema-1 mixed rows are split."""
+    from swarm.core.transcript_roles import split_store
+
+    if record is not None:
+        return split_store(record.get("messages") or [], record.get("ui_events") or [])
+    return split_store(db_messages or [], [])
+
+
+def _thread_payload_messages(turns, events) -> list[dict]:
+    from swarm.core.transcript_roles import reconstruct_display
+
+    return _public_messages(reconstruct_display(turns, events))
 
 
 def _sync_django_and_memory(
@@ -168,10 +186,11 @@ def chat_thread(request):
     session_id = ""
     if requested_cid and requested_cid != default_cid:
         session_id = requested_cid
+    turns: list[dict] = []
+    events: list[dict] = []
     if fresh_task and not requested_cid:
         # New task: do not hydrate the reused agent transcript.
         record = None
-        messages = []
     else:
         record = chat_store.load(
             user_key,
@@ -179,21 +198,23 @@ def chat_thread(request):
             conversation_id=requested_cid,
             session_id=session_id,
         )
-        messages = (record or {}).get("messages") if record else None
-        if not messages:
-            db_id = requested_cid or (record or {}).get("conversation_id") or default_cid
-            messages = _messages_from_db(request.user, db_id)
-            if messages and record is None and not session_id:
-                # Upgrade path: mirror an existing Django row onto disk.
-                try:
-                    chat_store.save(
-                        user_key,
-                        agent,
-                        messages,
-                        conversation_id=db_id,
-                    )
-                except OSError:
-                    logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
+        db_id = requested_cid or (record or {}).get("conversation_id") or default_cid
+        db_messages = [] if record and record.get("messages") else _messages_from_db(
+            request.user, db_id
+        )
+        turns, events = _thread_channels(record, db_messages)
+        if not record and turns and not session_id:
+            # Upgrade path: mirror an existing Django row onto disk.
+            try:
+                chat_store.save(
+                    user_key,
+                    agent,
+                    turns,
+                    conversation_id=db_id,
+                    ui_events=events,
+                )
+            except OSError:
+                logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
     if requested_cid:
         conversation_id = requested_cid
     elif record and record.get("conversation_id") and not fresh_task:
@@ -226,7 +247,9 @@ def chat_thread(request):
         "editable": kind == "api",
         "new_chat_per_task": fresh_task,
         "active_sessions": sessions,
-        "messages": _public_messages(messages),
+        "messages": _thread_payload_messages(turns, events),
+        "turns": _public_messages(turns),
+        "ui_events": _public_messages(events),
         "summaries": summaries if not (fresh_task and not requested_cid) else [],
     }
     if request.method == "GET":
@@ -236,9 +259,15 @@ def chat_thread(request):
         body = _json_body(request)
         msg = body.get("message")
         if isinstance(msg, dict) and msg.get("content"):
-            from swarm.core.transcript_roles import stamp_ui_event
+            from swarm.core.transcript_roles import (
+                append_event,
+                append_turn,
+                is_chrome_message,
+                stamp_ui_event,
+            )
 
-            current_messages = list(messages or [])
+            current_turns = list(turns)
+            current_events = list(events)
             new_row = {
                 "role": str(msg.get("role") or "status"),
                 "content": str(msg.get("content") or ""),
@@ -246,26 +275,45 @@ def chat_thread(request):
             ts = msg.get("ts") or msg.get("timestamp") or msg.get("created_at")
             if isinstance(ts, str) and ts.strip():
                 new_row["ts"] = ts.strip()
-            if new_row["role"] in ("status", "info") or not new_row.get("ts"):
-                new_row = stamp_ui_event(new_row)
-            current_messages.append(new_row)
+            if is_chrome_message(new_row):
+                if not new_row.get("ts"):
+                    new_row = stamp_ui_event(new_row)
+                append_event(
+                    current_turns,
+                    current_events,
+                    new_row["role"],
+                    new_row["content"],
+                    ts=new_row.get("ts"),
+                    kind=msg.get("kind"),
+                )
+            else:
+                append_turn(
+                    current_turns,
+                    current_events,
+                    new_row["role"],
+                    new_row["content"],
+                    ts=new_row.get("ts"),
+                )
             try:
                 chat_store.save(
                     user_key,
                     agent,
-                    current_messages,
+                    current_turns,
                     conversation_id=conversation_id,
                     session_id=conversation_id if conversation_id != default_cid else "",
+                    ui_events=current_events,
                 )
             except OSError:
                 logger.exception("Failed to append chat JSON for %s/%s", user_key, agent)
             _sync_django_and_memory(
                 request.user,
-                current_messages,
+                current_turns,
                 [conversation_id],
                 agent_id=agent,
             )
-            payload["messages"] = _public_messages(current_messages)
+            payload["messages"] = _thread_payload_messages(current_turns, current_events)
+            payload["turns"] = _public_messages(current_turns)
+            payload["ui_events"] = _public_messages(current_events)
             return JsonResponse(payload)
         return JsonResponse({"error": "message must be provided."}, status=400)
 
@@ -281,20 +329,21 @@ def chat_thread(request):
         return JsonResponse({"error": "index must be an integer."}, status=400)
     if not isinstance(content, str):
         return JsonResponse({"error": "content must be a string."}, status=400)
-    current_messages = list(messages or [])
-    if index < 0 or index >= len(current_messages):
+    current_turns = list(turns)
+    if index < 0 or index >= len(current_turns):
         return JsonResponse({"error": "No message at that index."}, status=404)
-    updated = dict(current_messages[index])
+    updated = dict(current_turns[index])
     updated["content"] = content
     updated["edited"] = True
-    current_messages[index] = updated
+    current_turns[index] = updated
     try:
         chat_store.save(
             user_key,
             agent,
-            current_messages,
+            current_turns,
             conversation_id=conversation_id,
             session_id=conversation_id if conversation_id != default_cid else "",
+            ui_events=events,
         )
     except OSError:
         logger.exception("Failed to persist edited chat JSON for %s/%s", user_key, agent)
@@ -304,11 +353,13 @@ def chat_thread(request):
         )
     _sync_django_and_memory(
         request.user,
-        current_messages,
+        current_turns,
         [conversation_id],
         agent_id=agent,
     )
-    payload["messages"] = _public_messages(current_messages)
+    payload["messages"] = _thread_payload_messages(current_turns, events)
+    payload["turns"] = _public_messages(current_turns)
+    payload["ui_events"] = _public_messages(events)
     return JsonResponse(payload)
 
 

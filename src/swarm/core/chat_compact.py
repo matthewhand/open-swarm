@@ -291,11 +291,18 @@ def ensure_transcript(
     if not getattr(user, "is_authenticated", False):
         raise CompactError("Sign in required.", status=403)
 
+    from swarm.core.transcript_roles import is_ui_only_role, split_store
+
     user_key = chat_store.user_key_for(user)
     record = chat_store.load(user_key, agent_id)
     stored: list[dict[str, str]] = []
     if record:
-        stored = _normalize_client_messages(record.get("messages") or [])
+        stored, _stored_events = split_store(
+            _normalize_client_messages(record.get("messages") or []),
+            record.get("ui_events") or [],
+            stamp_seq=False,
+        )
+        del _stored_events
 
     chat, _created = ChatConversation.objects.get_or_create(
         conversation_id=conversation_id,
@@ -309,16 +316,27 @@ def ensure_transcript(
 
     db_rows = list(chat.chat_messages.all())
     if not stored and db_rows:
-        stored = [{"role": row.sender, "content": row.content} for row in db_rows]
+        stored, _db_events = split_store(
+            [{"role": row.sender, "content": row.content} for row in db_rows],
+            [],
+            stamp_seq=False,
+        )
+        del _db_events
 
-    client = _normalize_client_messages(client_messages)
+    client, _client_events = split_store(
+        _normalize_client_messages(client_messages),
+        [],
+        stamp_seq=False,
+    )
+    del _client_events
     raw = stored if stored else client
     if client and len(client) > len(raw):
         raw = client
+    raw = [item for item in raw if not is_ui_only_role(item.get("role"))]
     if not raw:
         raise CompactError("Nothing to compact.")
 
-    # Rewrite JSON with the full raw list — same messages, never dropped.
+    # Rewrite JSON with the full raw turn list — chrome stays in ui_events.
     chat_store.save(user_key, agent_id, raw, conversation_id=conversation_id)
 
     if db_rows:
@@ -328,6 +346,7 @@ def ensure_transcript(
                 [
                     ChatMessage(conversation=chat, sender=item["role"], content=item["content"])
                     for item in extras
+                    if not is_ui_only_role(item.get("role"))
                 ]
             )
     else:
@@ -335,6 +354,7 @@ def ensure_transcript(
             [
                 ChatMessage(conversation=chat, sender=item["role"], content=item["content"])
                 for item in raw
+                if not is_ui_only_role(item.get("role"))
             ]
         )
     return chat, raw

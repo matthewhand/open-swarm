@@ -73,12 +73,18 @@ mirrors the transcript there on save; `GET /chat/thread/?agent=` hydrates the
 SPA after reload or agent switch. Retention (counts, disk, trash,
 `SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
 
-Dropdown changes (REQ-46) append a `role=status` row with a timestamp. The SPA
+Dropdown changes (REQ-46) record a status event with a timestamp. The SPA
 POSTs `/chat/thread/` and, when the socket is open, also sends
 `{"type":"status","text":"CLI: antigravity → grok"}`. The consumer persists
-that line and does **not** invoke a blueprint or LLM. Status/info rows are
-omitted from the model context (REQ-70), including compact-fallback and CLI
-`render_prompt` paths.
+that line as **UI metadata** (`ui_events`) and does **not** invoke a blueprint
+or LLM.
+
+REQ-70 reconstruction: status/info/hop chrome lives in `ui_events` (side
+channel). The UI reconstructs those lines into transcript chrome. Model
+context is built from real user/assistant/tool turns only. Exclude helpers
+(`messages_for_model`) remain a safety belt if mixed rows still exist
+temporarily — they are not the Success architecture. Compact-fallback and
+CLI `render_prompt` use the same turns-only payload.
 
 Tests: `tests/test_asgi_routing.py` (full-stack routing/auth/round-trip) and
 `tests/test_consumers.py` (consumer unit tests).

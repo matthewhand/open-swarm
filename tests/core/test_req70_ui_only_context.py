@@ -113,7 +113,7 @@ def test_compact_backlog_summarises_real_messages_only():
         agent_id="jeeves",
         messages=messages,
     )
-    assert raw[0]["role"] == "status"
+    assert [item["role"] for item in raw] == ["user", "assistant"]
     assert STATUS_CLI not in row.body
     assert STATUS_FALLBACK not in row.body
     assert "remember this" in row.body
