@@ -183,6 +183,55 @@ describe('AgentMessageBubble', () => {
     expect(screen.getByText('Taskmaster')).toBeInTheDocument()
     expect(screen.getByLabelText('SecurityBot message')).toBeInTheDocument()
   })
+
+  it('renders reaction row and hides on desktop until hover while staying visible on mobile (REQ-91)', () => {
+    const onAddReaction = vi.fn()
+    const msgWithReactions: ChatMessage = {
+      key: 'r-msg',
+      role: 'assistant',
+      text: 'Great idea!',
+      reactions: [
+        { emoji: '👍', count: 3, userReacted: true },
+        { emoji: '🎉', count: 1, userReacted: false },
+      ],
+    }
+
+    renderBubble(
+      <AgentMessageBubble
+        message={msgWithReactions}
+        onAddReaction={onAddReaction}
+      />,
+    )
+
+    const reactionRow = screen.getByTestId('message-reactions-row')
+    expect(reactionRow).toBeInTheDocument()
+
+    // Mobile: opacity-100 pointer-events-auto
+    expect(reactionRow.className).toContain('opacity-100')
+    expect(reactionRow.className).toContain('pointer-events-auto')
+
+    // Desktop: concealed at rest (md:opacity-0 md:pointer-events-none), reveals on hover / focus
+    expect(reactionRow.className).toContain('md:opacity-0')
+    expect(reactionRow.className).toContain('md:pointer-events-none')
+    expect(reactionRow.className).toContain('group-hover:md:opacity-100')
+    expect(reactionRow.className).toContain('group-focus-within:md:opacity-100')
+
+    // Action bar reaction button and visibility
+    const actionsBar = screen.getByTestId('message-actions')
+    expect(actionsBar.className).toContain('opacity-100')
+    expect(actionsBar.className).toContain('md:opacity-0')
+    expect(actionsBar.className).toContain('group-hover:md:opacity-100')
+
+    const addReactionBtn = screen.getByRole('button', { name: 'Add reaction' })
+    expect(addReactionBtn).toBeInTheDocument()
+    fireEvent.click(addReactionBtn)
+    expect(onAddReaction).toHaveBeenCalledWith('r-msg')
+
+    const thumbsUpBadge = screen.getByTestId('reaction-👍')
+    expect(thumbsUpBadge).toHaveTextContent('👍3')
+    fireEvent.click(thumbsUpBadge)
+    expect(onAddReaction).toHaveBeenCalledWith('r-msg', '👍')
+  })
 })
 
 

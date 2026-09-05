@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Copy, FoldVertical, RotateCcw, ScrollText } from 'lucide-react'
+import { Check, Copy, FoldVertical, RotateCcw, ScrollText, Smile } from 'lucide-react'
 import type { Agent, ChatMessage } from '../../types/agent'
 import { AgentAvatar } from '../AgentSidebar/AgentAvatar'
 import { useToast } from '../DaisyUI'
@@ -25,6 +25,7 @@ interface AgentMessageBubbleProps {
   onCompactToHere?: () => void
   onRegenerateSummary?: (steer: string) => void
   onResolveApproval?: (status: 'approved' | 'rejected') => void
+  onAddReaction?: (messageKey: string, emoji?: string) => void
 }
 
 export function AgentMessageBubble({
@@ -37,6 +38,7 @@ export function AgentMessageBubble({
   onCompactToHere,
   onRegenerateSummary,
   onResolveApproval,
+  onAddReaction,
 }: AgentMessageBubbleProps) {
   const isUser = message.role === 'user'
   const isSummary = message.kind === 'summary'
@@ -139,7 +141,7 @@ export function AgentMessageBubble({
             <span className="text-[11px] font-bold uppercase tracking-wider text-base-content/55">
               Conversation summary
             </span>
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+            <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 group-hover:md:opacity-100 group-focus-within:md:opacity-100 transition-opacity">
               <button
                 type="button"
                 className="btn btn-ghost btn-xs btn-square"
@@ -251,7 +253,53 @@ export function AgentMessageBubble({
             </button>
           )}
         </div>
-        <div className="absolute -top-3 right-1 flex items-center gap-0.5 rounded-full border border-base-300 bg-base-100 px-0.5 py-0.5 shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-opacity">
+        {message.reactions && message.reactions.length > 0 && (
+          <div
+            data-testid="message-reactions-row"
+            className="os-message-reactions flex flex-wrap items-center gap-1 mt-1 opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none group-hover:md:opacity-100 group-hover:md:pointer-events-auto group-focus-within:md:opacity-100 group-focus-within:md:pointer-events-auto transition-opacity"
+            aria-label="Message reactions"
+          >
+            {message.reactions.map((r, idx) => (
+              <button
+                key={`${r.emoji}-${idx}`}
+                type="button"
+                data-testid={`reaction-${r.emoji}`}
+                className={`badge badge-sm cursor-pointer select-none gap-1 py-2 px-2 text-xs transition-colors ${
+                  r.userReacted ? 'badge-primary' : 'badge-ghost border-base-300'
+                }`}
+                onClick={() =>
+                  onAddReaction?.(
+                    message.key || message.id || `${message.sender || message.role}-${message.timestamp || ''}`,
+                    r.emoji,
+                  )
+                }
+                aria-label={`Reaction ${r.emoji} count ${r.count}`}
+              >
+                <span>{r.emoji}</span>
+                {r.count > 1 && <span className="text-[10px] font-semibold">{r.count}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        <div
+          data-testid="message-actions"
+          className="os-message-actions absolute -top-3 right-1 flex items-center gap-0.5 rounded-full border border-base-300 bg-base-100 px-0.5 py-0.5 shadow-sm opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none group-hover:md:opacity-100 group-hover:md:pointer-events-auto group-focus-within:md:opacity-100 group-focus-within:md:pointer-events-auto transition-opacity"
+        >
+          {onAddReaction && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs btn-circle"
+              aria-label="Add reaction"
+              title="Add reaction"
+              onClick={() =>
+                onAddReaction(
+                  message.key || message.id || `${message.sender || message.role}-${message.timestamp || ''}`,
+                )
+              }
+            >
+              <Smile className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-ghost btn-xs btn-circle"
