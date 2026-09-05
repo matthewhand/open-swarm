@@ -157,6 +157,20 @@ export default function SearchPalette({ open, onClose, options }: SearchPaletteP
         description: 'Open the connected models pane',
         action: () => openSettingsSheet({ section: 'llm-profiles' }),
       },
+      {
+        id: 'action-rail-settings',
+        tab: 'Actions',
+        name: 'Rail settings',
+        description: 'Open rail preferences in Settings',
+        action: () => openSettingsSheet({ section: 'rail' }),
+      },
+      {
+        id: 'action-system-settings',
+        tab: 'Actions',
+        name: 'System settings',
+        description: 'Open system diagnostics in Settings',
+        action: () => openSettingsSheet({ section: 'system' }),
+      },
     ]
     return [...botRows, ...actionRows]
   }, [agents])
