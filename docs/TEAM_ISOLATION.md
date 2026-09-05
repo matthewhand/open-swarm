@@ -49,3 +49,7 @@ handoff for each **direct child** team id. CoS receives consult + handoff for
 
 Code: `swarm.core.agent_roles`, `swarm.core.team_rosters`,
 `swarm.core.team_isolation`, `swarm.core.team_consult`.
+
+Peer mailbox (`list_agents` / `send_message`, REQ-153) is a **different**
+channel: same-kind API tools, team-scoped plus relationship edges. CoS/Support
+are allow-all same-kind on that graph. See [ADR-009](./adr/009-peer-mailbox.md).

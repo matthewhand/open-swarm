@@ -1,0 +1,55 @@
+name: REQ-153 peer mailbox
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/agent_mailbox.py"
+      - "src/swarm/core/agent_relationships.py"
+      - "src/swarm/core/blueprint_base.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/chat_views.py"
+      - "tests/core/test_agent_mailbox.py"
+      - "tests/core/test_agent_relationships.py"
+      - "tests/unit/test_req153_mailbox.py"
+      - "docs/adr/009-peer-mailbox.md"
+      - "docs/PEER_MAILBOX.md"
+      - ".github/workflows/req153-mailbox.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/agent_mailbox.py"
+      - "src/swarm/core/agent_relationships.py"
+      - "src/swarm/core/blueprint_base.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/chat_views.py"
+      - "tests/core/test_agent_mailbox.py"
+      - "tests/core/test_agent_relationships.py"
+      - "tests/unit/test_req153_mailbox.py"
+      - "docs/adr/009-peer-mailbox.md"
+      - "docs/PEER_MAILBOX.md"
+      - ".github/workflows/req153-mailbox.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-153 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/core/test_agent_mailbox.py \
+            tests/core/test_agent_relationships.py \
+            tests/unit/test_req153_mailbox.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"

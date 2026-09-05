@@ -649,6 +649,17 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             if not isinstance(cfg, dict):
                 cfg = swarm_config()
             apply_plugin_mcp_runtime(blueprint_instance, cfg, params.get("enabled_tools"))
+        try:
+            from swarm.core.agent_mailbox import install_mailbox_for_runtime
+
+            install_mailbox_for_runtime(
+                blueprint_instance,
+                caller_id=str(blueprint_id or ""),
+                user=getattr(self, "user", None),
+                params=params if isinstance(params, dict) else {},
+            )
+        except Exception:
+            logger.exception("Failed to install peer mailbox tools")
 
         final_message = None
         token = None
