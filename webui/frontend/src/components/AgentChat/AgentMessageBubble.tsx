@@ -14,6 +14,7 @@ import {
   messageHasCopyableText,
 } from '../../lib/clipboard'
 import { renderSafeMarkdown } from '../../lib/markdown'
+import { SystemPreloadPill } from '../SystemPreloadPill'
 
 interface AgentMessageBubbleProps {
   message: ChatMessage
@@ -47,6 +48,10 @@ export function AgentMessageBubble({
   const [steer, setSteer] = useState('')
   const { error } = useToast()
   const canCopy = messageHasCopyableText(message.text)
+
+  if (message.kind === 'system' || message.isSystemPreload || (message.role as string) === 'system') {
+    return <SystemPreloadPill text={message.text} />
+  }
 
   const handleCopy = async () => {
     const result = await copyTextToClipboard(message.text)

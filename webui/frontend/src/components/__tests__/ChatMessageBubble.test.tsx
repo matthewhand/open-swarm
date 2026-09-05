@@ -284,4 +284,31 @@ describe('REQ-122: No You / agent name labels above chat bubbles', () => {
     expect(screen.getByTestId('edited-hint')).toHaveTextContent('edited')
     expect(screen.queryByText('You')).not.toBeInTheDocument()
   })
+
+  it('renders system preload message as a compact "Message from System" pill (REQ-207)', () => {
+    render(
+      <ChatMessageBubble
+        role="system"
+        isSystemPreload={true}
+        agentName="Support"
+        text="**Agents**\n- Support · support\n\n**Inference** ready."
+        streaming={false}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+      />,
+    )
+
+    const pill = screen.getByRole('button', { name: /Message from System/i })
+    expect(pill).toBeInTheDocument()
+    expect(pill).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('chat-bubble')).not.toBeInTheDocument()
+
+    fireEvent.click(pill)
+    expect(pill).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('system-preload-content')).toHaveTextContent('Support · support')
+  })
 })
+

@@ -163,7 +163,7 @@ export interface CompactedLine {
 
 export interface ChatMessage {
   key: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   text: string
   agent?: string
   agent_id?: string
@@ -173,9 +173,10 @@ export interface ChatMessage {
   delegationId?: string
   consensus_data?: ConsensusData
   /** Rectangular context block replacing compacted history — not a chat turn. */
-  kind?: 'message' | 'summary' | 'review' | 'approval'
+  kind?: 'message' | 'summary' | 'review' | 'approval' | 'system'
   compacted?: CompactedLine[]
   oversightRole?: 'socratic_skeptic' | 'stupidity_checker' | 'taskmaster'
+  isSystemPreload?: boolean
   approval?: {
     status: 'pending' | 'approved' | 'rejected'
     reason: string
