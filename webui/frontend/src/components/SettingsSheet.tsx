@@ -1097,10 +1097,16 @@ function LlmProfilesPane() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault()
+    if (profilesQuery.isError || profiles.length === 0) {
+      return
+    }
     setSaving(true)
     try {
-      const saved = await patchLlmProfiles({
-        default_llm_profile: defaultId,
+      const payload: {
+        default_llm_profile?: string
+        override_per_task: boolean
+        task_llm_profiles: Partial<Record<LlmTaskClass, string>>
+      } = {
         override_per_task: overrideOn,
         task_llm_profiles: overrideOn
           ? {
@@ -1109,7 +1115,11 @@ function LlmProfilesPane() {
               delegation: taskMap.delegation || defaultId,
             }
           : taskMap,
-      })
+      }
+      if (defaultId.trim()) {
+        payload.default_llm_profile = defaultId.trim()
+      }
+      const saved = await patchLlmProfiles(payload)
       setDefaultId(saved.default_llm_profile || defaultId)
       setOverrideOn(Boolean(saved.override_per_task))
       setTaskMap({ ...saved.task_llm_profiles })
@@ -1250,7 +1260,12 @@ function LlmProfilesPane() {
         </Alert>
       ) : null}
 
-      <Button type="submit" variant="primary" size="sm" disabled={saving}>
+      <Button
+        type="submit"
+        variant="primary"
+        size="sm"
+        disabled={saving || profilesQuery.isPending || profilesQuery.isError || profiles.length === 0}
+      >
         {saving ? 'Saving…' : 'Save LLM profiles'}
       </Button>
     </form>
