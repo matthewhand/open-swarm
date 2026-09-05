@@ -75,7 +75,15 @@ def test_save_preserves_status_messages_and_cli_sessions(tmp_path):
     )
     assert path is not None
     loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
-    assert [m["role"] for m in loaded["messages"]] == ["user", "status", "assistant"]
+    assert [m["role"] for m in loaded["messages"]] == ["user", "assistant"]
+    assert loaded["ui_events"][0]["content"] == "Started a new echo session."
+    from swarm.core.transcript_roles import reconstruct_display
+
+    assert [m["role"] for m in reconstruct_display(loaded["messages"], loaded["ui_events"])] == [
+        "user",
+        "status",
+        "assistant",
+    ]
     assert loaded["cli_sessions"] == {"echo": "sid-1"}
     chat_store.save(
         "u1",
@@ -105,9 +113,9 @@ def test_normalize_keeps_status_role(tmp_path):
         base_dir=tmp_path,
     )
     loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
-    assert loaded["messages"][0]["role"] == "status"
-    assert loaded["messages"][0]["content"] == "CLI: antigravity → grok"
-    assert loaded["messages"][1]["role"] == "user"
+    assert loaded["messages"][0]["role"] == "user"
+    assert loaded["ui_events"][0]["role"] == "status"
+    assert loaded["ui_events"][0]["content"] == "CLI: antigravity → grok"
 
 
 def test_save_preserves_info_role_and_status_timestamp(tmp_path):
@@ -126,10 +134,11 @@ def test_save_preserves_info_role_and_status_timestamp(tmp_path):
         base_dir=tmp_path,
     )
     loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
-    assert loaded["messages"][0]["role"] == "info"
-    assert loaded["messages"][0]["ts"] == "2026-09-05T12:00:00Z"
-    assert loaded["messages"][1]["role"] == "status"
-    assert loaded["messages"][1]["ts"] == "2026-09-05T12:01:00Z"
+    assert [row["role"] for row in loaded["messages"]] == ["user"]
+    assert loaded["ui_events"][0]["role"] == "info"
+    assert loaded["ui_events"][0]["ts"] == "2026-09-05T12:00:00Z"
+    assert loaded["ui_events"][1]["role"] == "status"
+    assert loaded["ui_events"][1]["ts"] == "2026-09-05T12:01:00Z"
     assert chat_store.normalize_agent_id("../etc/passwd") == "etc-passwd"
 
 

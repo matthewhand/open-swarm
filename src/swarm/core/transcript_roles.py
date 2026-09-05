@@ -1,8 +1,10 @@
-"""Transcript roles that are UI chrome vs model context (REQ-70 / #407).
+"""Transcript roles that are UI chrome vs model context (REQ-70 / #789).
 
-Info/status lines persist for the human (with timestamps) and must never
-enter the LLM payload. Compact summaries and speaker labelling operate on
-the filtered list only.
+Status/info/hop chrome is UI metadata stored outside the model-turn list.
+The UI reconstructs those lines; the model sees real turns only.
+
+``messages_for_model`` / ``is_ui_only_role`` remain a safety belt when mixed
+rows still exist temporarily. They are not the Success architecture.
 """
 
 from __future__ import annotations
@@ -99,3 +101,202 @@ def context_blob(messages: Iterable[dict[str, Any]] | None) -> str:
         parts.append(str(item.get("content") or ""))
         parts.append(str(item.get("name") or ""))
     return "\n".join(parts)
+
+
+CHROME_KINDS = frozenset({"status", "info", "hop", "pr_opened", "prior_history"})
+HOP_PREFIXES = ("Messaged ", "Message from ")
+
+# Belt alias: same filter, named for the reconstructed (turns-only) path.
+turns_for_model = messages_for_model
+
+
+def _int_seq(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        return int(value.strip())
+    return None
+
+
+def next_seq(turns: Iterable[Any] | None, events: Iterable[Any] | None) -> int:
+    """Next monotonic seq across turns + UI events."""
+    vals: list[int] = []
+    for item in list(turns or []) + list(events or []):
+        if not isinstance(item, dict):
+            continue
+        seq = _int_seq(item.get("seq"))
+        if seq is not None:
+            vals.append(seq)
+    return (max(vals) + 1) if vals else 0
+
+
+def event_kind(item: dict[str, Any]) -> str:
+    kind = item.get("kind")
+    if isinstance(kind, str) and kind.strip():
+        return kind.strip()[:64]
+    role = _role_of(item)
+    content = str(item.get("content") or item.get("text") or "")
+    if content.startswith(HOP_PREFIXES):
+        return "hop"
+    if role in UI_ONLY_ROLES:
+        return role
+    return "status"
+
+
+def is_chrome_message(item: Any) -> bool:
+    """True when a row is UI chrome, not a model turn."""
+    if not isinstance(item, dict):
+        return False
+    kind = item.get("kind")
+    if isinstance(kind, str) and kind.strip().lower() in CHROME_KINDS:
+        return True
+    if is_ui_only_role(_role_of(item)):
+        return True
+    content = str(item.get("content") or item.get("text") or "")
+    return content.startswith(HOP_PREFIXES)
+
+
+def _as_turn(item: dict[str, Any]) -> dict[str, Any]:
+    row = dict(item)
+    row.pop("kind", None)
+    return row
+
+
+def _as_event(item: dict[str, Any]) -> dict[str, Any]:
+    row = stamp_ui_event(dict(item))
+    role = _role_of(row)
+    if role not in UI_ONLY_ROLES:
+        row["role"] = "status"
+    row["kind"] = event_kind(row)
+    return row
+
+
+def split_store(
+    messages: Iterable[Any] | None,
+    ui_events: Iterable[Any] | None = None,
+    *,
+    stamp_seq: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split a mixed (or turns-only) list into model turns + UI events.
+
+    Schema-1 threads that still mix ``role=status|info`` into ``messages``
+    are migrated here. Existing ``ui_events`` are kept unless ``messages``
+    already contains the same chrome (reconstructed payload).
+    """
+    turns: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
+    seq = 0
+    mixed = list(messages or [])
+    has_chrome = any(is_chrome_message(item) for item in mixed)
+
+    def _stamp(row: dict[str, Any]) -> dict[str, Any]:
+        nonlocal seq
+        out = dict(row)
+        existing = _int_seq(out.get("seq"))
+        if stamp_seq and existing is None:
+            out["seq"] = seq
+            seq += 1
+        elif existing is not None:
+            seq = max(seq, existing + 1)
+        return out
+
+    for raw in mixed:
+        if not isinstance(raw, dict):
+            continue
+        row = _stamp(raw)
+        if is_chrome_message(row):
+            events.append(_as_event(row))
+        else:
+            turns.append(_as_turn(row))
+
+    if ui_events and not has_chrome:
+        for raw in ui_events:
+            if not isinstance(raw, dict):
+                continue
+            events.append(_as_event(_stamp(raw)))
+    elif ui_events and not mixed:
+        for raw in ui_events:
+            if not isinstance(raw, dict):
+                continue
+            events.append(_as_event(_stamp(raw)))
+    return turns, events
+
+
+def reconstruct_display(
+    turns: Iterable[Any] | None,
+    events: Iterable[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Interleave model turns and UI events by ``seq`` for chrome display."""
+    items: list[tuple[int, int, dict[str, Any]]] = []
+    for idx, raw in enumerate(turns or []):
+        if not isinstance(raw, dict):
+            continue
+        seq = _int_seq(raw.get("seq"))
+        items.append((seq if seq is not None else idx, 0, dict(raw)))
+    for idx, raw in enumerate(events or []):
+        if not isinstance(raw, dict):
+            continue
+        seq = _int_seq(raw.get("seq"))
+        row = dict(raw)
+        if not row.get("role"):
+            row["role"] = "status"
+        items.append((seq if seq is not None else idx, 1, row))
+    items.sort(key=lambda item: (item[0], item[1]))
+    return [item[2] for item in items]
+
+
+def append_turn(
+    turns: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    role: str,
+    content: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Append a real user/assistant/tool turn with the next ``seq``."""
+    row: dict[str, Any] = {"role": role, "content": content, "seq": next_seq(turns, events)}
+    for key, value in extra.items():
+        if value is not None:
+            row[key] = value
+    turns.append(row)
+    return row
+
+
+def append_event(
+    turns: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    role: str,
+    content: str,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Append UI chrome to the side channel (never the model-turn list)."""
+    row: dict[str, Any] = {
+        "role": role if is_ui_only_role(role) else "status",
+        "content": content,
+        "seq": next_seq(turns, events),
+    }
+    for key, value in extra.items():
+        if value is not None:
+            row[key] = value
+    stamped = _as_event(row)
+    events.append(stamped)
+    return stamped
+
+
+def stamp_event(item: dict[str, Any]) -> dict[str, Any]:
+    """Alias for ``stamp_ui_event`` (reconstruction naming)."""
+    return stamp_ui_event(item)
+
+
+def build_model_context_from_store(
+    turns: Iterable[Any] | None,
+    events: Iterable[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Model payload from the reconstructed store: turns only.
+
+    ``events`` is accepted so callers can pass the split pair; chrome is
+    never read. The belt still runs in case a turn list is mixed.
+    """
+    del events
+    return messages_for_model(turns)

@@ -30,7 +30,7 @@ from typing import Any
 
 from swarm.core.paths import get_user_data_dir_for_swarm
 
-SCHEMA = 1
+SCHEMA = 2
 DEFAULT_AGENT_ID = "_default"
 ENV_CHAT_DIR = "SWARM_CHAT_DIR"
 ENV_CHAT_MAX_AGE_DAYS = "SWARM_CHAT_MAX_AGE_DAYS"
@@ -239,8 +239,47 @@ def _normalize_messages(raw: Any) -> list[dict[str, Any]]:
         from_cid = item.get("from_conversation_id")
         if isinstance(from_cid, str) and from_cid.strip():
             msg["from_conversation_id"] = from_cid.strip()[:128]
+        seq = item.get("seq")
+        if isinstance(seq, int) and not isinstance(seq, bool):
+            msg["seq"] = seq
         out.append(msg)
     return out
+
+
+def _normalize_events(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        row = _normalize_messages([item])
+        if not row:
+            continue
+        event = row[0]
+        if "kind" not in event:
+            content = str(event.get("content") or "")
+            role = str(event.get("role") or "status")
+            if content.startswith("Messaged ") or content.startswith("Message from "):
+                event["kind"] = "hop"
+            elif role in ("status", "info"):
+                event["kind"] = role
+            else:
+                event["kind"] = "status"
+        if event.get("role") not in ("status", "info"):
+            event["role"] = "status"
+        out.append(event)
+    return out
+
+
+def _split_record(messages: Any, ui_events: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    from swarm.core.transcript_roles import split_store
+
+    return split_store(
+        _normalize_messages(messages),
+        _normalize_events(ui_events),
+        stamp_seq=True,
+    )
 
 
 def empty_record(
@@ -258,6 +297,7 @@ def empty_record(
         "created_at": now,
         "updated_at": now,
         "messages": [],
+        "ui_events": [],
         "cli_sessions": {},
     }
 
@@ -270,9 +310,14 @@ def save(
     conversation_id: str = "",
     session_id: str = "",
     cli_sessions: dict[str, Any] | None = None,
+    ui_events: list[dict[str, Any]] | None = None,
     base_dir: Path | None = None,
 ) -> Path | None:
-    """Write (or replace) the active thread. Returns the path, or None if ids are unsafe."""
+    """Write (or replace) the active thread. Returns the path, or None if ids are unsafe.
+
+    ``messages`` is the model-turn list. Status/info/hop chrome is stored in
+    ``ui_events``. Mixed schema-1 lists are split on write.
+    """
     agent = normalize_agent_id(agent_id)
     uk = _safe_id(user_key)
     if uk is None:
@@ -288,6 +333,27 @@ def save(
         if cli_sessions is not None
         else normalize_cli_sessions((existing or {}).get("cli_sessions"))
     )
+    if messages is not None:
+        if ui_events is not None:
+            incoming_events = ui_events
+        else:
+            from swarm.core.transcript_roles import is_chrome_message
+
+            if any(is_chrome_message(item) for item in messages):
+                incoming_events = []
+            else:
+                incoming_events = (existing or {}).get("ui_events") or []
+        turns, events = _split_record(messages, incoming_events)
+    else:
+        prior_turns, prior_events = _split_record(
+            (existing or {}).get("messages"),
+            (existing or {}).get("ui_events"),
+        )
+        if ui_events is not None:
+            turns, events = prior_turns, _normalize_events(ui_events)
+            _, events = _split_record(turns, events)
+        else:
+            turns, events = prior_turns, prior_events
     record = {
         "schema": SCHEMA,
         "agent_id": agent,
@@ -296,9 +362,8 @@ def save(
         "session_id": session_id or (existing or {}).get("session_id") or "",
         "created_at": created,
         "updated_at": _iso(),
-        "messages": _normalize_messages(
-            messages if messages is not None else (existing or {}).get("messages")
-        ),
+        "messages": turns,
+        "ui_events": events,
         "cli_sessions": sessions,
     }
     _atomic_write(path, record)
@@ -327,7 +392,10 @@ def load(
         record = _read_json(path)
         if record is None:
             return None
-        record["messages"] = _normalize_messages(record.get("messages"))
+        turns, events = _split_record(record.get("messages"), record.get("ui_events"))
+        record["schema"] = SCHEMA
+        record["messages"] = turns
+        record["ui_events"] = events
         return record
     wanted = (conversation_id or "").strip()
     if wanted:
@@ -344,7 +412,10 @@ def load(
     record = _read_json(path)
     if record is None:
         return None
-    record["messages"] = _normalize_messages(record.get("messages"))
+    turns, events = _split_record(record.get("messages"), record.get("ui_events"))
+    record["schema"] = SCHEMA
+    record["messages"] = turns
+    record["ui_events"] = events
     record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
     return record
 
@@ -375,7 +446,7 @@ def list_sessions(
         else:
             continue
         record = _read_json(path) or {}
-        messages = _normalize_messages(record.get("messages"))
+        turns, events = _split_record(record.get("messages"), record.get("ui_events"))
         items.append(
             {
                 "agent_id": agent,
@@ -383,7 +454,7 @@ def list_sessions(
                 "conversation_id": record.get("conversation_id") or "",
                 "updated_at": record.get("updated_at") or "",
                 "created_at": record.get("created_at") or "",
-                "message_count": len(messages),
+                "message_count": len(turns) + len(events),
                 "bytes": _file_size(path),
             }
         )
@@ -526,14 +597,14 @@ def list_active(user_key: str, *, base_dir: Path | None = None) -> list[dict[str
         if not _ID_RE.match(agent):
             continue
         record = _read_json(path) or {}
-        messages = _normalize_messages(record.get("messages"))
+        turns, events = _split_record(record.get("messages"), record.get("ui_events"))
         items.append(
             {
                 "agent_id": agent,
                 "conversation_id": record.get("conversation_id") or "",
                 "updated_at": record.get("updated_at") or "",
                 "created_at": record.get("created_at") or "",
-                "message_count": len(messages),
+                "message_count": len(turns) + len(events),
                 "bytes": _file_size(path),
             }
         )
@@ -552,13 +623,13 @@ def list_trash(user_key: str, *, base_dir: Path | None = None) -> list[dict[str,
         if not agent or not _ID_RE.match(agent):
             continue
         record = _read_json(path) or {}
-        messages = _normalize_messages(record.get("messages"))
+        turns, events = _split_record(record.get("messages"), record.get("ui_events"))
         items.append(
             {
                 "agent_id": agent,
                 "filename": path.name,
                 "updated_at": record.get("updated_at") or "",
-                "message_count": len(messages),
+                "message_count": len(turns) + len(events),
                 "bytes": _file_size(path),
             }
         )

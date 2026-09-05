@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **REQ-70 reconstruction (#789):** Status/info/hop chrome is stored as side-channel `ui_events` (timestamp + `seq`). The UI reconstructs those lines; the JSON `messages` list and Django `ChatMessage` rows are real turns only. The landed #765 `messages_for_model` filter stays as a safety belt. Docs describe reconstruction / UI metadata, not filter-as-Success. Fixes #789.
+
 ### Changed
 - **#776 CI after #775 example-only SoT:** `GET /v1/agents/llm-profiles/` reads the shared `SWARM_CONFIG_PATH` / XDG loader (not a hunt for a committed live file). Designer + Codey tests use placeholder fixtures. README points at `swarm_config.example.json`.
 - **Tidy repo root (#775):** Move PyInstaller helpers to `scripts/packaging/` and Pinokio install/start/update/menu into `pinokio/`. Root `pinokio.js` and `manage.py` stay (Pinokio and Django require those paths). Replace committed `swarm_config.json` with sanitized `swarm_config.example.json`; gitignore a local `swarm_config.json`. Fixes #775.

@@ -6,6 +6,7 @@ import {
 } from './chatCompact'
 import { newConversationId } from './chatWs'
 import { asTranscriptRole, isStatusRole } from './chatStatus'
+import { messagesFromThreadPayload } from './transcriptReconstruct'
 
 export type { ConversationSummary } from './chatCompact'
 
@@ -181,9 +182,10 @@ export async function fetchAgentThread(
     const data = await apiGet<AgentThread>(
       `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
     )
-    const messages = Array.isArray(data?.messages)
-      ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
-      : []
+    const reconstructed = messagesFromThreadPayload(data || {})
+    const messages = reconstructed
+      .map(parseThreadMessage)
+      .filter((row): row is AgentThreadMessage => row != null)
     const kind = classifyAgentKind(agent, data?.kind)
     return {
       agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
@@ -228,9 +230,10 @@ export async function patchAgentMessage(
     `/chat/thread/?agent=${encodeURIComponent(agent)}`,
     body,
   )
-  const messages = Array.isArray(data?.messages)
-    ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
-    : []
+  const reconstructed = messagesFromThreadPayload(data || {})
+  const messages = reconstructed
+    .map(parseThreadMessage)
+    .filter((row): row is AgentThreadMessage => row != null)
   const kind = classifyAgentKind(agent, data?.kind)
   return {
     agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
@@ -257,9 +260,10 @@ export async function appendAgentMessage(
     `/chat/thread/?agent=${encodeURIComponent(agent)}${conversationId ? `&conversation_id=${encodeURIComponent(conversationId)}` : ''}`,
     { message, conversation_id: conversationId },
   )
-  const messages = Array.isArray(data?.messages)
-    ? data.messages.map(parseThreadMessage).filter((row): row is AgentThreadMessage => row != null)
-    : []
+  const reconstructed = messagesFromThreadPayload(data || {})
+  const messages = reconstructed
+    .map(parseThreadMessage)
+    .filter((row): row is AgentThreadMessage => row != null)
   const kind = classifyAgentKind(agent, data?.kind)
   return {
     agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
@@ -286,7 +290,7 @@ export async function compactAgentThread(opts: {
   const data = await apiPost<CompactResult>('/chat/compact/', {
     conversation_id: opts.conversationId,
     agent,
-    messages: opts.messages,
+    messages: opts.messages.filter((row) => row.role === 'user' || row.role === 'assistant'),
     span_start: opts.spanStart,
     span_end: opts.spanEnd,
   })

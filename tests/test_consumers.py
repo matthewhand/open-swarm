@@ -22,6 +22,7 @@ from django.contrib.auth.models import AnonymousUser
 
 from swarm.consumers import (
     IN_MEMORY_CONVERSATIONS,
+    IN_MEMORY_UI_EVENTS,
     SPA_HELLO_TYPE,
     DjangoChatConsumer,
     _conversation_cache_key,
@@ -82,6 +83,7 @@ def consumer(mock_scope, mock_user):
     consumer.scope = mock_scope
     consumer.user = mock_user  # Set user attribute directly (normally set in connect)
     consumer.messages = []
+    consumer.ui_events = []
     return consumer
 
 
@@ -94,13 +96,17 @@ def isolated_memory_cache():
     """
     # Save original state
     original = IN_MEMORY_CONVERSATIONS.copy()
+    original_events = IN_MEMORY_UI_EVENTS.copy()
     IN_MEMORY_CONVERSATIONS.clear()
+    IN_MEMORY_UI_EVENTS.clear()
 
     yield IN_MEMORY_CONVERSATIONS
 
     # Restore original state
     IN_MEMORY_CONVERSATIONS.clear()
     IN_MEMORY_CONVERSATIONS.update(original)
+    IN_MEMORY_UI_EVENTS.clear()
+    IN_MEMORY_UI_EVENTS.update(original_events)
 
 
 # =============================================================================
@@ -663,9 +669,10 @@ class TestBlueprintSelection:
                 with patch.object(consumer, "respond_with_default_model", new_callable=AsyncMock) as mock_default:
                     await consumer.receive(text_data)
 
-        assert consumer.messages[0]["role"] == "status"
-        assert consumer.messages[0]["content"] == "CLI: antigravity → grok"
-        assert consumer.messages[0]["ts"]
+        assert consumer.messages == []
+        assert consumer.ui_events[0]["role"] == "status"
+        assert consumer.ui_events[0]["content"] == "CLI: antigravity → grok"
+        assert consumer.ui_events[0]["ts"]
         assert consumer.active_agent == "cli_agent"
         mock_save.assert_awaited_once()
         mock_bp.assert_not_awaited()
@@ -789,11 +796,15 @@ class TestBlueprintSelection:
                 assert any("chat-status-line" in frame for frame in frames)
                 assert any("Started a new echo session." in frame for frame in frames)
                 assert "Restored" not in "".join(frames)
-                status_rows = [m for m in consumer.messages if m.get("role") == "status"]
+                from swarm.core.transcript_roles import reconstruct_display
+
+                status_rows = [m for m in consumer.ui_events if m.get("role") == "status"]
                 assert status_rows
                 assert status_rows[0]["content"] == "Started a new echo session."
                 assert status_rows[0].get("ts")
-                roles = [m["role"] for m in consumer.messages]
+                assert all(m.get("role") != "status" for m in consumer.messages)
+                display = reconstruct_display(consumer.messages, consumer.ui_events)
+                roles = [m["role"] for m in display]
                 assert roles.index("status") < roles.index("assistant")
                 status_i = next(i for i, frame in enumerate(frames) if "Started a new echo session." in frame)
                 assistant_i = next(i for i, frame in enumerate(frames) if "ok" in frame)
@@ -844,8 +855,12 @@ class TestBlueprintSelection:
         status_i = next(i for i, frame in enumerate(frames) if "Started a new grok session." in frame)
         start_i = next(i for i, frame in enumerate(frames) if "assistant-message" in frame)
         assert status_i < start_i
-        assert [m["role"] for m in consumer.messages[:2]] == ["user", "status"]
-        assert consumer.messages[1]["content"] == "Started a new grok session."
+        from swarm.core.transcript_roles import reconstruct_display
+
+        assert [m["role"] for m in consumer.messages] == ["user"]
+        display = reconstruct_display(consumer.messages, consumer.ui_events)
+        assert [m["role"] for m in display[:2]] == ["user", "status"]
+        assert display[1]["content"] == "Started a new grok session."
 
     @pytest.mark.asyncio
     async def test_receive_resume_does_not_emit_spurious_new_session(
@@ -878,6 +893,10 @@ class TestBlueprintSelection:
 
         assert all("Started a new" not in str(frame) for frame in frames)
         assert all(m.get("content") != "Started a new grok session." for m in consumer.messages)
+        assert all(
+            m.get("content") != "Started a new grok session."
+            for m in getattr(consumer, "ui_events", [])
+        )
 
     @pytest.mark.asyncio
     async def test_blueprint_run_uses_compacted_context(self, consumer, monkeypatch):

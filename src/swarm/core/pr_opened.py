@@ -188,10 +188,21 @@ def parse_pr_opened(
     return payload
 
 
-def persist_pr_opened_message(messages: list[dict[str, Any]], payload: dict[str, Any]) -> None:
-    """Append a status row so reload can rehydrate the card (not model context)."""
+def persist_pr_opened_message(
+    messages: list[dict[str, Any]],
+    payload: dict[str, Any],
+    *,
+    events: list[dict[str, Any]] | None = None,
+) -> None:
+    """Record a PR-opened chrome event (UI metadata, not model context)."""
     content = json.dumps(payload, separators=(",", ":"))
-    for row in messages:
+    target = events if events is not None else messages
+    for row in target:
         if row.get("role") == "status" and row.get("content") == content:
             return
-    messages.append({"role": "status", "content": content})
+    if events is not None:
+        from swarm.core.transcript_roles import append_event
+
+        append_event(messages, events, "status", content, kind="pr_opened")
+        return
+    messages.append({"role": "status", "content": content, "kind": "pr_opened"})
