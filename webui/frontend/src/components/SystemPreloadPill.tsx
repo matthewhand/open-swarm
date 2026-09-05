@@ -1,27 +1,52 @@
 import { useState, useId } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { renderSafeMarkdown } from '../lib/markdown'
+import { messageFromLabel } from '../lib/compactedCardMenu'
+import { useCompactedCardMenu } from './CompactedCardContextMenu'
+
+function pillMark(label: string): string {
+  const from = label.match(/^Message from (.+)$/i)
+  const source = from?.[1] || label
+  return (source.trim().charAt(0) || 'S').toUpperCase()
+}
 
 export interface SystemPreloadPillProps {
   text: string
   defaultExpanded?: boolean
   className?: string
   label?: string
+  /** Hide this card in the current view only. Raw transcript stays on disk. */
+  onRemove?: () => void
 }
 
 export function SystemPreloadPill({
   text,
   defaultExpanded = false,
   className = '',
-  label = 'Message from System',
+  label = messageFromLabel('System'),
+  onRemove,
 }: SystemPreloadPillProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
+  const [removed, setRemoved] = useState(false)
   const contentId = useId()
+  const { onContextMenu, onKeyDown, menuNode } = useCompactedCardMenu({
+    label,
+    expanded,
+    copyText: text,
+    onToggleExpand: () => setExpanded((prev) => !prev),
+    onRemove: () => {
+      if (onRemove) onRemove()
+      else setRemoved(true)
+    },
+  })
+
+  if (removed) return null
 
   return (
     <div
       className={`os-system-preload flex flex-col items-start w-full my-2 ${className}`}
       data-testid="system-preload-container"
+      onContextMenu={onContextMenu}
     >
       <button
         type="button"
@@ -31,12 +56,13 @@ export function SystemPreloadPill({
         aria-controls={contentId}
         aria-label={label}
         onClick={() => setExpanded((prev) => !prev)}
+        onKeyDown={onKeyDown}
       >
         <span
           className="flex h-4 w-4 items-center justify-center rounded-full bg-base-300 text-[10px] font-bold text-base-content/80 shrink-0"
           aria-hidden="true"
         >
-          S
+          {pillMark(label)}
         </span>
         <span>{label}</span>
         <ChevronDown
@@ -60,6 +86,7 @@ export function SystemPreloadPill({
           />
         </div>
       )}
+      {menuNode}
     </div>
   )
 }

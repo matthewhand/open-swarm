@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { createEvent, render, screen, fireEvent } from '@testing-library/react'
 import { SystemPreloadPill } from '../SystemPreloadPill'
 
 describe('REQ-207: Support preload — Message from System pill', () => {
@@ -59,5 +59,55 @@ describe('REQ-207: Support preload — Message from System pill', () => {
   it('renders the REQ-104 Prior history label', () => {
     render(<SystemPreloadPill text="**User:** old thread" label="Prior history" />)
     expect(screen.getByRole('button', { name: /Prior history/i })).toBeInTheDocument()
+  })
+
+  it('REQ-213: right-click opens DaisyUI menu and suppresses the browser default', () => {
+    render(<SystemPreloadPill text={samplePreload} />)
+    const pill = screen.getByTestId('system-preload-pill')
+    const ev = createEvent.contextMenu(pill)
+    fireEvent(pill, ev)
+    expect(ev.defaultPrevented).toBe(true)
+
+    const menu = screen.getByTestId('compacted-card-context-menu')
+    expect(menu).toHaveClass('menu')
+    expect(screen.getByRole('menuitem', { name: 'Expand' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Remove from view' })).toHaveClass('text-error')
+  })
+
+  it('REQ-213: Expand / Collapse toggle the pill via the menu', () => {
+    render(<SystemPreloadPill text={samplePreload} />)
+    const pill = screen.getByTestId('system-preload-pill')
+    fireEvent.contextMenu(pill)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Expand' }))
+    expect(pill).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('system-preload-content')).toBeInTheDocument()
+
+    fireEvent.contextMenu(pill)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse' }))
+    expect(pill).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('system-preload-content')).not.toBeInTheDocument()
+  })
+
+  it('REQ-213: Copy writes the full underlying preload text', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(<SystemPreloadPill text={samplePreload} />)
+    fireEvent.contextMenu(screen.getByTestId('system-preload-pill'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith(samplePreload)
+  })
+
+  it('REQ-213: Remove from view hides the pill (view-only)', () => {
+    render(<SystemPreloadPill text={samplePreload} />)
+    fireEvent.contextMenu(screen.getByTestId('system-preload-pill'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from view' }))
+    expect(screen.queryByTestId('system-preload-container')).not.toBeInTheDocument()
+  })
+
+  it('REQ-213: Message from Agent uses the shared pill family', () => {
+    render(<SystemPreloadPill text="handoff brief" label="Message from Codey" />)
+    expect(screen.getByRole('button', { name: /Message from Codey/i })).toBeInTheDocument()
+    expect(screen.getByTestId('system-preload-pill')).toHaveTextContent('C')
   })
 })

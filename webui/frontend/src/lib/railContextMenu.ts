@@ -40,6 +40,9 @@ export type RailMenuItemId =
   | 'section-move-up'
   | 'section-move-down'
   | 'section-delete'
+  | 'expand'
+  | 'collapse'
+  | 'copy'
 
 export interface RailMenuSubItemSpec {
   id: string

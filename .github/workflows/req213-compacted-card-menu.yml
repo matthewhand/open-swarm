@@ -1,0 +1,88 @@
+name: REQ-213 compacted-card menu
+
+on:
+  pull_request:
+    paths:
+      - "webui/frontend/src/lib/compactedCardMenu.ts"
+      - "webui/frontend/src/lib/__tests__/compactedCardMenu.test.ts"
+      - "webui/frontend/src/lib/railContextMenu.ts"
+      - "webui/frontend/src/components/CompactedCardContextMenu.tsx"
+      - "webui/frontend/src/components/CompactSummaryCard.tsx"
+      - "webui/frontend/src/components/SystemPreloadPill.tsx"
+      - "webui/frontend/src/components/RailContextMenu.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - "webui/frontend/src/components/AgentChat/AgentMessageBubble.tsx"
+      - "webui/frontend/src/components/__tests__/CompactedCardContextMenu.test.tsx"
+      - "webui/frontend/src/components/__tests__/CompactSummaryCard.test.tsx"
+      - "webui/frontend/src/components/__tests__/SystemPreloadPill.test.tsx"
+      - "webui/frontend/src/components/__tests__/ChatMessageBubble.test.tsx"
+      - "webui/frontend/src/components/AgentChat/__tests__/AgentMessageBubble.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/AgentRouterPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.compactedCardMenu.test.tsx"
+      - "tests/unit/test_req213_compacted_card_menu.py"
+      - ".github/workflows/req213-compacted-card-menu.yml"
+  push:
+    branches: [main]
+    paths:
+      - "webui/frontend/src/lib/compactedCardMenu.ts"
+      - "webui/frontend/src/lib/__tests__/compactedCardMenu.test.ts"
+      - "webui/frontend/src/lib/railContextMenu.ts"
+      - "webui/frontend/src/components/CompactedCardContextMenu.tsx"
+      - "webui/frontend/src/components/CompactSummaryCard.tsx"
+      - "webui/frontend/src/components/SystemPreloadPill.tsx"
+      - "webui/frontend/src/components/RailContextMenu.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - "webui/frontend/src/components/AgentChat/AgentMessageBubble.tsx"
+      - "webui/frontend/src/components/__tests__/CompactedCardContextMenu.test.tsx"
+      - "webui/frontend/src/components/__tests__/CompactSummaryCard.test.tsx"
+      - "webui/frontend/src/components/__tests__/SystemPreloadPill.test.tsx"
+      - "webui/frontend/src/components/__tests__/ChatMessageBubble.test.tsx"
+      - "webui/frontend/src/components/AgentChat/__tests__/AgentMessageBubble.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/AgentRouterPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.compactedCardMenu.test.tsx"
+      - "tests/unit/test_req213_compacted_card_menu.py"
+      - ".github/workflows/req213-compacted-card-menu.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-213 source lock
+        run: uv run pytest tests/unit/test_req213_compacted_card_menu.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-213 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/compactedCardMenu.test.ts \
+            src/components/__tests__/CompactedCardContextMenu.test.tsx \
+            src/components/__tests__/CompactSummaryCard.test.tsx \
+            src/components/__tests__/SystemPreloadPill.test.tsx \
+            src/components/__tests__/ChatMessageBubble.test.tsx \
+            src/components/AgentChat/__tests__/AgentMessageBubble.test.tsx \
+            src/pages/__tests__/ChatPage.compactedCardMenu.test.tsx
