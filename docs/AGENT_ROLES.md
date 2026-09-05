@@ -38,7 +38,7 @@ and a missing `role` mean no badge.
 
 v1 `workflow` is metadata + apply-on-create — not a new orchestration engine.
 There is no `webui` blueprint kind; pickers hide leftover `django_chat` /
-`kind=webui` rows (retirement of that recipe is #419).
+`kind=webui` rows (#419 already retired that recipe).
 
 Also: `.os-agent-role-badge` for the optional label chip; `.os-agent-dot[data-role=…]`
 for the accent. Support should **reuse these class names**, not invent a parallel set.

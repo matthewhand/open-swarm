@@ -95,8 +95,8 @@ WORKFLOW_ALIASES: dict[str, str] = {
 }
 CANONICAL_WORKFLOWS: tuple[str, ...] = (WORKFLOW_HANDOFF, WORKFLOW_AS_TOOL)
 
-# WebUI-as-blueprint leftovers (#419 retires them). REQ-75 pickers must not
-# offer a webui kind; do not delete django_chat from this PR.
+# WebUI-as-blueprint leftovers (#419 deleted django_chat). REQ-75 pickers
+# still refuse a webui kind if a leftover row appears.
 WEBUI_BLUEPRINT_IDS = frozenset({"django_chat"})
 WEBUI_KINDS = frozenset({"webui", "django_chat", "webpage", "django-chat"})
 
@@ -138,8 +138,8 @@ def normalize_workflow(value: Any) -> str | None:
 def is_webui_blueprint(blueprint_id: Any = None, meta: dict[str, Any] | None = None) -> bool:
     """True when a catalog row is a leftover webui/django-chat recipe.
 
-    Pickers must not offer a webui kind (REQ-75). Retirement of
-    ``django_chat`` itself is #419 — this helper only classifies.
+    Pickers must not offer a webui kind (REQ-75). ``django_chat`` is
+    already gone (#419); this helper still classifies leftovers.
     """
     bid = str(blueprint_id or "").strip().lower().replace("-", "_")
     if bid in WEBUI_BLUEPRINT_IDS:

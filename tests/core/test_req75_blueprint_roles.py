@@ -1,7 +1,9 @@
 """REQ-75: blueprint default role + workflow hint, apply-on-create.
 
-Fixture metadata only — no secrets, no :8001, no django_chat page.
+Fixture metadata + live catalog filter. No secrets, no :8001.
 """
+
+import pytest
 
 from swarm.core.agent_roles import (
     ROLE_DEFAULT,
@@ -102,3 +104,20 @@ def test_django_chat_and_webui_kind_are_webui():
         "legacy_page",
         {"urls_module": "blueprints.django_chat.urls", "url_prefix": "django_chat/"},
     ) is True
+
+
+@pytest.mark.django_db
+def test_live_catalog_picker_has_no_webui_kind(api_client):
+    response = api_client.get("/v1/blueprints/")
+    assert response.status_code == 200
+    rows = response.json()["data"]
+    assert rows, "expected bundled CLI/API recipes"
+    for row in rows:
+        assert row.get("webui") is False
+        assert is_webui_blueprint(row.get("id"), row) is False
+        assert row.get("id") != "django_chat"
+        assert str(row.get("kind") or "").lower() not in {
+            "webui",
+            "django_chat",
+            "webpage",
+        }
