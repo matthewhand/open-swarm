@@ -356,6 +356,9 @@ export interface LlmProfile {
   intelligence?: number
   speed?: number
   cost?: number
+  context_length?: number
+  context_window?: number
+  max_context?: number
 }
 
 export interface LlmTaskRoute {

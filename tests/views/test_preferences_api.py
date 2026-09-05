@@ -35,7 +35,13 @@ def test_get_empty_when_no_row(api_client):
     assert body["hidden_agents"] == []
     assert body["hostname_override"] == ""
     keys = [item["key"] for item in body["registry"]]
-    assert keys == ["favourites", "hidden_agents", "hostname_override"]
+    assert keys == [
+        "favourites",
+        "hidden_agents",
+        "hostname_override",
+        "context_auto_compress_pct",
+    ]
+    assert body["context_auto_compress_pct"] == 80
     blob = json.dumps(body)
     assert "api_key" not in blob
     assert "sk-" not in blob

@@ -25,24 +25,30 @@ def _help_command(blueprint=None, args=None):
 # Built-in '/compact' slash command
 @slash_registry.register('/compact')
 def _compact_command(blueprint=None, args=None, conversation_id=None, messages=None, user=None, **_kwargs):
-    """Compact the backlog (composer + menu is the primary UI)."""
+    """Compact the backlog, or through a message id / offset (REQ-87)."""
     if conversation_id and messages and user is not None:
         from swarm.core.chat_compact import CompactError, compact_backlog
 
         agent_id = ""
         if blueprint is not None:
             agent_id = getattr(blueprint, "blueprint_name", None) or getattr(blueprint, "name", "") or ""
+        through = None
+        if isinstance(args, str) and args.strip():
+            parts = args.strip().split()
+            if parts:
+                through = parts[-1]
         try:
             row, _raw = compact_backlog(
                 user=user,
                 conversation_id=conversation_id,
                 agent_id=str(agent_id or ""),
                 messages=messages,
+                through_message_id=through,
             )
         except CompactError as exc:
             return f"[slash command] compact failed: {exc}"
         return row.body
-    return "Compact the chat from the composer + menu."
+    return "Compact the chat from the composer + menu. Pass a message id to compress to here."
 
 # Built-in '/model' slash command
 @slash_registry.register('/model')

@@ -994,6 +994,60 @@ describe('SettingsSheet definition pane (REQ-42)', () => {
       expect(toggle).toBeChecked()
       expect(localStorage.getItem('swarm_theme_navbar')).toBe('true')
     })
+
+    it('shows Auto-compress at default 80 and PATCHes 50 without Django copy', async () => {
+      const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/v1/preferences/') && init?.method === 'PATCH') {
+          const body = JSON.parse(String(init.body || '{}'))
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: false,
+              favourites: [],
+              hidden_agents: [],
+              hostname_override: '',
+              context_auto_compress_pct: body.context_auto_compress_pct,
+              values: {},
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/preferences/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'user_preferences',
+              empty: true,
+              favourites: [],
+              hidden_agents: [],
+              hostname_override: '',
+              context_auto_compress_pct: 80,
+              values: {},
+            }),
+          } as Response
+        }
+        return { ok: true, status: 200, json: async () => ({ data: [] }) } as Response
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderSheet()
+      fireEvent.click(screen.getByRole('button', { name: 'General' }))
+      const input = await screen.findByTestId('auto-compress-pct')
+      expect(input).toHaveValue(80)
+      fireEvent.change(input, { target: { value: '50' } })
+      expect(input).toHaveValue(50)
+      await waitFor(() => {
+        const patch = fetchMock.mock.calls.find(
+          (entry) => String(entry[0]).includes('/v1/preferences/') && entry[1]?.method === 'PATCH',
+        )
+        expect(patch).toBeTruthy()
+        expect(JSON.parse(String(patch?.[1]?.body || '{}')).context_auto_compress_pct).toBe(50)
+      })
+      const pane = screen.getByLabelText('Auto-compress at percent').closest('section')
+      expect(pane?.textContent).not.toMatch(/Django/i)
+    })
   })
 
   it('writes an MCP server via PATCH /v1/config/sections/mcpServers/', async () => {

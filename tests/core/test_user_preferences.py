@@ -62,7 +62,9 @@ def test_public_payload_marks_empty_and_lists_registry():
         "favourites",
         "hidden_agents",
         "hostname_override",
+        "context_auto_compress_pct",
     ]
+    assert payload["context_auto_compress_pct"] == 80
 
 
 def test_normalize_agent_dropdowns_keeps_safe_fields_only():

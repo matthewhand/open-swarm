@@ -7,7 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
-import { Pencil } from 'lucide-react'
+import { FoldVertical, Pencil } from 'lucide-react'
 import { Textarea, LoadingDots } from './DaisyUI'
 import { renderSafeMarkdown } from '../lib/markdown'
 import { setupCodeFenceControls } from '../lib/codeFences'
@@ -24,6 +24,8 @@ export interface ChatMessageBubbleProps {
   onStartEdit: () => void
   onCancelEdit: () => void
   onSaveEdit: (text: string) => void
+  onCompressToHere?: () => void
+  canCompress?: boolean
   children?: ReactNode
   isSystemPreload?: boolean
 }
@@ -90,6 +92,8 @@ export function ChatMessageBubble({
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
+  onCompressToHere,
+  canCompress,
   children,
   isSystemPreload,
 }: ChatMessageBubbleProps) {
@@ -185,16 +189,32 @@ export function ChatMessageBubble({
           {children}
         </div>
       )}
-      {canEdit && !streaming && !editing ? (
-        <button
-          type="button"
-          className="btn btn-ghost btn-xs mt-0.5 gap-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-          aria-label="Edit message"
-          onClick={onStartEdit}
-        >
-          <Pencil className="h-3 w-3" aria-hidden="true" />
-          Edit
-        </button>
+      {(!streaming && !editing && (canEdit || (canCompress && onCompressToHere))) ? (
+        <div className="mt-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+          {canEdit ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs gap-1"
+              aria-label="Edit message"
+              onClick={onStartEdit}
+            >
+              <Pencil className="h-3 w-3" aria-hidden="true" />
+              Edit
+            </button>
+          ) : null}
+          {canCompress && onCompressToHere ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs gap-1"
+              aria-label="Compress to here"
+              data-testid="compress-to-here"
+              onClick={onCompressToHere}
+            >
+              <FoldVertical className="h-3 w-3" aria-hidden="true" />
+              Compress to here
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

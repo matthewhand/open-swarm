@@ -372,4 +372,49 @@ describe('compactAgentThread', () => {
     expect(String(url)).toBe('/chat/compact/')
     expect(init.method).toBe('POST')
   })
+
+  it('posts through_message_id for compress-to-here', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        summary: {
+          id: 1,
+          conversation_id: 'c1',
+          span: { start: 0, end: 0 },
+          parent_summary_id: null,
+          body: 'digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 1,
+        },
+        summaries: [
+          {
+            id: 1,
+            conversation_id: 'c1',
+            span: { start: 0, end: 0 },
+            parent_summary_id: null,
+            body: 'digest',
+            created_at: '2026-09-03T00:00:00Z',
+            replaced_count: 1,
+          },
+        ],
+        raw_count: 2,
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    await compactAgentThread({
+      conversationId: 'c1',
+      agentId: 'jeeves',
+      messages: [
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: 'hello' },
+      ],
+      spanStart: 0,
+      spanEnd: 0,
+      throughMessageId: 12,
+    })
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body))
+    expect(body.through_message_id).toBe(12)
+    expect(body.span_end).toBe(0)
+  })
 })

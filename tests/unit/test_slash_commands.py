@@ -3,6 +3,38 @@ import pytest
 from swarm.core.slash_commands import slash_registry
 
 
+def test_compact_accepts_through_message_id_arg():
+    captured = {}
+
+    class DummyBP:
+        blueprint_name = "jeeves"
+
+    def fake_compact_backlog(**kwargs):
+        captured.update(kwargs)
+
+        class Row:
+            body = "digest"
+
+        return Row(), []
+
+    import swarm.core.chat_compact as compact_mod
+
+    original = compact_mod.compact_backlog
+    compact_mod.compact_backlog = fake_compact_backlog
+    try:
+        out = slash_registry.get("/compact")(
+            DummyBP(),
+            "12",
+            conversation_id="c1",
+            messages=[{"role": "user", "content": "hi"}],
+            user=object(),
+        )
+    finally:
+        compact_mod.compact_backlog = original
+    assert out == "digest"
+    assert captured["through_message_id"] == "12"
+
+
 def test_help_and_compact_registered():
     help_fn = slash_registry.get('/help')
     compact_fn = slash_registry.get('/compact')

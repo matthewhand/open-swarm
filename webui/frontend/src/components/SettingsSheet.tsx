@@ -59,7 +59,13 @@ import {
 } from '../lib/settingsPrefs'
 import { HOSTNAME_CHANGED_EVENT, dispatchHostnameChanged } from '../lib/hostname'
 import { agentLabel, catalogLabel } from '../lib/supportAgent'
-import { applyHostnameOverride, fetchUserPrefs, saveUserPrefs } from '../lib/userPrefs'
+import {
+  DEFAULT_AUTO_COMPRESS_PCT,
+  applyHostnameOverride,
+  fetchUserPrefs,
+  parseAutoCompressPct,
+  saveUserPrefs,
+} from '../lib/userPrefs'
 import {
   initialNavbarThemeVisible,
   initialTheme,
@@ -134,6 +140,7 @@ export default function SettingsSheet({
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
+  const [autoCompressPct, setAutoCompressPct] = useState(80)
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(blueprintId || '')
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const resolvedDefinitionId = definitionId || teamId || blueprintId || ''
@@ -146,9 +153,13 @@ export default function SettingsSheet({
       if (server && !server.empty) {
         applyHostnameOverride(server.hostname_override)
         setHostname(server.hostname_override)
+        setAutoCompressPct(parseAutoCompressPct(server.context_auto_compress_pct))
         return
       }
       setHostname(loadHostnameOverride())
+      setAutoCompressPct(
+        server ? parseAutoCompressPct(server.context_auto_compress_pct) : DEFAULT_AUTO_COMPRESS_PCT,
+      )
     })
     setBumpCompleted(loadBumpCompleted())
     if (initialSection) {
@@ -352,7 +363,16 @@ export default function SettingsSheet({
         </nav>
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-base-100 p-4 sm:p-5">
-          {section === 'general' && <GeneralPane />}
+          {section === 'general' && (
+            <GeneralPane
+              autoCompressPct={autoCompressPct}
+              onAutoCompressPct={(next) => {
+                const clamped = parseAutoCompressPct(next)
+                setAutoCompressPct(clamped)
+                void saveUserPrefs({ context_auto_compress_pct: clamped })
+              }}
+            />
+          )}
           {section === 'definition' && (
             <DefinitionPane
               kind={resolvedKind}
@@ -1060,7 +1080,13 @@ function HostnamePane({
   )
 }
 
-function GeneralPane() {
+function GeneralPane({
+  autoCompressPct,
+  onAutoCompressPct,
+}: {
+  autoCompressPct: number
+  onAutoCompressPct: (next: number) => void
+}) {
   const [themePref, setThemePref] = useState<Theme>(initialTheme)
   const [navbarVisible, setNavbarVisible] = useState<boolean>(initialNavbarThemeVisible)
 
@@ -1143,6 +1169,40 @@ function GeneralPane() {
           </label>
           <p className="text-xs text-base-content/60">
             Show a quick theme toggle button in the top navigation bar.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="os-context-heading" className="space-y-4">
+        <h5
+          id="os-context-heading"
+          className="text-base font-semibold border-b border-base-200 pb-1"
+        >
+          Context
+        </h5>
+        <div className="form-control w-full max-w-xs space-y-1">
+          <label htmlFor="os-auto-compress-pct" className="label py-0">
+            <span className="label-text font-medium">Auto-compress at</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="os-auto-compress-pct"
+              type="number"
+              min={1}
+              max={99}
+              className="input input-bordered w-24"
+              value={autoCompressPct}
+              onChange={(event) => onAutoCompressPct(Number(event.target.value))}
+              aria-label="Auto-compress at percent"
+              data-testid="auto-compress-pct"
+            />
+            <span className="text-sm text-base-content/70">%</span>
+          </div>
+          <p className="text-xs text-base-content/60">
+            Compact older turns before a send when estimated tokens reach this
+            percent of the model&apos;s known context length (1–99, default 80).
+            CLI and API use the same value. If the max is unknown, auto-compress
+            is skipped; Compact and Compress to here still work.
           </p>
         </div>
       </section>

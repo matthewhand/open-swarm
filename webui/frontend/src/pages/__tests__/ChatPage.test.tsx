@@ -2645,6 +2645,82 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
     expect(Number(meter.getAttribute('aria-valuenow'))).toBeLessThan(before)
   })
 
+  it('hover Compress to here posts a span ending at that message', async () => {
+    const compactPayload = {
+      summary: {
+        id: 1,
+        conversation_id: 'c-here',
+        span: { start: 0, end: 1 },
+        parent_summary_id: null,
+        body: 'early digest',
+        created_at: '2026-09-03T00:00:00Z',
+        replaced_count: 2,
+      },
+      summaries: [
+        {
+          id: 1,
+          conversation_id: 'c-here',
+          span: { start: 0, end: 1 },
+          parent_summary_id: null,
+          body: 'early digest',
+          created_at: '2026-09-03T00:00:00Z',
+          replaced_count: 2,
+        },
+      ],
+    }
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/chat/compact/') && init?.method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => compactPayload,
+        } as Response
+      }
+      if (url.includes('/chat/thread/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            agent_id: 'codey',
+            conversation_id: 'c-here',
+            messages: [
+              { role: 'user', content: 'first question' },
+              { role: 'assistant', content: 'first answer' },
+              { role: 'user', content: 'later stays raw' },
+            ],
+            summaries: [],
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderChat('/chat?blueprint=codey')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByText('first answer')).toBeInTheDocument()
+    const buttons = screen.getAllByRole('button', { name: 'Compress to here' })
+    expect(buttons.length).toBeGreaterThan(0)
+    await act(async () => {
+      fireEvent.click(buttons[1])
+    })
+    await screen.findByTestId('chat-summary')
+    const compactCall = fetchMock.mock.calls.find(
+      (entry) => String(entry[0]).includes('/chat/compact/') && entry[1]?.method === 'POST',
+    )
+    expect(compactCall).toBeTruthy()
+    const posted = JSON.parse(String(compactCall?.[1]?.body || '{}'))
+    expect(posted.span_start).toBe(0)
+    expect(posted.span_end).toBe(1)
+    expect(screen.getByText('later stays raw')).toBeInTheDocument()
+  })
+
   it('opens session token diagnostics popup when clicking token meter (REQ-115)', async () => {
     renderChat('/chat?blueprint=support')
     await act(async () => {

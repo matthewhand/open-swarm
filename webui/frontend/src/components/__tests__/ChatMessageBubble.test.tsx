@@ -224,6 +224,30 @@ describe('REQ-117: Fenced code blocks collapse, hover expand, copy, re-collapse'
   })
 })
 
+describe('REQ-87: Compress to here hover action', () => {
+  it('shows Compress to here on hover when canCompress is set', () => {
+    const onCompress = vi.fn()
+    render(
+      <ChatMessageBubble
+        role="user"
+        agentName="You"
+        text="older turn"
+        streaming={false}
+        canEdit={false}
+        canCompress={true}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+        onCompressToHere={onCompress}
+      />,
+    )
+    const button = screen.getByRole('button', { name: 'Compress to here' })
+    fireEvent.click(button)
+    expect(onCompress).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('REQ-122: No You / agent name labels above chat bubbles', () => {
   it('does not render visible You or agentName header labels above bubbles', () => {
     const { rerender } = render(

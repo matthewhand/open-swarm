@@ -1,7 +1,7 @@
 import React from 'react'
 import { X, Activity, MessageSquare, Wrench, Layers, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { Modal } from './DaisyUI/Modal'
-import { CONTEXT_METER_TOKENS, formatTokenCount } from '../lib/chatMeter'
+import { CONTEXT_METER_TOKENS, formatMeterLabel, formatTokenCount } from '../lib/chatMeter'
 
 export interface TokenDiagnosticsModalProps {
   isOpen: boolean
@@ -9,6 +9,7 @@ export interface TokenDiagnosticsModalProps {
   agentName?: string
   conversationId?: string | null
   tokenCount: number
+  contextMax?: number | null
   inputTokens?: number | null
   outputTokens?: number | null
   compactsCount?: number
@@ -25,6 +26,7 @@ export function TokenDiagnosticsModal({
   agentName,
   conversationId,
   tokenCount,
+  contextMax = null,
   inputTokens,
   outputTokens,
   compactsCount = 0,
@@ -34,7 +36,12 @@ export function TokenDiagnosticsModal({
   assistantMessageCount = 0,
   estimatedCost = null,
 }: TokenDiagnosticsModalProps) {
-  const tokenPct = Math.min(100, Math.round((Math.max(0, tokenCount) / CONTEXT_METER_TOKENS) * 100))
+  const meterMax = contextMax != null && contextMax > 0 ? contextMax : CONTEXT_METER_TOKENS
+  const tokenPct = Math.min(100, Math.round((Math.max(0, tokenCount) / meterMax) * 100))
+  const usageLabel =
+    contextMax != null && contextMax > 0
+      ? `${formatMeterLabel(tokenCount, contextMax)} (${tokenPct}%)`
+      : `${formatTokenCount(tokenCount)} tok (max unknown)`
 
   return (
     <Modal
@@ -82,7 +89,7 @@ export function TokenDiagnosticsModal({
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium text-base-content">Context Window Usage</span>
             <span className="tabular-nums font-semibold text-base-content" data-testid="diag-context-usage">
-              {formatTokenCount(tokenCount)} / {formatTokenCount(CONTEXT_METER_TOKENS)} tok ({tokenPct}%)
+              {usageLabel}
             </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-base-300">
@@ -92,7 +99,7 @@ export function TokenDiagnosticsModal({
               role="progressbar"
               aria-valuenow={tokenCount}
               aria-valuemin={0}
-              aria-valuemax={CONTEXT_METER_TOKENS}
+              aria-valuemax={meterMax}
               aria-label="Context usage bar"
             />
           </div>

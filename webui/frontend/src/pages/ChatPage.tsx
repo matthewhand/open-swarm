@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowUp, Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings, Users } from 'lucide-react'
+import { ArrowUp, FoldVertical, Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings, Users } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
 import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
@@ -53,6 +53,7 @@ import {
   fetchBlueprints,
   fetchCliAgents,
   fetchCliModels,
+  fetchLlmProfiles,
   fetchRemotes,
   fetchSpeechSettings,
 } from '../lib/api'
@@ -90,6 +91,7 @@ import {
 import {
   buildDisplayItems,
   contextTextsForMeter,
+  rawOffsetForMessage,
   summariesById,
 } from '../lib/chatCompact'
 import { turnIndexFromDisplay } from '../lib/transcriptReconstruct'
@@ -167,7 +169,8 @@ import {
 import {
   CONTEXT_METER_TOKENS,
   estimateTokensInContext,
-  formatTokenCount,
+  formatMeterLabel,
+  resolveContextMaxFromProfiles,
 } from '../lib/chatMeter'
 import { formatGapLabel, parseCreatedAtMs } from '../lib/chatTime'
 import { workingLabel } from '../lib/chatBubble'
@@ -501,6 +504,11 @@ const ChatPage = () => {
   const remotesQuery = useQuery({
     queryKey: ['configured-remotes'],
     queryFn: fetchConfiguredRemotes,
+    retry: 1,
+  })
+  const llmProfilesQuery = useQuery({
+    queryKey: ['llm-profiles'],
+    queryFn: fetchLlmProfiles,
     retry: 1,
   })
   const remotesListQuery = useQuery({
@@ -1862,6 +1870,45 @@ const ChatPage = () => {
     }
   }, [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey])
 
+  const handleCompressToHere = useCallback(
+    async (message: ChatMessage) => {
+      setPlusOpen(false)
+      setContextMenu(null)
+      const rawMessages = messages.filter(
+        (row) => row.role === 'user' || row.role === 'assistant',
+      )
+      const spanEnd = rawOffsetForMessage(messages, message.key)
+      if (spanEnd < 0 || rawMessages.length === 0) {
+        addToast({
+          type: 'info',
+          title: 'Compress',
+          message: 'Nothing to compact yet.',
+        })
+        return
+      }
+      try {
+        const result = await compactAgentThread({
+          conversationId,
+          agentId: teamFromUrl || agentIdFromBlueprint(selectedBlueprint),
+          messages: rawMessages.map((row) => ({
+            role: row.role,
+            content: row.text,
+          })),
+          spanStart: 0,
+          spanEnd,
+        })
+        setSummariesByThread((prev) => ({ ...prev, [threadKey]: result.summaries }))
+      } catch {
+        addToast({
+          type: 'error',
+          title: 'Compact failed',
+          message: 'Could not compact this chat. Sign in and try again.',
+        })
+      }
+    },
+    [addToast, conversationId, messages, selectedBlueprint, teamFromUrl, threadKey],
+  )
+
   const handleSelectSlashItem = useCallback(
     (item: SlashItem) => {
       recordRecentSlashId(item.id)
@@ -1943,7 +1990,16 @@ const ChatPage = () => {
   }
 
   const tokenCount = estimateTokensInContext(contextTextsForMeter(messages, summaries))
-  const tokenPct = Math.min(100, Math.round((tokenCount / CONTEXT_METER_TOKENS) * 100))
+  const selectedModelId = (
+    (searchParams.get('model') ?? '').trim() ||
+    (isCliAgent ? currentCliModel : (persistedDropdown.model || persistedDropdown.api || ''))
+  ).trim()
+  const contextMax = resolveContextMaxFromProfiles(
+    llmProfilesQuery.data?.profiles,
+    selectedModelId || llmProfilesQuery.data?.default_llm_profile,
+  )
+  const meterMax = contextMax ?? CONTEXT_METER_TOKENS
+  const tokenPct = Math.min(100, Math.round((tokenCount / meterMax) * 100))
   const [tokenDiagOpen, setTokenDiagOpen] = useState(false)
 
   const userTexts = useMemo(
@@ -2151,7 +2207,7 @@ const ChatPage = () => {
               role="meter"
               aria-label="Tokens in context"
               aria-valuemin={0}
-              aria-valuemax={CONTEXT_METER_TOKENS}
+              aria-valuemax={meterMax}
               aria-valuenow={tokenCount}
             >
               <div
@@ -2159,7 +2215,7 @@ const ChatPage = () => {
                 style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
               />
             </div>
-            <span className="tabular-nums whitespace-nowrap text-xs">{formatTokenCount(tokenCount)} tok</span>
+            <span className="tabular-nums whitespace-nowrap text-xs">{formatMeterLabel(tokenCount, contextMax)}</span>
           </button>
           {showEmptyRemoteChrome ? (
             <button
@@ -2444,11 +2500,19 @@ const ChatPage = () => {
                   streaming={message.streaming}
                   edited={message.edited}
                   canEdit={canEditThis}
+                  canCompress={
+                    !message.streaming &&
+                    (message.role === 'user' || message.role === 'assistant') &&
+                    rawOffsetForMessage(messages, message.key) >= 0
+                  }
                   editing={editingKey === message.key}
                   onStartEdit={() => setEditingKey(message.key)}
                   onCancelEdit={() => setEditingKey(null)}
                   onSaveEdit={(next) => {
                     if (messageIndex >= 0) void saveEditedMessage(messageIndex, next)
+                  }}
+                  onCompressToHere={() => {
+                    void handleCompressToHere(message)
                   }}
                 >
                   {(message.tools ?? []).map((tool) => (
@@ -2730,6 +2794,21 @@ const ChatPage = () => {
               <Reply className="h-4 w-4 opacity-70" aria-hidden="true" />
               Reply
             </button>
+            {(contextMenu.message.role === 'user' || contextMenu.message.role === 'assistant') &&
+            !contextMenu.message.streaming ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm hover:bg-base-200 cursor-pointer"
+                data-testid="context-menu-compress-to-here"
+                onClick={() => {
+                  void handleCompressToHere(contextMenu.message)
+                }}
+              >
+                <FoldVertical className="h-4 w-4 opacity-70" aria-hidden="true" />
+                Compress to here
+              </button>
+            ) : null}
           </div>
         </>
       )}
@@ -2740,6 +2819,7 @@ const ChatPage = () => {
         agentName={selectedAgentName}
         conversationId={conversationId}
         tokenCount={tokenCount}
+        contextMax={contextMax}
         inputTokens={inputTokens}
         outputTokens={outputTokens}
         compactsCount={summaries.length}

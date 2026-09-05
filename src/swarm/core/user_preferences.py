@@ -9,6 +9,11 @@ from __future__ import annotations
 from typing import Any
 
 from swarm.auth import request_principal, token_principal
+from swarm.core.context_compress_policy import (
+    AUTO_COMPRESS_PCT_KEY,
+    DEFAULT_AUTO_COMPRESS_PCT,
+    normalize_auto_compress_pct,
+)
 
 # First-class rail chrome. More knobs (theme, …) can join this registry
 # without a new table — they persist in UserPreference.values.
@@ -24,6 +29,10 @@ PREF_REGISTRY: dict[str, dict[str, str]] = {
     "hostname_override": {
         "type": "hostname_string",
         "description": "Display / system-name hostname override (not a secret).",
+    },
+    AUTO_COMPRESS_PCT_KEY: {
+        "type": "percent_1_99",
+        "description": "Auto-compress context at this percent of known max (default 80).",
     },
 }
 
@@ -41,6 +50,7 @@ SECRET_KEY_FRAGMENTS = (
 FAVOURITES_KEY = "favourites"
 HIDDEN_KEY = "hidden_agents"
 HOSTNAME_KEY = "hostname_override"
+AUTO_COMPRESS_KEY = AUTO_COMPRESS_PCT_KEY
 AGENT_DROPDOWNS_KEY = "agent_dropdowns"
 HOSTNAME_MAX_LEN = 255
 AGENT_DROPDOWN_FIELDS = ("cli", "model", "remote", "blueprint", "api")
@@ -173,7 +183,12 @@ def normalize_hostname_override(raw: Any) -> str:
 
 
 def empty_values() -> dict[str, Any]:
-    return {FAVOURITES_KEY: [], HIDDEN_KEY: [], HOSTNAME_KEY: ""}
+    return {
+        FAVOURITES_KEY: [],
+        HIDDEN_KEY: [],
+        HOSTNAME_KEY: "",
+        AUTO_COMPRESS_KEY: DEFAULT_AUTO_COMPRESS_PCT,
+    }
 
 
 def coerce_values(raw: Any) -> dict[str, Any]:
@@ -189,6 +204,8 @@ def coerce_values(raw: Any) -> dict[str, Any]:
             out[key] = normalize_id_list(value)
         elif key == HOSTNAME_KEY:
             out[key] = normalize_hostname_override(value)
+        elif key == AUTO_COMPRESS_KEY:
+            out[key] = normalize_auto_compress_pct(value)
         elif key == AGENT_DROPDOWNS_KEY:
             out[key] = normalize_agent_dropdowns(value)
         else:
@@ -196,6 +213,7 @@ def coerce_values(raw: Any) -> dict[str, Any]:
     out.setdefault(FAVOURITES_KEY, [])
     out.setdefault(HIDDEN_KEY, [])
     out.setdefault(HOSTNAME_KEY, "")
+    out.setdefault(AUTO_COMPRESS_KEY, DEFAULT_AUTO_COMPRESS_PCT)
     return out
 
 
@@ -211,6 +229,8 @@ def merge_values(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, An
             merged[key] = normalize_id_list(value)
         elif key == HOSTNAME_KEY:
             merged[key] = normalize_hostname_override(value)
+        elif key == AUTO_COMPRESS_KEY:
+            merged[key] = normalize_auto_compress_pct(value)
         elif key == AGENT_DROPDOWNS_KEY:
             merged[key] = normalize_agent_dropdowns(value)
         else:
@@ -242,6 +262,7 @@ def public_payload(
         "favourites": bag[FAVOURITES_KEY],
         "hidden_agents": bag[HIDDEN_KEY],
         "hostname_override": bag[HOSTNAME_KEY],
+        AUTO_COMPRESS_KEY: normalize_auto_compress_pct(bag.get(AUTO_COMPRESS_KEY)),
         "values": extras_bag(bag),
         "registry": [
             {"key": key, **meta} for key, meta in PREF_REGISTRY.items()
@@ -252,6 +273,7 @@ def public_payload(
 # Re-export so views can stamp token principals without importing auth twice.
 __all__ = [
     "AGENT_DROPDOWNS_KEY",
+    "AUTO_COMPRESS_KEY",
     "FAVOURITES_KEY",
     "HIDDEN_KEY",
     "HOSTNAME_KEY",
