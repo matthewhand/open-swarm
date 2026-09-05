@@ -21,6 +21,9 @@ export type AvatarTheme =
   | 'beetle'
   | 'ghost'
   | 'crystal'
+  | 'blobs'
+  | 'bland'
+  | 'default'
 
 export type AvatarEyes = 'lens' | 'googly' | 'mismatched' | 'crazy' | 'sleepy' | 'spiral'
 
