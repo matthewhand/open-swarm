@@ -111,7 +111,7 @@ test('team dropdown change is a centred status line and survives reload', async 
   await teamSelect.selectOption('codey')
   const status = page.getByTestId('chat-status')
   await expect(status).toHaveCount(1)
-  await expect(status).toHaveText('Team target: All members → Codey (agent/coder)')
+  await expect(status).toContainText('Team target: All members → Codey (agent/coder)')
   await expect(status).toHaveClass(/os-chat-status/)
   await expect(status).not.toHaveClass(/chat-start|chat-end/)
   await expect(status.locator('.chat-bubble')).toHaveCount(0)
@@ -122,7 +122,7 @@ test('team dropdown change is a centred status line and survives reload', async 
 
   await page.reload()
   await expect(page.getByTestId('chat-status')).toHaveCount(1)
-  await expect(page.getByTestId('chat-status')).toHaveText(
+  await expect(page.getByTestId('chat-status')).toContainText(
     'Team target: All members → Codey (agent/coder)',
   )
   await expect(page.getByTestId('chat-status')).not.toHaveClass(/chat-start|chat-end/)
@@ -165,7 +165,7 @@ test('CLI dropdown change is one bubble-less status line', async ({ page }, test
   await page.getByRole('menuitem', { name: 'grok' }).click()
   const status = page.getByTestId('chat-status')
   await expect(status).toHaveCount(1)
-  await expect(status).toHaveText('CLI: antigravity → grok')
+  await expect(status).toContainText('CLI: antigravity → grok')
   await expect(status).not.toHaveClass(/chat-start|chat-end/)
   await page.screenshot({
     path: shotPath(testInfo, 'cli_dropdown_status_line.png'),

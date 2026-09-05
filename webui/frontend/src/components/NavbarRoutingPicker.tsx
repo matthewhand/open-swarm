@@ -267,12 +267,6 @@ export function NavbarRoutingPicker({
         setActiveIndex(0)
         return
       }
-      if (cascade && seatKind === 'cli' && agentId !== selectedAgent) {
-        setPreviewAgent(agentId)
-        setOpen(narrow ? 'sheet' : 'model')
-        setActiveIndex(0)
-        return
-      }
       close()
     },
     [

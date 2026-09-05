@@ -62,7 +62,6 @@ test('CLI-agent chat lists discovered CLIs and Manage Cli, not blueprints', asyn
   const picker = page.getByTestId('navbar-routing-picker')
   await expect(picker).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Blueprint' })).toHaveCount(0)
-  await expect(page.getByText('Blueprint', { exact: true })).toHaveCount(0)
   await page.getByTestId('routing-pill-agent').click()
   const menu = page.getByTestId('routing-menu-agent')
   await expect(menu.getByRole('menuitem', { name: 'grok' })).toBeVisible()

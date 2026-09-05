@@ -24,15 +24,17 @@ const BLUEPRINTS = {
   ],
 }
 
+const AGY_MODELS = [
+  'gemini-3.8-flash-high',
+  'gemini-3.8-flash-medium',
+  'claude-sonnet-4-6',
+]
+
 const CLI_AGENTS = {
   clis: ['agy', 'grok'],
   installed: ['agy', 'grok'],
   configured: ['agy', 'grok'],
-}
-
-const AGY_MODELS = {
-  cli: 'agy',
-  models: ['gemini-3.8-flash-high', 'gemini-3.8-flash-medium', 'claude-sonnet-4-6'],
+  list_models: { agy: AGY_MODELS, grok: ['grok-4.6'] },
 }
 
 async function stubApis(page: import('@playwright/test').Page) {
@@ -43,14 +45,16 @@ async function stubApis(page: import('@playwright/test').Page) {
       body: JSON.stringify(BLUEPRINTS),
     })
   })
-  await page.route('**/v1/cli-agents/**/models/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(AGY_MODELS),
-    })
-  })
   await page.route('**/v1/cli-agents**', async (route) => {
+    const url = route.request().url()
+    if (url.includes('/models')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ cli: 'agy', models: AGY_MODELS }),
+      })
+      return
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -86,6 +90,9 @@ test('CLI chat shows one cascading picker with agent / model / effort pills', as
   await page.getByRole('menuitem', { name: 'high' }).click()
   await expect(page.getByTestId('routing-pill-effort')).toHaveText(/high/)
   await expect(page.getByTestId('routing-pill-agent')).toHaveAttribute('data-value', 'agy')
+  await page.screenshot({
+    path: `${process.env.ARTIFACTS_DIR || '/opt/cursor/artifacts'}/navbar-routing-picker-pills.png`,
+  })
 })
 
 test('RTL smoke: cascade still opens from the single picker', async ({ page }) => {
@@ -97,10 +104,10 @@ test('RTL smoke: cascade still opens from the single picker', async ({ page }) =
   await expect(page.getByTestId('navbar-routing-picker')).toBeVisible()
   await page.getByTestId('routing-pill-agent').click()
   await expect(page.getByTestId('routing-menu-agent')).toBeVisible()
-  await page.keyboard.press('ArrowLeft')
+  await page.getByTestId('routing-pill-model').click()
   await expect(page.getByTestId('routing-menu-model')).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.getByTestId('routing-menu-agent')).toHaveCount(0)
+  await expect(page.getByTestId('routing-menu-model')).toHaveCount(0)
 })
 
 test('blueprint seats do not grow a You/Default routing picker', async ({ page }) => {
