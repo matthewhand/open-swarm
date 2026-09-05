@@ -9,7 +9,9 @@ on:
       - "webui/frontend/src/components/__tests__/QueuedSendPane.test.tsx"
       - "webui/frontend/src/pages/ChatPage.tsx"
       - "webui/frontend/src/pages/__tests__/ChatPage.queued.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.suggestions.test.tsx"
       - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
+      - "webui/frontend/src/components/SuggestionChips.tsx"
       - "webui/frontend/src/index.css"
       - ".github/workflows/req90-queued-sends.yml"
   push:
@@ -21,7 +23,9 @@ on:
       - "webui/frontend/src/components/__tests__/QueuedSendPane.test.tsx"
       - "webui/frontend/src/pages/ChatPage.tsx"
       - "webui/frontend/src/pages/__tests__/ChatPage.queued.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.suggestions.test.tsx"
       - "webui/frontend/src/pages/__tests__/ChatPage.test.tsx"
+      - "webui/frontend/src/components/SuggestionChips.tsx"
       - "webui/frontend/src/index.css"
       - ".github/workflows/req90-queued-sends.yml"
 
@@ -49,6 +53,8 @@ jobs:
           npx vitest run \
             src/lib/__tests__/chatQueue.test.ts \
             src/components/__tests__/QueuedSendPane.test.tsx \
-            src/pages/__tests__/ChatPage.queued.test.tsx
+            src/pages/__tests__/ChatPage.queued.test.tsx \
+            src/pages/__tests__/ChatPage.suggestions.test.tsx \
+            src/components/__tests__/SuggestionChips.test.tsx
           npx vitest run src/pages/__tests__/ChatPage.test.tsx \
             -t "Send path with mock inference|Send button honesty|team member dropdown"

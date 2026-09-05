@@ -191,7 +191,14 @@ describe('ChatPage REQ-85 suggestion chips', () => {
         }),
       )
     })
-    expect(screen.getAllByTestId('suggestion-chip').every((el) => (el as HTMLButtonElement).disabled)).toBe(true)
+    expect(
+      screen.getAllByTestId('suggestion-chip').every((el) => !(el as HTMLButtonElement).disabled),
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: KICKSTART[0] }))
+    expect(ws.send).not.toHaveBeenCalled()
+    const queued = screen.getAllByTestId('queued-row')
+    expect(queued).toHaveLength(1)
+    expect(queued[0]).toHaveTextContent(KICKSTART[0])
     await act(async () => {
       ws.onmessage?.(
         new MessageEvent('message', {

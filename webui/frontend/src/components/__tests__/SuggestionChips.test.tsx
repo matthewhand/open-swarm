@@ -10,6 +10,7 @@ describe('SuggestionChips', () => {
     expect(row).toHaveAttribute('role', 'group')
     const buttons = screen.getAllByTestId('suggestion-chip')
     expect(buttons[0]).toHaveClass('btn')
+    expect(buttons[0]).toHaveAttribute('data-suggestion-chip', 'Ask about setup')
     fireEvent.click(buttons[0]!)
     expect(onChoose).toHaveBeenCalledWith('Ask about setup')
   })
