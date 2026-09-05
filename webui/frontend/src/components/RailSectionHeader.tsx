@@ -1,0 +1,167 @@
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  EMPTY_SECTION_HINT,
+  NEW_SECTION_PLACEHOLDER,
+} from '../lib/railSections'
+import { isRailMenuKey } from '../lib/railContextMenu'
+
+export interface RailSectionHeaderProps {
+  sectionId: string
+  name: string
+  count: number
+  collapsed: boolean
+  custom: boolean
+  editing: boolean
+  editValue: string
+  dropActive?: boolean
+  onToggle: () => void
+  onContextMenu?: (event: { clientX: number; clientY: number }) => void
+  onEditChange: (value: string) => void
+  onEditCommit: () => void
+  onEditCancel: () => void
+  onDragOver?: (event: React.DragEvent) => void
+  onDrop?: (event: React.DragEvent) => void
+}
+
+export default function RailSectionHeader({
+  sectionId,
+  name,
+  count,
+  collapsed,
+  custom,
+  editing,
+  editValue,
+  dropActive,
+  onToggle,
+  onContextMenu,
+  onEditChange,
+  onEditCommit,
+  onEditCancel,
+  onDragOver,
+  onDrop,
+}: RailSectionHeaderProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const displayName = name.trim() || NEW_SECTION_PLACEHOLDER
+
+  useEffect(() => {
+    if (!editing) return
+    const node = inputRef.current
+    if (!node) return
+    node.focus()
+    node.select()
+  }, [editing])
+
+  const openMenu = (event: ReactMouseEvent | ReactKeyboardEvent<HTMLElement>) => {
+    if (!custom || !onContextMenu) return
+    event.preventDefault()
+    event.stopPropagation()
+    if ('clientX' in event) {
+      onContextMenu({ clientX: event.clientX, clientY: event.clientY })
+      return
+    }
+    const rect = event.currentTarget.getBoundingClientRect()
+    onContextMenu({ clientX: rect.left + 12, clientY: rect.bottom })
+  }
+
+  return (
+    <div
+      className={`os-rail-section-header group/section ${dropActive ? 'os-rail-section-header--drop' : ''}`}
+      data-testid="rail-section-header"
+      data-section-id={sectionId}
+      data-custom={custom ? 'true' : 'false'}
+      data-collapsed={collapsed ? 'true' : 'false'}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onContextMenu={custom ? openMenu : undefined}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="os-rail-section-rename"
+          value={editValue}
+          placeholder={NEW_SECTION_PLACEHOLDER}
+          aria-label="Section name"
+          data-testid="rail-section-rename"
+          onChange={(event) => onEditChange(event.target.value)}
+          onBlur={onEditCommit}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              onEditCommit()
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              onEditCancel()
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="os-rail-section-header__btn"
+          aria-expanded={!collapsed}
+          aria-label={
+            collapsed
+              ? `Expand ${displayName} (${count})`
+              : `Collapse ${displayName} (${count})`
+          }
+          onClick={onToggle}
+          onKeyDown={(event) => {
+            if (custom && isRailMenuKey(event)) openMenu(event)
+          }}
+        >
+          <span className="os-rail-section-name" data-testid="rail-section-name">
+            {displayName}
+          </span>
+          <span className="os-rail-section-tail" data-testid="rail-section-tail">
+            <span
+              className="os-rail-section-count inline group-hover/section:hidden"
+              data-testid="rail-section-count"
+            >
+              {count}
+            </span>
+            <span
+              className="os-rail-section-toggle hidden group-hover/section:inline"
+              aria-hidden="true"
+              data-testid="rail-section-toggle"
+            >
+              {collapsed ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </span>
+          </span>
+        </button>
+      )}
+    </div>
+  )
+}
+
+export function RailSectionEmpty({
+  dropActive,
+  onDragOver,
+  onDrop,
+}: {
+  dropActive?: boolean
+  onDragOver?: (event: React.DragEvent) => void
+  onDrop?: (event: React.DragEvent) => void
+}) {
+  return (
+    <div
+      className={`os-rail-section-empty ${dropActive ? 'os-rail-section-empty--drop' : ''}`}
+      data-testid="rail-section-empty"
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {EMPTY_SECTION_HINT}
+    </div>
+  )
+}

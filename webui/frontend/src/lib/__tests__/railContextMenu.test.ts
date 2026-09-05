@@ -6,7 +6,9 @@ import {
   duplicateName,
   isRailMenuKey,
   railMenuItems,
+  sectionMenuItems,
 } from '../railContextMenu'
+import { NEW_SECTION_TARGET, UNASSIGNED_SECTION_ID } from '../railSections'
 
 describe('railMenuItems (REQ-82)', () => {
   const base = {
@@ -19,6 +21,7 @@ describe('railMenuItems (REQ-82)', () => {
     const unpinned = railMenuItems({ ...base, kind: 'api' })
     expect(unpinned.map((item) => item.id)).toEqual([
       'pin',
+      'move-to',
       'unread',
       'edit',
       'duplicate',
@@ -40,6 +43,7 @@ describe('railMenuItems (REQ-82)', () => {
     const items = railMenuItems({ ...base, kind: 'cli' })
     expect(items.map((item) => item.id)).toEqual([
       'pin',
+      'move-to',
       'unread',
       'copy-id',
       'terminate',
@@ -147,5 +151,57 @@ describe('copyableConversationId / isRailMenuKey', () => {
 
   it('appends copy to a display name', () => {
     expect(duplicateName('Codey')).toBe('Codey copy')
+  })
+})
+
+describe('railMenuItems Move to (REQ-209)', () => {
+  const base = {
+    pinned: false,
+    hidden: false,
+    unread: false,
+    kind: 'api' as const,
+  }
+
+  it('lists existing sections, Unassigned, and New section with the current checkmarked', () => {
+    const items = railMenuItems({
+      ...base,
+      moveTo: {
+        sections: [{ id: 'sec_stuff', name: 'stuff' }],
+        currentSectionId: 'sec_stuff',
+      },
+    })
+    const moveTo = items.find((item) => item.id === 'move-to')
+    expect(moveTo?.label).toBe('Move to')
+    expect(moveTo?.children?.map((child) => child.id)).toEqual([
+      'sec_stuff',
+      UNASSIGNED_SECTION_ID,
+      NEW_SECTION_TARGET,
+    ])
+    expect(moveTo?.children?.[0]).toMatchObject({ label: 'stuff', checked: true })
+    expect(moveTo?.children?.[1]).toMatchObject({
+      label: 'Unassigned',
+      checked: false,
+    })
+  })
+
+  it('checkmarks Unassigned when the row has no custom section', () => {
+    const moveTo = railMenuItems(base).find((item) => item.id === 'move-to')
+    expect(moveTo?.children?.find((child) => child.id === UNASSIGNED_SECTION_ID)?.checked).toBe(
+      true,
+    )
+  })
+})
+
+describe('sectionMenuItems (REQ-209)', () => {
+  it('lists Rename, Move up/down, and danger Delete last', () => {
+    const items = sectionMenuItems({ canMoveUp: false, canMoveDown: true })
+    expect(items.map((item) => item.id)).toEqual([
+      'section-rename',
+      'section-move-up',
+      'section-move-down',
+      'section-delete',
+    ])
+    expect(items.find((item) => item.id === 'section-move-up')?.disabled).toBe(true)
+    expect(items.at(-1)).toMatchObject({ id: 'section-delete', danger: true, label: 'Delete' })
   })
 })

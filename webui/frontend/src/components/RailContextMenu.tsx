@@ -1,13 +1,17 @@
-import { Fragment, type Ref } from 'react'
+import { Fragment, useState, type Ref } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
+  ArrowDown,
+  ArrowUp,
   Bell,
+  Check,
   Circle,
   CircleStop,
   ClipboardCopy,
   CopyPlus,
   Eye,
   EyeOff,
+  FolderInput,
   History,
   MessageSquarePlus,
   Pencil,
@@ -16,7 +20,7 @@ import {
   Trash2,
   Users,
 } from 'lucide-react'
-import type { RailMenuItemId, RailMenuItemSpec } from '../lib/railContextMenu'
+import type { RailMenuItemId, RailMenuItemSpec, RailMenuSubItemSpec } from '../lib/railContextMenu'
 
 const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'select-agent': Users,
@@ -24,6 +28,7 @@ const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'new-session': MessageSquarePlus,
   unpin: PinOff,
   pin: Pin,
+  'move-to': FolderInput,
   unread: Circle,
   edit: Pencil,
   duplicate: CopyPlus,
@@ -33,17 +38,83 @@ const ICONS: Record<RailMenuItemId, LucideIcon> = {
   unhide: Eye,
   notify: Bell,
   delete: Trash2,
+  'section-rename': Pencil,
+  'section-move-up': ArrowUp,
+  'section-move-down': ArrowDown,
+  'section-delete': Trash2,
 }
 
 export interface RailMenuItemProps {
   spec: RailMenuItemSpec
   onSelect: (id: RailMenuItemId) => void
+  onSubSelect?: (parentId: RailMenuItemId, childId: string) => void
+}
+
+function SubMenuItem({
+  parentId,
+  child,
+  onSubSelect,
+}: {
+  parentId: RailMenuItemId
+  child: RailMenuSubItemSpec
+  onSubSelect?: (parentId: RailMenuItemId, childId: string) => void
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        role="menuitem"
+        data-menu-id={parentId}
+        data-move-to={child.id}
+        aria-checked={child.checked || undefined}
+        onClick={() => onSubSelect?.(parentId, child.id)}
+      >
+        <Check
+          className={`h-4 w-4 ${child.checked ? '' : 'opacity-0'}`}
+          aria-hidden="true"
+          data-menu-icon={child.checked ? 'checked' : 'unchecked'}
+        />
+        {child.label}
+      </button>
+    </li>
+  )
 }
 
 /** Shared icon+label row for rail / section / compacted-card menus (REQ-82). */
-export function RailMenuItem({ spec, onSelect }: RailMenuItemProps) {
+export function RailMenuItem({ spec, onSelect, onSubSelect }: RailMenuItemProps) {
   const Icon = ICONS[spec.id]
   const danger = Boolean(spec.danger)
+  const [open, setOpen] = useState(false)
+  if (spec.children?.length) {
+    return (
+      <li>
+        <button
+          type="button"
+          role="menuitem"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          data-menu-id={spec.id}
+          data-testid="rail-menu-move-to"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" data-menu-icon={spec.id} />
+          {spec.label}
+        </button>
+        {open ? (
+          <ul className="os-rail-menu-submenu" data-testid="rail-menu-move-to-submenu">
+            {spec.children.map((child) => (
+              <SubMenuItem
+                key={child.id}
+                parentId={spec.id}
+                child={child}
+                onSubSelect={onSubSelect}
+              />
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    )
+  }
   return (
     <li className={spec.disabled ? 'disabled' : undefined}>
       <button
@@ -76,6 +147,7 @@ export interface RailContextMenuProps {
   items: RailMenuItemSpec[]
   menuRef?: Ref<HTMLUListElement>
   onSelect: (id: RailMenuItemId) => void
+  onSubSelect?: (parentId: RailMenuItemId, childId: string) => void
 }
 
 export default function RailContextMenu({
@@ -85,6 +157,7 @@ export default function RailContextMenu({
   items,
   menuRef,
   onSelect,
+  onSubSelect,
 }: RailContextMenuProps) {
   const groups: RailMenuItemSpec[][] = []
   for (const item of items) {
@@ -113,7 +186,12 @@ export default function RailContextMenu({
             </li>
           ) : null}
           {group.map((spec) => (
-            <RailMenuItem key={spec.id} spec={spec} onSelect={onSelect} />
+            <RailMenuItem
+              key={spec.id}
+              spec={spec}
+              onSelect={onSelect}
+              onSubSelect={onSubSelect}
+            />
           ))}
         </Fragment>
       ))}

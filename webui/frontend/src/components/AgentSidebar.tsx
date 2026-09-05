@@ -159,9 +159,26 @@ import {
   duplicateName,
   isRailMenuKey,
   railMenuItems,
+  sectionMenuItems,
   type RailMenuItemId,
   type RailMenuKind,
 } from '../lib/railContextMenu'
+import {
+  NEW_SECTION_TARGET,
+  UNASSIGNED_SECTION_ID,
+  createSectionWithAgent,
+  deleteSection,
+  isUnassignedSection,
+  loadRailSections,
+  moveAgentToSection,
+  moveSection,
+  partitionRowsBySection,
+  removeSectionMembership,
+  renameSection,
+  sectionIdForAgent,
+  toggleSectionCollapsed,
+  type RailSectionsState,
+} from '../lib/railSections'
 import { copyTextToClipboard } from '../lib/clipboard'
 import {
   isRailIdDeleted,
@@ -199,6 +216,7 @@ import { openSettingsSheet } from './SettingsSheet'
 import { OPEN_PLUGINS_EVENT } from '../lib/chromeOverlay'
 import { ConfirmModal } from './DaisyUI'
 import RailContextMenu from './RailContextMenu'
+import RailSectionHeader, { RailSectionEmpty } from './RailSectionHeader'
 import AvatarStack from './AvatarStack'
 import StackedAvatars from './StackedAvatars'
 import {
@@ -236,6 +254,13 @@ interface ContextMenuState {
   sessions?: MemberSession[]
   isCli?: boolean
   cli?: string
+}
+
+interface SectionMenuState {
+  sectionId: string
+  sectionName: string
+  x: number
+  y: number
 }
 
 interface CliPickerState {
@@ -407,6 +432,11 @@ export default function AgentSidebar({
   const localWsDown = localWsStatus === 'closed' || localWsStatus === 'failed'
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const [sectionMenu, setSectionMenu] = useState<SectionMenuState | null>(null)
+  const [sectionState, setSectionState] = useState<RailSectionsState>(() => loadRailSections())
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null)
+  const [editingSectionName, setEditingSectionName] = useState('')
+  const [sectionDropId, setSectionDropId] = useState<string | null>(null)
   const [settingsTick, setSettingsTick] = useState(0)
   const [dropActive, setDropActive] = useState(false)
   const [listDropActive, setListDropActive] = useState(false)
@@ -845,6 +875,10 @@ export default function AgentSidebar({
     () => applyRailOrder(catalogRows, railOrder),
     [catalogRows, railOrder],
   )
+  const sectionBlocks = useMemo(
+    () => partitionRowsBySection(orderedRows, sectionState),
+    [orderedRows, sectionState],
+  )
   const visibleRowIds = useMemo(() => orderedRows.map((row) => row.id), [orderedRows])
   const visiblePins = useMemo(
     () =>
@@ -880,7 +914,90 @@ export default function AgentSidebar({
     return undefined
   }, [updateCanScroll, orderedRows.length, visiblePins.length])
 
-  const closeMenu = useCallback(() => setMenu(null), [])
+  const closeMenu = useCallback(() => {
+    setMenu(null)
+    setSectionMenu(null)
+  }, [])
+
+  const commitSectionRename = useCallback(() => {
+    if (!editingSectionId) return
+    setSectionState((current) => renameSection(current, editingSectionId, editingSectionName))
+    setEditingSectionId(null)
+    setEditingSectionName('')
+  }, [editingSectionId, editingSectionName])
+
+  const cancelSectionRename = useCallback(() => {
+    setEditingSectionId(null)
+    setEditingSectionName('')
+  }, [])
+
+  const startSectionRename = useCallback((sectionId: string, name: string) => {
+    setEditingSectionId(sectionId)
+    setEditingSectionName(name)
+    setSectionMenu(null)
+  }, [])
+
+  const handleMoveTo = useCallback(
+    (agentId: string, target: string) => {
+      if (!agentId) return
+      if (target === NEW_SECTION_TARGET) {
+        const created = createSectionWithAgent(sectionState, agentId)
+        setSectionState(created.state)
+        startSectionRename(created.section.id, created.section.name)
+        closeMenu()
+        return
+      }
+      setSectionState((current) => moveAgentToSection(current, agentId, target))
+      closeMenu()
+    },
+    [closeMenu, sectionState, startSectionRename],
+  )
+
+  const openSectionMenuAt = useCallback(
+    (sectionId: string, sectionName: string, clientX: number, clientY: number) => {
+      if (isUnassignedSection(sectionId)) return
+      const pad = 8
+      const width = 200
+      const height = 220
+      const x = Math.min(clientX, window.innerWidth - width - pad)
+      const y = Math.min(clientY, window.innerHeight - height - pad)
+      setMenu(null)
+      setSectionMenu({
+        sectionId,
+        sectionName,
+        x: Math.max(pad, x),
+        y: Math.max(pad, y),
+      })
+    },
+    [],
+  )
+
+  const handleSectionMenuSelect = useCallback(
+    (id: RailMenuItemId) => {
+      if (!sectionMenu) return
+      const { sectionId, sectionName } = sectionMenu
+      if (id === 'section-rename') {
+        startSectionRename(sectionId, sectionName)
+        return
+      }
+      if (id === 'section-move-up') {
+        setSectionState((current) => moveSection(current, sectionId, 'up'))
+        closeMenu()
+        return
+      }
+      if (id === 'section-move-down') {
+        setSectionState((current) => moveSection(current, sectionId, 'down'))
+        closeMenu()
+        return
+      }
+      if (id === 'section-delete') {
+        setSectionState((current) => deleteSection(current, sectionId))
+        if (editingSectionId === sectionId) cancelSectionRename()
+        closeMenu()
+      }
+    },
+    [cancelSectionRename, closeMenu, editingSectionId, sectionMenu, startSectionRename],
+  )
 
   const toggleNotify = useCallback(
     async (agentId: string) => {
@@ -1151,7 +1268,7 @@ export default function AgentSidebar({
     rowDisplayName,
   ])
   useEffect(() => {
-    if (!menu) return
+    if (!menu && !sectionMenu) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeMenu()
     }
@@ -1166,7 +1283,7 @@ export default function AgentSidebar({
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('mousedown', onPointer)
     }
-  }, [menu, closeMenu])
+  }, [menu, sectionMenu, closeMenu])
 
   useEffect(() => {
     const onAltDigit = (event: KeyboardEvent) => {
@@ -1219,6 +1336,7 @@ export default function AgentSidebar({
     const isCli = resolvedKind === 'cli' || Boolean(row && isCliRailAgent(row))
     const cliFromUrl = searchParams.get('cli') || ''
     const cliName = (isCli && (cliFromUrl || row?.cli)) || ''
+    setSectionMenu(null)
     setMenu({
       agentId: hideId,
       agentName: label,
@@ -1299,6 +1417,7 @@ export default function AgentSidebar({
     endRailDrag()
     setDraggingId(null)
     setDropTargetId(null)
+    setSectionDropId(null)
     setDropActive(false)
     setListDropActive(false)
     setHideDropActive(false)
@@ -1425,11 +1544,45 @@ export default function AgentSidebar({
     event.stopPropagation()
     const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
     if (fromId && fromId !== targetId) {
+      const targetSection = sectionIdForAgent(targetId, sectionState)
+      setSectionState((current) => moveAgentToSection(current, fromId, targetSection))
       if (isPinnedId(fromId)) {
         setPins((current) => unpinAgent(fromId, current))
       } else {
         reorderBefore(fromId, targetId)
       }
+    }
+    finishDrag()
+  }
+
+  const allowSectionDrop = (event: ReactDragEvent, sectionId: string) => {
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (!fromId) {
+      try {
+        event.dataTransfer.dropEffect = 'none'
+      } catch {
+        /* synthetic events may omit dataTransfer */
+      }
+      return
+    }
+    event.preventDefault()
+    try {
+      event.dataTransfer.dropEffect = 'move'
+    } catch {
+      /* synthetic events may omit dataTransfer */
+    }
+    setSectionDropId(sectionId)
+  }
+
+  const dropOnSection = (event: ReactDragEvent, sectionId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const fromId = peekRailDrag() || parseAgentDragPayload(event.dataTransfer)?.id
+    if (fromId) {
+      if (isPinnedId(fromId)) {
+        setPins((current) => unpinAgent(fromId, current))
+      }
+      setSectionState((current) => moveAgentToSection(current, fromId, sectionId))
     }
     finishDrag()
   }
@@ -1624,6 +1777,11 @@ export default function AgentSidebar({
       if (row.entityId !== hideId) next = markRailIdDeleted(row.entityId, next)
       return next
     })
+    setSectionState((current) => {
+      let next = removeSectionMembership(current, hideId)
+      if (row.entityId !== hideId) next = removeSectionMembership(next, row.entityId)
+      return next
+    })
     setDeleteConfirm(null)
   }
 
@@ -1740,6 +1898,20 @@ export default function AgentSidebar({
             : true,
         cliRunning:
           cliRunningIds.has(menu.agentId) || peekCliRunning(menu.agentId),
+        moveTo: {
+          sections: sectionState.sections,
+          currentSectionId: sectionIdForAgent(menu.agentId, sectionState),
+        },
+      })
+    : []
+
+  const sectionMenuItemsForOpen = sectionMenu
+    ? sectionMenuItems({
+        canMoveUp:
+          sectionState.sections.findIndex((section) => section.id === sectionMenu.sectionId) > 0,
+        canMoveDown:
+          sectionState.sections.findIndex((section) => section.id === sectionMenu.sectionId) <
+          sectionState.sections.length - 1,
       })
     : []
 
@@ -2608,17 +2780,76 @@ export default function AgentSidebar({
                   {isPinnedId(draggingId) ? 'drop here to unfavourite' : 'No agents yet.'}
                 </p>
               ) : (
-                <ul className="space-y-0.5">
-                  {orderedRows.map((row, index) => {
-                    const spillSlot =
-                      index < 9 - visiblePins.length ? visiblePins.length + index + 1 : undefined
+                <ul className="os-rail-sections space-y-1">
+                  {sectionBlocks.map((block) => {
+                    const showMembers = isAvatarOnly || !block.collapsed
                     return (
-                      <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
-                        {row.kind === 'team'
-                          ? renderTeamRow(row.team, false, [], spillSlot)
-                          : row.kind === 'remote'
-                            ? renderRemoteRow(row.remote, false, spillSlot)
-                            : renderAgentRow(row.agent, false, spillSlot)}
+                      <li
+                        key={block.id}
+                        className={`os-rail-section ${
+                          sectionDropId === block.id ? 'os-rail-section--drop' : ''
+                        }`}
+                        data-testid="rail-section"
+                        data-section-id={block.id}
+                        data-section-custom={block.custom ? 'true' : 'false'}
+                        data-collapsed={block.collapsed ? 'true' : 'false'}
+                      >
+                        {isAvatarOnly ? null : (
+                          <RailSectionHeader
+                            sectionId={block.id}
+                            name={block.name}
+                            count={block.rows.length}
+                            collapsed={block.collapsed}
+                            custom={block.custom}
+                            editing={editingSectionId === block.id}
+                            editValue={editingSectionId === block.id ? editingSectionName : block.name}
+                            dropActive={sectionDropId === block.id}
+                            onToggle={() =>
+                              setSectionState((current) => toggleSectionCollapsed(current, block.id))
+                            }
+                            onContextMenu={
+                              block.custom
+                                ? ({ clientX, clientY }) =>
+                                    openSectionMenuAt(block.id, block.name, clientX, clientY)
+                                : undefined
+                            }
+                            onEditChange={setEditingSectionName}
+                            onEditCommit={commitSectionRename}
+                            onEditCancel={cancelSectionRename}
+                            onDragOver={(event) => allowSectionDrop(event, block.id)}
+                            onDrop={(event) => dropOnSection(event, block.id)}
+                          />
+                        )}
+                        {showMembers ? (
+                          <ul className="space-y-0.5">
+                            {block.rows.length === 0 && !isAvatarOnly ? (
+                              <li>
+                                <RailSectionEmpty
+                                  dropActive={sectionDropId === block.id}
+                                  onDragOver={(event) => allowSectionDrop(event, block.id)}
+                                  onDrop={(event) => dropOnSection(event, block.id)}
+                                />
+                              </li>
+                            ) : (
+                              block.rows.map((row) => {
+                                const index = orderedRows.findIndex((item) => item.id === row.id)
+                                const spillSlot =
+                                  index >= 0 && index < 9 - visiblePins.length
+                                    ? visiblePins.length + index + 1
+                                    : undefined
+                                return (
+                                  <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
+                                    {row.kind === 'team'
+                                      ? renderTeamRow(row.team, false, [], spillSlot)
+                                      : row.kind === 'remote'
+                                        ? renderRemoteRow(row.remote, false, spillSlot)
+                                        : renderAgentRow(row.agent, false, spillSlot)}
+                                  </li>
+                                )
+                              })
+                            )}
+                          </ul>
+                        ) : null}
                       </li>
                     )
                   })}
@@ -2848,6 +3079,19 @@ export default function AgentSidebar({
           items={menuItems}
           menuRef={menuRef}
           onSelect={handleMenuSelect}
+          onSubSelect={(parentId, childId) => {
+            if (parentId === 'move-to') handleMoveTo(menu.agentId, childId)
+          }}
+        />
+      )}
+      {sectionMenu && (
+        <RailContextMenu
+          agentName={sectionMenu.sectionName || 'section'}
+          x={sectionMenu.x}
+          y={sectionMenu.y}
+          items={sectionMenuItemsForOpen}
+          menuRef={menuRef}
+          onSelect={handleSectionMenuSelect}
         />
       )}
       {deleteConfirm && (
