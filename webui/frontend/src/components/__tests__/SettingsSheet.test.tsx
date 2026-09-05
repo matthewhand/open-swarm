@@ -590,6 +590,36 @@ describe('SettingsSheet', () => {
     expect(pane?.textContent).not.toMatch(/Django/i)
   })
 
+  it('displays an error alert and retry button when /v1/system/ fails instead of painting empty store (REQ-188C-2)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/v1/system')) {
+          return {
+            ok: false,
+            status: 500,
+            statusText: 'Internal Server Error',
+            json: async () => ({ error: 'daemon error' }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', kinds: [], configured: [], data: [] }),
+        } as Response
+      }),
+    )
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'System' }))
+    expect(await screen.findByTestId('system-store-error')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Failed to load local database facts. Check local daemon connection./i),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('not created yet')).not.toBeInTheDocument()
+  })
+
   it('keeps the Django operator dump link', () => {
     renderSheet()
     expect(screen.getByRole('link', { name: 'Operator dump' })).toHaveAttribute(
