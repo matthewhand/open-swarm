@@ -15,7 +15,7 @@ import {
 import { fetchBlueprints } from '../lib/api'
 import { openChromeOverlay, type ChromeOverlay } from '../lib/chromeOverlay'
 import { openSettingsSheet } from './SettingsSheet'
-import { agentMarkIndex } from '../lib/hiddenAgents'
+import { agentMarkIndex, loadHiddenAgentIds, unhideAgentId } from '../lib/hiddenAgents'
 import { exampleRoleAgents } from '../lib/agentRoles'
 import { agentLabel } from '../lib/supportAgent'
 import { dispatchToggleTheme } from '../lib/theme'
@@ -37,8 +37,14 @@ export type SearchPaletteTab = (typeof SEARCH_PALETTE_TABS)[number]
 
 export const OPEN_SEARCH_EVENT = 'swarm:open-search'
 
-export function openSearchPalette(): void {
-  window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))
+export interface SearchPaletteOptions {
+  filterHidden?: boolean
+  tab?: SearchPaletteTab
+  query?: string
+}
+
+export function openSearchPalette(options?: SearchPaletteOptions): void {
+  window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT, { detail: options }))
 }
 
 interface PaletteRow {
@@ -56,15 +62,18 @@ interface PaletteRow {
 export interface SearchPaletteProps {
   open: boolean
   onClose: () => void
+  options?: SearchPaletteOptions
 }
 
 function shortcutLabel(index: number): string {
   return `⌃${index + 1}`
 }
 
-export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
+export default function SearchPalette({ open, onClose, options }: SearchPaletteProps) {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<SearchPaletteTab>('All')
+  const [hiddenOnly, setHiddenOnly] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenAgentIds())
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dialogRef = useRef<HTMLDivElement | null>(null)
@@ -129,7 +138,10 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
         tab: 'Actions',
         name: 'Hidden Bots',
         description: 'Unhide agents without leaving chat',
-        overlay: 'hidden',
+        action: () => {
+          setHiddenOnly(true)
+          setTab('Bots')
+        },
       },
       {
         id: 'action-computer',
@@ -152,25 +164,53 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
     return rows.filter((row) => {
-      if (tab !== 'All' && row.tab !== tab) return false
+      if (hiddenOnly) {
+        if (row.tab !== 'Bots') return false
+        if (!row.agentId || !hiddenIds.includes(row.agentId)) return false
+      } else {
+        if (tab !== 'All' && row.tab !== tab) return false
+      }
       if (!q) return true
       return (
         row.name.toLowerCase().includes(q) ||
         row.description.toLowerCase().includes(q)
       )
     })
-  }, [query, rows, tab])
+  }, [query, rows, tab, hiddenOnly, hiddenIds])
 
   useEffect(() => {
     setActiveIdx(0)
-  }, [query, tab, open])
+  }, [query, tab, open, hiddenOnly])
 
   useEffect(() => {
     if (!open) return
-    setQuery('')
-    setTab('All')
+    const ids = loadHiddenAgentIds()
+    setHiddenIds(ids)
+    if (options?.filterHidden) {
+      setHiddenOnly(true)
+      setTab('Bots')
+    } else {
+      setHiddenOnly(false)
+      setTab(options?.tab || 'All')
+    }
+    setQuery(options?.query || '')
     requestAnimationFrame(() => inputRef.current?.focus())
-  }, [open])
+  }, [open, options])
+
+  useEffect(() => {
+    const handleOpen = (e: Event) => {
+      const detail = (e as CustomEvent<SearchPaletteOptions>).detail
+      if (detail?.filterHidden) {
+        setHiddenOnly(true)
+        setTab('Bots')
+      } else if (detail?.tab) {
+        setTab(detail.tab)
+      }
+      if (detail?.query !== undefined) setQuery(detail.query)
+    }
+    window.addEventListener(OPEN_SEARCH_EVENT, handleOpen)
+    return () => window.removeEventListener(OPEN_SEARCH_EVENT, handleOpen)
+  }, [])
 
   const choose = useCallback(
     (row: PaletteRow | undefined) => {
@@ -283,6 +323,26 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
           })}
         </div>
 
+        {hiddenOnly && (
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-base-200/50 border-b border-base-300 text-xs text-base-content/70"
+            data-testid="hidden-filter-indicator"
+          >
+            <span className="font-semibold text-primary">Filter:</span>
+            <span className="inline-flex items-center gap-1 rounded bg-base-300 px-2 py-0.5 font-medium text-base-content">
+              Hidden only
+              <button
+                type="button"
+                className="cursor-pointer hover:opacity-75 ml-0.5"
+                aria-label="Clear hidden filter"
+                onClick={() => setHiddenOnly(false)}
+              >
+                ×
+              </button>
+            </span>
+          </div>
+        )}
+
         <ul
           id="os-search-results"
           role="listbox"
@@ -290,7 +350,12 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
           className="os-search-palette__list"
         >
           {visible.length === 0 ? (
-            <li className="os-search-empty">No results</li>
+            <li
+              className="os-search-empty"
+              data-testid={hiddenOnly ? 'search-empty-hidden' : undefined}
+            >
+              {hiddenOnly ? 'No hidden agents found' : 'No results'}
+            </li>
           ) : (
             visible.map((row, idx) => (
               <li
@@ -316,6 +381,22 @@ export default function SearchPalette({ open, onClose }: SearchPaletteProps) {
                   <span className="os-search-row__name">{row.name}</span>
                   <span className="os-search-row__desc">{row.description}</span>
                 </span>
+                {row.agentId && hiddenIds.includes(row.agentId) && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs text-xs z-10 mr-1"
+                    data-testid={`unhide-${row.agentId}`}
+                    aria-label={`Unhide ${row.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const next = unhideAgentId(row.agentId!, hiddenIds)
+                      setHiddenIds(next)
+                      window.dispatchEvent(new Event('storage'))
+                    }}
+                  >
+                    Unhide
+                  </button>
+                )}
                 {idx < 9 && <kbd className="os-search-shortcut">{shortcutLabel(idx)}</kbd>}
               </li>
             ))
