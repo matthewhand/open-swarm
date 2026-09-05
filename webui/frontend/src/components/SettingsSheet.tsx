@@ -721,7 +721,9 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
         </div>
       )}
 
-      {blueprintId && editable ? (
+      {blueprintId && sourceQuery.isPending ? (
+        <p className="text-sm text-base-content/60">Loading blueprint source…</p>
+      ) : blueprintId && editable ? (
         <div className="space-y-2">
           <Textarea
             aria-label={`${label} blueprint Python`}

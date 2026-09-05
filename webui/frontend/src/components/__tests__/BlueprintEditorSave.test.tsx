@@ -47,28 +47,32 @@ describe('REQ-211: Settings Blueprints inline edit + save', () => {
       vi.fn().mockResolvedValue(jsonResponse(CUSTOM_SOURCE)),
     )
     renderEditor('my_custom_agent')
-    const editor = await screen.findByLabelText(/my_custom_agent blueprint Python/i)
+    const editor = await screen.findByRole('textbox', { name: /my_custom_agent blueprint Python/i })
     expect(editor.tagName).toBe('TEXTAREA')
     expect(editor).not.toHaveAttribute('readonly')
-    expect(screen.getByText(/Editing/i)).toHaveTextContent('Editing')
+    const desc = screen.getByText(/Editing/i)
+    expect(desc).toHaveTextContent('Editing')
     expect(screen.getByRole('button', { name: /^Save$/ })).toBeInTheDocument()
     expect(screen.queryByText(/Viewing/i)).toBeNull()
   })
 
   it('persists Save and reloads the updated source', async () => {
+    let content = CUSTOM_SOURCE.content
     const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
       const url = String(input)
       if ((init?.method || 'GET') === 'PUT' && url.includes('/source')) {
+        const body = JSON.parse(String(init?.body || '{}')) as { content?: string }
+        content = body.content || content
         return jsonResponse({
           ...CUSTOM_SOURCE,
-          content: 'class Saved:\n    pass\n',
+          content,
         })
       }
-      return jsonResponse(CUSTOM_SOURCE)
+      return jsonResponse({ ...CUSTOM_SOURCE, content })
     })
     vi.stubGlobal('fetch', fetchMock)
     renderEditor('my_custom_agent')
-    const editor = await screen.findByLabelText(/my_custom_agent blueprint Python/i)
+    const editor = await screen.findByRole('textbox', { name: /my_custom_agent blueprint Python/i })
     fireEvent.change(editor, { target: { value: 'class Saved:\n    pass\n' } })
     fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
     await waitFor(() => {
@@ -90,7 +94,7 @@ describe('REQ-211: Settings Blueprints inline edit + save', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     renderEditor('my_custom_agent')
-    const editor = await screen.findByLabelText(/my_custom_agent blueprint Python/i)
+    const editor = await screen.findByRole('textbox', { name: /my_custom_agent blueprint Python/i })
     fireEvent.change(editor, { target: { value: 'def (\n' } })
     fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
     await waitFor(() => {
@@ -119,7 +123,8 @@ describe('REQ-211: Settings Blueprints inline edit + save', () => {
     renderEditor('support')
     const code = await screen.findByLabelText(/Support blueprint Python/i)
     expect(code.tagName).toBe('PRE')
-    expect(screen.getByText(/Viewing Support/i)).toBeInTheDocument()
+    const desc = screen.getByText(/Viewing/i)
+    expect(desc).toHaveTextContent('Viewing Support')
     expect(screen.getByText(/Bundled checkout recipe/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Save$/ })).toBeNull()
     expect(screen.queryByText(/Editing Support/i)).toBeNull()

@@ -245,10 +245,12 @@ export default function DefinitionPane({
               <FileCode2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
               Edit code
             </Button>
-          ) : (
+          ) : sourceKnown ? (
             <p className="text-xs text-base-content/60" data-testid="definition-readonly">
               {readonlyReason || 'This definition is read-only.'}
             </p>
+          ) : (
+            <p className="text-xs text-base-content/60">Checking whether this source is writable…</p>
           )}
           {llmConfigured ? (
             <Button

@@ -69,9 +69,10 @@ describe('REQ-211 / REQ-188A-2: Definition Save is honest', () => {
     renderPane('role', 'support')
 
     await waitFor(() => {
-      expect(screen.getByTestId('definition-readonly')).toBeInTheDocument()
+      expect(screen.getByTestId('definition-readonly')).toHaveTextContent(
+        /Bundled checkout recipe/i,
+      )
     })
-    expect(screen.getByText(/Bundled checkout recipe/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit code/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Save$/ })).not.toBeInTheDocument()
   })
