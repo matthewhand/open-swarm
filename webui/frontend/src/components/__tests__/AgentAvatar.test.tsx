@@ -1,5 +1,7 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import { fireEvent, render } from '@testing-library/react'
+import fs from 'node:fs'
+import path from 'node:path'
 import AgentAvatar, {
   DEFAULT_AGENT_AVATAR_SRC,
   agentAvatarKind,
@@ -97,5 +99,35 @@ describe('AgentAvatar', () => {
       'default',
     )
     expect(container.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
+  })
+
+  it('caps xs so it cannot fill an unbounded flex parent (#736)', () => {
+    const css = fs.readFileSync(path.resolve(__dirname, '../../index.css'), 'utf8')
+    expect(css).toMatch(/\.os-agent-avatar--xs\s*\{[^}]*max-width:\s*1\.5rem/)
+    expect(css).toMatch(/\.os-blob-avatar--xs\s*\{[^}]*max-width:\s*1\.5rem/)
+
+    const { container } = render(
+      <div style={{ display: 'flex', width: 400, height: 400 }}>
+        <AgentAvatar agentId="codey" size="xs" />
+      </div>,
+    )
+    const face = container.querySelector('[data-agent-avatar]')
+    expect(face).toHaveAttribute('data-avatar-size', 'xs')
+    const blob = container.querySelector('.os-blob-avatar')
+    expect(blob).toHaveClass('os-blob-avatar--xs')
+    expect(blob).not.toHaveStyle({ width: '100%', height: '100%' })
+  })
+
+  it('sizes a custom xs face with the capped class instead of 100% fill', () => {
+    const { container } = render(
+      <div style={{ display: 'flex', width: 400, height: 400 }}>
+        <AgentAvatar src="/avatars/codey_avatar.png" size="xs" alt="Codey" />
+      </div>,
+    )
+    const inner = container.querySelector('.os-agent-avatar')
+    expect(inner).toHaveClass('os-agent-avatar--xs')
+    expect(inner).not.toHaveStyle({ width: '100%', height: '100%' })
+    const img = container.querySelector('img')
+    expect(img).not.toHaveStyle({ width: '100%', height: '100%' })
   })
 })
