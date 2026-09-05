@@ -23,6 +23,10 @@ def test_update_toggle_roundtrip(tmp_path, monkeypatch):
     store.reset_agent_settings_cache()
     assert store.is_new_chat_per_task("worker") is True
     assert store.get_settings("other")["new_chat_per_task"] is False
+    assert store.get_settings("worker")["use_suggestions"] is False
+    store.update_settings("worker", {"use_suggestions": True})
+    assert store.is_use_suggestions("worker") is True
+    assert store.is_use_suggestions("other") is False
 
 
 def test_rejects_unknown_keys(tmp_path, monkeypatch):

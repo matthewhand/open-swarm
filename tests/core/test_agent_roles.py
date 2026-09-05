@@ -6,6 +6,7 @@ from swarm.core.agent_roles import (
     ROLE_DEFAULT,
     ROLE_GATE,
     ROLE_SKEPTIC,
+    ROLE_SUGGESTIONS,
     ROLE_SUPPORT,
     blueprint_role_fields,
     is_chief_of_staff,
@@ -23,9 +24,14 @@ def test_chief_of_staff_aliases():
 
 def test_role_enum_includes_cos_and_existing_seats():
     assert ROLE_CHIEF_OF_STAFF in CANONICAL_ROLES
-    assert {ROLE_DEFAULT, ROLE_SUPPORT, ROLE_GATE, ROLE_SKEPTIC, ROLE_CHIEF_OF_STAFF} <= set(
-        CANONICAL_ROLES
-    )
+    assert {
+        ROLE_DEFAULT,
+        ROLE_SUPPORT,
+        ROLE_GATE,
+        ROLE_SKEPTIC,
+        ROLE_CHIEF_OF_STAFF,
+        ROLE_SUGGESTIONS,
+    } <= set(CANONICAL_ROLES)
 
 
 def test_unknown_role_is_default_not_cos():
@@ -55,3 +61,20 @@ def test_blueprint_role_fields_surface_cos():
     )
     assert fields["role"] == ROLE_CHIEF_OF_STAFF
     assert fields["chief_of_staff_agent"] == "Pat"
+
+
+def test_suggestions_role_and_blueprint_fields():
+    assert normalize_agent_role("suggest") == ROLE_SUGGESTIONS
+    assert normalize_agent_role("suggestion") == ROLE_SUGGESTIONS
+    assert role_badge_label("suggestions") == "Suggest"
+    assert role_css_class("suggestions") == "os-agent-role-suggestions"
+    fields = blueprint_role_fields(
+        {
+            "role": "default",
+            "agents": [
+                {"name": "Tips", "role": "suggestions"},
+                {"name": "Sam", "role": "default"},
+            ],
+        }
+    )
+    assert fields["suggestions_agent"] == "Tips"

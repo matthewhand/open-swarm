@@ -16,6 +16,7 @@ describe('definitionExplain', () => {
     expect(staticExplanation('role', 'skeptic')).toMatch(/retry/)
     expect(staticExplanation('role', 'support')).toMatch(/Socratic/)
     expect(staticExplanation('role', 'cos')).toMatch(/talks to any team/i)
+    expect(staticExplanation('role', 'suggestions')).toMatch(/quick-select/i)
     expect(staticExplanation('team', 'default')).toBe(TEAM_BRIEF)
     expect(staticExplanation('blueprint', 'default')).toBe(BLUEPRINT_BRIEF)
     expect(ROLE_BRIEFS.gate).not.toMatch(/def classify/)

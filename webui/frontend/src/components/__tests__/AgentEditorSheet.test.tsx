@@ -5,6 +5,7 @@ import { ToastProvider } from '../DaisyUI'
 import {
   NEW_CHAT_PER_TASK_LABEL,
   NEW_CHAT_PER_TASK_TOOLTIP,
+  USE_SUGGESTIONS_LABEL,
   localSettingsKey,
 } from '../../lib/agentSettings'
 
@@ -52,6 +53,7 @@ describe('AgentEditorSheet', () => {
     expect(screen.queryByRole('button', { name: 'Remotes' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'System' })).not.toBeInTheDocument()
     expect(screen.queryByText('Retention')).not.toBeInTheDocument()
+    expect(await screen.findByRole('switch', { name: USE_SUGGESTIONS_LABEL })).not.toBeChecked()
   })
 
   it('persists the toggle on', async () => {

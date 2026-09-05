@@ -30,6 +30,8 @@ import type { InferenceSeat } from '../lib/inferenceList'
 import {
   NEW_CHAT_PER_TASK_LABEL,
   NEW_CHAT_PER_TASK_TOOLTIP,
+  USE_SUGGESTIONS_LABEL,
+  USE_SUGGESTIONS_TOOLTIP,
   fetchAgentSettings,
   saveAgentSettings,
 } from '../lib/agentSettings'
@@ -57,6 +59,7 @@ const ROLE_OPTIONS: { value: AgentRole; label: string }[] = [
   { value: 'support', label: 'support' },
   { value: 'gate', label: 'gate' },
   { value: 'skeptic', label: 'skeptic' },
+  { value: 'suggestions', label: 'suggestions' },
 ]
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
@@ -77,6 +80,7 @@ export interface AgentEditorProps {
 export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorProps) {
   const id = agentId || ''
   const toggleId = useId()
+  const suggestionsToggleId = useId()
   const [name, setName] = useState('')
   const [role, setRole] = useState<AgentRole>('default')
   const [blueprintId, setBlueprintId] = useState('')
@@ -84,6 +88,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [cliOverride, setCliOverride] = useState('')
   const [profileOverride, setProfileOverride] = useState('')
   const [newChatPerTask, setNewChatPerTask] = useState(false)
+  const [useSuggestions, setUseSuggestions] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [boundRemoteId, setBoundRemoteId] = useState('')
   const [inferenceSeats, setInferenceSeats] = useState<InferenceSeat[]>([])
@@ -199,7 +204,10 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     let cancelled = false
     ;(async () => {
       const settings = await fetchAgentSettings(id)
-      if (!cancelled) setNewChatPerTask(settings.new_chat_per_task)
+      if (!cancelled) {
+        setNewChatPerTask(settings.new_chat_per_task)
+        setUseSuggestions(settings.use_suggestions)
+      }
     })()
     return () => {
       cancelled = true
@@ -212,6 +220,17 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setSavingSettings(true)
     try {
       await saveAgentSettings(id, { new_chat_per_task: next })
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const handleToggleSuggestions = async (next: boolean) => {
+    setUseSuggestions(next)
+    if (!id) return
+    setSavingSettings(true)
+    try {
+      await saveAgentSettings(id, { use_suggestions: next })
     } finally {
       setSavingSettings(false)
     }
@@ -527,6 +546,28 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
               checked={newChatPerTask}
               disabled={!id || savingSettings}
               onChange={(event) => handleToggleNewChat(event.target.checked)}
+            />
+          </label>
+        </div>
+
+        <div
+          className="tooltip tooltip-bottom w-full text-left"
+          data-tip={USE_SUGGESTIONS_TOOLTIP}
+        >
+          <label
+            htmlFor={suggestionsToggleId}
+            className="label cursor-pointer items-center justify-between gap-4 rounded-box border border-base-300 bg-base-200/60 px-4 py-3"
+          >
+            <span className="label-text text-base font-semibold">{USE_SUGGESTIONS_LABEL}</span>
+            <input
+              id={suggestionsToggleId}
+              type="checkbox"
+              className="toggle toggle-primary"
+              role="switch"
+              aria-label={USE_SUGGESTIONS_LABEL}
+              checked={useSuggestions}
+              disabled={!id || savingSettings}
+              onChange={(event) => handleToggleSuggestions(event.target.checked)}
             />
           </label>
         </div>

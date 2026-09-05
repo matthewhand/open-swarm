@@ -29,6 +29,9 @@ const ROLE_ALIASES: Record<string, AgentRole> = {
   chiefofstaff: 'chief_of_staff',
   cos: 'chief_of_staff',
   chief: 'chief_of_staff',
+  suggestions: 'suggestions',
+  suggestion: 'suggestions',
+  suggest: 'suggestions',
 }
 
 export const SYNTHETIC_GATE: Blueprint = {
@@ -159,6 +162,9 @@ export function agentRole(agent: {
   ) {
     return 'chief_of_staff'
   }
+  if (id === 'suggestions' || id === 'suggestion' || name === 'suggestions') {
+    return 'suggestions'
+  }
   return normalizeAgentRole(id) === 'default' ? 'default' : normalizeAgentRole(id)
 }
 
@@ -170,6 +176,7 @@ export const ROLE_BADGE_LABELS: Record<AgentRole, string> = {
   gate: 'Gate',
   skeptic: 'Skeptic',
   chief_of_staff: 'CoS',
+  suggestions: 'Suggest',
 }
 
 export function isChiefOfStaff(role: unknown): boolean {
@@ -252,6 +259,14 @@ export function fallbackBlueprintSource(blueprintId: string, role: AgentRole): s
       `COS_INSTRUCTIONS = (\n` +
       `    "You are Chief of Staff. Route the operator to the right team. "\n` +
       `    "Talk to any roster; do not do the specialist work yourself."\n` +
+      `)\n`
+    )
+  }
+  if (role === 'suggestions') {
+    return (
+      `# Blueprint recipe — Suggestions (quick-select chips)\n` +
+      `SUGGESTIONS_INSTRUCTIONS = (\n` +
+      `    "Return JSON {\\"suggestions\\": [2-5 short strings]} the operator can click."\n` +
       `)\n`
     )
   }

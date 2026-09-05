@@ -713,6 +713,7 @@ button.os-agent-row {
   letter-spacing: 0.06em;
   font-weight: 700;
 }
+.os-agent-role-badge[data-role="suggestions"] { color: #5a8a6b; }
 .os-agent-role-badge[data-kind="team"] { color: #6b7c8a; }
 
 /* REQ-116: Avatar-only rail mode when width <= AVATAR_ONLY_THRESHOLD */
@@ -1685,3 +1686,20 @@ html:not([data-theme="light"]) .os-composer__send,
 [data-theme="light"] .os-py-num { color: #9a5b10; }
 [data-theme="light"] .os-py-dec { color: #7a3ea8; }
 [data-theme="light"] .os-py-bi { color: #0e6e6a; }
+
+/* REQ-85: suggestion chips — DaisyUI controls, not assistant bubbles. */
+.os-suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem 0.15rem;
+}
+.os-suggestion-chip {
+  max-width: 100%;
+  height: auto;
+  min-height: 1.75rem;
+  white-space: normal;
+  text-align: left;
+  font-weight: 550;
+  line-height: 1.25;
+}

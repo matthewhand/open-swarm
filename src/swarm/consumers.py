@@ -190,6 +190,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                         "fetch_conversation failed after accept; continuing with empty transcript"
                     )
                     self.messages = []
+                await self._emit_suggestions_if_enabled(self.default_blueprint)
             else:
                 # Close after accept so the client sees 4401 (not 1006).
                 # receive() re-checks auth so anonymous clients cannot hit the LLM.
@@ -391,6 +392,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             {"contents_div_id": contents_div_id, "message": canned},
         )
         await self.send(text_data=final_html)
+        await self._emit_suggestions_if_enabled(None)
 
     async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
@@ -417,6 +419,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 {"contents_div_id": contents_div_id, "message": canned},
             )
             await self.send(text_data=final_html)
+            await self._emit_suggestions_if_enabled(blueprint_id)
             return
 
         from swarm.views.chat_views import (
@@ -648,9 +651,26 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             },
         )
         await self.send(text_data=final_message_html)
+        await self._emit_suggestions_if_enabled(blueprint_id)
+
+    async def _emit_suggestions_if_enabled(self, agent_id):
+        """REQ-85: JSON chips after a finished turn (never mid-token, never in LLM context)."""
+        try:
+            from swarm.core.suggestions import suggestions_payload_for_turn
+
+            target = (
+                agent_id
+                or getattr(self, "active_agent", None)
+                or getattr(self, "default_blueprint", None)
+            )
+            payload = suggestions_payload_for_turn(target, getattr(self, "messages", None))
+            if payload:
+                await self.emit_tool_event(payload)
+        except Exception:
+            logger.debug("suggestions emit skipped", exc_info=True)
 
     async def emit_tool_event(self, payload: dict) -> None:
-        """JSON tool-status / approval / PR-opened frames for the SPA."""
+        """JSON tool-status / approval / PR-opened / suggestions frames for the SPA."""
         try:
             from swarm.core.pr_opened import persist_pr_opened_message
 
@@ -834,6 +854,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await client.close()
         await self.send(text_data=final_message)
+        await self._emit_suggestions_if_enabled(None)
 
     async def apply_message_edit(self, edit):
         """Replace one transcript turn and persist it (REQ-49)."""

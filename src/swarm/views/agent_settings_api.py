@@ -45,6 +45,7 @@ def _payload(agent_id: str, settings: dict, request) -> dict:
         "object": "agent_settings",
         "agent_id": agent_id,
         "new_chat_per_task": bool(settings.get("new_chat_per_task")),
+        "use_suggestions": bool(settings.get("use_suggestions")),
         "cli_session_id": settings.get("cli_session_id"),
         "remote_session_id": settings.get("remote_session_id"),
         "active_sessions": sessions,

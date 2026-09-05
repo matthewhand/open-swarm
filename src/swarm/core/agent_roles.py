@@ -7,6 +7,7 @@ Canonical roles:
 * ``gate`` — tool-call classifier (alias ``tool_gate``). Amber badge.
 * ``skeptic`` — post-run reviewer. Violet badge.
 * ``chief_of_staff`` — talks to any team (aliases ``cos``, ``chief``). Ice-steel badge.
+* ``suggestions`` — quick-select chips after a turn (REQ-85). Sage badge.
 
 Sidepane class names (reuse these; do not invent a parallel set):
 
@@ -28,6 +29,7 @@ ROLE_SUPPORT = "support"
 ROLE_GATE = "gate"
 ROLE_SKEPTIC = "skeptic"
 ROLE_CHIEF_OF_STAFF = "chief_of_staff"
+ROLE_SUGGESTIONS = "suggestions"
 
 # User-facing / config aliases → canonical role.
 ROLE_ALIASES: dict[str, str] = {
@@ -48,6 +50,9 @@ ROLE_ALIASES: dict[str, str] = {
     "chiefofstaff": ROLE_CHIEF_OF_STAFF,
     "cos": ROLE_CHIEF_OF_STAFF,
     "chief": ROLE_CHIEF_OF_STAFF,
+    "suggestions": ROLE_SUGGESTIONS,
+    "suggestion": ROLE_SUGGESTIONS,
+    "suggest": ROLE_SUGGESTIONS,
 }
 
 CANONICAL_ROLES: tuple[str, ...] = (
@@ -56,6 +61,7 @@ CANONICAL_ROLES: tuple[str, ...] = (
     ROLE_GATE,
     ROLE_SKEPTIC,
     ROLE_CHIEF_OF_STAFF,
+    ROLE_SUGGESTIONS,
 )
 
 ROLE_BADGE_LABELS: dict[str, str] = {
@@ -64,6 +70,7 @@ ROLE_BADGE_LABELS: dict[str, str] = {
     ROLE_GATE: "Gate",
     ROLE_SKEPTIC: "Skeptic",
     ROLE_CHIEF_OF_STAFF: "CoS",
+    ROLE_SUGGESTIONS: "Suggest",
 }
 
 # CSS contract for the AGENTS sidepane badge (Django + SPA). REQ-67: not on the row.
@@ -186,7 +193,8 @@ def blueprint_role_fields(meta: dict[str, Any] | None) -> dict[str, Any]:
     """Serialize role + roster + wiring names for ``/v1/blueprints/``.
 
     Blueprint-level ``role`` is explicit metadata (Support / gate / CoS).
-    Member wiring lives on ``agents[]`` plus ``gate_agent`` / ``skeptic_agent``.
+    Member wiring lives on ``agents[]`` plus ``gate_agent`` / ``skeptic_agent``
+    / ``suggestions_agent``.
     """
     meta = meta or {}
     raw_agents = meta.get("agents")
@@ -201,10 +209,12 @@ def blueprint_role_fields(meta: dict[str, Any] | None) -> dict[str, Any]:
     gate = meta.get("gate_agent") or find_role_name(roster, ROLE_GATE)
     skeptic = meta.get("skeptic_agent") or find_role_name(roster, ROLE_SKEPTIC)
     cos = meta.get("chief_of_staff_agent") or find_role_name(roster, ROLE_CHIEF_OF_STAFF)
+    suggestions = meta.get("suggestions_agent") or find_role_name(roster, ROLE_SUGGESTIONS)
     return {
         "role": role,
         "agents": roster,
         "gate_agent": gate,
         "skeptic_agent": skeptic,
         "chief_of_staff_agent": cos,
+        "suggestions_agent": suggestions,
     }

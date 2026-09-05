@@ -52,6 +52,7 @@ def test_team_codegen_source_wires_gate_and_skeptic():
         "run_with_skeptic",
         "attach_gate_as_tool",
         "attach_skeptic_as_tool",
+        "attach_suggestions_as_tool",
         "find_role_agent(self._agents",
         "normalize_agent_role",
         '\\"role\\": \\"default\\"',
@@ -83,6 +84,7 @@ def test_sidepane_css_class_names_exist_django_and_spa():
     assert 'value="gate"' in team
     assert 'value="skeptic"' in team
     assert 'value="support"' in team
+    assert 'value="suggestions"' in team
 
 
 def test_codegen_unwired_still_calls_wrap_but_gate_is_none():
@@ -108,6 +110,7 @@ def test_codegen_wires_gate_and_skeptic_roles():
     code = _render_swarm_blueprint_code(_team(gate=True, skeptic=True))
     assert "attach_gate_as_tool" in code
     assert "attach_skeptic_as_tool" in code
+    assert "attach_suggestions_as_tool" in code
     # AGENT_SPECS is emitted via repr(), so keys/values are single-quoted.
     assert "'role': 'gate'" in code or '"role": "gate"' in code
     assert "'role': 'skeptic'" in code or '"role": "skeptic"' in code

@@ -12,6 +12,7 @@ Layout::
       "agents": {
         "<agent_id>": {
           "new_chat_per_task": false,
+          "use_suggestions": false,
           "cli_session_id": null,
           "remote_session_id": null
         }
@@ -39,17 +40,19 @@ logger = logging.getLogger(__name__)
 SCHEMA = 1
 ENV_SETTINGS_PATH = "SWARM_AGENT_SETTINGS_PATH"
 KEY_NEW_CHAT_PER_TASK = "new_chat_per_task"
+KEY_USE_SUGGESTIONS = "use_suggestions"
 KEY_CLI_SESSION = "cli_session_id"
 KEY_REMOTE_SESSION = "remote_session_id"
 
 DEFAULTS: dict[str, Any] = {
     KEY_NEW_CHAT_PER_TASK: False,
+    KEY_USE_SUGGESTIONS: False,
     KEY_CLI_SESSION: None,
     KEY_REMOTE_SESSION: None,
 }
 
 _ALLOWED_KEYS = frozenset(DEFAULTS)
-_BOOL_KEYS = frozenset({KEY_NEW_CHAT_PER_TASK})
+_BOOL_KEYS = frozenset({KEY_NEW_CHAT_PER_TASK, KEY_USE_SUGGESTIONS})
 _ID_KEYS = frozenset({KEY_CLI_SESSION, KEY_REMOTE_SESSION})
 
 _cache: dict[str, Any] | None = None
@@ -151,6 +154,7 @@ def public_settings(raw: dict[str, Any] | None = None) -> dict[str, Any]:
                     continue
     return {
         KEY_NEW_CHAT_PER_TASK: bool(merged[KEY_NEW_CHAT_PER_TASK]),
+        KEY_USE_SUGGESTIONS: bool(merged[KEY_USE_SUGGESTIONS]),
         KEY_CLI_SESSION: merged[KEY_CLI_SESSION],
         KEY_REMOTE_SESSION: merged[KEY_REMOTE_SESSION],
     }
@@ -186,6 +190,13 @@ def is_new_chat_per_task(agent_id: str | None) -> bool:
     if not (agent_id or "").strip():
         return False
     return bool(get_settings(agent_id)[KEY_NEW_CHAT_PER_TASK])
+
+
+def is_use_suggestions(agent_id: str | None) -> bool:
+    """True when this consumer wires the suggestions role (default False)."""
+    if not (agent_id or "").strip():
+        return False
+    return bool(get_settings(agent_id)[KEY_USE_SUGGESTIONS])
 
 
 def stored_cli_session_id(agent_id: str) -> str | None:
