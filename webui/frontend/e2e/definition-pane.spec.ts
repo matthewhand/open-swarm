@@ -58,6 +58,29 @@ async function stubApis(page: import('@playwright/test').Page) {
     })
   })
   await page.route('**/v1/blueprints**', async (route) => {
+    const url = route.request().url()
+    if (url.includes('/source')) {
+      const post = route.request().postDataJSON() as { content?: string } | null
+      const content =
+        route.request().method() === 'PUT' && post?.content
+          ? post.content
+          : 'ORIGINAL_SUPPORT_SOURCE'
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'support',
+          files: [{ name: 'blueprint_support.py', path: 'blueprint_support.py' }],
+          primary: 'blueprint_support.py',
+          selected: 'blueprint_support.py',
+          content,
+          editable: true,
+          origin: 'custom',
+          readonly_reason: null,
+        }),
+      })
+      return
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

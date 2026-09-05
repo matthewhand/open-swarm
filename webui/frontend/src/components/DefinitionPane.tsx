@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, RefreshCw } from 'lucide-react'
 import { Alert, Button, Textarea } from './DaisyUI'
-import { updateCustomBlueprint } from '../lib/api'
+import { fetchBlueprintSource, updateBlueprintSource } from '../lib/api'
 import {
   MISSING_MODEL_HINT,
   localDefinitionContext,
@@ -55,10 +55,26 @@ export default function DefinitionPane({
     retry: false,
   })
 
+  const sourceMetaQuery = useQuery({
+    queryKey: ['blueprint-source', definitionId],
+    queryFn: () => fetchBlueprintSource(definitionId),
+    enabled: Boolean(definitionId) && kind !== 'team',
+    retry: false,
+  })
+
   const fallback = localDefinitionContext(kind, definitionId, { role })
   const ctx: DefinitionContext = contextQuery.data ?? fallback
   const llmConfigured = Boolean(ctx.default_llm.configured && ctx.default_llm.model)
-  const source = savedSource ?? ctx.source
+  const source = savedSource ?? sourceMetaQuery.data?.content ?? ctx.source
+  const sourceKnown = kind === 'team' || sourceMetaQuery.isFetched || sourceMetaQuery.isError
+  const editable = sourceKnown && sourceMetaQuery.data?.editable === true
+  const readonlyReason =
+    kind === 'team'
+      ? 'Team roster is not Python blueprint source — open Blueprints for a recipe.'
+      : sourceMetaQuery.data?.readonly_reason ||
+        (sourceMetaQuery.isError
+          ? 'No writable blueprint source for this definition.'
+          : null)
   const label = agentLabel({
     id: definitionId,
     name: ctx.title || definitionId,
@@ -100,14 +116,16 @@ export default function DefinitionPane({
 
   const handleSave = async () => {
     const next = draft
-    setMode('explain')
+    setSaveHint(null)
     try {
-      await updateCustomBlueprint(definitionId, { code: next })
-      setSavedSource(next)
+      const saved = await updateBlueprintSource(definitionId, { content: next })
+      setSavedSource(saved.content)
+      setDraft(saved.content)
+      setMode('explain')
       setNeedResummarise(true)
-      setSaveHint('Saved. Re-summarise to refresh the LLM against the new source.')
+      setSaveHint('Saved. Reloaded as the updated blueprint. Re-summarise to refresh the LLM against the new source.')
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Blueprint or role not customizable'
+      const msg = error instanceof Error ? error.message : 'Save failed'
       setSaveHint(`Failed to save definition: ${msg}`)
     }
   }
@@ -193,7 +211,7 @@ export default function DefinitionPane({
         ) : null}
       </div>
 
-      {mode === 'edit' ? (
+      {mode === 'edit' && editable ? (
         <div className="space-y-3">
           <Textarea
             label="Definition source"
@@ -214,18 +232,26 @@ export default function DefinitionPane({
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setDraft(source)
-              setMode('edit')
-            }}
-          >
-            <FileCode2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-            Edit code
-          </Button>
+          {editable ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDraft(source)
+                setMode('edit')
+              }}
+            >
+              <FileCode2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+              Edit code
+            </Button>
+          ) : sourceKnown ? (
+            <p className="text-xs text-base-content/60" data-testid="definition-readonly">
+              {readonlyReason || 'This definition is read-only.'}
+            </p>
+          ) : (
+            <p className="text-xs text-base-content/60">Checking whether this source is writable…</p>
+          )}
           {llmConfigured ? (
             <Button
               type="button"

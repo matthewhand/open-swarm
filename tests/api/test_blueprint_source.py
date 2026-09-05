@@ -1,4 +1,4 @@
-"""Tests for the read-only blueprint source endpoint (GET /v1/blueprints/<id>/source)."""
+"""Tests for GET/PUT /v1/blueprints/<id>/source (REQ-211)."""
 
 import pytest
 from django.urls import resolve
@@ -23,6 +23,9 @@ def test_source_returns_primary_file_and_content(client):
     assert data["selected"] == "blueprint_cli_fusion.py"
     assert any(f["name"] == "blueprint_cli_fusion.py" for f in data["files"])
     assert "class CliFusionBlueprint" in data["content"]
+    assert data["editable"] is False
+    assert data["origin"] == "bundled"
+    assert "Bundled" in (data.get("readonly_reason") or "")
 
 
 @pytest.mark.django_db
@@ -93,6 +96,134 @@ def test_library_source_page_is_pretty_python(client, test_user):
     assert "language-python" in html
     assert "class CliFusionBlueprint" in html
     assert '"primary":' not in html
+    assert "os-source-save" not in html
+    assert "Bundled checkout recipe" in html
+
+
+@pytest.mark.django_db
+def test_bundled_source_put_is_forbidden(client):
+    before = client.get("/v1/blueprints/cli_fusion/source").json()["content"]
+    resp = client.put(
+        "/v1/blueprints/cli_fusion/source",
+        data={"content": "print('nope')\n"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 403
+    body = resp.json()
+    assert body["editable"] is False
+    assert "Bundled" in body["error"]
+    after = client.get("/v1/blueprints/cli_fusion/source").json()["content"]
+    assert after == before
+
+
+@pytest.mark.django_db
+def test_custom_source_get_put_and_invalid_rejected(client, monkeypatch):
+    library = {
+        "installed": [],
+        "custom": [
+            {
+                "id": "my_custom_agent",
+                "name": "My Custom Agent",
+                "code": "class Ok:\n    pass\n",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        "swarm.views.api_views.get_user_blueprint_library", lambda: library
+    )
+    monkeypatch.setattr(
+        "swarm.views.api_views.save_user_blueprint_library", lambda _lib: True
+    )
+
+    got = client.get("/v1/blueprints/my_custom_agent/source")
+    assert got.status_code == 200
+    data = got.json()
+    assert data["editable"] is True
+    assert data["origin"] == "custom"
+    assert data["content"] == "class Ok:\n    pass\n"
+    assert data["readonly_reason"] is None
+
+    bad = client.put(
+        "/v1/blueprints/my_custom_agent/source",
+        data={"content": "def (\n"},
+        content_type="application/json",
+    )
+    assert bad.status_code == 400
+    assert "syntax" in bad.json()["error"].lower()
+    assert library["custom"][0]["code"] == "class Ok:\n    pass\n"
+
+    good = "class Saved:\n    pass\n"
+    ok = client.put(
+        "/v1/blueprints/my_custom_agent/source",
+        data={"content": good},
+        content_type="application/json",
+    )
+    assert ok.status_code == 200
+    saved = ok.json()
+    assert saved["content"] == good
+    assert saved["editable"] is True
+    assert library["custom"][0]["code"] == good
+
+
+@pytest.mark.django_db
+def test_user_dir_source_put_writes_file(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_USER_DATA_DIR", str(tmp_path))
+    from swarm.core.paths import get_user_blueprints_dir
+
+    bp_dir = get_user_blueprints_dir() / "user_recipe"
+    bp_dir.mkdir(parents=True)
+    target = bp_dir / "blueprint_user_recipe.py"
+    original = "class Original:\n    pass\n"
+    target.write_text(original)
+
+    got = client.get("/v1/blueprints/user_recipe/source")
+    assert got.status_code == 200
+    assert got.json()["editable"] is True
+    assert got.json()["origin"] == "user"
+    assert "class Original" in got.json()["content"]
+
+    bad = client.put(
+        "/v1/blueprints/user_recipe/source",
+        data={"content": "def (\n"},
+        content_type="application/json",
+    )
+    assert bad.status_code == 400
+    assert target.read_text() == original
+
+    updated = "class Updated:\n    pass\n"
+    ok = client.put(
+        "/v1/blueprints/user_recipe/source",
+        data={"content": updated},
+        content_type="application/json",
+    )
+    assert ok.status_code == 200
+    assert ok.json()["content"] == updated
+    assert target.read_text() == updated
+
+
+@pytest.mark.django_db
+def test_library_source_page_is_editor_for_custom(client, test_user, monkeypatch):
+    library = {
+        "installed": [],
+        "custom": [
+            {
+                "id": "my_custom_agent",
+                "name": "My Custom Agent",
+                "code": "class Ok:\n    pass\n",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        "swarm.views.api_views.get_user_blueprint_library", lambda: library
+    )
+    client.force_login(test_user)
+    resp = client.get("/blueprint-library/my_custom_agent/source/")
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert "os-source-editor" in html
+    assert "os-source-save" in html
+    assert "class Ok" in html
+    assert "language-python" not in html
 
 
 @pytest.mark.django_db

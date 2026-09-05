@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, FileCode2, HardDrive, Plus, Server } from 'lucide-react'
-import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
+import { Alert, Button, Input, Modal, Select, Textarea, useToast } from './DaisyUI'
 import DefinitionPane from './DefinitionPane'
 import AvatarThemePicker from './AvatarThemePicker'
 import EnvOverrideBadge from './EnvOverrideBadge'
@@ -16,14 +16,17 @@ import {
   deleteRemote,
   fetchBlueprintSource,
   fetchBlueprints,
+  fetchCustomBlueprints,
   fetchConfigOwnership,
   fetchLlmProfiles,
   fetchLocalStore,
   fetchRemotes,
   patchConfigSection,
   patchLlmProfiles,
+  updateBlueprintSource,
   type Blueprint,
   type BlueprintSource,
+  type CustomBlueprint,
   type LlmTaskClass,
 } from '../lib/api'
 import { formatStoreSize } from '../lib/localStore'
@@ -470,6 +473,20 @@ export default function SettingsSheet({
 
 const EMPTY_BLUEPRINTS: Blueprint[] = []
 
+function customToCatalogBlueprint(row: CustomBlueprint): Blueprint {
+  return {
+    id: row.id,
+    object: 'blueprint',
+    name: row.name || row.id,
+    description: row.description || '',
+    abbreviation: null,
+    required_mcp_servers: row.required_mcp_servers || [],
+    tags: row.tags || [],
+    installed: true,
+    compiled: null,
+  }
+}
+
 export function BlueprintsListPane({
   selectedId,
   onSelect,
@@ -483,15 +500,25 @@ export function BlueprintsListPane({
     queryFn: fetchBlueprints,
     retry: 1,
   })
+  const customQuery = useQuery({
+    queryKey: ['blueprints-custom'],
+    queryFn: fetchCustomBlueprints,
+    retry: 1,
+  })
   const catalog = assignableBlueprints(
     exampleRoleAgents(blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS),
   )
-  const ids = new Set(catalog.map((item) => item.id))
-  const extras =
-    selectedId && !ids.has(selectedId)
-      ? [{ id: selectedId, name: selectedId } as Blueprint]
-      : []
-  const items = [...catalog, ...extras]
+  const byId = new Map(catalog.map((item) => [item.id, item]))
+  for (const row of assignableBlueprints(
+    (customQuery.data?.data ?? []).map(customToCatalogBlueprint),
+  )) {
+    // Catalog metadata (role / webui) wins on id collision; extras are custom-only.
+    if (!byId.has(row.id)) byId.set(row.id, row)
+  }
+  if (selectedId && !byId.has(selectedId)) {
+    byId.set(selectedId, { id: selectedId, name: selectedId } as Blueprint)
+  }
+  const items = [...byId.values()]
 
   return (
     <section aria-labelledby={headingId} className="space-y-4">
@@ -547,11 +574,17 @@ export function BlueprintsListPane({
 
 export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
   const headingId = useId()
+  const queryClient = useQueryClient()
   const role = agentRole({ id: blueprintId, name: blueprintId })
   const [selectedFile, setSelectedFile] = useState<string | undefined>(undefined)
+  const [draft, setDraft] = useState('')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveHint, setSaveHint] = useState<string | null>(null)
 
   useEffect(() => {
     setSelectedFile(undefined)
+    setSaveError(null)
+    setSaveHint(null)
   }, [blueprintId])
 
   const sourceQuery = useQuery({
@@ -563,8 +596,11 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
 
   const live = sourceQuery.data
   const files = Array.isArray(live?.files) ? live.files : []
-  const content = live?.content || (blueprintId ? fallbackBlueprintSource(blueprintId, role) : '')
-  const fromLive = Boolean(live?.content)
+  const liveContent = live?.content ?? ''
+  const fallback = blueprintId ? fallbackBlueprintSource(blueprintId, role) : ''
+  const content = liveContent || fallback
+  const fromLive = Boolean(liveContent)
+  const editable = live?.editable === true
   const modules = runtimeModulesFor(role)
   const highlighted = highlightPython(content)
   const label = blueprintId
@@ -572,6 +608,30 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
       ? roleDisplayName(role)
       : agentLabel({ id: blueprintId, name: titleCase(blueprintId) })
     : 'Blueprint'
+
+  useEffect(() => {
+    if (liveContent) setDraft(liveContent)
+    else if (!sourceQuery.isSuccess) setDraft(fallback)
+  }, [blueprintId, selectedFile, liveContent, fallback, sourceQuery.isSuccess, sourceQuery.dataUpdatedAt])
+
+  const saveMutation = useMutation({
+    mutationFn: (next: string) =>
+      updateBlueprintSource(blueprintId, {
+        content: next,
+        file: selectedFile || live?.selected || undefined,
+      }),
+    onSuccess: async (saved) => {
+      setSaveError(null)
+      setDraft(saved.content)
+      setSaveHint('Saved. Reloaded as the updated blueprint.')
+      await queryClient.invalidateQueries({ queryKey: ['blueprint-source', blueprintId] })
+    },
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : 'Save failed'
+      setSaveError(msg)
+      setSaveHint(null)
+    },
+  })
 
   return (
     <section id="os-blueprint-editor" aria-labelledby={headingId} className="space-y-3">
@@ -581,18 +641,33 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
         </h4>
         <p className="mt-1 text-sm text-base-content/70">
           {blueprintId ? (
-            <>
-              Viewing <span className="font-medium">{label}</span>
-              {isExampleRole(role) ? (
-                <>
-                  {' '}
-                  (<span className="font-mono">{role}</span> role).
-                </>
-              ) : (
-                '.'
-              )}{' '}
-              This view displays the Python/API recipe (tools, prompts, code) — not the Teams roster.
-            </>
+            editable ? (
+              <>
+                Editing <span className="font-medium">{label}</span>
+                {isExampleRole(role) ? (
+                  <>
+                    {' '}
+                    (<span className="font-mono">{role}</span> role).
+                  </>
+                ) : (
+                  '.'
+                )}{' '}
+                This editor updates the Python/API recipe (tools, prompts, code) — not the Teams roster.
+              </>
+            ) : (
+              <>
+                Viewing <span className="font-medium">{label}</span>
+                {isExampleRole(role) ? (
+                  <>
+                    {' '}
+                    (<span className="font-mono">{role}</span> role).
+                  </>
+                ) : (
+                  '.'
+                )}{' '}
+                This view displays the Python/API recipe (tools, prompts, code) — not the Teams roster.
+              </>
+            )
           ) : (
             'Select a roled agent in the rail to open its blueprint.'
           )}
@@ -620,6 +695,12 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
         </Alert>
       )}
 
+      {!editable && live?.readonly_reason ? (
+        <Alert type="info" icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">{live.readonly_reason}</span>
+        </Alert>
+      ) : null}
+
       {files.length > 1 && (
         <div className="flex flex-wrap gap-1" role="tablist" aria-label="Blueprint files">
           {files.map((file) => {
@@ -641,7 +722,34 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
         </div>
       )}
 
-      {blueprintId ? (
+      {blueprintId && sourceQuery.isPending ? (
+        <p className="text-sm text-base-content/60">Loading blueprint source…</p>
+      ) : blueprintId && editable ? (
+        <div className="space-y-2">
+          <Textarea
+            aria-label={`${label} blueprint Python`}
+            className={`min-h-56 font-mono text-xs ${PYTHON_CODE_CLASS}`}
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              setSaveHint(null)
+            }}
+            spellCheck={false}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={saveMutation.isPending || draft === liveContent}
+              onClick={() => saveMutation.mutate(draft)}
+            >
+              {saveMutation.isPending ? 'Saving…' : 'Save'}
+            </Button>
+            {saveHint ? <p className="text-xs text-base-content/60">{saveHint}</p> : null}
+          </div>
+        </div>
+      ) : blueprintId ? (
         <pre className={PYTHON_CODE_CLASS} tabIndex={0} aria-label={`${label} blueprint Python`}>
           <code
             className="language-python"
@@ -651,6 +759,12 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
       ) : (
         <p className="text-sm text-base-content/60">No blueprint selected.</p>
       )}
+
+      {saveError ? (
+        <Alert type="warning" icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">{saveError}</span>
+        </Alert>
+      ) : null}
 
       {fromLive && live?.selected && (
         <p className="text-xs text-base-content/50">

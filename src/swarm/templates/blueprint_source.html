@@ -8,7 +8,14 @@
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <div>
       <h1 class="h4 mb-1"><code>{{ id }}</code></h1>
-      <p class="text-muted mb-0 small">Blueprint source</p>
+      <p class="text-muted mb-0 small">
+        {% if editable %}
+          Editing blueprint source. Save writes this file and reloads the recipe.
+        {% else %}
+          Blueprint source
+          {% if readonly_reason %} — {{ readonly_reason }}{% endif %}
+        {% endif %}
+      </p>
     </div>
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'blueprint_library' %}">Back to library</a>
   </div>
@@ -25,28 +32,60 @@
         {% endfor %}
       </div>
     {% endif %}
-    <pre class="os-source-pre mb-0" tabindex="0"><code class="language-{{ prism_lang|default:'python' }}">{{ content }}</code></pre>
+    {% if editable %}
+      {% csrf_token %}
+      <label class="form-label small mb-1" for="os-source-editor">Blueprint Python</label>
+      <textarea id="os-source-editor"
+                class="os-source-editor mb-2"
+                spellcheck="false"
+                aria-label="Blueprint Python"
+                data-blueprint-id="{{ id }}"
+                data-file="{{ selected|default:'' }}">{{ content }}</textarea>
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <button type="button" class="btn btn-sm btn-primary" id="os-source-save">Save</button>
+        <p id="os-source-status" class="small mb-0 text-muted" role="status"></p>
+      </div>
+    {% else %}
+      {% if readonly_reason %}
+        <div class="alert alert-info py-2" role="status">{{ readonly_reason }}</div>
+      {% endif %}
+      <pre class="os-source-pre mb-0" tabindex="0"><code class="language-{{ prism_lang|default:'python' }}">{{ content }}</code></pre>
+    {% endif %}
   {% endif %}
 </div>
+{% if not editable and not error %}
 <script>
   window.addEventListener('load', function () {
     if (window.Prism) Prism.highlightAll();
   });
 </script>
+{% endif %}
+{% if editable and not error %}
+<script src="{% static 'js/blueprint_source.js' %}" defer></script>
+{% endif %}
 <style>
-  .os-source-pre {
-    max-height: calc(100dvh - 12rem);
+  .os-source-pre,
+  .os-source-editor {
+    max-height: calc(100dvh - 14rem);
     overflow: auto;
     padding: 1rem 1.1rem;
     margin: 0;
     border: 1px solid var(--os-border, #2a2a2a);
     border-radius: 0.5rem;
     background: #111;
+    color: #e8e8e8;
     font-size: 0.82rem;
     line-height: 1.45;
     white-space: pre;
     tab-size: 4;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
-  .os-source-pre code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .os-source-pre code { font-family: inherit; }
+  .os-source-editor {
+    display: block;
+    width: 100%;
+    min-height: 22rem;
+    resize: vertical;
+  }
 </style>
 {% endblock %}

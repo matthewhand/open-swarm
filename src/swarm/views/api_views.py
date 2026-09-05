@@ -10,6 +10,12 @@ from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
 from swarm.core.agent_roles import blueprint_role_fields, is_webui_blueprint
+from swarm.core.blueprint_source import (
+    ALLOWED_SOURCE_SUFFIXES,
+    load_blueprint_source,
+    save_blueprint_source,
+)
+from swarm.core.blueprint_source import custom_blueprint_code as _custom_blueprint_code
 from swarm.core.rail_seats import metadata_rail
 from swarm.core.persona_parse import parse_openai_agent_personas, serialize_personas
 from swarm.services import github_topics_service as gh_service
@@ -481,7 +487,19 @@ def get_last_used_map() -> dict[tuple[str, str], float]:
     return {}
 
 
-_ALLOWED_SOURCE_SUFFIXES = (".py", ".md", ".json", ".txt", ".toml", ".yaml", ".yml", ".cfg")
+_ALLOWED_SOURCE_SUFFIXES = ALLOWED_SOURCE_SUFFIXES
+
+_source_update_request = inline_serializer(
+    name="BlueprintSourceUpdateRequest",
+    fields={
+        "content": serializers.CharField(help_text="Full file contents to persist."),
+        "file": serializers.CharField(
+            required=False,
+            allow_blank=True,
+            help_text="File name inside the blueprint directory (defaults to primary).",
+        ),
+    },
+)
 
 _PRISM_BY_SUFFIX = {
     ".py": "python",
@@ -502,80 +520,6 @@ def prism_language(filename: str | None) -> str:
     if "." in name:
         suffix = "." + name.rsplit(".", 1)[-1].lower()
     return _PRISM_BY_SUFFIX.get(suffix, "python")
-
-
-def load_blueprint_source(
-    blueprint_id: str, file_name: str | None = None
-) -> tuple[dict, int]:
-    """Load one blueprint file plus the directory listing.
-
-    Returns ``(payload, http_status)``. Confined to the blueprint's own
-    directory under ``BLUEPRINT_DIRECTORY`` (no traversal). An explicit
-    missing ``file_name`` is 404 — never a silent primary fallback.
-    """
-    from pathlib import Path
-
-    from swarm.settings import BLUEPRINT_DIRECTORY
-
-    base = Path(BLUEPRINT_DIRECTORY).resolve()
-    bp_dir = (base / blueprint_id).resolve()
-    if base not in bp_dir.parents or not bp_dir.is_dir():
-        return {"error": "blueprint not found"}, 404
-
-    files = sorted(
-        p for p in bp_dir.iterdir()
-        if p.is_file() and p.suffix in _ALLOWED_SOURCE_SUFFIXES
-    )
-    if not files:
-        parsed = serialize_personas(None)
-        return {
-            "id": blueprint_id,
-            "files": [],
-            "primary": None,
-            "selected": None,
-            "content": "",
-            "persona_count": parsed["count"],
-            "personas": parsed["personas"],
-        }, 200
-
-    primary = next((p for p in files if p.name.startswith("blueprint_")), files[0])
-    target = primary
-    if file_name:
-        cand = (bp_dir / file_name).resolve()
-        if not (
-            cand.is_file()
-            and cand.parent == bp_dir
-            and cand.suffix in _ALLOWED_SOURCE_SUFFIXES
-        ):
-            return {"error": f"file not found: {file_name}"}, 404
-        target = cand
-    try:
-        content = target.read_text(encoding="utf-8", errors="replace")[:200_000]
-    except OSError:
-        content = ""
-
-    parsed = serialize_personas(parse_openai_agent_personas(content))
-    return {
-        "id": blueprint_id,
-        "files": [{"name": p.name, "path": p.name} for p in files],
-        "primary": primary.name,
-        "selected": target.name,
-        "content": content,
-        "persona_count": parsed["count"],
-        "personas": parsed["personas"],
-    }, 200
-
-
-def _custom_blueprint_code(blueprint_id: str) -> str | None:
-    lib = get_user_blueprint_library()
-    items = list(lib.get("custom") or [])
-    if not items and _custom_blueprints_registry:
-        items = list(_custom_blueprints_registry)
-    for item in items:
-        if isinstance(item, dict) and item.get("id") == blueprint_id:
-            code = item.get("code")
-            return code if isinstance(code, str) else ""
-    return None
 
 
 def personas_for_blueprint(blueprint_id: str) -> dict:
@@ -626,11 +570,14 @@ def _wants_html(request) -> bool:
 
 
 class BlueprintSourceView(APIView):
-    """Read-only source of a blueprint's directory: file list + one file's content.
+    """Blueprint source: file list + one file's content (REQ-211).
 
-    GET /v1/blueprints/<id>/source[?file=<name>] -> {files, primary, selected, content}.
-    HTML Accept returns highlighted source (``blueprint_source.html``), not JSON.
-    Confined to the blueprint's own directory under BLUEPRINT_DIRECTORY (no traversal).
+    GET /v1/blueprints/<id>/source[?file=<name>] -> {files, primary, selected,
+    content, editable, origin, readonly_reason}.
+    PUT/PATCH persists ``content`` for user-dir and custom-library blueprints.
+    Bundled / marketplace stay read-only (403 + reason). Invalid Python is 400
+    and does not overwrite the prior good source.
+    HTML Accept returns ``blueprint_source.html`` (editor when editable).
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
@@ -658,6 +605,30 @@ class BlueprintSourceView(APIView):
                 status=code,
             )
         return Response(payload, status=code)
+
+    @extend_schema(summary="Update blueprint source", request=_source_update_request)
+    def put(self, request, blueprint_id, *_args, **_kwargs):
+        body = request.data or {}
+        content = body.get("content")
+        if content is None:
+            return Response(
+                {"error": "content is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(content, str):
+            return Response(
+                {"error": "content must be a string"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        file_name = body.get("file") or request.query_params.get("file")
+        if isinstance(file_name, str):
+            file_name = file_name.strip() or None
+        else:
+            file_name = None
+        payload, code = save_blueprint_source(blueprint_id, content, file_name)
+        return Response(payload, status=code)
+
+    patch = put
 
 
 def _swarm_runtime_config() -> dict:
