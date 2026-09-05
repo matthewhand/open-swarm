@@ -30,6 +30,8 @@ const FIRST_STR_RE = /^\s*(['"])((?:\\.|(?!\1).)*)\1/
 
 export function parseOpenaiAgentPersonas(source: string | null | undefined): PersonaParseResult {
   if (typeof source !== 'string' || !source.trim()) return { ...UNPARSED_PERSONAS }
+  // Mirror Python ast.parse: junk around an Agent(...) call is unparsed, not a roster.
+  if (!pythonSourceLooksParseable(source)) return { ...UNPARSED_PERSONAS }
   const names: string[] = []
   const seen = new Set<string>()
   CALL_RE.lastIndex = 0
@@ -49,6 +51,62 @@ export function parseOpenaiAgentPersonas(source: string | null | undefined): Per
     personas: names.map((name) => ({ name })),
     parsed: true,
   }
+}
+
+/** Conservative stand-in for `ast.parse`. Unbalanced delimiters → unparsed. */
+function pythonSourceLooksParseable(source: string): boolean {
+  let paren = 0
+  let bracket = 0
+  let brace = 0
+  let quote: '"' | "'" | null = null
+  let triple = false
+  let i = 0
+  while (i < source.length) {
+    const ch = source[i]
+    const next2 = source.slice(i, i + 3)
+    if (quote) {
+      if (ch === '\\') {
+        i += 2
+        continue
+      }
+      if (triple) {
+        if (next2 === quote + quote + quote) {
+          quote = null
+          triple = false
+          i += 3
+          continue
+        }
+      } else if (ch === quote) {
+        quote = null
+      }
+      i += 1
+      continue
+    }
+    if (ch === '#') {
+      while (i < source.length && source[i] !== '\n') i += 1
+      continue
+    }
+    if ((ch === '"' || ch === "'") && next2 === ch + ch + ch) {
+      quote = ch
+      triple = true
+      i += 3
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      i += 1
+      continue
+    }
+    if (ch === '(') paren += 1
+    else if (ch === ')') paren -= 1
+    else if (ch === '[') bracket += 1
+    else if (ch === ']') bracket -= 1
+    else if (ch === '{') brace += 1
+    else if (ch === '}') brace -= 1
+    if (paren < 0 || bracket < 0 || brace < 0) return false
+    i += 1
+  }
+  return paren === 0 && bracket === 0 && brace === 0 && quote === null
 }
 
 function literalName(args: string): string | null {

@@ -1342,7 +1342,10 @@ describe('AgentSidebar teams', () => {
     expect(team).toHaveAttribute('data-persona-count', '3')
     expect(team).toHaveAttribute('data-roster', 'declared')
     expect(within(team).getByTestId('declared-roster')).toHaveAttribute('data-persona-count', '3')
-    expect(within(team).getByLabelText('Squad declared members')).toBeInTheDocument()
+    expect(within(team).getByTestId('declared-roster')).toHaveAttribute(
+      'aria-label',
+      'Squad declared members',
+    )
   })
 
   it('opens the definition pane when the Team badge is clicked', async () => {

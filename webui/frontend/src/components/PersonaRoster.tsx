@@ -68,7 +68,7 @@ export default function PersonaRoster({
       data-stack-count={String(faces.length)}
       aria-label={caption}
     >
-      <AvatarStack faces={faces} animate={false} label={caption} />
+      <AvatarStack faces={faces} animate={false} />
       <span className="sr-only">
         {roster.personas.map((persona) => persona.name).join(', ')}
       </span>
