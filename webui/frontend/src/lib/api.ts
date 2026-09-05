@@ -194,7 +194,7 @@ export interface ListResponse<T> {
 }
 
 /** Visual / wiring role on a Team member (REQ-9 / REQ-25 / REQ-28 / REQ-42). */
-export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff'
+export type AgentRole = 'default' | 'support' | 'gate' | 'skeptic' | 'chief_of_staff' | 'suggestions'
 
 export interface BlueprintAgent {
   name: string
@@ -218,6 +218,7 @@ export interface Blueprint {
   gate_agent?: string | null
   skeptic_agent?: string | null
   chief_of_staff_agent?: string | null
+  suggestions_agent?: string | null
   /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
   avatar_path?: string | null
 }

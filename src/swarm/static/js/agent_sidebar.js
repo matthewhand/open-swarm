@@ -106,7 +106,7 @@
     if (key === "tool_gate" || key === "tool-gate" || key === "toolgate") return "gate";
     if (key === "helper") return "support";
     if (key === "reviewer") return "skeptic";
-    if (key === "support" || key === "gate" || key === "skeptic" || key === "chief_of_staff") {
+    if (key === "support" || key === "gate" || key === "skeptic" || key === "chief_of_staff" || key === "suggestions") {
       return key;
     }
     return "default";
@@ -116,7 +116,7 @@
     var role = normalizeRole(agent && agent.role);
     if (role !== "default") return role;
     var id = String((agent && agent.id) || "").toLowerCase();
-    if (id === "support" || id === "gate" || id === "skeptic") return id;
+    if (id === "support" || id === "gate" || id === "skeptic" || id === "suggestions") return id;
     if (id === "cos" || id === "chief" || id === "chief_of_staff") return "chief_of_staff";
     return "default";
   }
@@ -145,6 +145,7 @@
     if (role === "support") return "Support";
     if (role === "gate") return "Gate";
     if (role === "skeptic") return "Skeptic";
+    if (role === "suggestions") return "Suggest";
     return "";
   }
 

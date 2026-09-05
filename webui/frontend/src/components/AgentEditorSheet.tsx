@@ -4,6 +4,8 @@ import { openSettingsSheet } from './SettingsSheet'
 import {
   NEW_CHAT_PER_TASK_LABEL,
   NEW_CHAT_PER_TASK_TOOLTIP,
+  USE_SUGGESTIONS_LABEL,
+  USE_SUGGESTIONS_TOOLTIP,
   fetchAgentSettings,
   saveAgentSettings,
 } from '../lib/agentSettings'
@@ -32,9 +34,11 @@ export default function AgentEditorSheet({
 }: AgentEditorSheetProps) {
   const headingId = useId()
   const toggleId = useId()
+  const suggestionsToggleId = useId()
   const agent = (agentId || '').trim()
   const label = agentLabel({ id: agent, name: agentName || agent })
   const [enabled, setEnabled] = useState(false)
+  const [useSuggestions, setUseSuggestions] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -42,7 +46,10 @@ export default function AgentEditorSheet({
     let cancelled = false
     ;(async () => {
       const settings = await fetchAgentSettings(agent)
-      if (!cancelled) setEnabled(settings.new_chat_per_task)
+      if (!cancelled) {
+        setEnabled(settings.new_chat_per_task)
+        setUseSuggestions(settings.use_suggestions)
+      }
     })()
     return () => {
       cancelled = true
@@ -55,6 +62,17 @@ export default function AgentEditorSheet({
     setSaving(true)
     try {
       await saveAgentSettings(agent, { new_chat_per_task: next })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleSuggestions = async (next: boolean) => {
+    setUseSuggestions(next)
+    if (!agent) return
+    setSaving(true)
+    try {
+      await saveAgentSettings(agent, { use_suggestions: next })
     } finally {
       setSaving(false)
     }
@@ -108,6 +126,28 @@ export default function AgentEditorSheet({
               checked={enabled}
               disabled={!agent || saving}
               onChange={(event) => handleToggle(event.target.checked)}
+            />
+          </label>
+        </div>
+
+        <div
+          className="tooltip tooltip-bottom w-full text-left"
+          data-tip={USE_SUGGESTIONS_TOOLTIP}
+        >
+          <label
+            htmlFor={suggestionsToggleId}
+            className="label cursor-pointer items-center justify-between gap-4 rounded-box border border-base-300 bg-base-200/60 px-4 py-3"
+          >
+            <span className="label-text text-base font-semibold">{USE_SUGGESTIONS_LABEL}</span>
+            <input
+              id={suggestionsToggleId}
+              type="checkbox"
+              className="toggle toggle-primary"
+              role="switch"
+              aria-label={USE_SUGGESTIONS_LABEL}
+              checked={useSuggestions}
+              disabled={!agent || saving}
+              onChange={(event) => handleToggleSuggestions(event.target.checked)}
             />
           </label>
         </div>

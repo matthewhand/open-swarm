@@ -11,6 +11,7 @@ Rakazo seats.
 | `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7). Introduces the concept; copy below. |
 | `gate` (`tool_gate`) | `os-agent-role-gate` `data-role="gate"` | Classifies a **pending tool call** as dangerous or not (single-token YES/NO). |
 | `skeptic` | `os-agent-role-skeptic` `data-role="skeptic"` | Reviews whether the original prompt was accomplished. |
+| `suggestions` | `os-agent-role-suggestions` `data-role="suggestions"` | Prepares 2–5 quick-select chips after a turn (REQ-85). |
 
 Also: `.os-agent-role-badge` for the optional label chip; `.os-agent-dot[data-role=…]`
 for the accent. Support should **reuse these class names**, not invent a parallel set.
@@ -52,7 +53,8 @@ Code:
 * `swarm.core.skeptic` — `run_with_skeptic` (bounded as-tool loop)
 * Team Creator select **Agent role** → generated `AGENT_SPECS[].role` + metadata
   `gate_agent` / `skeptic_agent` / `agents[{name,role}]`
-* `GET /v1/blueprints/` includes `role`, `agents`, `gate_agent`, `skeptic_agent`
+* `GET /v1/blueprints/` includes `role`, `agents`, `gate_agent`, `skeptic_agent`, `suggestions_agent`
+* Consumer **Use suggestions** toggle (`use_suggestions` on `/v1/agents/<id>/settings/`) wires the role as-tool. Chips are chrome, not LLM context.
 
 Unwired gate proof: `tests/core/test_tool_gate.py` asserts `elicit_fn` is never
 called when no gate is on the team.

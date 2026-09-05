@@ -36,6 +36,8 @@ describe('agentRoles', () => {
     expect(normalizeAgentRole('tool-gate')).toBe('gate')
     expect(normalizeAgentRole('reviewer')).toBe('skeptic')
     expect(normalizeAgentRole('support')).toBe('support')
+    expect(normalizeAgentRole('suggest')).toBe('suggestions')
+    expect(normalizeAgentRole('suggestions')).toBe('suggestions')
     expect(normalizeAgentRole('chief-of-staff')).toBe('chief_of_staff')
     expect(normalizeAgentRole('Writer')).toBe('default')
     expect(normalizeAgentRole(null)).toBe('default')
@@ -86,6 +88,8 @@ describe('agentRoles (REQ-28)', () => {
     expect(roleCssClass('cos')).not.toBe(roleCssClass('gate'))
     expect(roleCssClass('cos')).not.toBe(roleCssClass('skeptic'))
     expect(roleBadgeLabel('chief')).toBe('CoS')
+    expect(roleBadgeLabel('suggestions')).toBe('Suggest')
+    expect(roleCssClass('suggestions')).toBe('os-agent-role-suggestions')
   })
 
   it('detects CoS from id when role is omitted', () => {

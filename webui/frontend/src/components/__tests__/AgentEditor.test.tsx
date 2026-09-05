@@ -204,6 +204,9 @@ describe('AgentEditor (REQ-58)', () => {
 
       fireEvent.change(roleSelect, { target: { value: 'skeptic' } })
       expect(explanation.textContent).toMatch(/Skeptic is a bounded retry/i)
+
+      fireEvent.change(roleSelect, { target: { value: 'suggestions' } })
+      expect(explanation.textContent).toMatch(/quick-select/i)
     })
 
     it('remote agent: LLM override is disabled with explanation', async () => {

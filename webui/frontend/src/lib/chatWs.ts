@@ -1,4 +1,5 @@
 import { parsePrOpened, type PrOpenedEvent } from './prOpened'
+import { parseSuggestions } from './suggestions'
 
 /**
  * Client for the Django Channels chat websocket.
@@ -51,6 +52,7 @@ export type ChatWsEvent =
     }
   | { kind: 'status'; text: string }
   | { kind: 'pr_opened'; event: PrOpenedEvent }
+  | { kind: 'suggestions'; suggestions: string[] }
   | {
       kind: 'interbot_hop'
       id: string
@@ -153,6 +155,10 @@ function parseToolJsonFrame(raw: string): ChatWsEvent | null {
     if (type === 'pr_opened') {
       const event = parsePrOpened(payload)
       if (event) return { kind: 'pr_opened', event }
+    }
+    if (type === 'suggestions') {
+      const suggestions = parseSuggestions(payload)
+      return { kind: 'suggestions', suggestions }
     }
   } catch {
     return null

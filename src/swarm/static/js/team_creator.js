@@ -47,6 +47,7 @@ function addTeamMember() {
                         <option value="support">support — onboard / help (REQ-7)</option>
                         <option value="gate">gate — tool-call approval</option>
                         <option value="skeptic">skeptic — review + bounded retry</option>
+                        <option value="suggestions">suggestions — quick-select chips (REQ-85)</option>
                     </select>
                 </div>
             </div>
