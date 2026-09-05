@@ -672,7 +672,7 @@ async def test_param_consensus_overrides_config_to_single():
 def _cwd_echo_config(script):
     return {
         "cli_agents": {
-            "echo": {"cmd": [PY, str(script)], "parse": "text"},
+            "echo": {"cmd": [PY, str(script), "{prompt}"], "parse": "text"},
         },
         "cli_fusion": {"default_cli": "echo"},
     }

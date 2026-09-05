@@ -124,7 +124,7 @@ def test_cli_agent_api_blank_workdir_is_confined(client, tmp_path, monkeypatch):
     script = tmp_path / "cwd_cli.py"
     script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
     cfg = {
-        "cli_agents": {"cwdcli": {"cmd": [PY, str(script)], "parse": "text"}},
+        "cli_agents": {"cwdcli": {"cmd": [PY, str(script), "{prompt}"], "parse": "text"}},
         "cli_fusion": {"default_cli": "cwdcli"},
     }
     app = apps.get_app_config("swarm")
