@@ -54,9 +54,13 @@ test('Bee theme is opt-in and paints both locked variants', async ({ page }) => 
   await page.getByRole('button', { name: 'Rail' }).click()
   const picker = page.getByLabel('Avatar theme')
   await expect(picker).toHaveValue('blobs')
-  await expect(picker.locator('option')).toHaveText(['Default', 'Blobs', 'Bee'])
-  await expect(dialog.getByText(/optional choices/i)).toBeVisible()
-  await expect(dialog.getByText(/never auto-applied/i)).toBeVisible()
+  expect(
+    await picker.evaluate((el) =>
+      Array.from((el as HTMLSelectElement).options).map((opt) => opt.text),
+    ),
+  ).toEqual(['Default', 'Blobs', 'Bee'])
+  await expect(dialog.locator('p', { hasText: 'optional choices' })).toBeVisible()
+  await expect(dialog.locator('p', { hasText: 'never auto-applied' })).toBeVisible()
   await page.screenshot({
     path: path.join(ARTIFACTS, 'bee_theme_settings_picker.png'),
   })
