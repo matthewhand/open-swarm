@@ -114,6 +114,7 @@ import {
   defaultSessionForTeam,
   sessionsForRemote,
   sessionsForTeam,
+  shouldShowSelectAgent,
   stackFacesForRemote,
   stackFacesForTeam,
   type MemberSession,
@@ -1458,7 +1459,7 @@ export default function AgentSidebar({
         pinned: menu.pinned,
         hidden: menu.hidden,
         unread: unreadIds.includes(menu.agentId),
-        hasSelectAgent: Boolean(menu.sessions && menu.sessions.length > 0),
+        hasSelectAgent: shouldShowSelectAgent(menu.sessions),
         hasSelectSession: Boolean(menu.isCli),
         canCopyId:
           menu.kind === 'cli' || menu.kind === 'remote'

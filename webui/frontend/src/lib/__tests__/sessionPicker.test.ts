@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { filterSessions, sessionsForRemote, sessionsForTeam } from '../sessionPicker'
+import {
+  filterSessions,
+  sessionsForRemote,
+  sessionsForTeam,
+  shouldShowSelectAgent,
+} from '../sessionPicker'
 import type { TeamRoster } from '../teamRosters'
 
 const team: TeamRoster = {
@@ -35,5 +40,31 @@ describe('sessionPicker (REQ-68 / REQ-66 shared)', () => {
     })
     expect(hermes).toHaveLength(1)
     expect(hermes[0].href).toBe('/chat?remote=hermes&session=hermes-1')
+    expect(shouldShowSelectAgent(hermes)).toBe(false)
+  })
+
+  it('shows Select Agent only when a remote lists two or more bots', () => {
+    const empty = sessionsForRemote({
+      id: 'empty-box',
+      kind: 'hermes',
+      title: 'Empty Box',
+      configured: true,
+      agents: [],
+    })
+    const pair = sessionsForRemote({
+      id: 'rakazo',
+      kind: 'rakazo',
+      title: 'Rakazo',
+      configured: true,
+      agents: [
+        { id: 'r1', name: 'Rakazo A', startedAt: 1 },
+        { id: 'r2', name: 'Rakazo B', startedAt: 2 },
+      ],
+    })
+    expect(shouldShowSelectAgent(undefined)).toBe(false)
+    expect(shouldShowSelectAgent([])).toBe(false)
+    expect(shouldShowSelectAgent(empty)).toBe(false)
+    expect(shouldShowSelectAgent(pair)).toBe(true)
+    expect(pair.map((row) => row.title)).toEqual(['Rakazo A', 'Rakazo B'])
   })
 })

@@ -134,6 +134,17 @@ export function defaultSessionForTeam(team: TeamRoster): MemberSession | null {
 }
 
 /**
+ * "Select Agent" is only useful when there is more than one listed bot
+ * (or team member) to choose. Zero or one: omit the control. A single
+ * bot is already implicit; an empty remote uses the existing Add/bind path.
+ */
+export function shouldShowSelectAgent(
+  sessions: readonly MemberSession[] | null | undefined,
+): boolean {
+  return Boolean(sessions && sessions.length > 1)
+}
+
+/**
  * REQ-130: Default talk-to session for a remote.
  * Prefers configured Chief of Staff, falls back to first member.
  */
