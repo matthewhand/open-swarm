@@ -474,6 +474,17 @@ class TestTeamRostersJson:
         assert first.get("id")
         assert "members" in first
         assert "llm_profile" not in first
+        by_id = {row["id"]: row for row in data["data"]}
+        harness = by_id["demo-harness-kinds"]
+        names = {m["id"]: m["name"] for m in harness["members"]}
+        assert names["grok-cli"] == "Grok CLI"
+        assert names["openmousbot-remote"] == "OpenMousBot Remote"
+        assert "OMB" not in names.values()
+        pipeline = by_id["demo-sdlc-pipeline"]
+        persona = {m["id"]: m["name"] for m in pipeline["members"]}
+        assert persona["engineer"] == "Engineer"
+        assert persona["cos"] == "Chief of Staff"
+        assert pipeline["chief_of_staff_id"] == "cos"
 
     def test_v1_team_rosters_is_composition_list(self, client):
         """REQ-28 composition API. Static sidepane file stays /team_rosters.json."""

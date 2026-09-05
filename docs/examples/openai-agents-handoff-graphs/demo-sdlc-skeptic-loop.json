@@ -1,11 +1,45 @@
 {
   "id": "demo-sdlc-skeptic-loop",
   "name": "Demo SDLC Skeptic Loop",
+  "description": "Mode B (REQ-135) — practical personas including Skeptic. Demo only.",
   "members": [
-    {"id": "ba", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
-    {"id": "engineer", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
-    {"id": "tester", "kind": "api", "role": "default", "source": "blueprint:sdlc_handoff"},
-    {"id": "skeptic", "kind": "api", "role": "skeptic", "source": "blueprint:sdlc_handoff"}
+    {
+      "id": "cos",
+      "name": "Chief of Staff",
+      "kind": "api",
+      "role": "chief_of_staff",
+      "source": "blueprint:sdlc_handoff"
+    },
+    {
+      "id": "ba",
+      "name": "BA",
+      "kind": "api",
+      "role": "default",
+      "source": "blueprint:sdlc_handoff"
+    },
+    {
+      "id": "engineer",
+      "name": "Engineer",
+      "kind": "api",
+      "role": "default",
+      "source": "blueprint:sdlc_handoff"
+    },
+    {
+      "id": "tester",
+      "name": "Tester",
+      "kind": "api",
+      "role": "default",
+      "source": "blueprint:sdlc_handoff"
+    },
+    {
+      "id": "skeptic",
+      "name": "Skeptic",
+      "kind": "api",
+      "role": "skeptic",
+      "source": "blueprint:sdlc_handoff"
+    }
   ],
-  "wires": {"handoff": true, "as_tool": false}
+  "wires": {"handoff": true, "as_tool": false},
+  "chief_of_staff_id": "cos",
+  "chief_of_staff_instructions": "Coordinate this SDLC skeptic loop. Forced handoff is BA → Engineer → Tester → Skeptic; Skeptic may punt back to Engineer. Do not skip seats. Report back."
 }

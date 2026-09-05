@@ -67,7 +67,7 @@ The differentiator is a **programmatic graph** — not “let chat figure it out
 
 **Limit (up front):** that graph runs **inside Blueprint seats** (today’s leftover `api` bucket). We **cannot inject** openai-agents into **CLI** or **Remote** harnesses — those **stay native** sessions. Cross-kind teams still work: a Blueprint coordinator can sit with a Grok CLI and a Hermes Remote.
 
-Mermaid, kind bases, and the `:8001` seed live on [docs/DEVELOPER.md](docs/DEVELOPER.md). Worked configs: [docs/examples/openai-agents-handoff-graphs/](docs/examples/openai-agents-handoff-graphs/README.md) (REQ-156 / #564). Kind-base ADR: [ADR-005](docs/adr/005-kind-bases.md) (REQ-159 / #570).
+Mermaid, kind bases, and the `:8001` seed live on [docs/DEVELOPER.md](docs/DEVELOPER.md). Worked configs: [docs/examples/openai-agents-handoff-graphs/](docs/examples/openai-agents-handoff-graphs/README.md) (REQ-156 / #564). Demo roster names (Mode A kind-clear vs Mode B personas): [docs/SHOWOFF_DEMO_AGENTS.md](docs/SHOWOFF_DEMO_AGENTS.md) (REQ-135 / #526). Kind-base ADR: [ADR-005](docs/adr/005-kind-bases.md) (REQ-159 / #570).
 
 ---
 

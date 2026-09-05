@@ -10,7 +10,7 @@ This is **not** the Django `/teams/` LLM-profile alias admin.
 | Store / surface | What it is | Schema |
 |---|---|---|
 | **Live aliases** — `teams.json`, `/v1/teams/`, Django `/teams/` (Launcher, Admin, Swarm Creator) | Named **LLM-profile alias** (`id` / `description` / `llm_profile`) exposed as a model id via `DynamicTeamBlueprint` | Unchanged. Do not overwrite. |
-| **Intended composition** — `team_rosters.json`, `/v1/team-rosters/`, SPA `+` overlay | Roster of members (`api` from a blueprint, `cli`, or `remote` harness) plus per-team wire toggles | `members[{id, kind, role, source}]` + `wires{handoff, as_tool}` |
+| **Intended composition** — `team_rosters.json`, `/v1/team-rosters/`, SPA `+` overlay | Roster of members (`api` from a blueprint, `cli`, or `remote` harness) plus per-team wire toggles | `members[{id, name, kind, role, source}]` + `wires{handoff, as_tool}` |
 
 Django `/teams/` remains aliases. The SPA does **not** add a top-nav Teams tab
 or restore Home/Chat chrome. Entry is the chat-header **Compose team** `+`
@@ -27,9 +27,9 @@ control (DaisyUI `modal-end` Settings sheet is not in this tree).
     "id": "research-squad",
     "name": "Research Squad",
     "members": [
-      {"id": "jeeves", "kind": "api", "role": "default", "source": "blueprint:jeeves"},
-      {"id": "grok", "kind": "cli", "role": "skeptic", "source": "cli:grok"},
-      {"id": "acp", "kind": "remote", "role": "support", "source": "placeholder:remote:acp"}
+      {"id": "jeeves", "name": "Jeeves", "kind": "api", "role": "default", "source": "blueprint:jeeves"},
+      {"id": "grok", "name": "Grok CLI", "kind": "cli", "role": "skeptic", "source": "cli:grok"},
+      {"id": "acp", "name": "ACP Remote", "kind": "remote", "role": "support", "source": "placeholder:remote:acp"}
     ],
     "wires": {"handoff": true, "as_tool": true},
     "chief_of_staff_id": "jeeves",
@@ -39,6 +39,9 @@ control (DaisyUI `modal-end` Settings sheet is not in this tree).
 ```
 
 - `kind`: `api` | `cli` | `remote`
+- `name`: optional display label (rail / favourites / chat header). Missing
+  name falls back to `id`. Showoff Mode A vs Mode B:
+  [SHOWOFF_DEMO_AGENTS.md](./SHOWOFF_DEMO_AGENTS.md) (REQ-135).
 - `role`: `support` | `gate` | `skeptic` | `default` | `chief_of_staff`
 - `chief_of_staff_id`: optional member id already on the roster (API or CLI).
   Empty / omitted = no CoS. Never auto-picked.

@@ -5,6 +5,7 @@ export type MemberKind = (typeof MEMBER_KINDS)[number]
 
 export interface TeamRosterMember {
   id: string
+  name?: string
   kind: MemberKind
   role: string
   source: string
@@ -99,8 +100,10 @@ export function parseRosterMember(raw: unknown): TeamRosterMember | null {
   const kind = String(row.kind || '').trim().toLowerCase()
   if (!id || !isMemberKind(kind)) return null
   const teamId = String(row.team_id || '').trim()
+  const name = typeof row.name === 'string' && row.name.trim() ? row.name.trim() : id
   const member: TeamRosterMember = {
     id,
+    name,
     kind,
     role: String(row.role || 'default'),
     source: String(row.source || ''),
@@ -212,6 +215,7 @@ export function addMember(members: TeamRosterMember[], agent: TeamAgent): TeamRo
     ...members,
     {
       id: agent.id,
+      name: agent.name || agent.id,
       kind: agent.kind,
       role: 'default',
       source: agent.source,

@@ -119,6 +119,62 @@ describe('labels and ids', () => {
     expect(memberOptionLabel({ id: 'rakazo', name: 'Rakazo', kind: 'remote', role: 'default' })).toBe(
       'Rakazo (remote/default)',
     )
+    expect(
+      memberOptionLabel({
+        id: 'openmousbot-remote',
+        name: 'OpenMousBot Remote',
+        kind: 'remote',
+        role: 'default',
+      }),
+    ).toBe('OpenMousBot Remote (remote/default)')
+    expect(
+      memberOptionLabel({
+        id: 'openmousbot-remote',
+        name: 'OpenMousBot Remote',
+        kind: 'remote',
+        role: 'default',
+      }),
+    ).not.toMatch(/\bOMB\b/)
+  })
+
+  it('keeps Mode A kind-clear names from the showoff fixture', () => {
+    const parsed = parseTeamRosters({
+      object: 'list',
+      data: [
+        {
+          id: 'demo-harness-kinds',
+          object: 'team_roster',
+          name: 'Demo Harness Kinds',
+          members: [
+            { id: 'grok-cli', name: 'Grok CLI', kind: 'cli', role: 'default' },
+            { id: 'litellm-api', name: 'LiteLLM API', kind: 'api', role: 'default' },
+            { id: 'hermes-remote', name: 'Hermes Remote', kind: 'remote', role: 'default' },
+          ],
+        },
+      ],
+    })
+    expect(parsed[0].members.map((m) => m.name)).toEqual(['Grok CLI', 'LiteLLM API', 'Hermes Remote'])
+    expect(memberOptionLabel(parsed[0].members[0])).toBe('Grok CLI (cli/default)')
+  })
+
+  it('keeps Mode B persona names and does not mix kind labels', () => {
+    const parsed = parseTeamRosters({
+      object: 'list',
+      data: [
+        {
+          id: 'demo-sdlc-pipeline',
+          object: 'team_roster',
+          name: 'Demo SDLC Pipeline',
+          members: [
+            { id: 'cos', name: 'Chief of Staff', kind: 'api', role: 'chief_of_staff' },
+            { id: 'ba', name: 'BA', kind: 'api', role: 'default' },
+            { id: 'engineer', name: 'Engineer', kind: 'api', role: 'default' },
+          ],
+        },
+      ],
+    })
+    expect(parsed[0].members.map((m) => m.name)).toEqual(['Chief of Staff', 'BA', 'Engineer'])
+    expect(parsed[0].members.map((m) => m.name).join(' ')).not.toMatch(/LiteLLM API|Grok CLI/)
   })
 
   it('namespaces hide ids so a team cannot collide with an agent slug', () => {

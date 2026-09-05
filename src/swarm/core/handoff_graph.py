@@ -33,6 +33,31 @@ DEMO_ROSTER_IDS = (
     "demo-harness-kinds",
 )
 
+# REQ-135 showoff names. Mode A = kind + backend. Mode B = role/persona.
+# Do not mix modes in one roster without intent (demo-bridge is the mix).
+MODE_A_MEMBER_NAMES = {
+    "grok-cli": "Grok CLI",
+    "antigravity-cli": "Antigravity CLI",
+    "litellm-api": "LiteLLM API",
+    "hermes-remote": "Hermes Remote",
+    "openmousbot-remote": "OpenMousBot Remote",
+}
+MODE_B_MEMBER_NAMES = {
+    "cos": "Chief of Staff",
+    "ba": "BA",
+    "engineer": "Engineer",
+    "tester": "Tester",
+    "skeptic": "Skeptic",
+}
+# Documented alternate only — not the default seed.
+MODE_B_FUNNY_NAMES = {
+    "cos": "Ringmaster",
+    "ba": "Requirements Nag",
+    "engineer": "Code Monkey",
+    "tester": "QA Hawk",
+    "skeptic": "Professional Doubter",
+}
+
 
 def repo_root() -> Path:
     """Walk up from this file to the checkout that holds the example pack."""
@@ -369,6 +394,9 @@ def seed_demo_rosters(
 
 __all__ = [
     "DEMO_ROSTER_IDS",
+    "MODE_A_MEMBER_NAMES",
+    "MODE_B_FUNNY_NAMES",
+    "MODE_B_MEMBER_NAMES",
     "HandoffEdge",
     "HandoffGraph",
     "HandoffNode",

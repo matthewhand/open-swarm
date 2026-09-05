@@ -24,9 +24,10 @@ do not talk to **remote harnesses** (Hermes, OpenMousBot as remote, …).
 Open Swarm is a Grok-agnostic Grok-Bot-like UI **and** a bridge — task one
 place, coordinate across CLI, API, remotes, and local blueprints.
 
-Demo names follow [REQ-135 #526](https://github.com/matthewhand/open-swarm/issues/526):
-Mode A encodes **kind + backend**; Mode B uses **role/persona**. Do not mix
-those modes in one roster without intent.
+Demo names follow [REQ-135 #526](https://github.com/matthewhand/open-swarm/issues/526)
+([SHOWOFF_DEMO_AGENTS.md](../../SHOWOFF_DEMO_AGENTS.md)): Mode A encodes
+**kind + backend**; Mode B uses **role/persona**. Do not mix those modes in
+one roster without intent.
 
 ---
 
@@ -179,13 +180,13 @@ Default dest is XDG `…/swarm/team_rosters.json`. Override with
 
 ```bash
 # See what would be added (no write)
-uv run python scripts/seed_req156_demo.py --dry-run
+uv run python scripts/seed_demo_agents.py --dry-run
 
 # Additive upsert of demo-* rosters only
-uv run python scripts/seed_req156_demo.py
+uv run python scripts/seed_demo_agents.py
 
 # If a previous Demo seed exists and you want to replace those four ids only
-uv run python scripts/seed_req156_demo.py --overwrite
+uv run python scripts/seed_demo_agents.py --reset
 ```
 
 REST equivalent (preview listen URL; no personal hostname in this doc):

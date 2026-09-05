@@ -417,6 +417,7 @@ export interface TeamRosterRecord {
   name: string
   members: Array<{
     id: string
+    name?: string
     kind: string
     role: string
     source: string

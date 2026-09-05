@@ -9,6 +9,7 @@ import {
   isCosEligibleMember,
   nestRosters,
   parseDragAgent,
+  parseRosterMember,
   parseTeamRoster,
   parseTeamRosterList,
   restoreCosId,
@@ -33,6 +34,9 @@ describe('teamRoster (REQ-28)', () => {
       ['omb', 'remote'],
       ['rakazo', 'remote'],
     ])
+    expect(parseRosterMember({ id: 'grok-cli', name: 'Grok CLI', kind: 'cli', role: 'default', source: 'cli:grok' })).toMatchObject(
+      { id: 'grok-cli', name: 'Grok CLI', kind: 'cli' },
+    )
     expect(parseTeamRoster({ id: 'alias', object: 'team', llm_profile: 'gpt' })).toBeNull()
   })
 

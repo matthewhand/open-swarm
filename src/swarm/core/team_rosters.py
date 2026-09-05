@@ -5,7 +5,7 @@ plus per-team openai-agents wire toggles (handoff / as_tool).
 
 Member shape (``team_rosters`` / ``agent_team`` members)::
 
-    {id, kind: api|cli|remote|team|herdr, role, source}
+    {id, name, kind: api|cli|remote|team|herdr, role, source}
 
 ``kind=team`` also carries ``team_id`` (the nested roster). Parent talks to
 that child team as **one member** (send-to-all on the child), not every
@@ -88,7 +88,10 @@ def normalize_member(raw: Any) -> dict[str, str]:
         team_id = ""
 
     source = str(raw.get("source") or "").strip() or _default_source(member_id, kind, team_id or None)
-    member = {"id": member_id, "kind": kind, "role": role, "source": source}
+    name = str(raw.get("name") or "").strip() or member_id
+    if len(name) > 80:
+        raise ValueError("Member name too long (max 80).")
+    member = {"id": member_id, "name": name, "kind": kind, "role": role, "source": source}
     if team_id:
         member["team_id"] = team_id
     return member

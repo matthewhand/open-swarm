@@ -626,7 +626,9 @@ export default function AgentSidebar({
         fromRosters.push({
           id: member.id,
           object: 'blueprint',
-          name: member.id === 'cos' ? 'Chief of Staff' : member.id,
+          name:
+            (member.name && member.name.trim()) ||
+            (member.id === 'cos' ? 'Chief of Staff' : member.id),
           description: 'Talks to any available team.',
           abbreviation: 'CoS',
           required_mcp_servers: [],

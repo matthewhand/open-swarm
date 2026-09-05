@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Additive Demo roster seed for REQ-156 (no secrets).
+"""Additive Demo roster seed for REQ-156 / REQ-135 (no secrets).
 
 Writes labeled ``demo-*`` team rosters into ``team_rosters.json``. Does not
-touch ``teams.json``, ``.env``, or Matthew's day-to-day agents.
+touch ``teams.json``, ``.env``, or day-to-day agents.
 
 Usage (engineer on ubuntu-gtx / preview after merge)::
 
-    uv run python scripts/seed_req156_demo.py --dry-run
-    uv run python scripts/seed_req156_demo.py
-    uv run python scripts/seed_req156_demo.py --config-dir /path/to/swarm --overwrite
+    uv run python scripts/seed_demo_agents.py --dry-run
+    uv run python scripts/seed_demo_agents.py
+    uv run python scripts/seed_demo_agents.py --config-dir /path/to/swarm --reset
 
-See docs/examples/openai-agents-handoff-graphs/README.md (:8001 seed).
+See docs/SHOWOFF_DEMO_AGENTS.md and
+docs/examples/openai-agents-handoff-graphs/README.md (:8001 seed).
 """
 
 from __future__ import annotations
@@ -46,8 +47,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--overwrite",
+        "--reset",
         action="store_true",
-        help="Replace existing demo-* ids. Never deletes non-demo rosters.",
+        dest="overwrite",
+        help="Replace existing demo-* ids (reset demo agents). Never deletes non-demo rosters.",
     )
     args = parser.parse_args(argv)
     dest = _dest(args.config_dir)

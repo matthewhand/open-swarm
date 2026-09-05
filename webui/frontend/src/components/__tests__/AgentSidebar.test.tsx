@@ -1271,6 +1271,48 @@ describe('AgentSidebar teams', () => {
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
   })
 
+  it('lists Demo Harness Kinds with Mode A names on the rail team row', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'demo-harness-kinds',
+                  object: 'team_roster',
+                  name: 'Demo Harness Kinds',
+                  members: [
+                    { id: 'grok-cli', name: 'Grok CLI', kind: 'cli', role: 'default' },
+                    { id: 'litellm-api', name: 'LiteLLM API', kind: 'api', role: 'default' },
+                  ],
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/herdr-agents')) {
+          return { ok: true, status: 200, json: async () => ({ object: 'list', data: [] }) } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ object: 'list', data: blueprints }),
+        } as Response
+      }),
+    )
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const team = await within(list).findByRole('link', { name: /Demo Harness Kinds \(team\)/ })
+    expect(team).toHaveAttribute('href', '/chat?team=demo-harness-kinds')
+    expect(within(team).getByText('Team')).toBeInTheDocument()
+  })
+
   it('shows three declared persona faces on a team row (REQ-81)', async () => {
     vi.stubGlobal(
       'fetch',
