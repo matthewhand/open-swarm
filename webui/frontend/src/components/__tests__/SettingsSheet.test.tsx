@@ -78,6 +78,7 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('button', { name: 'CLI agents' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Image generation' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Speech' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Plugins' })).toBeInTheDocument()
   })

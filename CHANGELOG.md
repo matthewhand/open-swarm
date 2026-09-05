@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **REQ-77 mic STT + read-aloud TTS:** Composer microphone uses the browser/OS speech recognizer by default and inserts the transcript into the composer (does not auto-send). Assistant messages get a Read aloud control that uses `speechSynthesis`. Settings → Speech can opt each of STT and TTS into a custom OpenAI-compatible endpoint (`/v1/audio/transcriptions`, `/v1/audio/speech`): base URL, model id, api-key env name only. System stays the source even if a custom URL is stored. Empty custom URL never guesses a host. Missing/DOWN is an honest info line. `GET/PATCH /v1/speech/`, `POST /v1/speech/transcribe/`, `POST /v1/speech/speak/`. Tests stub system APIs and HTTP — no live paid calls, no `:8001`, no secrets. Fixes #422.
+
 ### Fixed
 - **REQ-72 plugins chrome contracts after #805:** Source-string tests lock the Plugins search overlay (`PluginsPopup`, honest “No tools.” / Manage empty copy) instead of the retired “No plugins installed.” dialog. Unblocks Python Tests on main after #816.
 - **Inline chat markdown follows light/dark theme:** Code fences, inline code, tables, blockquotes, links, and other in-bubble chrome (status/history pills, suggestion chips, support cards) use DaisyUI / #464 Grok tokens instead of a stuck dark palette. Fixes #804.

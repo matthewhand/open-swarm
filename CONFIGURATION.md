@@ -340,6 +340,25 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `STATEFUL_CHAT_ID_PATH` | `\|\|`-separated JMESPath expressions used to extract the chat/session id from an incoming request payload (first non-empty match wins). | `metadata.channelInfo.channelId`, `metadata.userInfo.userId`, … |
 | `SWARM_TRUNCATION_MODE` | Context truncation strategy when trimming message history to fit the token budget: `pairs` (sophisticated — keeps assistant/tool call pairs intact) or `simple` (most-recent only). Unknown values fall back to `simple`. | `pairs` |
 
+### Speech (REQ-77)
+
+Composer microphone and assistant read-aloud default to the **OS/browser**
+implementation (`SpeechRecognition` / `speechSynthesis`). Settings → Speech
+can opt each of STT and TTS into a custom OpenAI-compatible endpoint
+(`/v1/audio/transcriptions`, `/v1/audio/speech`). Fields: base URL, model id,
+**api-key env name only**. Empty custom URL never guesses a host. Persist stores
+`${STT_API_KEY}` / `${TTS_API_KEY}` placeholders — never a live token.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `STT_API_KEY` | Value for the custom transcription env name (if you opt in). | unset |
+| `TTS_API_KEY` | Value for the custom speech env name (if you opt in). | unset |
+| `SPEECH_STT_BASE_URL` / `SPEECH_TTS_BASE_URL` | Optional env override for a custom audio base URL. Empty = no host. | unset |
+| `SPEECH_STT_SOURCE` / `SPEECH_TTS_SOURCE` | `system` (default) or `custom`. Custom is unused until a base URL is set. | `system` |
+
+`GET/PATCH /v1/speech/`, `POST /v1/speech/transcribe/`, `POST /v1/speech/speak/`.
+Missing/DOWN is an honest info line. Tests stub system APIs and HTTP.
+
 ### Provider credentials & integrations
 
 Model/provider keys and service endpoints — `OPENAI_API_KEY`, `OPENAI_BASE_URL`,

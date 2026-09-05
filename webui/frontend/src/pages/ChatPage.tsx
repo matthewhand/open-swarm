@@ -33,6 +33,7 @@ import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { NavbarRoutingPicker, type RoutingPathChange } from '../components/NavbarRoutingPicker'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
+import ReadAloudButton from '../components/ReadAloudButton'
 import { SystemPreloadPill } from '../components/SystemPreloadPill'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
 import {
@@ -42,7 +43,25 @@ import {
   getRecentSlashIds,
   recordRecentSlashId,
 } from '../lib/slashMenu'
-import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchRemotes } from '../lib/api'
+import {
+  EMPTY_SPEECH,
+  fetchConfigOptions,
+  fetchBlueprints,
+  fetchCliAgents,
+  fetchCliModels,
+  fetchRemotes,
+  fetchSpeechSettings,
+} from '../lib/api'
+import {
+  appendTranscript,
+  listenSystemStt,
+  recordMicrophoneAudio,
+  resolveSttPath,
+  sttUnavailableMessage,
+  transcribeCustomBlob,
+  type SpeechPath,
+} from '../lib/speechRuntime'
+import { SPEECH_QUERY_KEY, describeSpeechPath, parseSpeechSettings } from '../lib/speechSettings'
 import {
   AGENT_CONVERSATION_EVENT,
   agentIdFromBlueprint,
@@ -295,6 +314,9 @@ const ChatPage = () => {
     Record<string, ConversationSummary[]>
   >({})
   const [input, setInput] = useState('')
+  const [sttListening, setSttListening] = useState(false)
+  const [sttPathUsed, setSttPathUsed] = useState<SpeechPath | null>(null)
+  const sttStopRef = useRef<(() => void) | null>(null)
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null)
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null)
   const [slashDismissed, setSlashDismissed] = useState(false)
@@ -473,6 +495,12 @@ const ChatPage = () => {
   const remotesListQuery = useQuery({
     queryKey: ['remotes-list'],
     queryFn: fetchRemotes,
+    retry: 1,
+  })
+  const speechQuery = useQuery({
+    queryKey: SPEECH_QUERY_KEY,
+    queryFn: () => fetchSpeechSettings(false),
+    staleTime: 30_000,
     retry: 1,
   })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
@@ -1555,32 +1583,93 @@ const ChatPage = () => {
     setInput(val)
   }
 
+  const speechSettings = parseSpeechSettings(speechQuery.data ?? EMPTY_SPEECH)
+
   const handleMic = () => {
-    type SpeechRec = {
-      start: () => void
-      onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null
+    if (sttListening) {
+      sttStopRef.current?.()
+      return
     }
-    const Ctor = (
-      window as unknown as {
-        SpeechRecognition?: new () => SpeechRec
-        webkitSpeechRecognition?: new () => SpeechRec
-      }
-    ).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition
-    if (!Ctor) {
+    const path = resolveSttPath(speechSettings)
+    if (!path) {
       addToast({
         type: 'info',
         title: 'Voice input',
-        message: 'Speech recognition is not available in this browser.',
+        message: sttUnavailableMessage(speechSettings),
       })
       return
     }
-    const recognition = new Ctor()
-    recognition.onresult = (event) => {
-      const spoken = event.results?.[0]?.[0]?.transcript
-      if (spoken) setInput((prev) => (prev ? `${prev} ${spoken}` : spoken))
+    if (path === 'system') {
+      try {
+        const handle = listenSystemStt({
+          onTranscript: (spoken) => {
+            setInput((prev) => appendTranscript(prev, spoken))
+          },
+          onEnd: () => {
+            setSttListening(false)
+            sttStopRef.current = null
+          },
+          onError: (message) => {
+            addToast({ type: 'info', title: 'Voice input', message })
+            setSttListening(false)
+            sttStopRef.current = null
+          },
+        })
+        sttStopRef.current = handle.stop
+        setSttListening(true)
+        setSttPathUsed('system')
+        addToast({
+          type: 'info',
+          title: 'Voice input',
+          message: `Using ${describeSpeechPath('system', 'stt')}. Transcript stays in the composer.`,
+        })
+      } catch (err) {
+        addToast({
+          type: 'info',
+          title: 'Voice input',
+          message: err instanceof Error ? err.message : sttUnavailableMessage(speechSettings),
+        })
+      }
+      return
     }
-    recognition.start()
+    void (async () => {
+      try {
+        const session = await recordMicrophoneAudio()
+        sttStopRef.current = () => {
+          void (async () => {
+            try {
+              const blob = await session.stop()
+              const spoken = await transcribeCustomBlob(blob)
+              if (spoken) setInput((prev) => appendTranscript(prev, spoken))
+            } catch (err) {
+              addToast({
+                type: 'info',
+                title: 'Voice input',
+                message: err instanceof Error ? err.message : 'Custom STT failed.',
+              })
+            } finally {
+              setSttListening(false)
+              sttStopRef.current = null
+            }
+          })()
+        }
+        setSttListening(true)
+        setSttPathUsed('custom')
+        addToast({
+          type: 'info',
+          title: 'Voice input',
+          message: `Using ${describeSpeechPath('custom', 'stt')}. Click the mic again to stop.`,
+        })
+      } catch (err) {
+        addToast({
+          type: 'info',
+          title: 'Voice input',
+          message: err instanceof Error ? err.message : sttUnavailableMessage(speechSettings),
+        })
+        setSttListening(false)
+        sttStopRef.current = null
+      }
+    })()
   }
 
   useEffect(() => {
@@ -2303,6 +2392,9 @@ const ChatPage = () => {
                     />
                   ))}
                 </ChatMessageBubble>
+                {message.role === 'assistant' && !message.streaming && message.text.trim() ? (
+                  <ReadAloudButton text={message.text} />
+                ) : null}
                 {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
                   <ChatMessageActions
                     text={message.text}
@@ -2473,11 +2565,19 @@ const ChatPage = () => {
                   <button
                     type="button"
                     className="os-composer__icon"
-                    aria-label="Voice input"
+                    aria-label={sttListening ? 'Stop voice input' : 'Voice input'}
+                    aria-pressed={sttListening}
+                    data-testid="composer-mic"
+                    data-stt-path={sttPathUsed ?? undefined}
                     onClick={handleMic}
                   >
                     <Mic className="h-4 w-4" aria-hidden="true" />
                   </button>
+                  {sttPathUsed ? (
+                    <span className="sr-only" data-testid="stt-path">
+                      Voice input used {describeSpeechPath(sttPathUsed, 'stt')}
+                    </span>
+                  ) : null}
                   {hasSendableDraft ? (
                     <button
                       type="submit"
