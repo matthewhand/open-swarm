@@ -190,6 +190,7 @@ import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
 import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel, loadInferenceList } from '../lib/agentEdits'
+import { chatFolderParams } from '../lib/agentFolder'
 import { TEAM_EDITS_CHANGED_EVENT } from '../lib/teamEdits'
 import { nextInferenceIndex, serializeInferenceList } from '../lib/inferenceList'
 import {
@@ -1539,6 +1540,7 @@ const ChatPage = () => {
         inferenceIndex = nextInferenceIndex(agentIdForInference, inferenceSeats.length)
         scaleSeat = inferenceSeats[inferenceIndex]
       }
+      const folderParams = chatFolderParams(agentIdForInference)
       const cliParams = isCliAgent
         ? {
             cli: currentCli,
@@ -1565,8 +1567,8 @@ const ChatPage = () => {
         buildChatWsFrame(
           trimmed,
           runtimeBlueprint || selectedBlueprint || undefined,
-          supportParams || cliParams || inferenceParams || pluginParams
-            ? { ...cliParams, ...inferenceParams, ...supportParams, ...pluginParams }
+          supportParams || cliParams || inferenceParams || pluginParams || folderParams
+            ? { ...cliParams, ...inferenceParams, ...supportParams, ...pluginParams, ...folderParams }
             : undefined,
         ),
       )

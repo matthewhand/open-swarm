@@ -256,10 +256,21 @@ class CliAgentBlueprint(BlueprintBase):
         # Optional skill: `skill=<name>` prepends a discovered skill's
         # instructions to the prompt (portable across whichever CLI runs) and
         # stages any bundled assets into the workdir for write-mode CLIs.
+        from swarm.core.agent_folder import AgentFolderError, resolve_session_cwd
         from swarm.core.workdir import WorkdirEscapeError
 
         try:
-            workdir = support.resolve_workdir(params)
+            folder_cwd = resolve_session_cwd(
+                agent_id=str(params.get("agent") or params.get("agent_id") or self.blueprint_id),
+                params=params,
+            )
+            if folder_cwd:
+                workdir = folder_cwd
+            else:
+                workdir = support.resolve_workdir(params)
+        except AgentFolderError as e:
+            yield support.message_chunk(str(e), final=True)
+            return
         except WorkdirEscapeError as e:
             yield support.message_chunk(str(e), final=True)
             return

@@ -937,19 +937,26 @@ export default function AgentSidebar({
           emptyReason: list.empty_reason,
           loading: false,
         })
-      } catch {
+      } catch (err) {
+        const message = err instanceof Error && err.message
+          ? err.message
+          : "This CLI can't list sessions"
+        const folderFailed = /folder/i.test(message)
+        if (folderFailed) {
+          toast?.error('Could not list CLI sessions', message)
+        }
         setCliPicker({
           agentId,
           agentName,
           cli: cliName,
           sessions: [],
           canList: false,
-          emptyReason: "This CLI can't list sessions",
+          emptyReason: folderFailed ? message : "This CLI can't list sessions",
           loading: false,
         })
       }
     },
-    [],
+    [toast],
   )
 
   const applyCliSession = useCallback(
@@ -976,15 +983,19 @@ export default function AgentSidebar({
         })
         navigate(sessionHref(opts.agentId, result.conversation_id))
         onClose?.()
-      } catch {
+      } catch (err) {
+        const message = err instanceof Error && err.message
+          ? err.message
+          : 'Could not switch session'
+        toast?.error('Could not start CLI session', message)
         setCliPicker((current) =>
           current
-            ? { ...current, emptyReason: current.emptyReason || 'Could not switch session' }
+            ? { ...current, emptyReason: message }
             : current,
         )
       }
     },
-    [navigate, onClose],
+    [navigate, onClose, toast],
   )
 
   const continueCliSessionOn = useCallback(

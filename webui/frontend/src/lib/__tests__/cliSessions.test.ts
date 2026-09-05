@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { AGENT_EDITS_KEY, saveAgentEdit } from '../agentEdits'
+import * as api from '../api'
 import {
+  fetchCliSessions,
   filterCliSessions,
   formatActivityAge,
   looksLikeSessionId,
   sanitizeCliSessionId,
+  selectCliSession,
   type CliProviderSession,
 } from '../cliSessions'
 
@@ -65,5 +69,76 @@ describe('filterCliSessions', () => {
     expect(filterCliSessions(sessions, 'hello').map((s) => s.id)).toEqual(['sid-1'])
     expect(filterCliSessions(sessions, 'sid-2').map((s) => s.id)).toEqual(['sid-2'])
     expect(filterCliSessions(sessions, '')).toHaveLength(2)
+  })
+})
+
+describe('CLI session Folder cwd (REQ-167)', () => {
+  afterEach(() => {
+    localStorage.removeItem(AGENT_EDITS_KEY)
+    vi.restoreAllMocks()
+  })
+
+  it('list and select send Folder when the agent record has one', async () => {
+    saveAgentEdit('cli_agent', { folder: '/home/dev/tool' })
+    const getSpy = vi.spyOn(api, 'apiGet').mockResolvedValue({
+      object: 'cli_session_list',
+      agent_id: 'cli_agent',
+      cli: 'grok',
+      can_list: false,
+      sessions: [],
+      recent: [],
+      empty_reason: null,
+      activity_sot: 'swarm',
+    } as any)
+    const postSpy = vi.spyOn(api, 'apiPost').mockResolvedValue({
+      object: 'cli_session_select',
+      agent_id: 'cli_agent',
+      cli: 'grok',
+      conversation_id: 'cli-1',
+      cli_session_id: null,
+      messages: [],
+      status: 'Started a new grok session.',
+      collapsed_prior: false,
+      import: 'none',
+    } as any)
+
+    await fetchCliSessions('cli_agent', 'grok')
+    expect(getSpy).toHaveBeenCalledWith(expect.stringContaining('folder=%2Fhome%2Fdev%2Ftool'))
+
+    await selectCliSession({ agentId: 'cli_agent', cli: 'grok', startNew: true })
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/cli-sessions/select/',
+      expect.objectContaining({ folder: '/home/dev/tool', start_new: true }),
+    )
+  })
+
+  it('list and select omit Folder when unset', async () => {
+    const getSpy = vi.spyOn(api, 'apiGet').mockResolvedValue({
+      object: 'cli_session_list',
+      agent_id: 'cli_agent',
+      cli: 'grok',
+      can_list: false,
+      sessions: [],
+      recent: [],
+      empty_reason: null,
+      activity_sot: 'swarm',
+    } as any)
+    const postSpy = vi.spyOn(api, 'apiPost').mockResolvedValue({
+      object: 'cli_session_select',
+      agent_id: 'cli_agent',
+      cli: 'grok',
+      conversation_id: 'cli-1',
+      cli_session_id: null,
+      messages: [],
+      status: 'Started a new grok session.',
+      collapsed_prior: false,
+      import: 'none',
+    } as any)
+
+    await fetchCliSessions('cli_agent', 'grok')
+    expect(getSpy.mock.calls[0][0]).not.toContain('folder=')
+
+    await selectCliSession({ agentId: 'cli_agent', cli: 'grok', startNew: true })
+    expect(postSpy.mock.calls[0][1]).not.toHaveProperty('folder')
   })
 })

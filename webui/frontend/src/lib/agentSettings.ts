@@ -28,6 +28,7 @@ export interface AgentSettings {
   use_suggestions: boolean
   cli_session_id?: string | null
   remote_session_id?: string | null
+  folder?: string | null
   active_sessions?: string[]
 }
 
@@ -283,6 +284,7 @@ function asSettings(
       typeof data?.use_suggestions === 'boolean' ? data.use_suggestions : fallback.use_suggestions,
     cli_session_id: data?.cli_session_id ?? null,
     remote_session_id: data?.remote_session_id ?? null,
+    folder: typeof data?.folder === 'string' && data.folder.trim() ? data.folder.trim() : null,
     active_sessions: Array.isArray(data?.active_sessions) ? data.active_sessions : [],
   }
 }
@@ -312,7 +314,7 @@ export async function fetchAgentSettings(agentId: string): Promise<AgentSettings
 
 export async function saveAgentSettings(
   agentId: string,
-  patch: { new_chat_per_task?: boolean; use_suggestions?: boolean },
+  patch: { new_chat_per_task?: boolean; use_suggestions?: boolean; folder?: string | null },
 ): Promise<AgentSettings> {
   const agent = agentIdFromBlueprint(agentId)
   if (patch.new_chat_per_task !== undefined) {

@@ -13,6 +13,8 @@ import {
 } from '../lib/api'
 import { OPENMOUSBOT_LABEL } from '../lib/remotesCatalog'
 import { loadAgentEdit, saveAgentEdit } from '../lib/agentEdits'
+import { FOLDER_FORMAT_ERROR, isValidFolderPath } from '../lib/agentFolder'
+import { saveAgentSettings } from '../lib/agentSettings'
 import { RemoteSelect } from './RemoteSelect'
 import { configuredRemotes } from '../lib/remotes'
 import { remotesListForSelect, saveAgentRemoteBinding } from '../lib/agentRemote'
@@ -26,11 +28,7 @@ export interface AddAgentWizardProps {
   onSelectAgent?: (agentId: string) => void
 }
 
-export function isValidFolderPath(path: string): boolean {
-  if (!path.trim()) return true
-  if (/[\0*?"<>|\r\n]/.test(path)) return false
-  return true
-}
+export { isValidFolderPath } from '../lib/agentFolder'
 
 export interface ManageAgentItem {
   id: string
@@ -324,7 +322,7 @@ export default function AddAgentWizard({
     setError(null)
 
     if (selectedKind === 'cli' && cliFolder.trim() && !isValidFolderPath(cliFolder)) {
-      setFolderError('Please enter a valid directory path (e.g. /path/to/dir or ./dir)')
+      setFolderError(FOLDER_FORMAT_ERROR)
       return
     }
 
@@ -359,6 +357,7 @@ ${folderComment}`
             command,
             folder,
           })
+          await saveAgentSettings(created.id, { folder })
 
           await queryClient.invalidateQueries({ queryKey: ['blueprints'] })
           await queryClient.invalidateQueries({ queryKey: ['custom-blueprints'] })
@@ -371,6 +370,7 @@ ${folderComment}`
             command,
             folder,
           })
+          await saveAgentSettings(editingAgentId, { folder })
 
           try {
             await updateCustomBlueprint(editingAgentId, {
@@ -831,9 +831,7 @@ ${folderComment}`
                       const val = e.target.value
                       setCliFolder(val)
                       if (val && !isValidFolderPath(val)) {
-                        setFolderError(
-                          'Please enter a valid directory path (e.g. /path/to/dir or ./dir)',
-                        )
+                        setFolderError(FOLDER_FORMAT_ERROR)
                       } else {
                         setFolderError(null)
                       }

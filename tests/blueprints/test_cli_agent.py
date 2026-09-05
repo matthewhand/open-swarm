@@ -669,6 +669,33 @@ async def test_param_consensus_overrides_config_to_single():
     assert "consensus agent" not in _progress_text(chunks)
 
 
+async def test_folder_param_used_as_cwd(tmp_path):
+    script = tmp_path / "cwd_cli.py"
+    script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
+    folder = tmp_path / "project"
+    folder.mkdir()
+    cfg = {
+        "cli_agents": {
+            "echo": {"cmd": [PY, str(script)], "parse": "text"},
+        },
+        "cli_fusion": {"default_cli": "echo"},
+    }
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"cli": "echo", "folder": str(folder), "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
+    assert _final_content(chunks) == str(folder.resolve())
+
+
+async def test_bad_folder_is_visible_error_not_wrong_cwd(tmp_path):
+    cfg = _echo_config()
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params({"cli": "echo", "folder": str(tmp_path / "missing"), "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
+    text = _final_content(chunks) or ""
+    assert "does not exist" in text
+    assert "ECHO:" not in text
+
+
 async def test_hop_fixture_transcript_seeds_new_cli_prompt(tmp_path, monkeypatch):
     """Fixture transcript → hop CLI → new session receives the injection payload."""
     monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
