@@ -134,16 +134,17 @@ def test_docs_say_blueprints_are_cli_api_only():
         "docs/GLOSSARY.md": REPO / "docs" / "GLOSSARY.md",
         "src/swarm/blueprints/README.md": BLUEPRINTS_ROOT / "README.md",
     }
+    root_readme = files["README.md"]
     for label, path in files.items():
         text = path.read_text(encoding="utf-8")
         lowered = text.lower()
         assert "cli/api" in lowered or "cli and api" in lowered, label
         assert "web chat with conversation-history" not in lowered
-        if path.name != "README.md":
-            assert "django_chat" not in text
-        else:
+        if path.resolve() == root_readme.resolve():
             assert "django_chat resolves its LLM profile" in text
             assert text.count("django_chat") == 1
+        else:
+            assert "django_chat" not in text
 
     library = files["docs/BLUEPRINT_LIBRARY.md"].read_text(encoding="utf-8")
     assert "| `django_chat`" not in library
