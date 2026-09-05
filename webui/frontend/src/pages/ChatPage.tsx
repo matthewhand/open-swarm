@@ -12,11 +12,12 @@ import {
 } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowUp, Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings } from 'lucide-react'
+import { ArrowUp, Layers, Mic, PanelLeft, Pencil, Plus, Reply, Settings, Users } from 'lucide-react'
 import AgentAvatar from '../components/AgentAvatar'
 import { TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
+import { OPEN_TEAM_COMPOSER_EVENT } from '../components/TeamComposer'
 import {
   AGENT_DROPDOWNS_CHANGED_EVENT,
   AGENT_SETTINGS_CHANGED_EVENT,
@@ -2274,6 +2275,16 @@ const ChatPage = () => {
               agentId={activeChatAgentId}
               agentName={selectedAgentName}
             />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-square"
+              aria-label="Compose team"
+              aria-haspopup="dialog"
+              title="Compose team"
+              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_TEAM_COMPOSER_EVENT))}
+            >
+              <Users className="h-4 w-4" aria-hidden="true" />
+            </button>
             <ThemeToggle />
             <button
               type="button"
@@ -2596,6 +2607,20 @@ const ChatPage = () => {
                           >
                             <Layers className="h-4 w-4" aria-hidden="true" />
                             Compact
+                          </button>
+                        </li>
+                        <li role="none">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="os-plus-menu__item"
+                            onClick={() => {
+                              setPlusOpen(false)
+                              window.dispatchEvent(new CustomEvent(OPEN_TEAM_COMPOSER_EVENT))
+                            }}
+                          >
+                            <Users className="h-4 w-4" aria-hidden="true" />
+                            Compose team
                           </button>
                         </li>
                       </ul>

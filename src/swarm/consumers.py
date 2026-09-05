@@ -439,7 +439,21 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         """
         team = str(params.get("team") or "")
         target = str(params.get("target") or "all")
+        from swarm.core.team_cos import team_run_context
+        from swarm.core.team_rosters import get_roster
+
+        roster = get_roster(team) if team else None
+        ctx = team_run_context(
+            roster,
+            target,
+            messages=[{"role": "user", "content": message_text}],
+        )
+        # REQ-107: CoS brief is injected into model context only (not the
+        # user-visible transcript). Stub still echoes so the compose path
+        # stays exercisable without a live host.
         canned = f"[team:{team} target:{target}] {message_text}"
+        if ctx.get("brief_applied"):
+            canned = f"[team:{team} target:{target} cos:{ctx.get('chief_of_staff_id')}] {message_text}"
         await self.send(text_data=_oob_append_html(contents_div_id, canned))
         _record_turn(self, "assistant", canned)
         await self._emit_teammate_task_cards(params, message_text)
