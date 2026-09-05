@@ -1427,25 +1427,29 @@ export default function AgentSidebar({
       openGroupPicker(title, sessions)
       return
     }
-    if (id === 'select-session' && menu.isCli) {
+    if (id === 'select-session') {
       const agentId = menu.agentId
       const name = menu.agentName
       const cli = menu.cli || 'grok'
+      const cliRow = Boolean(menu.isCli || menu.kind === 'cli')
       closeMenu()
-      void openCliSessionPicker(agentId, name, cli)
+      if (cliRow) {
+        void openCliSessionPicker(agentId, name, cli)
+      } else {
+        void openAgentSessionPicker(agentId, name)
+      }
       return
     }
-    if (id === 'select-agent-session' && (menu.kind === 'api' || menu.kind === 'cli')) {
+    if (id === 'new-session') {
       const agentId = menu.agentId
-      const name = menu.agentName
+      const cli = menu.cli || 'grok'
+      const cliRow = Boolean(menu.isCli || menu.kind === 'cli')
       closeMenu()
-      void openAgentSessionPicker(agentId, name)
-      return
-    }
-    if (id === 'new-session' && (menu.kind === 'api' || menu.kind === 'cli')) {
-      const agentId = menu.agentId
-      closeMenu()
-      void startNewAgentSession(agentId)
+      if (cliRow) {
+        void applyCliSession({ agentId, cli, startNew: true })
+      } else {
+        void startNewAgentSession(agentId)
+      }
       return
     }
     if (id === 'unpin' || id === 'pin') {
@@ -1493,8 +1497,8 @@ export default function AgentSidebar({
         hidden: menu.hidden,
         unread: unreadIds.includes(menu.agentId),
         hasSelectAgent: shouldShowSelectAgent(menu.sessions),
-        hasSelectSession: Boolean(menu.isCli),
-        hasAgentSessions: menu.kind === 'api' || menu.kind === 'cli',
+        hasSelectSession: menu.kind === 'api' || menu.kind === 'cli' || Boolean(menu.isCli),
+        hasNewSession: menu.kind === 'api' || menu.kind === 'cli' || Boolean(menu.isCli),
         canCopyId:
           menu.kind === 'cli' || menu.kind === 'remote'
             ? Boolean(copyableConversationId(menu.kind, menu.agentId, menu.entityId))
