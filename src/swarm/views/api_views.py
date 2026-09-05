@@ -601,7 +601,8 @@ class CliAgentsView(APIView):
     """CLI-agent catalog + native (built-in) consensus capability, for the Builder UI.
 
     GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]},
-    list_models: {cli: [argv…]}}. Live probes are GET /v1/cli-agents/<cli>/models.
+    list_models: {cli: [argv…]}, list_sessions: {cli: {capability, list_argv,
+    list_store, resume_argv}}}. Live probes are GET /v1/cli-agents/<cli>/models.
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]
@@ -621,6 +622,8 @@ class CliAgentsView(APIView):
                 for n in cli_catalog.catalog_names()
                 if cli_catalog.has_list_models(n)
             },
+            # #795: list/resume capability table (argv or provider store).
+            "list_sessions": cli_catalog.list_sessions_catalog(),
         })
 
 

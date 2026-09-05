@@ -47,6 +47,7 @@ export interface CliSessionList {
   agent_id: string
   cli: string
   can_list: boolean
+  list_capability?: 'works' | 'paste-only' | 'unsupported'
   sessions: CliProviderSession[]
   recent: CliProviderSession[]
   empty_reason: string | null

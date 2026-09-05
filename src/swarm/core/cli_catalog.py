@@ -184,104 +184,141 @@ NATIVE_CONSENSUS: dict[str, list[str]] = {
 # ``{session_id}`` is replaced with the stored id. Distinct from Django/API
 # conversation ids and from OS ``start_new_session`` (process-group kill).
 #
-# antigravity is **not** in CATALOG (not wired). If it is added later, headless
-# resume is ``agy -p --conversation <id>`` (JSON often includes conversation_id).
+# List capability (#795): ``works`` = a real provider list (CLI argv or the
+# CLI's own session store); ``paste-only`` = resume by id, no verified list;
+# ``unsupported`` = no list and no resume. Never invent picker rows.
+# Provider list is the SoT for CLI resume — Django Select/New (#469) is not.
+#
+# antigravity is **not** in CATALOG (not wired). Agy is the catalog name;
+# headless resume is ``agy -p --conversation <id>``.
+LIST_CAPABILITY_WORKS = "works"
+LIST_CAPABILITY_PASTE_ONLY = "paste-only"
+LIST_CAPABILITY_UNSUPPORTED = "unsupported"
+LIST_CAPABILITIES = frozenset(
+    {LIST_CAPABILITY_WORKS, LIST_CAPABILITY_PASTE_ONLY, LIST_CAPABILITY_UNSUPPORTED}
+)
+# Agy conversations live as ``<uuid>.db`` under this directory (filename stem
+# is the ``--conversation`` id). No official ``agy conversations list`` yet
+# (google-antigravity/antigravity-cli#602).
+AGY_CONVERSATIONS_STORE = "agy_conversations"
+DEFAULT_AGY_CONVERSATIONS_DIR = "~/.gemini/antigravity-cli/conversations"
+
 SESSION: dict[str, dict[str, Any]] = {
     "grok": {
         "resume_argv": ["--resume", "{session_id}"],
         "resume_insert": 1,
         "session_id_paths": [".sessionId", ".session_id"],
+        "list_argv": ["grok", "sessions", "list", "--limit", "50"],
+        "list_capability": LIST_CAPABILITY_WORKS,
         "notes": (
             "grok -p --resume <uuid> (also -r). --session-id / -s names a NEW "
             "session; do not use it to resume. JSON often includes sessionId. "
-            "No non-interactive session list — Select session degrades to paste-id "
-            "+ swarm-touch recents (REQ-104)."
+            "List: ``grok sessions list`` (text table: id, dates, status, "
+            "summary; cwd + sibling worktrees). JSON/JSONL also accepted."
         ),
     },
     "claude": {
         "resume_argv": ["--resume", "{session_id}"],
         "resume_insert": 1,
         "session_id_paths": [".session_id"],
+        "list_capability": LIST_CAPABILITY_PASTE_ONLY,
         "notes": (
             "claude -p --resume <uuid> (also -r). JSON result includes session_id "
             "even when parse is json:.result. A resume may mint a new session_id; "
             "store the latest. --session-id names a new session, not a resume. "
-            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
+            "List is paste-only: ``claude --resume`` without an id is a TUI picker."
         ),
     },
     "gemini": {
         "resume_argv": ["--resume", "{session_id}"],
         "resume_insert": 1,
         "session_id_paths": [".session_id", ".sessionId"],
+        "list_capability": LIST_CAPABILITY_PASTE_ONLY,
         "notes": (
             "gemini -p --resume <uuid> (also -r). --session-id starts a NEW "
             "session and conflicts with --resume. Capture id from JSON when present. "
-            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
+            "List is paste-only — no verified non-interactive list argv."
         ),
     },
     "codex": {
         "resume_argv": ["resume", "{session_id}"],
         "resume_insert": 2,  # after `codex exec` → `codex exec resume <id> …`
         "session_id_paths": [".thread_id", ".session_id"],
+        "list_capability": LIST_CAPABILITY_PASTE_ONLY,
         "notes": (
             "codex exec resume <SESSION_ID> <prompt> (subcommand, not a --flag). "
             "Default catalog parse is text; thread_id appears when --json is used. "
             "Interactive `codex resume` is a TUI — do not use it here. "
-            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
+            "List is paste-only — no verified non-interactive list argv."
         ),
     },
     "opencode": {
         "resume_argv": ["--session", "{session_id}"],
         "resume_insert": 1,
         "session_id_paths": [".session", ".sessionID", ".id"],
+        "list_argv": ["opencode", "session", "list", "--format", "json"],
+        "list_capability": LIST_CAPABILITY_WORKS,
         "notes": (
             "opencode run --session <id> (also -s). --continue/-c is last-session "
             "in the cwd, not thread-scoped — do not use it. Capture id when the "
             "CLI emits JSON; the default catalog parse is text. "
-            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
+            "List: ``opencode session list --format json`` ({id, title, updated})."
         ),
     },
     "agy": {
         "resume_argv": ["--conversation", "{session_id}"],
         "resume_insert": 1,
         "session_id_paths": [".conversation_id", ".conversationId"],
+        "list_store": AGY_CONVERSATIONS_STORE,
+        "list_capability": LIST_CAPABILITY_WORKS,
         "notes": (
             "agy -p --conversation <id>. --continue is most-recent, not "
             "thread-scoped — do not use it here. "
-            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
+            "No official list argv (antigravity-cli#602). List reads the CLI's "
+            "own store ``~/.gemini/antigravity-cli/conversations/<uuid>.db`` "
+            "(stem = id, mtime = updated_at; never opens the sqlite)."
         ),
     },
     "pi": {
         "resume_argv": ["--session", "{session_id}"],
         "resume_insert": 1,
         "session_id_paths": [".session", ".id"],
+        "list_capability": LIST_CAPABILITY_PASTE_ONLY,
         "notes": (
             "pi -p --session <path|id>. --resume/-r is a TUI picker; "
             "--continue/-c is last session — do not use those here. "
             "Catalog verify runs use --no-session (ephemeral). "
-            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
+            "List is paste-only — no verified non-interactive list argv."
         ),
     },
 }
 
-# Non-interactive session-list argv. Catalog CLIs have none (TUI pickers only).
-# A fixture or ``cli_agents.<name>.list_argv`` may enable listing. Never invent rows.
+# Non-interactive session-list argv / provider store. Never invent rows.
 LIST_SESSIONS_TIMEOUT = 15.0
 RECENT_SESSION_LIMIT = 10
+
+
+def _cli_agent_entry(name: str, config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """``cli_agents.<name>`` dict from config, or empty."""
+    raw_agents = (config or {}).get("cli_agents") or {}
+    if not isinstance(raw_agents, dict):
+        return {}
+    entry = raw_agents.get(name)
+    return entry if isinstance(entry, dict) else {}
 
 
 def list_sessions_argv(name: str, config: dict[str, Any] | None = None) -> list[str] | None:
     """Copy of a non-interactive list-sessions argv, or None if this CLI cannot list.
 
     Config ``cli_agents.<name>.list_argv`` wins over the catalog (fixtures).
+    An empty list in config disables a catalogued argv (honest paste-only).
     """
-    raw_agents = (config or {}).get("cli_agents") or {}
-    if isinstance(raw_agents, dict):
-        entry = raw_agents.get(name)
-        if isinstance(entry, dict):
-            argv = entry.get("list_argv")
-            if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
-                return list(argv)
+    entry = _cli_agent_entry(name, config)
+    if "list_argv" in entry:
+        argv = entry.get("list_argv")
+        if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
+            return list(argv)
+        return None
     policy = session_policy(name) or {}
     argv = policy.get("list_argv")
     if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
@@ -289,9 +326,78 @@ def list_sessions_argv(name: str, config: dict[str, Any] | None = None) -> list[
     return None
 
 
+def list_sessions_store(name: str, config: dict[str, Any] | None = None) -> str | None:
+    """Provider-store kind (e.g. ``agy_conversations``), or None.
+
+    Config ``cli_agents.<name>.list_store`` wins. Empty string disables the
+    catalogued store. When ``list_argv`` is set, the argv is preferred.
+    """
+    if list_sessions_argv(name, config) is not None:
+        return None
+    entry = _cli_agent_entry(name, config)
+    if "list_store" in entry:
+        raw = entry.get("list_store")
+        kind = str(raw or "").strip()
+        return kind or None
+    policy = session_policy(name) or {}
+    raw = policy.get("list_store")
+    kind = str(raw or "").strip()
+    return kind or None
+
+
+def list_sessions_store_dir(name: str, config: dict[str, Any] | None = None) -> str | None:
+    """Expanded directory for a provider session store, or None."""
+    if list_sessions_store(name, config) is None:
+        return None
+    entry = _cli_agent_entry(name, config)
+    raw = entry.get("list_store_dir")
+    if raw is None:
+        policy = session_policy(name) or {}
+        raw = policy.get("list_store_dir")
+    if raw:
+        return os.path.expanduser(str(raw))
+    env = os.environ.get("SWARM_AGY_CONVERSATIONS_DIR", "").strip()
+    if env:
+        return os.path.expanduser(env)
+    if list_sessions_store(name, config) == AGY_CONVERSATIONS_STORE:
+        return os.path.expanduser(DEFAULT_AGY_CONVERSATIONS_DIR)
+    return None
+
+
+def list_capability(name: str, config: dict[str, Any] | None = None) -> str:
+    """``works`` | ``paste-only`` | ``unsupported`` for this CLI's session list."""
+    entry = _cli_agent_entry(name, config)
+    override = entry.get("list_capability")
+    if isinstance(override, str) and override in LIST_CAPABILITIES:
+        return override
+    if can_list_sessions(name, config):
+        return LIST_CAPABILITY_WORKS
+    policy = session_policy(name) or {}
+    if policy.get("resume_argv"):
+        return LIST_CAPABILITY_PASTE_ONLY
+    documented = policy.get("list_capability")
+    if isinstance(documented, str) and documented in LIST_CAPABILITIES:
+        return documented
+    return LIST_CAPABILITY_UNSUPPORTED
+
+
 def can_list_sessions(name: str, config: dict[str, Any] | None = None) -> bool:
-    """True when a real list-sessions argv is configured. Catalog defaults are False."""
-    return list_sessions_argv(name, config) is not None
+    """True when a real list argv or provider store is configured."""
+    return list_sessions_argv(name, config) is not None or list_sessions_store(name, config) is not None
+
+
+def list_sessions_catalog() -> dict[str, dict[str, Any]]:
+    """Machine-readable list/resume table for every catalogued CLI."""
+    out: dict[str, dict[str, Any]] = {}
+    for name in catalog_names():
+        policy = session_policy(name) or {}
+        out[name] = {
+            "capability": list_capability(name),
+            "list_argv": list_sessions_argv(name),
+            "list_store": list_sessions_store(name),
+            "resume_argv": list(policy["resume_argv"]) if policy.get("resume_argv") else None,
+        }
+    return out
 
 
 # Default capability traits (0..1) per known CLI for inference-profile matching

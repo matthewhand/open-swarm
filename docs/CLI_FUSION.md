@@ -171,18 +171,19 @@ started a new session — never a fake “restored”.
 | `codex` | `codex exec resume {session_id} …` (subcommand) | UUID / thread id | JSON `thread_id` when `--json`; default catalog parse is text |
 | `opencode` | `--session {session_id}` (`-s`) | `ses_…`. `--continue` is last-cwd, not thread-scoped | JSON when the CLI emits it; default parse is text |
 
-`antigravity` is not in the catalog. If wired later, headless resume is
+`antigravity` is not in the catalog. Agy is the catalog name; headless resume is
 `agy -p --conversation <id>` (JSON often includes `conversation_id`).
 
 Per-adapter config can override `resume_argv`, `resume_insert`, and
 `session_id_paths`. An empty `resume_argv` means the CLI cannot resume.
 
-### CLI Select session (REQ-104)
+### CLI Select session (REQ-104 / #795)
 
 From a CLI rail row, **Select session** browses that CLI’s existing sessions and
 switches the mounted chat onto one of them. This is not “resume whatever id we
 last stored” (REQ-52); it is an explicit hop between the CLI’s own sessions and
-open-swarm.
+open-swarm. **Provider list is the source of truth** for CLI resume — Django
+Select/New (#469) stays for swarm-backed threads and does not replace it.
 
 **Design (A) — used:** selecting a session (or **Start new session**) **mints a
 new Django/chat-store conversation** bound to that CLI session id. The previous
@@ -198,20 +199,32 @@ loads under that pill. Same session + same content → no double-collapse. The
 pill is a **UI archive** (`kind: prior_history`); `render_prompt` skips it so
 prior foreign history is never prepended as CLI turns.
 
-**Listing:** catalog CLIs have **no** verified non-interactive list. `can_list`
-is true only when `cli_agents.<name>.list_argv` (or a catalog `list_argv`) is
-set. Empty copy is “This CLI can’t list sessions” or “No sessions found” —
-never fake rows. The picker still accepts a **pasted session id**. Recents are
-the last 5–10 swarm-touch ids with a relative activity stamp (`2m ago` /
-`Yesterday`). **Activity SoT:** provider `updated_at` when `can_list`; else last
-swarm-touch.
+**Listing (#795):** each catalogued CLI that supports list+resume shows
+**provider-owned** sessions (ids + display metadata only — no secret-shaped
+payloads), including sessions never started in open-swarm. Selecting one binds
+`cli_session` and the next send uses that CLI’s resume argv. `can_list` is true
+when a catalog/config `list_argv` or provider `list_store` is set. Empty copy
+is “This CLI can’t list sessions” or “No sessions found” — never fake rows.
+Paste-id always works. Recents are the last 5–10 swarm-touch ids with a
+relative activity stamp (`2m ago` / `Yesterday`). **Activity SoT:** provider
+`updated_at` when `can_list`; else last swarm-touch. Config
+`cli_agents.<name>.list_argv` / `list_store` / `list_store_dir` can override
+(or disable) the catalog.
 
-| CLI | List sessions |
-|---|---|
-| `grok` / `claude` / `gemini` / `codex` / `opencode` / `agy` / `pi` | No non-interactive list — paste-id + swarm recents |
-| Fixture / configured `list_argv` | JSON / JSONL of `{id,title,snippet,updated_at}` (or `session_id` / `thread_id`) |
+| CLI | List API | Resume API | Status |
+|---|---|---|---|
+| `grok` | `grok sessions list [--limit N]` (text table: id, created, updated, status, summary; cwd + sibling worktrees). JSON/JSONL also parsed. | `--resume {id}` (`-r`) | **works** |
+| `agy` | Provider store `~/.gemini/antigravity-cli/conversations/<uuid>.db` (filename stem = `--conversation` id, mtime = `updated_at`; sqlite never opened). No official `agy conversations list` yet ([antigravity-cli#602](https://github.com/google-antigravity/antigravity-cli/issues/602)). | `--conversation {id}` | **works** |
+| `opencode` | `opencode session list --format json` (`id`, `title`, `updated`) | `--session {id}` (`-s`) | **works** |
+| `claude` | none — `claude --resume` without an id is a TUI picker | `--resume {id}` (`-r`) | **paste-only** |
+| `gemini` | none verified | `--resume {id}` (`-r`) | **paste-only** |
+| `codex` | none verified (`codex resume` is a TUI) | `codex exec resume {id}` | **paste-only** |
+| `pi` | none — `--resume` is a TUI picker | `--session {id}` | **paste-only** |
+| Fixture / configured `list_argv` | JSON / JSONL of `{id,title,snippet,updated_at}` (or `session_id` / `thread_id` / `conversation_id`) | per adapter `resume_argv` | **works** |
 
-Antigravity is not in the catalog. If wired later, do not fake a list.
+Status meanings: **works** = picker lists provider sessions; **paste-only** =
+resume by pasted id + swarm recents; **unsupported** = no list and no resume
+(none in the catalog today). Antigravity is not a separate catalog entry.
 
 ### Example adapters
 
