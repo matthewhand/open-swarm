@@ -41,7 +41,9 @@ SECRET_KEY_FRAGMENTS = (
 FAVOURITES_KEY = "favourites"
 HIDDEN_KEY = "hidden_agents"
 HOSTNAME_KEY = "hostname_override"
+AGENT_DROPDOWNS_KEY = "agent_dropdowns"
 HOSTNAME_MAX_LEN = 255
+AGENT_DROPDOWN_FIELDS = ("cli", "model", "remote", "blueprint", "api")
 
 
 def is_secret_key(name: str) -> bool:
@@ -122,6 +124,37 @@ def normalize_id_list(raw: Any) -> list[str]:
     return ids
 
 
+def normalize_agent_dropdown_choice(raw: Any) -> dict[str, str] | None:
+    """Non-secret CLI / API / remote / blueprint ids only."""
+    if not isinstance(raw, dict):
+        return None
+    choice: dict[str, str] = {}
+    for field in AGENT_DROPDOWN_FIELDS:
+        value = raw.get(field)
+        if not isinstance(value, str):
+            continue
+        trimmed = value.strip()
+        if trimmed:
+            choice[field] = trimmed
+    return choice or None
+
+
+def normalize_agent_dropdowns(raw: Any) -> dict[str, dict[str, str]]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, dict[str, str]] = {}
+    for agent_id, value in raw.items():
+        if not isinstance(agent_id, str) or not agent_id.strip():
+            continue
+        if is_secret_key(agent_id):
+            continue
+        choice = normalize_agent_dropdown_choice(value)
+        if choice is None:
+            continue
+        out[agent_id.strip()] = choice
+    return out
+
+
 def normalize_hostname_override(raw: Any) -> str:
     """Display label only — strip controls and cap length.
 
@@ -156,6 +189,8 @@ def coerce_values(raw: Any) -> dict[str, Any]:
             out[key] = normalize_id_list(value)
         elif key == HOSTNAME_KEY:
             out[key] = normalize_hostname_override(value)
+        elif key == AGENT_DROPDOWNS_KEY:
+            out[key] = normalize_agent_dropdowns(value)
         else:
             out[key] = value
     out.setdefault(FAVOURITES_KEY, [])
@@ -176,6 +211,8 @@ def merge_values(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, An
             merged[key] = normalize_id_list(value)
         elif key == HOSTNAME_KEY:
             merged[key] = normalize_hostname_override(value)
+        elif key == AGENT_DROPDOWNS_KEY:
+            merged[key] = normalize_agent_dropdowns(value)
         else:
             merged[key] = value
     return merged
@@ -214,6 +251,7 @@ def public_payload(
 
 # Re-export so views can stamp token principals without importing auth twice.
 __all__ = [
+    "AGENT_DROPDOWNS_KEY",
     "FAVOURITES_KEY",
     "HIDDEN_KEY",
     "HOSTNAME_KEY",
@@ -223,6 +261,7 @@ __all__ = [
     "extras_bag",
     "is_secret_key",
     "merge_values",
+    "normalize_agent_dropdowns",
     "normalize_favourites",
     "normalize_hostname_override",
     "normalize_id_list",

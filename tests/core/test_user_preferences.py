@@ -7,6 +7,7 @@ from swarm.core.user_preferences import (
     coerce_values,
     is_secret_key,
     merge_values,
+    normalize_agent_dropdowns,
     normalize_favourites,
     normalize_hostname_override,
     preference_identity,
@@ -62,6 +63,18 @@ def test_public_payload_marks_empty_and_lists_registry():
         "hidden_agents",
         "hostname_override",
     ]
+
+
+def test_normalize_agent_dropdowns_keeps_safe_fields_only():
+    cleaned = normalize_agent_dropdowns(
+        {
+            "cli_agent": {"cli": " grok ", "model": "grok-4", "api_key": "sk-nope"},
+            "": {"cli": "agy"},
+            "api_key": {"cli": "grok"},
+            "codey": "grok",
+        }
+    )
+    assert cleaned == {"cli_agent": {"cli": "grok", "model": "grok-4"}}
 
 
 def test_normalize_hostname_override_strips_controls_and_caps_length():

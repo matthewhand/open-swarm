@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../hiddenAgents'
 import { DEFAULT_PINNED_SUPPORT, PINNED_AGENTS_STORAGE_KEY } from '../pinnedAgents'
 import { HOSTNAME_OVERRIDE_KEY } from '../settingsPrefs'
+import { AGENT_DROPDOWNS_STORAGE_KEY } from '../agentSettings'
 import {
   USER_PREFS_PATH,
   hydrateRailPrefs,
@@ -51,6 +52,56 @@ describe('userPrefs', () => {
       hidden_agents: ['gate', 'skeptic'],
       hostname_override: 'lab-box',
       values: {},
+      agent_dropdowns: {},
+    })
+  })
+
+  it('reads agent_dropdowns from values and top-level', () => {
+    expect(
+      parseUserPrefs({
+        object: 'user_preferences',
+        empty: false,
+        favourites: [],
+        hidden_agents: [],
+        hostname_override: '',
+        values: {
+          agent_dropdowns: {
+            cli_agent: { cli: 'grok', model: 'grok-4', api_key: 'sk-nope' },
+            '': { cli: 'agy' },
+          },
+        },
+      })?.agent_dropdowns,
+    ).toEqual({ cli_agent: { cli: 'grok', model: 'grok-4' } })
+    expect(
+      parseUserPrefs({
+        object: 'user_preferences',
+        empty: false,
+        favourites: [],
+        hidden_agents: [],
+        hostname_override: '',
+        agent_dropdowns: { starter: { remote: 'omb', blueprint: 'codey' } },
+      })?.agent_dropdowns,
+    ).toEqual({ starter: { remote: 'omb', blueprint: 'codey' } })
+  })
+
+  it('applies server agent_dropdowns onto the local cache', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          object: 'user_preferences',
+          empty: false,
+          favourites: [{ id: 'support', name: 'Support' }],
+          hidden_agents: [],
+          hostname_override: '',
+          values: { agent_dropdowns: { cli_agent: { cli: 'antigravity', model: 'grok-4' } } },
+        }),
+      ),
+    )
+    const next = await hydrateRailPrefs()
+    expect(next.source).toBe('server')
+    expect(JSON.parse(localStorage.getItem(AGENT_DROPDOWNS_STORAGE_KEY) || '{}')).toEqual({
+      cli_agent: { cli: 'antigravity', model: 'grok-4' },
     })
   })
 
@@ -196,5 +247,27 @@ describe('userPrefs', () => {
     expect(call).toBeTruthy()
     expect(String(call?.[0])).toContain(USER_PREFS_PATH)
     expect(JSON.parse(String(call?.[1]?.body || '{}')).hostname_override).toBe('lab-box')
+  })
+
+  it('saveUserPrefs writes agent_dropdowns inside values', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        object: 'user_preferences',
+        empty: false,
+        favourites: [],
+        hidden_agents: [],
+        hostname_override: '',
+        values: { agent_dropdowns: { cli_agent: { cli: 'grok' } } },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const saved = await saveUserPrefs({
+      agent_dropdowns: { cli_agent: { cli: 'grok' } },
+    })
+    expect(saved?.agent_dropdowns).toEqual({ cli_agent: { cli: 'grok' } })
+    const call = fetchMock.mock.calls.find((entry) => entry[1]?.method === 'PATCH')
+    expect(JSON.parse(String(call?.[1]?.body || '{}')).values).toEqual({
+      agent_dropdowns: { cli_agent: { cli: 'grok' } },
+    })
   })
 })
