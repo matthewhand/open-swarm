@@ -988,7 +988,11 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
               conversation_id: 'agt-1-cli',
               messages: [
                 { role: 'user', content: 'hello' },
-                { role: 'status', content: 'Started a new grok session.' },
+                {
+                  role: 'status',
+                  content: 'Started a new grok session.',
+                  ts: '2026-09-05T12:00:00Z',
+                },
                 { role: 'assistant', content: 'hi' },
               ],
             }),
@@ -1018,6 +1022,8 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(started!.className).not.toMatch(/chat-start|chat-end/)
     expect(started!.querySelector('.chat-bubble')).toBeNull()
     expect(started!.querySelector('span')).toHaveTextContent('Started a new grok session.')
+    expect(started!.querySelector('[data-testid="chat-status-time"]')).toBeTruthy()
+    expect(started).toHaveAttribute('data-ts', '2026-09-05T12:00:00Z')
     expect(screen.getByText('hello').closest('.chat-end')).toBeTruthy()
     expect(screen.getByText('hi').closest('.chat-start')).toBeTruthy()
   })

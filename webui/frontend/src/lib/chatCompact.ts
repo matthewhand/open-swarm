@@ -15,6 +15,7 @@ export interface ChatBubble {
   role: 'user' | 'assistant' | 'status'
   text: string
   streaming: boolean
+  ts?: string
 }
 
 export type DisplayItem =
@@ -92,9 +93,9 @@ export function contextTextsForMeter(
   messages: ChatBubble[],
   summaries: ConversationSummary[],
 ): string[] {
-  return buildDisplayItems(messages, summaries).map((item) =>
-    item.kind === 'summary' ? item.summary.body : item.message.text,
-  )
+  return buildDisplayItems(messages, summaries)
+    .filter((item) => item.kind === 'summary' || item.message.role !== 'status')
+    .map((item) => (item.kind === 'summary' ? item.summary.body : item.message.text))
 }
 
 export function isConversationSummary(value: unknown): value is ConversationSummary {

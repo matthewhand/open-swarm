@@ -105,8 +105,31 @@ def test_normalize_keeps_status_role(tmp_path):
         base_dir=tmp_path,
     )
     loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
-    assert loaded["messages"][0] == {"role": "status", "content": "CLI: antigravity → grok"}
+    assert loaded["messages"][0]["role"] == "status"
+    assert loaded["messages"][0]["content"] == "CLI: antigravity → grok"
     assert loaded["messages"][1]["role"] == "user"
+
+
+def test_save_preserves_info_role_and_status_timestamp(tmp_path):
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        [
+            {
+                "role": "info",
+                "content": "Rate limited — retrying with grok",
+                "ts": "2026-09-05T12:00:00Z",
+            },
+            {"role": "status", "content": "CLI: antigravity → grok", "created_at": "2026-09-05T12:01:00Z"},
+            {"role": "user", "content": "hi"},
+        ],
+        base_dir=tmp_path,
+    )
+    loaded = chat_store.load("u1", "cli_agent", base_dir=tmp_path)
+    assert loaded["messages"][0]["role"] == "info"
+    assert loaded["messages"][0]["ts"] == "2026-09-05T12:00:00Z"
+    assert loaded["messages"][1]["role"] == "status"
+    assert loaded["messages"][1]["ts"] == "2026-09-05T12:01:00Z"
     assert chat_store.normalize_agent_id("../etc/passwd") == "etc-passwd"
 
 

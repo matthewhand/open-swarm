@@ -66,4 +66,13 @@ describe('contextTextsForMeter', () => {
     const texts = contextTextsForMeter(messages, [summary(1, 0, 1, 'short')])
     expect(texts).toEqual(['short'])
   })
+
+  it('excludes status/info chrome from the meter (REQ-70)', () => {
+    const messages: ChatBubble[] = [
+      { key: 's', role: 'status', text: 'CLI: antigravity → grok', streaming: false },
+      bubble('1', 'user', 'hello'),
+      bubble('2', 'assistant', 'hi'),
+    ]
+    expect(contextTextsForMeter(messages, [])).toEqual(['hello', 'hi'])
+  })
 })

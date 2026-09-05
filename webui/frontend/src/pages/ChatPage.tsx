@@ -110,6 +110,7 @@ import {
   estimateTokensInContext,
   formatTokenCount,
 } from '../lib/chatMeter'
+import { formatGapLabel, parseCreatedAtMs } from '../lib/chatTime'
 import { workingLabel } from '../lib/chatBubble'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
@@ -153,6 +154,8 @@ interface ChatMessage {
   streaming: boolean
   tools?: ToolCallState[]
   edited?: boolean
+  /** Persist/reload timestamp (ISO). Status/info chrome shows this. */
+  ts?: string
 }
 
 /** Post-login return path for the Django session gate (rooted, same-origin). */
@@ -507,6 +510,7 @@ const ChatPage = () => {
         role: 'status',
         text: statusText,
         streaming: false,
+        ts: new Date().toISOString(),
       }
       setThreads((prev) => ({
         ...prev,
@@ -636,6 +640,7 @@ const ChatPage = () => {
             text: message.content,
             streaming: false,
             edited: message.edited === true,
+            ts: message.ts,
           })),
         }))
       })()
@@ -678,6 +683,7 @@ const ChatPage = () => {
             text: message.content,
             streaming: false,
             edited: message.edited === true,
+            ts: message.ts,
           })),
         }))
       })()
@@ -741,6 +747,7 @@ const ChatPage = () => {
           text: message.content,
           streaming: false,
           edited: message.edited === true,
+          ts: message.ts,
         })),
       }))
     })()
@@ -1774,14 +1781,21 @@ const ChatPage = () => {
             }
             const message = item.message
             if (isStatusRole(message.role)) {
+              const statusMs = parseCreatedAtMs(message.ts)
               return (
                 <p
                   key={message.key}
                   className="os-chat-status"
                   data-role="status"
                   data-testid="chat-status"
+                  data-ts={message.ts || undefined}
                 >
                   <span>{message.text}</span>
+                  {statusMs != null ? (
+                    <time dateTime={message.ts} data-testid="chat-status-time">
+                      {formatGapLabel(statusMs)}
+                    </time>
+                  ) : null}
                 </p>
               )
             }

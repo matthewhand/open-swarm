@@ -44,10 +44,14 @@ def _messages_from_db(user, conversation_id: str) -> list[dict[str, str]]:
         )
     except ChatConversation.DoesNotExist:
         return []
-    return [
-        {"role": row.sender, "content": row.content}
-        for row in chat.chat_messages.all()
-    ]
+    out: list[dict[str, str]] = []
+    for row in chat.chat_messages.all():
+        item = {"role": row.sender, "content": row.content}
+        ts = row.timestamp.isoformat() if getattr(row, "timestamp", None) else ""
+        if ts:
+            item["ts"] = ts
+        out.append(item)
+    return out
 
 
 def _json_body(request) -> dict:
@@ -125,6 +129,9 @@ def _sync_django_and_memory(user, messages, conversation_ids: list[str]) -> None
                 "role": item.get("role", "user"),
                 "content": item.get("content", ""),
             }
+            ts = item.get("ts") or item.get("timestamp")
+            if isinstance(ts, str) and ts:
+                row["ts"] = ts
             if item.get("edited"):
                 row["edited"] = True
             mem_rows.append(row)
@@ -208,11 +215,18 @@ def chat_thread(request):
         body = _json_body(request)
         msg = body.get("message")
         if isinstance(msg, dict) and msg.get("content"):
+            from swarm.core.transcript_roles import stamp_ui_event
+
             current_messages = list(messages or [])
             new_row = {
                 "role": str(msg.get("role") or "status"),
                 "content": str(msg.get("content") or ""),
             }
+            ts = msg.get("ts") or msg.get("timestamp") or msg.get("created_at")
+            if isinstance(ts, str) and ts.strip():
+                new_row["ts"] = ts.strip()
+            if new_row["role"] in ("status", "info") or not new_row.get("ts"):
+                new_row = stamp_ui_event(new_row)
             current_messages.append(new_row)
             try:
                 chat_store.save(
