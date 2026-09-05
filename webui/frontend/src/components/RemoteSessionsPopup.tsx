@@ -1,6 +1,12 @@
-import { useEffect, useRef } from 'react'
-import type { RemoteConnection } from '../lib/api'
+import { useEffect, useRef, useState } from 'react'
+import { Server } from 'lucide-react'
+import { probeRemoteHealth, type RemoteConnection } from '../lib/api'
 import { remoteDisplayName } from '../lib/remotesCatalog'
+import {
+  CHAT_CONNECTION_EVENT,
+  getChatConnection,
+  type ChatConnectionStatus,
+} from '../lib/chatConnection'
 
 export interface RemoteSessionsPopupProps {
   isOpen: boolean
@@ -37,6 +43,10 @@ export default function RemoteSessionsPopup({
   onOpenSettingsRemotes,
 }: RemoteSessionsPopupProps) {
   const popupRef = useRef<HTMLDivElement | null>(null)
+  const [healthMap, setHealthMap] = useState<Record<string, 'pending' | 'ok' | 'failed'>>({})
+  const [wsStatus, setWsStatus] = useState<ChatConnectionStatus>(() => getChatConnection())
+
+  const browsable = remotes.filter(isBrowsableRemote)
 
   useEffect(() => {
     if (!isOpen) return
@@ -60,9 +70,56 @@ export default function RemoteSessionsPopup({
     }
   }, [isOpen, onClose])
 
+  useEffect(() => {
+    if (!isOpen) return
+    const handleStatus = (event: Event) => {
+      const customEvent = event as CustomEvent<ChatConnectionStatus>
+      if (customEvent.detail) {
+        setWsStatus(customEvent.detail)
+      }
+    }
+    window.addEventListener(CHAT_CONNECTION_EVENT, handleStatus)
+    return () => {
+      window.removeEventListener(CHAT_CONNECTION_EVENT, handleStatus)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen || browsable.length === 0) return
+    let active = true
+
+    const initialMap: Record<string, 'pending' | 'ok' | 'failed'> = {}
+    for (const r of browsable) {
+      initialMap[r.id] = 'pending'
+    }
+    setHealthMap(initialMap)
+
+    for (const remote of browsable) {
+      probeRemoteHealth(remote.id)
+        .then((res) => {
+          if (!active) return
+          setHealthMap((prev) => ({
+            ...prev,
+            [remote.id]: res.ok ? 'ok' : 'failed',
+          }))
+        })
+        .catch(() => {
+          if (!active) return
+          setHealthMap((prev) => ({
+            ...prev,
+            [remote.id]: 'failed',
+          }))
+        })
+    }
+
+    return () => {
+      active = false
+    }
+  }, [isOpen, remotes])
+
   if (!isOpen) return null
 
-  const browsable = remotes.filter(isBrowsableRemote)
+  const localWsDown = wsStatus === 'closed' || wsStatus === 'failed'
 
   return (
     <div
@@ -73,8 +130,23 @@ export default function RemoteSessionsPopup({
       data-testid="remote-sessions-popup"
     >
       <div className="p-2">
-        <div className="px-2 py-1 font-semibold text-base-content/80 text-[11px] uppercase tracking-wider">
-          Remote sessions
+        <div className="px-2 py-1 font-semibold text-base-content/80 text-[11px] uppercase tracking-wider flex items-center justify-between">
+          <span>Remote sessions</span>
+          <span
+            className="flex items-center gap-1 text-[10px] lowercase font-normal tracking-normal text-base-content/60"
+            data-testid="popup-local-status"
+          >
+            <span className="relative inline-flex items-center">
+              <Server className="h-3 w-3 text-base-content/50" aria-hidden="true" />
+              {localWsDown && (
+                <span
+                  data-testid="popup-local-health-dot"
+                  className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-error ring-1 ring-base-100"
+                />
+              )}
+            </span>
+            <span>local</span>
+          </span>
         </div>
         {browsable.length === 0 ? (
           <div className="px-2 py-2 text-xs text-base-content/65" data-testid="remotes-empty-state">
@@ -96,6 +168,7 @@ export default function RemoteSessionsPopup({
               const raw = remote.ui_url?.trim() || remote.base_url?.trim() || ''
               const url = cleanRemoteUrl(raw)
               const label = remoteDisplayName(remote)
+              const isFailed = healthMap[remote.id] === 'failed'
               return (
                 <li key={remote.id} role="none">
                   <a
@@ -103,13 +176,27 @@ export default function RemoteSessionsPopup({
                     target="_blank"
                     rel="noopener noreferrer"
                     role="menuitem"
-                    className="flex flex-col items-start gap-0.5 py-1.5 px-2 rounded hover:bg-base-200"
+                    className="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-base-200"
                     onClick={onClose}
                   >
-                    <span className="font-medium text-base-content">{label}</span>
-                    <span className="text-[11px] text-base-content/60 truncate max-w-[14rem]">
-                      {url}
+                    <span
+                      className="relative inline-flex shrink-0 mt-0.5"
+                      data-testid={`remote-server-icon-${remote.id}`}
+                    >
+                      <Server className="h-3.5 w-3.5 text-base-content/70" aria-hidden="true" />
+                      {isFailed && (
+                        <span
+                          data-testid={`remote-health-dot-${remote.id}`}
+                          className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-error ring-1 ring-base-100"
+                        />
+                      )}
                     </span>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="font-medium text-base-content truncate">{label}</span>
+                      <span className="text-[11px] text-base-content/60 truncate max-w-[14rem]">
+                        {url}
+                      </span>
+                    </div>
                   </a>
                 </li>
               )

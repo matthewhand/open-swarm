@@ -87,6 +87,11 @@ import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRoster
 import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
 import { configuredRemotes } from '../lib/remotes'
 import RemoteSessionsPopup from './RemoteSessionsPopup'
+import {
+  CHAT_CONNECTION_EVENT,
+  getChatConnection,
+  type ChatConnectionStatus,
+} from '../lib/chatConnection'
 import { selectStackedFaces } from '../lib/avatarStack'
 import {
   defaultSessionForRemote,
@@ -245,6 +250,22 @@ export default function AgentSidebar({
   const [hoveringHidden, setHoveringHidden] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [remotesPopupOpen, setRemotesPopupOpen] = useState(false)
+  const [localWsStatus, setLocalWsStatus] = useState<ChatConnectionStatus>(() => getChatConnection())
+
+  useEffect(() => {
+    const handleStatus = (event: Event) => {
+      const customEvent = event as CustomEvent<ChatConnectionStatus>
+      if (customEvent.detail) {
+        setLocalWsStatus(customEvent.detail)
+      }
+    }
+    window.addEventListener(CHAT_CONNECTION_EVENT, handleStatus)
+    return () => {
+      window.removeEventListener(CHAT_CONNECTION_EVENT, handleStatus)
+    }
+  }, [])
+
+  const localWsDown = localWsStatus === 'closed' || localWsStatus === 'failed'
   const [hostname, setHostname] = useState(() => loadHostname())
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [settingsTick, setSettingsTick] = useState(0)
@@ -1931,7 +1952,7 @@ export default function AgentSidebar({
           <div className="relative os-rail-hostname-row">
             <button
               type="button"
-              className="os-rail-hostname-icon btn btn-ghost btn-xs btn-square h-5 w-5 min-h-0 text-base-content/60 hover:text-base-content"
+              className="os-rail-hostname-icon btn btn-ghost btn-xs btn-square h-5 w-5 min-h-0 text-base-content/60 hover:text-base-content relative"
               aria-label="Remote sessions"
               aria-expanded={remotesPopupOpen}
               aria-haspopup="menu"
@@ -1939,6 +1960,12 @@ export default function AgentSidebar({
               onClick={() => setRemotesPopupOpen((open) => !open)}
             >
               <Server className="h-3.5 w-3.5" aria-hidden="true" />
+              {localWsDown && (
+                <span
+                  data-testid="local-server-status-dot"
+                  className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-error ring-1 ring-base-100"
+                />
+              )}
             </button>
             <label className="sr-only" htmlFor="os-rail-hostname">
               Hostname
