@@ -150,16 +150,17 @@
       <div>
         <h2 class="dashboard-title" id="avatar-theme-title">Avatar theme</h2>
         <p class="dashboard-subtitle mb-0">
-          Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles.
-          Bee is an optional choice: geometric WebUI brand marks (side-on and face-only, googly eyes).
-          Existing users stay on their current theme. The choice stays in this browser and does not rewrite blueprints.
+          Themes are optional choices. Default is the static grey circle. Blobs are per-agent
+          shapes with slit eyes. Bee is geometric WebUI brand marks (side-on and face-only, googly eyes).
+          Existing users keep their current theme; Bee is never auto-applied.
+          The choice stays in this browser and does not rewrite blueprints.
         </p>
       </div>
     </div>
     <label class="form-label mt-3" for="os-avatar-theme">Avatar theme</label>
     <select id="os-avatar-theme" class="form-select os-avatar-theme-select">
-      <option value="blobs">Blobs with eyes (default)</option>
-      <option value="bland">Bland static circle</option>
+      <option value="bland">Default</option>
+      <option value="blobs">Blobs</option>
       <option value="bee">Bee</option>
     </select>
   </section>

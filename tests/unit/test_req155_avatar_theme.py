@@ -8,8 +8,8 @@ def test_req155_settings_dashboard_template_avatar_options():
     content = template_path.read_text(encoding="utf-8")
 
     assert 'id="os-avatar-theme"' in content
-    assert '<option value="blobs">Blobs with eyes (default)</option>' in content
-    assert '<option value="bland">Bland static circle</option>' in content
+    assert '<option value="bland">Default</option>' in content
+    assert '<option value="blobs">Blobs</option>' in content
     assert '<option value="bee">Bee</option>' in content
 
 
@@ -42,7 +42,8 @@ def test_req155_avatar_theme_picker_labels():
     assert picker_path.exists()
     content = picker_path.read_text(encoding="utf-8")
 
-    assert "Blobs with eyes (default)" in content
-    assert "Bland static circle" in content
+    assert ">Default<" in content
+    assert ">Blobs<" in content
     assert ">Bee<" in content
-    assert "optional choice" in content
+    assert "optional choices" in content
+    assert "never auto-applied" in content

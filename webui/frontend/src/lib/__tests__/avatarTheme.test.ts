@@ -34,11 +34,18 @@ describe('avatar theme persist', () => {
     expect(loadAvatarTheme()).toBe('bee')
   })
 
-  it('keeps Bee opt-in: default and empty storage stay Blobs', () => {
+  it('keeps Bee opt-in: empty storage stays Blobs and is never Bee', () => {
     expect(defaultAvatarTheme()).toBe('blobs')
     expect(defaultAvatarTheme()).not.toBe('bee')
     expect(loadAvatarTheme()).toBe('blobs')
     expect(localStorage.getItem(AVATAR_THEME_STORAGE_KEY)).toBeNull()
+  })
+
+  it('keeps Default (bland) as its own catalog choice without collapsing to Bee', () => {
+    expect(saveAvatarTheme('bland')).toBe('bland')
+    expect(loadAvatarTheme()).toBe('bland')
+    expect(loadAvatarTheme()).not.toBe('bee')
+    expect(saveAvatarTheme('default')).toBe('bland')
   })
 
   it('migrates legacy default to bland', () => {
