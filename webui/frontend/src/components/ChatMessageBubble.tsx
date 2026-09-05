@@ -164,7 +164,7 @@ export function ChatMessageBubble({
         </div>
       ) : (
         <div
-          className={`chat-bubble ${
+          className={`chat-bubble select-text ${
             role === 'user' ? 'bg-neutral text-neutral-content' : 'bg-base-200 text-base-content'
           } ${canEdit && !streaming ? 'cursor-pointer' : ''}`}
           data-testid="chat-bubble"
