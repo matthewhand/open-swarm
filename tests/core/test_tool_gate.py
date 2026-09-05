@@ -152,12 +152,21 @@ def test_tool_gate_from_team_unwired_vs_wired():
     assert wired.agent["name"] == "ToolGate"
 
 
-def test_invoke_fn_single_token_yes():
+def test_invoke_fn_verdict_tool_yes():
+    from swarm.core.classifier_verdict import submit_gate_verdict
+
     gate = type("GateAgent", (), {"name": "gate", "role": "gate"})()
+
+    def invoke(_agent, _prompt):
+        submit_gate_verdict(verdict="yes", reason="shell is high-risk")
+        return "ignored prose"
+
     verdict = classify_pending_tool_call(
         gate=gate,
         tool_name="shell",
-        invoke_fn=lambda _agent, _prompt: "YES",
+        invoke_fn=invoke,
     )
     assert verdict.dangerous is True
-    assert "YES" in GATE_INSTRUCTIONS or "single token" in GATE_INSTRUCTIONS.lower()
+    assert verdict.failed_closed is False
+    assert "submit_gate_verdict" in GATE_INSTRUCTIONS
+    assert "MUST call" in GATE_INSTRUCTIONS

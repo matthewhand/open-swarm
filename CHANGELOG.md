@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - **REQ-123 local Compose Postgres:** `docker compose` starts official Postgres 16 (volume + healthcheck) and wires `swarm` to it via `DATABASE_URL`. Cloud operators override `DATABASE_URL` / `POSTGRES_*`. Neon is documented as test/CI/experiments only (free-tier ~day 17). Unreachable / quota Postgres **exits 78** with a clear redacted message. pytest stays on SQLite; CI adds a local Postgres `migrate` smoke job. Docs: `docs/DATABASE.md`. Fixes #508.
 
 ### Added
+- **REQ-108 classifier verdict tools:** Gate and skeptic (and similar yes/no-ish roles) finish by calling `submit_gate_verdict` / `submit_skeptic_verdict` — never by scraping YES/NO or PASS/FAIL from prose. Role instructions name that tool. If generation ends without the call, the runtime nudges (default 3, `SWARM_CLASSIFIER_NUDGES`) then **fail closed**: gate is dangerous / needs-human / block; skeptic is FAIL. Unwired gate stay fail-open. Tests: `tests/core/test_classifier_verdict.py`. Fixes #476.
 - **REQ-135 showoff demo names:** Two naming modes — Mode A kind-clear (`Grok CLI`, `LiteLLM API`, `Hermes Remote`, `OpenMousBot Remote`) vs Mode B personas (`Chief of Staff`, `BA`, `Engineer`, `Tester`, `Skeptic`). Demo seed/fixture is additive and labeled Demo. Member `name` survives roster normalize + `/v1/team-rosters/`. SoT: `docs/SHOWOFF_DEMO_AGENTS.md`. `scripts/seed_demo_agents.py --reset`. Fixes #526.
 
 ### Added

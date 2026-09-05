@@ -116,7 +116,8 @@ def test_codegen_wires_gate_and_skeptic_roles():
     assert "'role': 'skeptic'" in code or '"role": "skeptic"' in code
     assert "gate_agent" in code
     assert "skeptic_agent" in code
-    assert "single token" in code.lower() or "Classify" in code
+    assert "submit_gate_verdict" in code or "attach_classifier_tools" in code
+    assert "Classify" in code or "submit_gate_verdict" in code
 
 
 def test_api_views_serialize_role_fields():

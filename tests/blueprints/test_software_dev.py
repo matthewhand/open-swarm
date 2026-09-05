@@ -157,9 +157,11 @@ def test_as_tool_specialists_wired(bp):
     assert "write_file" not in _tool_names(sk)
     assert "review" in _tool_names(sk)
     assert "implement" not in _tool_names(sk)
+    assert "submit_skeptic_verdict" in _tool_names(sk)
     assert "coding-requirements-gate" in COS_INSTRUCTIONS
     assert "quoted Issue" in ENGINEER_INSTRUCTIONS
     assert "do NOT implement" in SKEPTIC_INSTRUCTIONS.lower() or "do not implement" in SKEPTIC_INSTRUCTIONS.lower()
+    assert "submit_skeptic_verdict" in SKEPTIC_INSTRUCTIONS
 
 
 def test_seats_are_isolated_objects_and_prompts(bp):

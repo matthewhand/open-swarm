@@ -24,16 +24,17 @@ ROLE_BRIEFS: dict[str, str] = {
         "short multiple-choice when you are stuck, and never takes over the work."
     ),
     "gate": (
-        "Gate is a YES/NO classifier for a pending tool call. YES means "
-        "dangerous (elicit the operator); NO means safe (proceed). If no gate "
-        "is wired on the roster, the gate is fail-open — every tool call is "
-        "approved and you are never asked."
+        "Gate is a YES/NO classifier for a pending tool call. It finishes by "
+        "calling submit_gate_verdict (verdict yes = dangerous / elicit the "
+        "operator; no = safe / proceed). Prose is never parsed as the verdict. "
+        "If no gate is wired on the roster, the gate is fail-open — every tool "
+        "call is approved and you are never asked."
     ),
     "skeptic": (
         "Skeptic is a bounded retry reviewer. It sees the original prompt plus "
-        "the agent's output. First line: YES if accomplished, NO if not. On NO "
-        "it hands concise findings back (max 2 retries). On YES it stops. It "
-        "does not nag."
+        "the agent's output and finishes by calling submit_skeptic_verdict "
+        "(pass or fail). On fail it hands concise findings back (max 2 retries). "
+        "On pass it stops. It does not nag. Prose is never parsed as the verdict."
     ),
     "cos": (
         "Chief of Staff (CoS) talks to any team. It routes the operator to the "
@@ -104,18 +105,26 @@ ROLE_FALLBACK_SOURCE = {
         ")\n"
     ),
     "gate": (
-        "# Blueprint recipe — Gate (YES/NO)\n"
+        "# Blueprint recipe — Gate (YES/NO via submit_gate_verdict)\n"
         "# Unwired gate is fail-open: every tool call is approved.\n"
         "GATE_INSTRUCTIONS = (\n"
-        '    "You are a tool-call gate. Reply YES if dangerous, NO if not."\n'
+        '    "You are a tool-call gate. When done, call submit_gate_verdict "\n'
+        '    "with verdict=\\"yes\\" if dangerous or verdict=\\"no\\" if not."\n'
         ")\n"
+        "def submit_gate_verdict(verdict: str, reason: str = \"\") -> str:\n"
+        '    """Finish the gate determination. Example: submit_gate_verdict(\\"yes\\", \\"rm -rf\\")."""\n'
+        "    return verdict\n"
     ),
     "skeptic": (
-        "# Blueprint recipe — Skeptic (bounded retry)\n"
+        "# Blueprint recipe — Skeptic (bounded retry via submit_skeptic_verdict)\n"
         "SKEPTIC_MAX_RETRIES = 2\n"
         "SKEPTIC_INSTRUCTIONS = (\n"
-        '    "First line: YES if accomplished, NO if not. Max 2 retries."\n'
+        '    "When done, call submit_skeptic_verdict with verdict=\\"pass\\" or \\"fail\\". "\n'
+        '    "Max 2 retries. Prose is not a verdict."\n'
         ")\n"
+        "def submit_skeptic_verdict(verdict: str, reason: str = \"\") -> str:\n"
+        '    """Finish the skeptic determination. Example: submit_skeptic_verdict(\\"fail\\", \\"missing file\\")."""\n'
+        "    return verdict\n"
     ),
     "cos": (
         "# Blueprint recipe — Chief of Staff (talk-to-any-team)\n"
@@ -305,12 +314,14 @@ def _handoff_notes(kind: str, role: str, meta: dict[str, Any], roster: dict[str,
     parts: list[str] = []
     if role == "gate":
         parts.append(
-            "Gate is invoked as_tool on a pending tool call (YES/NO). "
-            "Unwired gate is fail-open."
+            "Gate is invoked as_tool on a pending tool call and finishes via "
+            "submit_gate_verdict (yes/no). Unwired gate is fail-open. "
+            "Missing tool call nudges then fail-closes (needs-human / block)."
         )
     elif role == "skeptic":
         parts.append(
-            "Skeptic is invoked as_tool after a run; findings feed a bounded retry (max 2)."
+            "Skeptic is invoked as_tool after a run and finishes via "
+            "submit_skeptic_verdict (pass/fail); findings feed a bounded retry (max 2)."
         )
     elif role == "support":
         parts.append("Support talks about other agents; it does not take over their tools.")

@@ -2,7 +2,9 @@
 
 import pytest
 
+from swarm.core.classifier_verdict import SKEPTIC_VERDICT_TOOL, submit_skeptic_verdict
 from swarm.core.skeptic import (
+    SKEPTIC_INSTRUCTIONS,
     SKEPTIC_MAX_RETRIES,
     parse_skeptic_verdict,
     run_with_skeptic,
@@ -135,6 +137,46 @@ async def test_retries_are_bounded_to_two():
     assert SKEPTIC_MAX_RETRIES == 2
     assert result.retries == 2
     assert result.accomplished is False
+    assert result.nagged is False
+
+
+def test_skeptic_instructions_name_verdict_tool():
+    assert SKEPTIC_VERDICT_TOOL in SKEPTIC_INSTRUCTIONS
+    assert "MUST call" in SKEPTIC_INSTRUCTIONS
+
+
+@pytest.mark.asyncio
+async def test_invoke_fn_prose_fail_closes_not_parsed_as_pass():
+    def invoke(_agent, _prompt: str) -> str:
+        return "YES\nEverything looks accomplished."
+
+    result = await run_with_skeptic(
+        agent="original",
+        prompt="Write summary.md",
+        skeptic="skeptic",
+        max_retries=0,
+        run_fn=lambda _a, _p: "summary.md written",
+        invoke_fn=invoke,
+    )
+    assert result.accomplished is False
+    assert any(SKEPTIC_VERDICT_TOOL in item for item in result.findings)
+
+
+@pytest.mark.asyncio
+async def test_invoke_fn_verdict_tool_pass_stops():
+    def invoke(_agent, _prompt: str) -> str:
+        submit_skeptic_verdict(verdict="pass", reason="file on disk")
+        return "ignored prose"
+
+    result = await run_with_skeptic(
+        agent="original",
+        prompt="Write summary.md",
+        skeptic="skeptic",
+        run_fn=lambda _a, _p: "summary.md written",
+        invoke_fn=invoke,
+    )
+    assert result.accomplished is True
+    assert result.retries == 0
     assert result.nagged is False
 
 

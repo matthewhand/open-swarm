@@ -16,12 +16,12 @@ const ROLE_BRIEFS: Record<string, { title: string; explanation: string }> = {
   gate: {
     title: 'Gate',
     explanation:
-      'YES/NO gate: decides whether a handoff or action proceeds. A NO stops the hop; a YES lets the next agent run.',
+      'YES/NO gate: finishes by calling submit_gate_verdict. yes = dangerous (elicit); no = proceed. Prose is never parsed as the verdict.',
   },
   skeptic: {
     title: 'Skeptic',
     explanation:
-      'Retry critic: challenges a draft, asks for evidence, and can send the author back for another pass instead of accepting the first answer.',
+      'Retry critic: finishes by calling submit_skeptic_verdict (pass/fail). Fail can send the author back for another pass. Prose is never parsed as the verdict.',
   },
   cos: {
     title: 'Chief of Staff',

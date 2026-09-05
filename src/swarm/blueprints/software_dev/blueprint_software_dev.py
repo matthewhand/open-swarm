@@ -48,6 +48,7 @@ from swarm.blueprints.software_dev.roles import (
     skeptic_verdict,
 )
 from swarm.core.blueprint_base import BlueprintBase
+from swarm.core.classifier_verdict import attach_classifier_tools
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +307,7 @@ class SoftwareDevBlueprint(BlueprintBase):
                 SKEPTIC_INSTRUCTIONS,
                 _tools("read_file", "list_files", "review"),
             )
+            attach_classifier_tools(skeptic, "skeptic")
             talk_to = self._cfg().get("talk_to") or SEAT_COS
             cos = self._make_agent(
                 "coding-requirements-gate",

@@ -11,9 +11,9 @@ export const ROLE_BRIEFS: Record<string, string> = {
   support:
     'Support is Socratic: it talks about the other agents and how this team is wired. It asks one clarifying question at a time, offers a short multiple-choice when you are stuck, and never takes over the work.',
   gate:
-    'Gate is a YES/NO classifier for a pending tool call. YES means dangerous (elicit the operator); NO means safe (proceed). If no gate is wired on the roster, the gate is fail-open — every tool call is approved and you are never asked.',
+    'Gate is a YES/NO classifier for a pending tool call. It finishes by calling submit_gate_verdict (verdict yes = dangerous / elicit the operator; no = safe / proceed). Prose is never parsed as the verdict. If no gate is wired on the roster, the gate is fail-open — every tool call is approved and you are never asked.',
   skeptic:
-    'Skeptic is a bounded retry reviewer. It sees the original prompt plus the agent’s output. First line: YES if accomplished, NO if not. On NO it hands concise findings back (max 2 retries). On YES it stops. It does not nag.',
+    'Skeptic is a bounded retry reviewer. It sees the original prompt plus the agent’s output and finishes by calling submit_skeptic_verdict (pass or fail). On fail it hands concise findings back (max 2 retries). On pass it stops. It does not nag. Prose is never parsed as the verdict.',
   chief_of_staff:
     'Chief of Staff (CoS) talks to any team. It routes the operator to the right roster and coordinates across teams-of-teams instead of doing the specialist work itself.',
   cos:
@@ -144,10 +144,10 @@ export function defaultExtra(kind: DefinitionKind, role: string): string {
 
 export function handoffNote(kind: DefinitionKind, role: string): string {
   if (role === 'gate') {
-    return 'Gate is invoked as_tool on a pending tool call (YES/NO). Unwired gate is fail-open.'
+    return 'Gate is invoked as_tool on a pending tool call and finishes via submit_gate_verdict (yes/no). Unwired gate is fail-open. Missing tool call nudges then fail-closes (needs-human / block).'
   }
   if (role === 'skeptic') {
-    return 'Skeptic is invoked as_tool after a run; findings feed a bounded retry (max 2).'
+    return 'Skeptic is invoked as_tool after a run and finishes via submit_skeptic_verdict (pass/fail); findings feed a bounded retry (max 2).'
   }
   if (role === 'support') {
     return 'Support talks about other agents; it does not take over their tools.'

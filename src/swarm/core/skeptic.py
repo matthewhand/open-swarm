@@ -4,6 +4,8 @@ When a ``skeptic`` is wired onto a team:
 
 * After the original agent runs, the skeptic sees the **same prompt** that was
   sent plus the agent's output.
+* The skeptic finishes by calling ``submit_skeptic_verdict`` (REQ-108). Prose
+  is never a verdict. Missing tool → continue nudges, then FAIL (fail closed).
 * If the work was **not** accomplished, findings are handed back to the
   original agent (openai-agents as-tool / retry loop) for another attempt.
 * Retries are bounded (default 2). Never an infinite loop.
@@ -24,20 +26,17 @@ from swarm.core.agent_roles import (
     find_role_agent,
     normalize_agent_role,
 )
-from swarm.core.async_utils import run_coro_sync
+from swarm.core.classifier_verdict import (
+    SKEPTIC_INSTRUCTIONS,
+    SKEPTIC_VERDICT_TOOL,
+    attach_classifier_tools,
+    run_classifier_until_verdict,
+)
 
 logger = logging.getLogger(__name__)
 
 SKEPTIC_ROLE = ROLE_SKEPTIC
 SKEPTIC_MAX_RETRIES = 2
-
-SKEPTIC_INSTRUCTIONS = (
-    "You are a skeptic. You are given the prompt that was sent to the original "
-    "agent and that agent's output. Investigate whether the work was accomplished. "
-    "First line: a single token YES if accomplished, NO if not. "
-    "If NO, follow with concise findings the original agent can use to retry. "
-    "If YES, stop. Do not nag, do not add extra critique."
-)
 
 _YES = frozenset({"YES", "Y", "ACCOMPLISHED", "TRUE", "DONE", "1"})
 _NO = frozenset({"NO", "N", "FALSE", "INCOMPLETE", "FAIL", "0"})
@@ -51,6 +50,9 @@ class SkepticVerdict:
     accomplished: bool
     findings: str = ""
     raw: str = ""
+    failed_closed: bool = False
+    nudges: int = 0
+    tool_name: str = SKEPTIC_VERDICT_TOOL
 
 
 @dataclass
@@ -64,7 +66,12 @@ class SkepticRunResult:
 
 
 def parse_skeptic_verdict(text: Any) -> SkepticVerdict:
-    """Parse YES/NO (first token) plus optional findings."""
+    """Parse a structured or programmatic review result.
+
+    Used by injected ``review_fn`` fixtures. The live classifier path (REQ-108)
+    accepts only ``submit_skeptic_verdict`` — it never scrapes the last
+    assistant message as PASS/FAIL.
+    """
     if isinstance(text, bool):
         return SkepticVerdict(accomplished=text, raw=str(text))
     if isinstance(text, dict):
@@ -101,8 +108,9 @@ def _review_prompt(original_prompt: str, output: str) -> str:
         f"{original_prompt}\n\n"
         "Agent output:\n"
         f"{output}\n\n"
-        "Was the work accomplished? First line YES or NO only. "
-        "If NO, add findings for a retry."
+        "Was the work accomplished? When finished, call "
+        f"`{SKEPTIC_VERDICT_TOOL}` (verdict=\"pass\" or verdict=\"fail\"). "
+        "On fail, include concise findings in reason. Do not finish with prose."
     )
 
 
@@ -136,40 +144,32 @@ def _invoke_skeptic(
     if review_fn is not None:
         return parse_skeptic_verdict(review_fn(skeptic, original_prompt, output))
     prompt = _review_prompt(original_prompt, output)
-    if invoke_fn is not None:
-        return parse_skeptic_verdict(invoke_fn(skeptic, prompt))
     review = getattr(skeptic, "review", None)
-    if callable(review):
+    if callable(review) and invoke_fn is None:
         return parse_skeptic_verdict(review(original_prompt, output))
-    respond = getattr(skeptic, "respond", None)
-    if callable(respond):
-        return parse_skeptic_verdict(respond(prompt))
-    as_tool = getattr(skeptic, "as_tool", None)
-    if callable(as_tool):
-        try:
-            tool = as_tool(
-                tool_name=getattr(skeptic, "name", None) or "skeptic",
-                tool_description="Review whether the original agent accomplished the work.",
-            )
-            on_invoke = getattr(tool, "on_invoke_tool", None)
-            if callable(on_invoke):
-                result = on_invoke(None, prompt)
-                if hasattr(result, "__await__"):
-                    result = run_coro_sync(result)
-                return parse_skeptic_verdict(result)
-        except Exception as exc:
-            logger.debug("skeptic as_tool invoke skipped: %s", exc)
-    try:
-        from agents import Runner
-
-        async def _run() -> str:
-            result = await Runner.run(skeptic, prompt, max_turns=1)
-            return _stringify_output(result)
-
-        return parse_skeptic_verdict(run_coro_sync(_run()))
-    except Exception as exc:
-        logger.info("skeptic Runner unavailable (%s)", exc)
-        raise
+    turn = run_classifier_until_verdict(
+        agent=skeptic,
+        prompt=prompt,
+        role="skeptic",
+        invoke_fn=invoke_fn,
+    )
+    payload = turn.payload or {}
+    findings = str(payload.get("reason") or payload.get("findings") or "")
+    if turn.failed_closed:
+        return SkepticVerdict(
+            accomplished=False,
+            findings=findings or (turn.error or turn.raw),
+            raw=turn.raw or turn.error or "",
+            failed_closed=True,
+            nudges=turn.nudges,
+        )
+    return SkepticVerdict(
+        accomplished=bool(payload.get("accomplished")),
+        findings=findings,
+        raw=turn.raw or str(payload),
+        failed_closed=False,
+        nudges=turn.nudges,
+    )
 
 
 async def _call_run_fn(run_fn: RunFn, agent: Any, prompt: str) -> Any:
@@ -276,6 +276,7 @@ def attach_skeptic_as_tool(coordinator: Any, skeptic: Any) -> Any:
     if coordinator is None or skeptic is None:
         return coordinator
     attach_role(skeptic, ROLE_SKEPTIC)
+    attach_classifier_tools(skeptic, "skeptic")
     as_tool = getattr(skeptic, "as_tool", None)
     if not callable(as_tool):
         return coordinator
@@ -284,7 +285,7 @@ def attach_skeptic_as_tool(coordinator: Any, skeptic: Any) -> Any:
             tool_name=getattr(skeptic, "name", None) or "skeptic",
             tool_description=(
                 "Review whether the original prompt was accomplished. "
-                "Returns YES or NO plus findings."
+                f"The skeptic finishes by calling {SKEPTIC_VERDICT_TOOL}."
             ),
         )
         tools = list(getattr(coordinator, "tools", None) or [])

@@ -732,17 +732,16 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     blueprint_id = _slugify(team_name)
 
     from swarm.core.agent_roles import ROLE_GATE, ROLE_SKEPTIC, normalize_agent_role
-    from swarm.core.skeptic import SKEPTIC_INSTRUCTIONS
-    from swarm.core.tool_gate import GATE_INSTRUCTIONS
+    from swarm.core.classifier_verdict import ensure_classifier_instructions
 
     agents = []
     for agent in team["agents"]:
         role = normalize_agent_role(agent.get("role"))
         instructions = agent.get("system_prompt") or agent.get("instructions") or f"You are {agent['name']}."
-        if role == ROLE_GATE and GATE_INSTRUCTIONS not in instructions:
-            instructions = f"{GATE_INSTRUCTIONS}\n\n{instructions}"
-        if role == ROLE_SKEPTIC and SKEPTIC_INSTRUCTIONS not in instructions:
-            instructions = f"{SKEPTIC_INSTRUCTIONS}\n\n{instructions}"
+        if role == ROLE_GATE:
+            instructions = ensure_classifier_instructions(instructions, "gate")
+        if role == ROLE_SKEPTIC:
+            instructions = ensure_classifier_instructions(instructions, "skeptic")
         agents.append({
             "name": agent["name"],
             "role": role,
@@ -828,6 +827,7 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     lines.append("")
     lines.append("from swarm.core.agent_roles import find_role_agent, normalize_agent_role")
     lines.append("from swarm.core.blueprint_base import BlueprintBase")
+    lines.append("from swarm.core.classifier_verdict import attach_classifier_tools")
     lines.append("from swarm.core.skeptic import attach_skeptic_as_tool, run_with_skeptic")
     lines.append("from swarm.core.suggestions import attach_suggestions_as_tool")
     lines.append("from swarm.core.tool_gate import attach_gate_as_tool, wrap_tools_with_gate")
@@ -882,6 +882,8 @@ def _render_swarm_blueprint_code(team: dict[str, Any]) -> str:
     lines.append("                mcp_servers=[],")
     lines.append("            )")
     lines.append("            agents[name].role = role")
+    lines.append("            if role in (\"gate\", \"skeptic\"):")
+    lines.append("                attach_classifier_tools(agents[name], role)")
     lines.append("        return agents")
     lines.append("")
     lines.append("    def elicit_tool_approval(self, tool_name, arguments):")

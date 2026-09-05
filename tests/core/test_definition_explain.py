@@ -16,7 +16,9 @@ from swarm.core.definition_explain import (
 
 def test_static_briefs_cover_roles_without_llm():
     assert "YES/NO" in static_explanation("role", "gate")
+    assert "submit_gate_verdict" in static_explanation("role", "gate")
     assert "retry" in static_explanation("role", "skeptic")
+    assert "submit_skeptic_verdict" in static_explanation("role", "skeptic")
     assert "Socratic" in static_explanation("role", "support")
     assert "talks to any team" in static_explanation("role", "cos")
     assert "roster" in static_explanation("team", "default")
