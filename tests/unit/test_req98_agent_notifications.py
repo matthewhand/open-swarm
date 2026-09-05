@@ -13,7 +13,7 @@ def test_notify_store_is_local_swarm_key_not_neon():
     content = NOTIFY_TS.read_text(encoding="utf-8")
     assert "export const NOTIFY_AGENTS_STORAGE_KEY = 'swarm_notify_agents'" in content
     assert "localStorage" in content
-    assert "neon" not in content.lower()
+    assert "/v1/preferences" not in content
     assert "Notification.requestPermission" in content
     assert "document.hidden" in content
     assert "new Notification(" in content

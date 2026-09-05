@@ -511,6 +511,8 @@ describe('ChatPage Send path with mock inference', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    localStorage.removeItem('swarm_notify_agents')
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
   })
 
   it('renders mock assistant content after the user types and clicks Send', async () => {
@@ -661,7 +663,6 @@ describe('ChatPage Send button honesty while streaming', () => {
       )
     })
     expect(instances).toHaveLength(0)
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
   })
 })
 

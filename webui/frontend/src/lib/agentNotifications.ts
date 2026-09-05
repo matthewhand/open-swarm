@@ -2,8 +2,8 @@
  * REQ-98: Per-agent browser Notification popups.
  *
  * Opt-in IDs cache in localStorage (`swarm_notify_agents`) — same persistence
- * family as hide/pin/unread. Default is Off. Not written to Neon or the
- * server preferences bag.
+ * family as hide/pin/unread. Default is Off. Not written to the server
+ * preferences bag.
  *
  * Visibility rule: notify when the page/tab is hidden OR a different rail
  * row is selected. Never on every streaming token.
