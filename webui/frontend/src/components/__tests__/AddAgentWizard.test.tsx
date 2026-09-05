@@ -386,7 +386,7 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
     expect(screen.queryByTestId('input-remote-url')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('submit-create-agent'))
-    expect(await screen.findByText(/Pick a remote/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Select a configured remote/i)).toBeInTheDocument()
     expect(createRemoteSpy).not.toHaveBeenCalled()
 
     fireEvent.change(select, { target: { value: 'omb' } })

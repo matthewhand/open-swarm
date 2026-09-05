@@ -417,7 +417,7 @@ export default function AddAgentWizard({
       } else if (selectedKind === 'remote') {
         if (configuredRemoteRows.length > 0) {
           const picked = configuredRemoteRows.find((row) => row.id === pickedRemoteId)
-          if (!picked) throw new Error('Pick a remote')
+          if (!picked) throw new Error('Select a configured remote')
           saveAgentRemoteBinding(picked.id, {
             id: picked.id,
             kind: picked.kind || picked.id,
