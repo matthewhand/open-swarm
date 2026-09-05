@@ -2,6 +2,7 @@ import type { Agent } from '../types/agent'
 import type { CliCatalogEntry, LlmProfileEntry } from './agent-api'
 import { agentTypeOf } from './agent-types'
 import { isSupportAgent } from './starter-agents'
+import { SUPPORT_JOURNEY_KICKSTART } from './supportJourney'
 
 export function inferenceConfigured(opts: {
   llmProfiles: LlmProfileEntry[]
@@ -17,34 +18,34 @@ export function supportQuickstarts(inferenceOk: boolean): { key: string; label: 
   return [
     {
       key: 'A',
-      label: 'Explain Open Swarm',
+      label: SUPPORT_JOURNEY_KICKSTART[0],
       prompt:
-        'Explain Open Swarm: what it is, how agents, teams, and blueprints fit together, and how I talk to them here.',
+        'Create a team: walk me through a local roster of personas, optional Chief of Staff, then Save as team. Chat stays the main view.',
     },
     {
       key: 'B',
-      label: 'Build my first team',
+      label: SUPPORT_JOURNEY_KICKSTART[1],
       prompt:
-        'Walk me through building my first agent team in this UI: New agent, CLI vs API vs remote, then Save as team.',
+        'Add a remote: connect Hermes, OpenMousBot, or Herdr to a setup I already have. Env var names only — no secrets.',
     },
     {
       key: 'C',
-      label: 'Code a blueprint',
+      label: SUPPORT_JOURNEY_KICKSTART[2],
       prompt:
-        'Help me code a BlueprintBase Python class for a small team. Show a complete module in a python fenced block.',
+        'Wire a CLI: add a host CLI agent and list the models it reports. Be honest that the live CLI session stays outside Open Swarm.',
     },
     inferenceOk
       ? {
           key: 'D',
-          label: 'Customise experience',
+          label: 'Code a blueprint',
           prompt:
-            'Help me customise this experience: hide extra agents, pick CLI vs API vs remote, and set a default LLM.',
+            'Help me code an ApiKindBase / CliKindBase / RemoteKindBase team. Show a complete module in a python fenced block. One pane for CLI ↔ API ↔ remotes.',
         }
       : {
           key: 'D',
           label: 'Configure inference',
           prompt:
-            'Inference is not configured. How do I set LiteLLM (http://10.0.0.30:8000, model auxiliary) or install grok/agy?',
+            'Inference is not configured. How do I set LiteLLM or install grok/agy from the Settings overlay — no invented host or secrets?',
         },
   ]
 }
@@ -77,7 +78,7 @@ export function buildSupportBriefing(opts: {
       ]
 
   return [
-    'I am **Support**. I help you learn Open Swarm, configure inference, and build your first agent team.',
+    'I am **Support**. I onboard your open-swarm journey: create a team, add a remote, wire a CLI, and bridge CLI ↔ API ↔ remotes in one pane.',
     '',
     '### Agents on this desk',
     lines.length ? lines.join('\n') : '- (catalog hidden — CLI, API, and Remote starters are in the sidebar)',
@@ -86,7 +87,7 @@ export function buildSupportBriefing(opts: {
     ...inferenceLines,
     '',
     '### Next',
-    'Build a first team with **New agent**, then **Save as team**. I can also **code a BlueprintBase** module in a Python block for an API agent.',
+    'Start with **Create a team**, **Add a remote**, or **Wire a CLI**. I can also **code a kind-base** module (ApiKindBase / CliKindBase / RemoteKindBase) in a Python block.',
     '',
     'Shortcuts: [Teams](/teams/launch/) · [Blueprint creator](/blueprint-library/creator/) · [Settings](/settings/)',
   ].join('\n')

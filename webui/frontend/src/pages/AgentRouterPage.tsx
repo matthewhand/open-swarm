@@ -910,7 +910,7 @@ export default function AgentRouterPage() {
                   Get started
                 </div>
                 <div className="text-xs text-base-content/60 mb-4">
-                  Explain the product, tune the sidebar, install a CLI, or wire a remote.
+                  Create a team, add a remote, or wire a CLI — one pane, no Settings maze.
                 </div>
 
                 <div className="space-y-2">

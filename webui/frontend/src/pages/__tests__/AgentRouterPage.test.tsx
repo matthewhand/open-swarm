@@ -679,12 +679,12 @@ describe('AgentRouterPage integration', () => {
   it('populates input from quick prompt starter pill', async () => {
     renderPage()
 
-    const pill = screen.getByRole('button', { name: /Explain Open Swarm/i })
+    const pill = screen.getByRole('button', { name: /Create a team/i })
     fireEvent.click(pill)
 
     const input = getChatInput()
     expect(input).toHaveValue(
-      'Explain Open Swarm: what it is, how agents, teams, and blueprints fit together, and how I talk to them here.',
+      'Create a team: walk me through a local roster of personas, optional Chief of Staff, then Save as team. Chat stays the main view.',
     )
   })
 

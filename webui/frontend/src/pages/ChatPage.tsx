@@ -197,6 +197,10 @@ import {
 import { insertCliSessionNotice } from '../lib/chatTranscript'
 import { fetchAgentSuggestions, shouldShowSuggestionChips } from '../lib/suggestions'
 import {
+  isSupportJourneyConsumer,
+  supportJourneyKickstart,
+} from '../lib/supportJourney'
+import {
   missingSessionNotice,
   restoreKindForAgent,
   restoredSessionNotice,
@@ -1728,10 +1732,23 @@ const ChatPage = () => {
 
   const streamingMessage = messages.find((message) => message.streaming)
   const chipsDisabled = status !== 'open'
-  const showSuggestionChips = shouldShowSuggestionChips({
-    enabled: useSuggestions,
-    chips: suggestionChips,
-  })
+  const supportSelected =
+    !teamFromUrl &&
+    !remoteFromUrl &&
+    (isSupportJourneyConsumer(selectedBlueprint) ||
+      isSupportAgent({
+        id: selectedBlueprint || SUPPORT_AGENT_ID,
+        name: selectedAgentName,
+      }))
+  const supportJourneyChips =
+    supportSelected && messages.length === 0 ? supportJourneyKickstart() : []
+  const showSupportJourneyChips = supportJourneyChips.length > 0
+  const showSuggestionChips =
+    !showSupportJourneyChips &&
+    shouldShowSuggestionChips({
+      enabled: useSuggestions,
+      chips: suggestionChips,
+    })
 
   useEffect(() => {
     if (!useSuggestions) {
@@ -2387,8 +2404,20 @@ const ChatPage = () => {
           </p>
         ) : null}
         {messages.length === 0 ? (
-          <div className="flex h-full min-h-64 flex-col items-center justify-center gap-2 text-center text-base-content/45">
+          <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
+            {showSupportJourneyChips ? (
+              <>
+                <p className="max-w-sm text-xs text-base-content/50">
+                  Start with a team, a remote, or a CLI — one pane, no Settings maze.
+                </p>
+                <SuggestionChips
+                  chips={supportJourneyChips}
+                  disabled={chipsDisabled}
+                  onChoose={chooseSuggestion}
+                />
+              </>
+            ) : null}
           </div>
         ) : (
           <>

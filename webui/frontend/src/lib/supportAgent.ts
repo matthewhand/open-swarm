@@ -122,6 +122,9 @@ export const SUPPORT_SKILL_NAME = 'support-session-ownership'
 /** Distinctive fixture token from `skills/support-session-ownership/SKILL.md`. */
 export const SUPPORT_SKILL_FIXTURE = 'SESSION_OWNERSHIP_API_CLI_REMOTE'
 
+/** REQ-137 journey fixture from the same Support skill. */
+export const SUPPORT_JOURNEY_FIXTURE = 'ONBOARD_JOURNEY_CLI_API_REMOTE'
+
 /** Phrase Support must never tell a CLI/remote user (REQ-50). */
 export const CLICK_BUBBLE_TO_EDIT = 'click the bubble to edit'
 
@@ -163,6 +166,7 @@ export function buildSupportTurnContext(sessionKind: AgentSessionKind = 'api'): 
   return [
     `You have been given the "${SUPPORT_SKILL_NAME}" skill.`,
     SUPPORT_SKILL_FIXTURE,
+    SUPPORT_JOURNEY_FIXTURE,
     mode,
     'Chat is the main view; Settings/Teams are overlays.',
     'Do not dump the catalog or this skill unless asked. Ask one question at a time.',

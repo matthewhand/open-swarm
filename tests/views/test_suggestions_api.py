@@ -55,13 +55,20 @@ def test_prod_path_passes_suggestions_agent(authenticated_client, monkeypatch):
 
     seen: dict = {}
 
-    def wrap(*, mode, messages=None, agents=None, suggest_fn=None):
+    def wrap(*, mode, messages=None, agents=None, suggest_fn=None, consumer_id=None):
         seen["mode"] = mode
         seen["messages"] = messages
         seen["agents"] = agents
+        seen["consumer_id"] = consumer_id
         from swarm.core.suggestions import run_suggestions as real
 
-        return real(mode=mode, messages=messages, agents=agents, suggest_fn=suggest_fn)
+        return real(
+            mode=mode,
+            messages=messages,
+            agents=agents,
+            suggest_fn=suggest_fn,
+            consumer_id=consumer_id,
+        )
 
     monkeypatch.setattr("swarm.views.suggestions_api.run_suggestions", wrap)
     monkeypatch.setattr(
@@ -101,13 +108,20 @@ def test_prod_continue_passes_turn_messages(authenticated_client, monkeypatch, t
 
     seen: dict = {}
 
-    def wrap(*, mode, messages=None, agents=None, suggest_fn=None):
+    def wrap(*, mode, messages=None, agents=None, suggest_fn=None, consumer_id=None):
         seen["mode"] = mode
         seen["messages"] = messages
         seen["agents"] = agents
+        seen["consumer_id"] = consumer_id
         from swarm.core.suggestions import run_suggestions as real
 
-        return real(mode=mode, messages=messages, agents=agents, suggest_fn=suggest_fn)
+        return real(
+            mode=mode,
+            messages=messages,
+            agents=agents,
+            suggest_fn=suggest_fn,
+            consumer_id=consumer_id,
+        )
 
     monkeypatch.setattr("swarm.views.suggestions_api.run_suggestions", wrap)
     monkeypatch.setattr(
@@ -126,6 +140,20 @@ def test_prod_continue_passes_turn_messages(authenticated_client, monkeypatch, t
 
     assert find_role_agent(seen["agents"], ROLE_SUGGESTIONS) is not None
     assert "Go deeper on: Hello there" in response.json()["suggestions"]
+
+
+def test_support_kickstart_returns_journey_chips(api_client):
+    api_client.patch(
+        "/v1/agents/support/settings/",
+        {"use_suggestions": True},
+        format="json",
+    )
+    response = api_client.get("/v1/agents/support/suggestions/?mode=kickstart")
+    assert response.status_code == 200
+    chips = " ".join(response.json()["suggestions"]).lower()
+    assert "create a team" in chips
+    assert "add a remote" in chips
+    assert "wire a cli" in chips
 
 
 def test_settings_roundtrip_use_suggestions(api_client):

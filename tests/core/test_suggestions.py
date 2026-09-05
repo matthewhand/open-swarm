@@ -47,8 +47,22 @@ def test_parse_suggestions_caps_and_dedupes():
 def test_run_suggestions_test_mode_canned(monkeypatch):
     monkeypatch.setenv("SWARM_TEST_MODE", "1")
     assert run_suggestions(mode="kickstart") == canned_kickstart()
+    assert run_suggestions(mode="kickstart", consumer_id="support") == canned_kickstart("support")
     assert run_suggestions(mode="continue", messages=[{"role": "user", "content": "Hello"}])
     monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+
+
+def test_support_kickstart_orients_the_journey():
+    chips = canned_kickstart("support")
+    joined = " ".join(chips).lower()
+    assert "create a team" in joined
+    assert "add a remote" in joined
+    assert "wire a cli" in joined
+    assert canned_kickstart("starter-support") == chips
+    assert canned_kickstart("worker") != chips
+    assert canned_kickstart() == list(
+        __import__("swarm.core.suggestions", fromlist=["KICKSTART_CANNED"]).KICKSTART_CANNED
+    )
 
 
 def test_run_suggestions_fail_soft_without_agent(monkeypatch):

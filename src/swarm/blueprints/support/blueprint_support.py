@@ -29,17 +29,24 @@ from swarm.core.support_context import (
 logger = logging.getLogger(__name__)
 
 SUPPORT_INSTRUCTIONS = """
-You are Support, Open Swarm's onboarding guide (role=support).
+You are Support, Open Swarm's first-run journey onboarder (role=support).
+Fixture: ONBOARD_JOURNEY_CLI_API_REMOTE
 
 Goals:
-- Help the user understand the product using the existing docs/QUICKSTART.md
-  (do not invent a second quickstart).
-- Encourage them to build their first agent team.
+- Guide the open-swarm journey in natural language + kickstart chips
+  (Create a team, Add a remote, Wire a CLI) — not a form maze.
+- Help them create a local team: personas, optional Chief of Staff (CoS).
 - Help them code a blueprint in Python. Always show Python in a fenced
   ```python code block. Prefer ApiKindBase / CliKindBase / RemoteKindBase
   (ADR-005), not raw BlueprintBase for most cases.
-- When inference is not configured, point at QUICKSTART §4 and /settings/,
-  /profiles/ — never invent credentials or call a live Qwen/Comfy path.
+- Help them add a CLI agent and list models the host CLI reports.
+- Help them connect remotes (Hermes, OpenMousBot, Herdr, nested swarm)
+  to setups they already have. Env var names only — never plaintext secrets.
+- Explain the one-pane bridge: task here across CLI ↔ API ↔ remotes.
+- Stay honest about constraints: API threads are editable here; CLI and
+  remote sessions live outside Open Swarm (no click-to-edit).
+- When inference is not configured, point at QUICKSTART §4 and the Settings
+  overlay /profiles/ — never invent credentials, ports, or a live :8001 host.
 
 Tools:
 - get_live_context: current agents + inference status.
@@ -53,9 +60,11 @@ Do not shell out to grok, omb, or rakazo. Stay on this Support seat.
 
 PRODUCT_GUIDE_INSTRUCTIONS = """
 You are the Support product guide. Answer from Open Swarm's existing
-quickstart and in-product routes (/settings/, /profiles/, /teams/launch/,
+quickstart and in-product overlays (/settings/, /profiles/, /teams/launch/,
 /blueprint-library/, /agent-creator/). Prefer quoting QUICKSTART.md over
-inventing steps. Encourage building a first team.
+inventing steps. Onboard the journey: create a team, add a remote
+(Hermes / OpenMousBot / Herdr), wire a CLI and list models, then bridge
+CLI ↔ API ↔ remotes in one pane. Never invent secrets or a live :8001 host.
 """
 
 BLUEPRINT_CODER_INSTRUCTIONS = """
@@ -225,7 +234,37 @@ class SupportBlueprint(BlueprintBase):
             return create_paths_markdown()
         lowered = user_text.lower()
         parts = [user_text]
-        if any(word in lowered for word in ("blueprint", "code", "python", "agent team", "write")):
+        if "create a team" in lowered or "first team" in lowered:
+            parts.extend(
+                [
+                    "",
+                    "A local team is personas on one roster. Optional Chief of Staff "
+                    "(CoS) talks across teams. Chat stays the main view — New team is "
+                    "an overlay, not a Settings maze.",
+                ]
+            )
+        if "add a remote" in lowered or "connect a remote" in lowered:
+            parts.extend(
+                [
+                    "",
+                    "Remotes (Hermes, OpenMousBot, Herdr) attach an existing setup. "
+                    "Settings → Remotes is + Add remote. Env var names only — no "
+                    "plaintext secrets. The live remote session stays outside Open Swarm.",
+                ]
+            )
+        if "wire a cli" in lowered or "add a cli" in lowered:
+            parts.extend(
+                [
+                    "",
+                    "A CLI agent wraps a host CLI you already have. Swarm can list "
+                    "models that CLI reports. The live CLI session stays outside "
+                    "Open Swarm — no click-to-edit.",
+                ]
+            )
+        if any(
+            word in lowered
+            for word in ("blueprint", "code", "python", "agent team", "write", "create a team")
+        ):
             parts.extend(["", STARTER_BLUEPRINT_PYTHON])
         parts.extend(["", create_paths_markdown()])
         return "\n".join(parts)

@@ -8,7 +8,7 @@ Rakazo seats.
 | Role | Sidepane classes | What it does |
 |---|---|---|
 | `default` / `none` | (no badge) | Ordinary worker. No special wiring. |
-| `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7). Introduces the concept; copy below. |
+| `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7 / REQ-137). First-run journey onboarder: create a team, add a remote, wire a CLI, bridge CLI↔API↔remotes. |
 | `gate` (`tool_gate`) | `os-agent-role-gate` `data-role="gate"` | Classifies a **pending tool call** as dangerous or not via `submit_gate_verdict` (yes/no). |
 | `skeptic` | `os-agent-role-skeptic` `data-role="skeptic"` | Reviews whether the original prompt was accomplished via `submit_skeptic_verdict` (pass/fail). |
 | `chief_of_staff` (`cos`) | `os-agent-role-chief_of_staff` `data-role="chief_of_staff"` | Talks to any team. Badge only (`CoS`). |

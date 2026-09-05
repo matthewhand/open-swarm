@@ -5,6 +5,7 @@ import {
   GATE_AGENT_ID,
   SKEPTIC_AGENT_ID,
   SUPPORT_AGENT_ID,
+  SUPPORT_JOURNEY_FIXTURE,
   SUPPORT_SKILL_FIXTURE,
   SUPPORT_SKILL_NAME,
   buildSupportTurnContext,
@@ -65,6 +66,7 @@ describe('supportAgent helpers', () => {
   it('includes the distinctive skill fixture in Support context', () => {
     const ctx = buildSupportTurnContext('api')
     expect(ctx).toContain(SUPPORT_SKILL_FIXTURE)
+    expect(ctx).toContain(SUPPORT_JOURNEY_FIXTURE)
     expect(ctx).toContain(SUPPORT_SKILL_NAME)
   })
 

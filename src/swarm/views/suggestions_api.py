@@ -53,7 +53,9 @@ class AgentSuggestionsAPIView(APIView):
         )
         agents = resolve_suggestions_agents(agent)
         try:
-            chips = run_suggestions(mode=mode, messages=messages, agents=agents)
+            chips = run_suggestions(
+                mode=mode, messages=messages, agents=agents, consumer_id=agent
+            )
         except Exception:
             logger.debug("suggestions API omitted for %s", agent, exc_info=True)
             chips = []
