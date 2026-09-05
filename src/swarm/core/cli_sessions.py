@@ -156,10 +156,18 @@ def get_cli_session(
     agent_id: str,
     cli_name: str,
     *,
+    conversation_id: str = "",
+    session_id: str = "",
     base_dir: Path | None = None,
 ) -> str | None:
     """Stored CLI session id for this chat thread + CLI, or None."""
-    record = chat_store.load(user_key, agent_id, base_dir=base_dir)
+    record = chat_store.load(
+        user_key,
+        agent_id,
+        conversation_id=conversation_id,
+        session_id=session_id,
+        base_dir=base_dir,
+    )
     if not record:
         return None
     sessions = chat_store.normalize_cli_sessions(record.get("cli_sessions"))

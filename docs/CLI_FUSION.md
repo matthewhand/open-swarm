@@ -180,7 +180,9 @@ started a new session — never a fake “restored”.
 | `claude` | `--resume {session_id}` (`-r`) | UUID. `--session-id` names a **new** session | JSON `session_id` (sibling of `result`) |
 | `gemini` | `--resume {session_id}` (`-r`) | UUID. `--session-id` starts a **new** session | JSON `session_id` / `sessionId` when present |
 | `codex` | `codex exec resume {session_id} …` (subcommand) | UUID / thread id | JSON `thread_id` when `--json`; default catalog parse is text |
-| `opencode` | `--session {session_id}` (`-s`) | `ses_…`. `--continue` is last-cwd, not thread-scoped | JSON when the CLI emits it; default parse is text |
+| `opencode` | `opencode run --session {session_id}` (`-s`) | `ses_…`. `--continue` is last-cwd, not thread-scoped | JSON when the CLI emits it; default parse is text |
+| `agy` | `--conversation {session_id}` | UUID. `--continue` is most-recent, not thread-scoped | JSON `conversation_id` |
+| `pi` | `pi -p --session {session_id}` | path or id. `--continue` is last session | JSON when present; smoke/verify uses `--no-session` |
 
 `antigravity` is not in the catalog. Agy is the catalog name; headless resume is
 `agy -p --conversation <id>` (JSON often includes `conversation_id`).

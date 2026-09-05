@@ -17,7 +17,6 @@ from typing import Any
 
 from swarm.core.agent_settings import (
     is_new_chat_per_task,
-    stored_cli_session_id,
     stored_remote_session_id,
 )
 from swarm.core.chat_store import conversation_id_for, normalize_agent_id, user_key_for
@@ -47,19 +46,42 @@ def should_resume_external_session(agent_id: str | None) -> bool:
     return not is_new_chat_per_task(agent_id)
 
 
-def resume_cli_session_id(agent_id: str | None, stored: str | None = None) -> str | None:
+def resume_cli_session_id(
+    agent_id: str | None,
+    stored: str | None = None,
+    *,
+    user_key: str | None = None,
+    cli_name: str | None = None,
+    conversation_id: str | None = None,
+) -> str | None:
     """Session id to pass to a CLI ``--resume`` flag, or None to start fresh.
 
-    When the agent is in new-chat-per-task mode this always returns ``None``
-    even if a stored id exists — do not fake a restored transcript.
+    Reads the same chat-JSON ``cli_sessions`` store the adapter writes.
+    Settings ``cli_session_id`` alone does not resume. When the agent is in
+    new-chat-per-task mode this always returns ``None`` even if a stored id
+    exists — do not fake a restored transcript.
     """
     if not should_resume_external_session(agent_id):
+        return None
+    cli = (cli_name or agent_id or "").strip()
+    if cli and cli != (agent_id or "").strip() and not should_resume_external_session(cli):
         return None
     if stored:
         return sanitize_cli_session_id(stored)
     if not (agent_id or "").strip():
         return None
-    return sanitize_cli_session_id(stored_cli_session_id(agent_id))
+    uk = (user_key or "").strip()
+    if not uk:
+        return None
+    from swarm.core.cli_sessions import get_cli_session
+
+    found = get_cli_session(
+        uk,
+        agent_id,
+        cli or agent_id,
+        conversation_id=conversation_id or "",
+    )
+    return sanitize_cli_session_id(found)
 
 
 def resume_remote_session_id(agent_id: str | None, stored: str | None = None) -> str | None:
@@ -127,6 +149,33 @@ def clear_active_sessions() -> None:
     _ACTIVE.clear()
 
 
+def _persist_empty_task_record(user, user_key: str, agent_id: str, conversation_id: str) -> None:
+    """Write an empty chat-JSON record (and a Django row when the user is real)."""
+    from swarm.core import chat_store
+
+    try:
+        chat_store.save(
+            user_key,
+            agent_id,
+            [],
+            conversation_id=conversation_id,
+            session_id=conversation_id,
+        )
+    except Exception:
+        pass
+    if getattr(user, "is_authenticated", False) is not True:
+        return
+    pk = getattr(user, "pk", None)
+    if not isinstance(pk, int):
+        return
+    try:
+        from swarm.core.agent_sessions import persist_allocated_session
+
+        persist_allocated_session(user, agent_id, conversation_id, empty=True)
+    except Exception:
+        pass
+
+
 def allocate_task_session(
     user,
     agent_id: str,
@@ -137,7 +186,8 @@ def allocate_task_session(
     """Pick the conversation id for one user task / CoS handoff / as_tool call.
 
     Off: deterministic ``conversation_id_for(user, agent)`` (reuse).
-    On: mint a unique empty session and register it as concurrent.
+    On: mint a unique empty session, persist an empty record, and register it
+    as concurrent.
     """
     agent = normalize_agent_id(agent_id)
     on = is_new_chat_per_task(agent) if new_chat_per_task is None else bool(new_chat_per_task)
@@ -157,6 +207,7 @@ def allocate_task_session(
     except Exception:
         uk = "u0"
     register_active_session(uk, agent, cid)
+    _persist_empty_task_record(user, uk, agent, cid)
     return TaskSession(
         agent_id=agent,
         conversation_id=cid,
@@ -165,6 +216,23 @@ def allocate_task_session(
         resume_external=False,
         task_id=task_id or "",
     )
+
+
+def resolve_on_mode_conversation(user, agent_id: str, requested_cid: str = "") -> TaskSession | None:
+    """Mint a new on-mode session when ``requested_cid`` is missing or the reused default.
+
+    Call this **before** loading a Django row or the default chat JSON. Returns
+    the allocated session when we minted; ``None`` when the caller should use
+    ``requested_cid`` as-is (off-mode, or an explicit task cid).
+    """
+    agent = normalize_agent_id(agent_id)
+    if not is_new_chat_per_task(agent):
+        return None
+    requested = (requested_cid or "").strip()
+    default_cid = conversation_id_for(user, agent)
+    if requested and requested != default_cid:
+        return None
+    return allocate_task_session(user, agent)
 
 
 def messages_for_task(

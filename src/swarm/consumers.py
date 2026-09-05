@@ -1137,11 +1137,35 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         corrupted both and double-persisted merged turns on disconnect).
         """
         from swarm.core.transcript_roles import split_store
+        from swarm.core.session_policy import resolve_on_mode_conversation
+
+        agent_id = getattr(self, "default_blueprint", None) or getattr(
+            self, "active_agent", None
+        )
+        # REQ-171C-4 / C-H7: mint or refuse reuse before loading the old Django row.
+        if agent_id:
+            minted = resolve_on_mode_conversation(self.user, agent_id, conversation_id)
+            if minted is not None:
+                self.conversation_id = minted.conversation_id
+                conversation_id = minted.conversation_id
+                cache_key = _conversation_cache_key(self.user, conversation_id)
+                IN_MEMORY_CONVERSATIONS[cache_key] = []
+                IN_MEMORY_UI_EVENTS[cache_key] = []
+                self.ui_events = []
+                return []
 
         cache_key = _conversation_cache_key(self.user, conversation_id)
         if cache_key in IN_MEMORY_CONVERSATIONS:
             self.ui_events = list(IN_MEMORY_UI_EVENTS.get(cache_key, []))
             return list(IN_MEMORY_CONVERSATIONS[cache_key])
+
+        on_mode = False
+        try:
+            from swarm.core.agent_settings import is_new_chat_per_task
+
+            on_mode = bool(agent_id and is_new_chat_per_task(agent_id))
+        except Exception:
+            logger.debug("new-chat-per-task check failed; using reuse fallback", exc_info=True)
 
         try:
             chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
@@ -1154,26 +1178,20 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         except ChatConversation.DoesNotExist:
             logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
 
-        agent_id = getattr(self, "default_blueprint", None)
-        try:
-            from swarm.core.agent_settings import is_new_chat_per_task
-
-            # REQ-65: on-mode tasks must not inherit the reused agent transcript.
-            if agent_id and is_new_chat_per_task(agent_id):
-                loaded = _load_agent_record(
-                    self.user, agent_id, conversation_id=conversation_id
-                )
-                if loaded["messages"] or loaded["ui_events"]:
-                    IN_MEMORY_CONVERSATIONS[cache_key] = loaded["messages"]
-                    IN_MEMORY_UI_EVENTS[cache_key] = loaded["ui_events"]
-                    self.ui_events = list(loaded["ui_events"])
-                    return list(loaded["messages"])
+        if agent_id:
+            loaded = _load_agent_record(
+                self.user, agent_id, conversation_id=conversation_id
+            )
+            if loaded["messages"] or loaded["ui_events"]:
+                IN_MEMORY_CONVERSATIONS[cache_key] = loaded["messages"]
+                IN_MEMORY_UI_EVENTS[cache_key] = loaded["ui_events"]
+                self.ui_events = list(loaded["ui_events"])
+                return list(loaded["messages"])
+            if on_mode:
                 self.ui_events = []
                 return []
-        except Exception:
-            logger.debug("new-chat-per-task check failed; using reuse fallback", exc_info=True)
 
-        # Disk fallback: per-agent JSON (survives a new conversation UUID).
+        # Off-mode disk fallback: per-agent JSON (survives a new conversation UUID).
         loaded = _load_agent_record(self.user, agent_id)
         if loaded["messages"] or loaded["ui_events"]:
             IN_MEMORY_CONVERSATIONS[cache_key] = loaded["messages"]

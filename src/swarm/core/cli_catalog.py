@@ -173,9 +173,10 @@ CATALOG: dict[str, dict[str, Any]] = {
     "pi": {
         # pi -p/--print is non-interactive; prompt is a positional message
         # (not attached to -p). `--` keeps user text from becoming flags.
-        # --mode text; --no-session keeps verify runs ephemeral.
-        # --approve trusts project-local files for that run.
-        "cmd": ["pi", "-p", "--mode", "text", "--no-session", "--approve", "--", "{prompt}"],
+        # --mode text; --approve trusts project-local files for that run.
+        # --no-session is smoke/verify only (see SMOKE_FLAGS) so production
+        # runs can resume with --session.
+        "cmd": ["pi", "-p", "--mode", "text", "--approve", "--", "{prompt}"],
         "parse": "text",
         "mode": "write",
         "timeout": 240,
@@ -285,7 +286,8 @@ SESSION: dict[str, dict[str, Any]] = {
     },
     "opencode": {
         "resume_argv": ["--session", "{session_id}"],
-        "resume_insert": 1,
+        "resume_insert": 2,  # after `opencode run` → `opencode run --session <id> …`
+        "resume_strip": ["--continue", "-c"],
         "session_id_paths": [".session", ".sessionID", ".id"],
         "list_argv": ["opencode", "session", "list", "--format", "json"],
         "list_capability": LIST_CAPABILITY_WORKS,
@@ -312,16 +314,23 @@ SESSION: dict[str, dict[str, Any]] = {
     },
     "pi": {
         "resume_argv": ["--session", "{session_id}"],
-        "resume_insert": 1,
+        "resume_insert": 2,  # after `pi -p` → `pi -p --session <id> …`
+        "resume_strip": ["--no-session", "--continue", "-c"],
         "session_id_paths": [".session", ".id"],
         "list_capability": LIST_CAPABILITY_PASTE_ONLY,
         "notes": (
             "pi -p --session <path|id>. --resume/-r is a TUI picker; "
             "--continue/-c is last session — do not use those here. "
-            "Catalog verify runs use --no-session (ephemeral). "
+            "Smoke/verify injects --no-session (ephemeral); production cmd does not. "
             "List is paste-only — no verified non-interactive list argv."
         ),
     },
+}
+
+# Flags injected only on smoke/verify probes. Production catalog cmds must
+# stay resumable (Pi --no-session would cancel --session).
+SMOKE_FLAGS: dict[str, list[str]] = {
+    "pi": ["--no-session"],
 }
 
 for _policy in SESSION.values():
@@ -778,6 +787,23 @@ def session_policy(name: str) -> dict[str, Any] | None:
     """How ``name`` names and resumes a CLI session, or None if undocumented."""
     entry = SESSION.get(name)
     return _deepcopy(entry) if entry is not None else None
+
+
+def smoke_flags(name: str) -> list[str]:
+    """Argv injected only on smoke/verify — never on the production catalog cmd."""
+    flags = SMOKE_FLAGS.get(name) or []
+    return list(flags) if all(isinstance(p, str) for p in flags) else []
+
+
+def apply_smoke_flags(name: str, cmd: list[str]) -> list[str]:
+    """Copy ``cmd`` and insert smoke-only flags before ``--`` when present."""
+    extra = [flag for flag in smoke_flags(name) if flag and flag not in cmd]
+    if not extra:
+        return list(cmd)
+    if "--" in cmd:
+        index = cmd.index("--")
+        return [*cmd[:index], *extra, *cmd[index:]]
+    return [*cmd, *extra]
 
 
 def catalog_names() -> list[str]:

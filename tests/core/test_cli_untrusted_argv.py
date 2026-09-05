@@ -110,6 +110,7 @@ def test_sanitize_rejects_leading_dash_dot_and_dotdot():
 
 def test_resume_cli_session_id_sanitizes_stored_and_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
     settings_store.reset_agent_settings_cache()
     policy.clear_active_sessions()
     settings_store.update_settings("reuse", {"new_chat_per_task": False})
@@ -119,7 +120,15 @@ def test_resume_cli_session_id_sanitizes_stored_and_settings(tmp_path, monkeypat
     assert policy.resume_cli_session_id("reuse", stored="..") is None
     assert policy.resume_cli_session_id("reuse", stored="sess-keep") == "sess-keep"
     settings_store.set_cli_session_id("reuse", "sess-keep")
-    assert policy.resume_cli_session_id("reuse") == "sess-keep"
+    # Settings cli_session_id alone does not resume (C-H7 / #613).
+    assert policy.resume_cli_session_id("reuse") is None
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
+    from swarm.core.cli_sessions import put_cli_session
+
+    put_cli_session("u1", "reuse", "reuse", "sess-keep")
+    assert policy.resume_cli_session_id("reuse", user_key="u1") == "sess-keep"
+    settings_store.reset_agent_settings_cache()
+    policy.clear_active_sessions()
 
 
 def test_build_invocation_drops_flag_shaped_session_id():
