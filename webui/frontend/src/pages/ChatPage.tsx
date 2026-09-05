@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
@@ -48,6 +50,12 @@ import {
   type ConversationSummary,
 } from '../lib/agentChat'
 import { canEditAgentMessages, classifyAgentKind, type AgentKind } from '../lib/agentKind'
+import {
+  composerInsetCustomProperty,
+  isPinnedToTranscriptBottom,
+  measureComposerDockInset,
+  scrollTranscriptToBottom,
+} from '../lib/composerInset'
 import {
   buildDisplayItems,
   contextTextsForMeter,
@@ -257,9 +265,11 @@ const ChatPage = () => {
   conversationIdRef.current = conversationId
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const scrollBoxRef = useRef<HTMLDivElement | null>(null)
+  const bottomDockRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const plusRef = useRef<HTMLDivElement | null>(null)
   const composerWrapRef = useRef<HTMLDivElement | null>(null)
+  const [composerInsetPx, setComposerInsetPx] = useState(0)
   /** Monotonic counter for collision-free user-echo keys. */
   const userKeyCounterRef = useRef(0)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
@@ -916,11 +926,31 @@ const ChatPage = () => {
   }, [status])
 
   const pinnedToBottomRef = useRef(true)
+
+  const applyComposerInset = useCallback(() => {
+    const next = measureComposerDockInset(bottomDockRef.current)
+    setComposerInsetPx((prev) => (prev === next ? prev : next))
+  }, [])
+
+  useLayoutEffect(() => {
+    applyComposerInset()
+  }, [applyComposerInset, messages, replyTarget, input])
+
+  useLayoutEffect(() => {
+    const dock = bottomDockRef.current
+    if (!dock || typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(() => {
+      applyComposerInset()
+    })
+    observer.observe(dock)
+    return () => observer.disconnect()
+  }, [applyComposerInset])
+
   useEffect(() => {
     if (pinnedToBottomRef.current) {
-      listEndRef.current?.scrollIntoView({ block: 'end' })
+      scrollTranscriptToBottom(scrollBoxRef.current, listEndRef.current)
     }
-  }, [messages])
+  }, [messages, composerInsetPx])
 
   useEffect(() => {
     const wasOpen = prevStatusRef.current === 'open'
@@ -1662,6 +1692,7 @@ const ChatPage = () => {
       <div
         ref={scrollBoxRef}
         className="os-chat-transcript min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3 sm:px-3 select-none outline-none focus:outline-none flex flex-col justify-between relative"
+        style={composerInsetCustomProperty(composerInsetPx) as CSSProperties}
         aria-live="polite"
         role="log"
         aria-label="Conversation"
@@ -1673,13 +1704,13 @@ const ChatPage = () => {
               : agentKind
         }
         data-messages-editable={messagesEditable && !isCliAgent && agentKind !== 'remote' ? 'true' : 'false'}
+        data-composer-inset={composerInsetPx}
         tabIndex={0}
         onScroll={(e) => {
-          const el = e.currentTarget
-          pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+          pinnedToBottomRef.current = isPinnedToTranscriptBottom(e.currentTarget, composerInsetPx)
         }}
       >
-        <div className="space-y-1 flex-1 pb-4" data-testid="chat-messages-container">
+        <div className="os-chat-messages space-y-1 flex-1" data-testid="chat-messages-container">
         {messages.length === 0 ? (
           <div className="flex h-full min-h-64 flex-col items-center justify-center gap-2 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
@@ -1789,7 +1820,8 @@ const ChatPage = () => {
         </div>
 
         <div
-          className="os-chat-bottom-dock sticky bottom-0 z-20 mt-auto -mx-2 sm:-mx-3 -mb-3 bg-base-100/95 backdrop-blur-xs border-t border-base-content/5"
+          ref={bottomDockRef}
+          className="os-chat-bottom-dock sticky bottom-0 z-20 -mx-2 sm:-mx-3 -mb-3 bg-base-100 border-t border-base-content/5"
           data-testid="chat-bottom-dock"
         >
           {streamingMessage ? (
