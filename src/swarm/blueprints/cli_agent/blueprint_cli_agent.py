@@ -257,17 +257,28 @@ class CliAgentBlueprint(BlueprintBase):
         # instructions to the prompt (portable across whichever CLI runs) and
         # stages any bundled assets into the workdir for write-mode CLIs.
         from swarm.core.agent_folder import AgentFolderError, resolve_session_cwd
-        from swarm.core.workdir import WorkdirEscapeError
+        from swarm.core.workdir import (
+            WorkdirEscapeError,
+            cleanup_run_workdir,
+            is_auto_workdir_request,
+        )
 
+        auto_workdir = False
+        workdir: str | None = None
         try:
             folder_cwd = resolve_session_cwd(
                 agent_id=str(params.get("agent") or params.get("agent_id") or self.blueprint_id),
                 params=params,
             )
             if folder_cwd:
+                # #588 Folder is an explicit cwd — do not remap or mint.
                 workdir = folder_cwd
             else:
-                workdir = support.resolve_workdir(params)
+                raw_wd = params.get(support.PARAM_WORKDIR) or params.get(support.PARAM_CWD)
+                auto_workdir = is_auto_workdir_request(raw_wd)
+                # Blank workdir/cwd mints a marked per-run temp under
+                # SWARM_WORKSPACES_DIR — never the Django process CWD.
+                workdir = support.resolve_workdir(params, required=True)
         except AgentFolderError as e:
             yield support.message_chunk(str(e), final=True)
             return
@@ -275,6 +286,23 @@ class CliAgentBlueprint(BlueprintBase):
             yield support.message_chunk(str(e), final=True)
             return
 
+        try:
+            async for chunk in self._run_cli_turn_in_workdir(
+                messages, params, prompt, workdir, **kwargs
+            ):
+                yield chunk
+        finally:
+            if auto_workdir:
+                cleanup_run_workdir(workdir)
+
+    async def _run_cli_turn_in_workdir(
+        self,
+        messages: list[dict[str, Any]],
+        params: dict[str, Any],
+        prompt: str,
+        workdir: str | None,
+        **kwargs: Any,
+    ) -> Any:
         if params.get(support.PARAM_SKILL):
             prompt, applied = support.apply_skill_to_prompt(
                 prompt, params, workdir=workdir

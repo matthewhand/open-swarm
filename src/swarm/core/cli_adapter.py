@@ -527,11 +527,20 @@ class CliAdapter:
         adapters. Never raises for runtime failures.
         """
         cfg = self.config
-        effective_workdir = (
-            _apply_tokens(cfg.cwd, prompt, workdir or os.getcwd())
-            if cfg.cwd
-            else (workdir or os.getcwd())
-        )
+        # API/WS callers (cli_agent, fusion, chat WS) must pass a confined
+        # workdir. os.getcwd() remains only for local CLI / desktop (#576)
+        # when this adapter is invoked without a cwd.
+        if workdir:
+            effective_workdir = (
+                _apply_tokens(cfg.cwd, prompt, workdir) if cfg.cwd else workdir
+            )
+        else:
+            process_cwd = os.getcwd()
+            effective_workdir = (
+                _apply_tokens(cfg.cwd, prompt, process_cwd)
+                if cfg.cwd
+                else process_cwd
+            )
         argv, stdin_bytes = self._build_invocation(
             prompt, effective_workdir, session_id=session_id
         )

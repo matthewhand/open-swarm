@@ -669,21 +669,92 @@ async def test_param_consensus_overrides_config_to_single():
     assert "consensus agent" not in _progress_text(chunks)
 
 
-async def test_folder_param_used_as_cwd(tmp_path):
-    script = tmp_path / "cwd_cli.py"
-    script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
-    folder = tmp_path / "project"
-    folder.mkdir()
-    cfg = {
+def _cwd_echo_config(script):
+    return {
         "cli_agents": {
             "echo": {"cmd": [PY, str(script)], "parse": "text"},
         },
         "cli_fusion": {"default_cli": "echo"},
     }
+
+
+async def test_blank_workdir_is_confined_not_process_cwd(tmp_path, monkeypatch):
+    """API/WS-style cli_agent with no workdir/cwd must not use os.getcwd()."""
+    import os
+    from pathlib import Path
+
+    from swarm.core.workdir import AUTO_RUN_MARKER
+
+    root = tmp_path / "workspaces"
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+    monkeypatch.delenv("ALLOW_UNRESTRICTED_WORKDIR", raising=False)
+    process_cwd = Path.cwd().resolve()
+
+    script = tmp_path / "cwd_cli.py"
+    script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_cwd_echo_config(script))
+    # WS chat / API often set agent but never workdir.
+    bp.set_params({"cli": "echo", "agent": "cli_agent", "failover": False})
+    chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
+    ran = Path(_final_content(chunks)).resolve()
+    assert ran.is_relative_to(root.resolve())
+    assert ran != process_cwd
+    assert not process_cwd.is_relative_to(root.resolve()) or ran != process_cwd
+    # Auto-minted dir is cleaned after the turn; leftover user run-* is not this path.
+    leftover = [p for p in root.iterdir() if p.is_dir()] if root.is_dir() else []
+    assert all(not (p / AUTO_RUN_MARKER).is_file() for p in leftover)
+    assert str(ran) != str(os.getcwd())
+
+
+async def test_blank_workdir_stream_run_does_not_use_getcwd(tmp_path, monkeypatch):
+    """Streaming API path must pass a confined workdir into stream_run."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    from swarm.core.cli_adapter import CliAdapter
+
+    root = tmp_path / "workspaces"
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+    process_cwd = Path.cwd().resolve()
+    seen: list[str | None] = []
+
+    orig = CliAdapter.stream_run
+
+    async def _spy(self, prompt, *, workdir=None, **kwargs):
+        seen.append(workdir)
+        async for chunk in orig(self, prompt, workdir=workdir, **kwargs):
+            yield chunk
+
+    script = tmp_path / "cwd_cli.py"
+    script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_cwd_echo_config(script))
+    bp.set_params({"cli": "echo", "failover": False})
+    with patch.object(CliAdapter, "stream_run", _spy):
+        chunks = await _collect(bp.run([{"role": "user", "content": "hi"}], stream=True))
+    assert seen and seen[0]
+    confined = Path(seen[0]).resolve()
+    assert confined.is_relative_to(root.resolve())
+    assert confined != process_cwd
+    ran = Path(_final_content(chunks)).resolve()
+    assert ran.is_relative_to(root.resolve())
+
+
+async def test_folder_param_used_as_cwd(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    root = tmp_path / "workspaces"
+    monkeypatch.setenv("SWARM_WORKSPACES_DIR", str(root))
+    script = tmp_path / "cwd_cli.py"
+    script.write_text("import os\nprint(os.getcwd())\n", encoding="utf-8")
+    folder = tmp_path / "project"
+    folder.mkdir()
+    cfg = _cwd_echo_config(script)
     bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
     bp.set_params({"cli": "echo", "folder": str(folder), "failover": False})
     chunks = await _collect(bp.run([{"role": "user", "content": "hi"}]))
     assert _final_content(chunks) == str(folder.resolve())
+    # Folder is used as-is; it is not remapped under the workspaces root.
+    assert not Path(folder).resolve().is_relative_to(root.resolve())
 
 
 async def test_bad_folder_is_visible_error_not_wrong_cwd(tmp_path):

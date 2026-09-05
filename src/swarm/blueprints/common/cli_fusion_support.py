@@ -34,15 +34,16 @@ def resolve_workdir(
     params: dict[str, Any] | None,
     *,
     create: bool = True,
-    required: bool = False,
+    required: bool = True,
 ) -> str | None:
     """Resolve ``params['workdir']`` / ``params['cwd']`` under the workspaces root.
 
     Confines client-supplied paths so WorkspaceTools and sandbox-bypassing CLIs
     cannot write outside ``SWARM_WORKSPACES_DIR`` / XDG ``workspaces/``. Blank
-    or missing values yield a fresh per-run directory when *required* is true;
-    otherwise ``None`` (callers that only optionally set a cwd keep prior
-    behavior). Raises :class:`~swarm.core.workdir.WorkdirEscapeError` on escape.
+    or missing values mint a marked per-run directory when *required* is true
+    (the default — API/WS write paths must not inherit the Django process CWD).
+    Pass ``required=False`` only for callers that truly have no cwd. Raises
+    :class:`~swarm.core.workdir.WorkdirEscapeError` on escape.
     """
     from swarm.core.workdir import resolve_confined_workdir
 
