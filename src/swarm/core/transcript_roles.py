@@ -12,7 +12,9 @@ from typing import Any, Iterable
 
 # Bubble-less chrome. ``system`` is kept: compact summaries and real prompts
 # use it. Frontend maps leftover ``system`` rows to status *display* only.
+# ``prior_history`` is the REQ-104 archive pill — same family as status/info.
 UI_ONLY_ROLES = frozenset({"status", "info"})
+UI_ONLY_KINDS = frozenset({"prior_history"})
 MODEL_ROLES = frozenset({"system", "user", "assistant", "tool", "developer"})
 
 
@@ -22,6 +24,19 @@ def _role_of(item: dict[str, Any]) -> str:
 
 def is_ui_only_role(role: Any) -> bool:
     return str(role or "").strip().lower() in UI_ONLY_ROLES
+
+
+def is_ui_only_item(item: Any) -> bool:
+    """True for status/info rows and the prior-history archive pill."""
+    if not isinstance(item, dict):
+        return False
+    if is_ui_only_role(_role_of(item)):
+        return True
+    for key in ("kind", "source_kind"):
+        val = item.get(key)
+        if isinstance(val, str) and val.strip().lower() in UI_ONLY_KINDS:
+            return True
+    return False
 
 
 def message_timestamp(item: dict[str, Any] | None) -> str:
@@ -45,17 +60,18 @@ def stamp_ui_event(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def messages_for_model(messages: Iterable[Any] | None) -> list[dict[str, Any]]:
-    """Transcript → LLM payload: drop status/info; keep real turns + tool rows.
+    """Transcript → LLM payload: drop status/info and prior_history archive.
 
-    Preserves ``name`` / ``tool_call_id`` / ``tool_calls`` so speaker identity
-    and tool pairing survive. Does not invent content or wrap speakers.
+    Keeps real turns + tool rows. Preserves ``name`` / ``tool_call_id`` /
+    ``tool_calls`` so speaker identity and tool pairing survive. Does not
+    invent content or wrap speakers.
     """
     out: list[dict[str, Any]] = []
     for raw in messages or []:
         if not isinstance(raw, dict):
             continue
         role = _role_of(raw)
-        if is_ui_only_role(role):
+        if is_ui_only_item(raw):
             continue
         if role not in MODEL_ROLES:
             # Unknown chrome (e.g. leftover ``suggestions``) stays out of context.
