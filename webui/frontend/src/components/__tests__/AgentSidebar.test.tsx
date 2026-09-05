@@ -35,6 +35,7 @@ function blueprint(
     compiled: true,
     ...(actualRole ? { role: actualRole } : {}),
     ...(actualAvatar ? { avatar_path: actualAvatar } : {}),
+    rail: true,
   }
 }
 
@@ -322,6 +323,66 @@ describe('AgentSidebar Grok rail', () => {
     expect(onOpenSearch).toHaveBeenCalled()
     expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     expect(within(list).getByRole('link', { name: /Stewie/ })).toBeInTheDocument()
+  })
+
+  it('REQ-170: catalog recipes without rail stay off the AGENTS rail', async () => {
+    const catalogOnly = [
+      blueprint('support', 'Support', 'Onboarding', 'support'),
+      {
+        ...blueprint('poets', 'Poets', 'Poet swarm'),
+        rail: false,
+      },
+      {
+        ...blueprint('chucks_angels', "Chuck's Angels", 'Demo'),
+        rail: false,
+      },
+      {
+        ...blueprint('django_chat', 'Django Chat', 'Retired webui leftover'),
+        rail: false,
+      },
+      {
+        ...blueprint('moa', 'mixture_of_agents', 'MoA'),
+        rail: false,
+      },
+      {
+        ...blueprint('cli_fusion', 'cli_fusion', 'CLI fusion'),
+        rail: false,
+      },
+      {
+        ...blueprint('codey', 'Codey', 'Code assistant'),
+        rail: false,
+      },
+    ]
+    vi.stubGlobal('fetch', mockFetch(catalogOnly))
+    renderSidebar('/chat')
+
+    const rail = await screen.findByTestId('os-agent-rail')
+    const list = screen.getByRole('navigation', { name: 'Agent list' })
+    expect(await within(list).findByRole('link', { name: /Support/ })).toBeInTheDocument()
+    expect(await within(list).findByRole('link', { name: /cli_agent/ })).toBeInTheDocument()
+    for (const name of ['Poets', "Chuck's Angels", 'Django Chat', 'mixture_of_agents', 'cli_fusion', 'Codey']) {
+      expect(within(rail).queryByRole('link', { name: new RegExp(name, 'i') })).not.toBeInTheDocument()
+    }
+  })
+
+  it('REQ-170: a leftover pin of a catalog-only id does not re-enter the list', async () => {
+    localStorage.setItem(
+      PINNED_AGENTS_STORAGE_KEY,
+      JSON.stringify([{ id: 'poets', name: 'Poets' }]),
+    )
+    const catalogOnly = [
+      blueprint('support', 'Support', 'Onboarding', 'support'),
+      { ...blueprint('poets', 'Poets', 'Poet swarm'), rail: false },
+    ]
+    vi.stubGlobal('fetch', mockFetch(catalogOnly))
+    renderSidebar('/chat')
+
+    const rail = await screen.findByTestId('os-agent-rail')
+    expect(await within(rail).findByRole('link', { name: /Support/ })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(rail).queryByRole('link', { name: /Poets/i })).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole('link', { name: 'Poets' })).not.toBeInTheDocument()
   })
 
   it('paints the same custom face on the Codey rail tile as the header would', async () => {
@@ -1140,6 +1201,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: null,
+      rail: true,
     },
     {
       id: 'skeptic',
@@ -1152,6 +1214,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: 'skeptic',
+      rail: true,
     },
     {
       id: 'gate',
@@ -1164,6 +1227,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: 'gate',
+      rail: true,
     },
     {
       id: 'support',
@@ -1176,6 +1240,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: 'support',
+      rail: true,
     },
   ]
 
@@ -2141,6 +2206,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: null,
+      rail: true,
     },
     {
       id: 'skeptic',
@@ -2153,6 +2219,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: 'skeptic',
+      rail: true,
     },
     {
       id: 'gate',
@@ -2165,6 +2232,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: 'gate',
+      rail: true,
     },
     {
       id: 'support',
@@ -2177,6 +2245,7 @@ describe('AgentSidebar special roles', () => {
       installed: true,
       compiled: true,
       role: 'support',
+      rail: true,
     },
   ]
 

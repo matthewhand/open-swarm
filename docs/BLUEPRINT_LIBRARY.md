@@ -5,6 +5,8 @@ to demonstrate a specific framework feature. Blueprints are **CLI/API only**:
 pick one by its `model` name over the OpenAI API, run it with
 `swarm-cli launch <name>`, or use it as a starting point for your own. They do
 not ship a webpage. The Grok-like WebUI (`/` + `/chat`) is the product chrome.
+The AGENTS rail lists **seats** (`metadata.rail: true`), not this whole catalog
+(REQ-170 / #595).
 
 **Status legend**
 

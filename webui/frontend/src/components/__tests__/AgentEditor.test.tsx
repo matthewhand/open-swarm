@@ -160,6 +160,23 @@ describe('AgentEditor (REQ-58)', () => {
     expect(await within(dialog).findByRole('button', { name: /Edit blueprint/i })).toBeInTheDocument()
   })
 
+  it('REQ-170: when name equals the recipe, Blueprint is secondary Recipe meta', async () => {
+    stubCatalog()
+    renderEditor({ agentId: 'codey' })
+
+    const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
+    await waitFor(() => {
+      expect(within(dialog).getByLabelText('Name')).toHaveValue('Codey')
+    })
+    expect(within(dialog).getByTestId('blueprint-recipe-meta')).toHaveTextContent('Recipe: codey')
+    expect(within(dialog).queryByText('Blueprint', { selector: 'label' })).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Blueprint')).toHaveValue('codey')
+
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Desk' } })
+    expect(within(dialog).queryByTestId('blueprint-recipe-meta')).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Blueprint')).toBeInTheDocument()
+  })
+
   it('assigns a blueprint from the picker and persists it on that agent', async () => {
     stubCatalog()
     renderEditor({ agentId: 'support' })

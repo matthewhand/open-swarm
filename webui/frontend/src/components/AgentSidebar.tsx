@@ -47,12 +47,12 @@ import {
 import AgentAvatar from './AgentAvatar'
 import {
   agentRole,
-  exampleRoleAgents,
   isChiefOfStaff,
   roleBadgeLabel,
   roleCssClass,
   roleFromAgent,
 } from '../lib/agentRoles'
+import { isNonCatalogRailPinId, railSeatAgents } from '../lib/railSeats'
 import {
   hasHiddenAgentsStorage,
   hideAgentId,
@@ -314,6 +314,7 @@ function toSidebarCli(row: CliRailAgent): SidebarAgent {
     compiled: true,
     kind,
     cli: row.cli,
+    rail: true,
   }
 }
 
@@ -339,6 +340,7 @@ function toSidebarHerdr(row: HerdrAgent): SidebarAgent {
     compiled: true,
     kind: 'herdr',
     remote: row.remote || '',
+    rail: true,
   }
 }
 
@@ -651,7 +653,7 @@ export default function AgentSidebar({
   const teams = teamsQuery.data ?? []
   const remotes = remotesQuery.data ?? []
   const agents = useMemo<SidebarAgent[]>(() => {
-    const fromBlueprints = exampleRoleAgents(catalog)
+    const fromBlueprints = railSeatAgents(catalog)
     const seen = new Set(fromBlueprints.map((a) => a.id))
     const fromRosters: SidebarAgent[] = []
     for (const roster of teams) {
@@ -672,6 +674,7 @@ export default function AgentSidebar({
           installed: true,
           compiled: true,
           role: 'chief_of_staff',
+          rail: true,
         })
       }
     }
@@ -880,12 +883,22 @@ export default function AgentSidebar({
     [orderedRows, sectionState],
   )
   const visibleRowIds = useMemo(() => orderedRows.map((row) => row.id), [orderedRows])
+  const knownRailIds = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
+  const catalogById = useMemo(() => new Map(catalog.map((row) => [row.id, row])), [catalog])
+  const catalogReady = !blueprintsQuery.isPending
   const visiblePins = useMemo(
     () =>
-      pins.filter(
-        (pin) => !resolvedHiddenIds.includes(pin.id) && !isRailIdDeleted(pin.id, deletedIds),
-      ),
-    [pins, resolvedHiddenIds, deletedIds],
+      pins.filter((pin) => {
+        if (resolvedHiddenIds.includes(pin.id) || isRailIdDeleted(pin.id, deletedIds)) {
+          return false
+        }
+        if (knownRailIds.has(pin.id) || isNonCatalogRailPinId(pin.id)) return true
+        if (!catalogReady) return true
+        const catalogRow = catalogById.get(pin.id)
+        if (catalogRow && catalogRow.rail !== true) return false
+        return true
+      }),
+    [pins, resolvedHiddenIds, deletedIds, knownRailIds, catalogReady, catalogById],
   )
   const hotkeyTargets = useMemo(
     () => computeRailHotkeyTargets({ visiblePins, orderedRows }),

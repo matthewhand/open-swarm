@@ -19,6 +19,7 @@ const blueprints = [
     tags: [] as string[],
     installed: true,
     compiled: true,
+    rail: true,
   },
 ]
 

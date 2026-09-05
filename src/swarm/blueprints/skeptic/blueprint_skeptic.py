@@ -29,6 +29,7 @@ class SkepticBlueprint(BlueprintBase):
         "author": "Open Swarm Team",
         "tags": ["skeptic", "retry", "stub"],
         "role": "skeptic",
+        "rail": True,
         "required_mcp_servers": [],
         "env_vars": [],
     }

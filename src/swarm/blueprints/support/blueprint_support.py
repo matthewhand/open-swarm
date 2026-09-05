@@ -166,6 +166,7 @@ class SupportBlueprint(BlueprintBase):
         "author": "Open Swarm Team",
         "tags": ["support", "onboarding", "quickstart"],
         "role": "support",
+        "rail": True,
         "required_mcp_servers": [],
         "env_vars": [],
     }

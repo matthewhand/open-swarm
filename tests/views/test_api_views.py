@@ -234,6 +234,33 @@ class TestBlueprintsListView:
         assert response.json()["data"][0]["role"] == "support"
 
     @patch("swarm.views.api_views.get_available_blueprints")
+    def test_list_blueprints_exposes_rail_flag_default_deny(
+        self, mock_get_blueprints, api_client
+    ):
+        mock_get_blueprints.return_value = {
+            "support": {
+                "metadata": {
+                    "name": "Support",
+                    "description": "Onboarding. First team.",
+                    "role": "support",
+                    "rail": True,
+                }
+            },
+            "poets": {
+                "metadata": {
+                    "name": "poets",
+                    "description": "Poet swarm",
+                }
+            },
+        }
+        response = api_client.get("/v1/blueprints/")
+        assert response.status_code == status.HTTP_200_OK
+        by_id = {row["id"]: row for row in response.json()["data"]}
+        assert by_id["support"]["rail"] is True
+        assert by_id["poets"]["rail"] is False
+        assert len(response.json()["data"]) == 2
+
+    @patch("swarm.views.api_views.get_available_blueprints")
     def test_list_blueprints_includes_chief_of_staff_role(
         self, mock_get_blueprints, api_client
     ):

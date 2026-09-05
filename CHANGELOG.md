@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **REQ-170 rail is seats, not the blueprint catalog:** `GET /v1/blueprints/` emits `rail` (`metadata.rail`, default deny). AGENTS rail + Search Bots list only rail seats (Support, hide-seeded gate/skeptic, CLI / teams / remotes / Herdr / CoS). Demo recipes stay catalog-only (`?blueprint=` and `/v1/models` unchanged). Leftover `agent_sidebar.js` uses the same flag. Cleanup: `manage.py cleanup_blueprint_as_agents` (dry-run default, `--apply` archives leftover marketplace/custom demo clones, never deletes user agents). Editor: when display name equals the recipe, show `Recipe: {id}` instead of a labeled Blueprint heading. Fixes #595.
 - **REQ-123 local Compose Postgres:** `docker compose` starts official Postgres 16 (volume + healthcheck) and wires `swarm` to it via `DATABASE_URL`. Cloud operators override `DATABASE_URL` / `POSTGRES_*`. Neon is documented as test/CI/experiments only (free-tier ~day 17). Unreachable / quota Postgres **exits 78** with a clear redacted message. pytest stays on SQLite; CI adds a local Postgres `migrate` smoke job. Docs: `docs/DATABASE.md`. Fixes #508.
 
 ### Added

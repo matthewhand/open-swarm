@@ -52,7 +52,7 @@ This is **not** the peer mailbox (`list_agents` / `send_message`, REQ-153 / #561
 
 A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`, or launched with `swarm-cli`. Blueprints are **CLI/API only** — they do not ship a webpage; the Grok-like WebUI is product chrome. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed). New recipes should subclass a [kind base](#kind-base-apikindbase--clikindbase--remotekindbase) (ADR-005). Do not add `kind=webui`.
 
-A Blueprint **catalog** row is a template. A Blueprint **agent** (ADR-006) is a seat that runs a chosen recipe. Do not list the whole catalog as rail “API agents” ([#595](https://github.com/matthewhand/open-swarm/issues/595)).
+A Blueprint **catalog** row is a template. A Blueprint **agent** (ADR-006) is a seat that runs a chosen recipe. The AGENTS rail and Search Bots list only recipes with `metadata.rail: true` (default deny). Catalog stays on `GET /v1/blueprints/`, Settings, and Add-agent ([#595](https://github.com/matthewhand/open-swarm/issues/595) / REQ-170).
 
 ## Team (handoff members — REQ-11)
 

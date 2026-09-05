@@ -11,6 +11,7 @@ const BLUEPRINTS = {
       tags: ['cli'],
       installed: true,
       compiled: true,
+      rail: true,
     },
     {
       id: 'codey',
@@ -20,6 +21,7 @@ const BLUEPRINTS = {
       tags: [],
       installed: true,
       compiled: true,
+      rail: true,
     },
   ],
 }

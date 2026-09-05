@@ -15,6 +15,7 @@ const BLUEPRINTS = {
       tags: [],
       installed: true,
       compiled: true,
+      rail: true,
     },
   ],
 }
