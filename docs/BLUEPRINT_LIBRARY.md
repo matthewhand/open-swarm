@@ -1,9 +1,10 @@
 # Blueprint Library
 
 A menu of the multi-agent workflows ("blueprints") Open Swarm ships, each chosen
-to demonstrate a specific framework feature. Pick one by its `model` name over
-the OpenAI API, run it with `swarm-cli launch <name>`, or use it as a starting
-point for your own.
+to demonstrate a specific framework feature. Blueprints are **CLI/API only**:
+pick one by its `model` name over the OpenAI API, run it with
+`swarm-cli launch <name>`, or use it as a starting point for your own. They do
+not ship a webpage. The Grok-like WebUI (`/` + `/chat`) is the product chrome.
 
 **Status legend**
 
@@ -124,7 +125,6 @@ gracefully without an LLM key; the CLI half is verified live with grok.
 | `stewie` | **MCP** integration (WordPress CMS via MCP tools) | 🟢 |
 | `whiskeytango_foxtrot` | Hierarchical multi-agent + SQLite + web scraping | 🟢 |
 | `poets` | SQLite-backed collaborative creative writing | 🟢 |
-| `django_chat` | Web chat with conversation-history management | 🟢 |
 
 ## Reintroduction candidates (removed in the FOSS cleanup)
 

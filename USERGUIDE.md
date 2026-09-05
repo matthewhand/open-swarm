@@ -13,6 +13,9 @@ here is verified against `swarm-cli --help`.
 > web UI (Playwright PNGs under `docs/screenshots/`);
 > [docs/SCREENSHOTS.md](./docs/SCREENSHOTS.md) is the capture registry.
 >
+> **Blueprints are CLI/API only.** They do not ship a webpage or a second chat
+> shell. The Grok-like SPA (`/` + `/chat`) is the product web UI.
+>
 > **Web UI note:** day-to-day **operator UI** is the **Django** shell
 > (trailing-slash routes: `/blueprint-library/`, `/teams/launch/`,
 > `/sessions/`, `/settings/`, … — [ADR-001](./docs/ADR-001-primary-ui.md)).

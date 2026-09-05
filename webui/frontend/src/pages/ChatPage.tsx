@@ -2270,7 +2270,10 @@ const ChatPage = () => {
             role="toolbar"
             aria-label="Chat tools"
           >
-            <ComputerControlStub />
+            <ComputerControlStub
+              agentId={activeChatAgentId}
+              agentName={selectedAgentName}
+            />
             <ThemeToggle />
             <button
               type="button"

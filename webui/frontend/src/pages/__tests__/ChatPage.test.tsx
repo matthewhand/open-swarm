@@ -745,7 +745,7 @@ describe('ChatPage auto-reconnect backoff', () => {
   })
 })
 
-describe('ChatPage computer-control stub (REQ-27b)', () => {
+describe('ChatPage computer-control pane (REQ-80)', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
@@ -780,9 +780,11 @@ describe('ChatPage computer-control stub (REQ-27b)', () => {
     fireEvent.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
     expect(dialog).toHaveClass('modal-open')
-    expect(dialog).toHaveTextContent(/^[\s\S]*WIP[\s\S]*OpenMousBot or Rakazo remote/)
-    expect(dialog.textContent).not.toMatch(/\bOMB\b/)
-    expect(dialog).toHaveTextContent(/not implemented here/i)
+    expect(dialog).toHaveClass('modal-end')
+    expect(dialog).toHaveTextContent(/Routines/)
+    expect(dialog).toHaveTextContent(/screen/)
+    expect(dialog.textContent).not.toMatch(/WIP|:8001/i)
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
   })
 })
 

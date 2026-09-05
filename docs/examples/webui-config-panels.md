@@ -1,5 +1,9 @@
 # Builder config panels (web UI) — historical
 
+> **Redirect (REQ-74 / #419):** Blueprints are **CLI/API only**. They do not
+> ship a webpage or a builder UI. The Grok-like SPA (`/` + `/chat`) is the
+> product web UI. Do not treat this page as a live “blueprint as WebUI” guide.
+>
 > **Orphaned / historical (2026-08):** `BuilderPage` **and** its React panel
 > components were **deleted** with the ADR-001 SPA cut (`App.tsx` mounts `/` +
 > `/chat` only). Screenshots below document a former SPA surface. Day-to-day

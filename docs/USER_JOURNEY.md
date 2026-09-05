@@ -2,6 +2,7 @@
 
 A walkthrough of Open Swarm from a fresh checkout to running agent teams —
 on the command line, in the web UI, and over the OpenAI-compatible API.
+Blueprints are CLI/API recipes only; the Grok-like SPA is the product web UI.
 
 Every terminal block below is real output captured on a development machine,
 and every screenshot in [`docs/screenshots/`](./screenshots/) was captured from
@@ -39,10 +40,12 @@ This guide uses the project virtualenv directly (`.venv/bin/...`); if you use
 
 ## 2. Meet the CLI
 
-Open Swarm ships agent teams as **blueprints**. `swarm-cli list` inventories
-**package directories** under `src/swarm/blueprints/` plus any installed
-executables / user sources (fresh checkout below — **31** bundled rows,
-including the non-runnable `common` helpers folder):
+Open Swarm ships agent teams as **blueprints**. Blueprints are **CLI/API only**
+— they do not ship a webpage; the Grok-like WebUI is the product chrome.
+`swarm-cli list` inventories **package directories** under
+`src/swarm/blueprints/` plus any installed executables / user sources (fresh
+checkout below — bundled rows, including the non-runnable `common` helpers
+folder):
 
 ```text
 $ .venv/bin/swarm-cli list
@@ -53,7 +56,6 @@ Try 'swarm-cli install-executable <blueprint_name>' or see 'swarm-cli list --ava
 --- Bundled Blueprints (available from package) ---
 - fs_introspect (entry: blueprint_fs_introspect.py)
 - hybrid_swarm (entry: blueprint_hybrid_swarm.py)
-- django_chat (entry: blueprint_django_chat.py)
 - cli_planner (entry: blueprint_cli_planner.py)
 - hybrid_team (entry: blueprint_hybrid_team.py)
 - moa (entry: blueprint_moa.py)
@@ -212,11 +214,11 @@ OpenAI client. Export at `/teams/export` is also login-gated.
 
 ![Team launcher](./screenshots/teams-launch.png)
 
-Pick a team blueprint (the launcher lists bundled options such as
-`fs_introspect`, `hybrid_swarm`, `django_chat`, `hybrid_team`, … — the
-capture shows **`fs_introspect`** selected, the first dropdown option), type
-a task, and stream the team's output in the browser. The output panel is
-empty until you launch.
+Pick a team blueprint (the launcher lists bundled CLI/API recipes such as
+`fs_introspect`, `hybrid_swarm`, `hybrid_team`, … — the capture shows
+**`fs_introspect`** selected, the first dropdown option), type a task, and
+stream the team's output in the browser. The output panel is empty until you
+launch. Blueprints do not mount a second chat UI; product Chat is `/` + `/chat`.
 
 ### Blueprint library — `/blueprint-library/`
 
@@ -332,7 +334,7 @@ $ curl -s http://localhost:8000/v1/models | python -m json.tool
     "object": "list",
     "data": [
         {
-            "id": "django_chat",
+            "id": "chatbot",
             "object": "model",
             "created": 1781045533,
             "owned_by": "open-swarm"

@@ -92,6 +92,19 @@ describe('overlays keep chat mounted (REQ-72 / #364 / #322 / #320)', () => {
     expect(window.location.pathname).toBe('/chat')
   })
 
+  it('keeps chat mounted when the computer-icon Routines pane opens (REQ-80 / #432)', async () => {
+    renderAppAt('/chat')
+    const composer = screen.getByRole('textbox', { name: 'Chat message' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Computer control' }))
+    const pane = await screen.findByRole('dialog', { name: 'Computer control', hidden: true })
+    expect(pane).toHaveClass('modal-end')
+    expect(pane).toHaveTextContent('Routines')
+
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBe(composer)
+    expect(window.location.pathname).toBe('/chat')
+  })
+
   it('keeps chat mounted when the Plugins overlay opens (PR #322)', () => {
     renderAppAt('/chat')
     const composer = screen.getByRole('textbox', { name: 'Chat message' })

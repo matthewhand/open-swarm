@@ -1,5 +1,9 @@
 # Wave 2 QA — django_chat / webui-in-blueprint map
 
+> **Implemented (#419):** the `django_chat` package, catalog id, logger, and
+> leftover tests were deleted. Blueprints are CLI/API only. This file stays a
+> look-only snapshot of the pre-delete map.
+
 Look-only inventory for later **#419** (REQ-74: blueprints are CLI/API only;
 retire webui blueprints / django-chat). No templates, views, SPA, tests, CI,
 or existing `docs/debt/*.md` were changed.

@@ -1,0 +1,193 @@
+"""Per-agent Routines API (REQ-80 / #432).
+
+GET/POST ``/v1/agents/<id>/routines/``
+GET/PATCH/DELETE ``/v1/agents/<id>/routines/<routine_id>/``
+POST ``/v1/agents/<id>/routines/<routine_id>/test-run/``
+POST ``/v1/routines/github-merge/`` — inbound fake GitHub PR-merged event.
+
+GitHub-only. No live tokens. Tests inject merge events.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from swarm.core.chat_store import normalize_agent_id
+from swarm.core.routines import (
+    create_routine,
+    delete_routine,
+    deliver_github_pr_merged,
+    get_routine,
+    list_routines,
+    test_run,
+    trigger_summary,
+    update_routine,
+)
+from swarm.permissions import HasValidTokenOrSession
+from swarm.settings import ENABLE_API_AUTH
+
+logger = logging.getLogger(__name__)
+
+ROUTINES_API_PERMISSIONS = [HasValidTokenOrSession] if ENABLE_API_AUTH else [AllowAny]
+
+
+def _error(message: str, code: int) -> Response:
+    return Response({"error": message}, status=code)
+
+
+def _routine_payload(agent_id: str, routine: dict) -> dict:
+    return {
+        "object": "routine",
+        "agent_id": agent_id,
+        **routine,
+        "when_to_run": trigger_summary(routine.get("trigger")),
+    }
+
+
+def _list_payload(agent_id: str, routines: list[dict]) -> dict:
+    return {
+        "object": "routine_list",
+        "agent_id": agent_id,
+        "routines": [_routine_payload(agent_id, row) for row in routines],
+    }
+
+
+class AgentRoutinesAPIView(APIView):
+    """GET/POST /v1/agents/<agent_id>/routines/"""
+
+    permission_classes = ROUTINES_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_agent_routines_list",
+        summary="List routines for one agent (REQ-80)",
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request, agent_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        return Response(_list_payload(agent, list_routines(agent)), status=status.HTTP_200_OK)
+
+    @extend_schema(
+        operation_id="v1_agent_routines_create",
+        summary="Create a routine for one agent (REQ-80)",
+        responses={201: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+    )
+    def post(self, request, agent_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            routine = create_routine(agent, body)
+        except ValueError as exc:
+            return _error(str(exc), status.HTTP_400_BAD_REQUEST)
+        except OSError:
+            logger.exception("Failed to create routine for %s", agent)
+            return _error("Could not save routine.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(_routine_payload(agent, routine), status=status.HTTP_201_CREATED)
+
+
+class AgentRoutineDetailAPIView(APIView):
+    """GET/PATCH/DELETE /v1/agents/<agent_id>/routines/<routine_id>/"""
+
+    permission_classes = ROUTINES_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_agent_routine_get",
+        summary="Get one agent routine (REQ-80)",
+        responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def get(self, request, agent_id: str, routine_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        routine = get_routine(agent, routine_id)
+        if routine is None:
+            return _error("Routine not found.", status.HTTP_404_NOT_FOUND)
+        return Response(_routine_payload(agent, routine), status=status.HTTP_200_OK)
+
+    @extend_schema(
+        operation_id="v1_agent_routine_patch",
+        summary="Update one agent routine (REQ-80)",
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def patch(self, request, agent_id: str, routine_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            routine = update_routine(agent, routine_id, body)
+        except KeyError:
+            return _error("Routine not found.", status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return _error(str(exc), status.HTTP_400_BAD_REQUEST)
+        except OSError:
+            logger.exception("Failed to update routine %s for %s", routine_id, agent)
+            return _error("Could not save routine.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(_routine_payload(agent, routine), status=status.HTTP_200_OK)
+
+    @extend_schema(
+        operation_id="v1_agent_routine_delete",
+        summary="Delete one agent routine (REQ-80)",
+        responses={204: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def delete(self, request, agent_id: str, routine_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        if not delete_routine(agent, routine_id):
+            return _error("Routine not found.", status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AgentRoutineTestRunAPIView(APIView):
+    """POST /v1/agents/<agent_id>/routines/<routine_id>/test-run/"""
+
+    permission_classes = ROUTINES_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_agent_routine_test_run",
+        summary="Test-run a routine instruction as the agent's prompt (REQ-80)",
+        responses={200: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def post(self, request, agent_id: str, routine_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        try:
+            routine = test_run(agent, routine_id)
+        except KeyError:
+            return _error("Routine not found.", status.HTTP_404_NOT_FOUND)
+        except OSError:
+            logger.exception("Failed to test-run routine %s for %s", routine_id, agent)
+            return _error("Could not test-run routine.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(_routine_payload(agent, routine), status=status.HTTP_200_OK)
+
+
+class GithubRoutineMergeAPIView(APIView):
+    """POST /v1/routines/github-merge/ — fake or connector-delivered merge event."""
+
+    permission_classes = ROUTINES_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_routines_github_merge",
+        summary="Deliver a GitHub PR-merged event to matching Active routines (REQ-80)",
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+    )
+    def post(self, request, *_args, **_kwargs):
+        body = request.data if isinstance(request.data, dict) else {}
+        try:
+            fired = deliver_github_pr_merged(body)
+        except ValueError as exc:
+            return _error(str(exc), status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                "object": "routine_merge_delivery",
+                "fired": [
+                    {
+                        "agent_id": row["agent_id"],
+                        "routine": _routine_payload(row["agent_id"], row["routine"]),
+                    }
+                    for row in fired
+                ],
+                "count": len(fired),
+            },
+            status=status.HTTP_200_OK,
+        )

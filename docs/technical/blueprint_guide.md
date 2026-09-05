@@ -6,12 +6,15 @@ sandbox stack. Prefer this over older notes that pointed at
 
 ## Core concept
 
-A blueprint is a coded team the framework discovers and runs. New work should
+A blueprint is a coded team the framework discovers and runs. Blueprints are
+**CLI/API only** — they do not ship a webpage or a second chat shell. The
+Grok-like WebUI (`/` + `/chat`) is the product chrome. New work should
 subclass a **kind base** (`ApiKindBase` / `CliKindBase` / `RemoteKindBase` —
 [ADR-005](../adr/005-kind-bases.md)), not raw `BlueprintBase` in the common
 case. Each recipe still needs an async `run` loop. The framework loads config, resolves LLM profiles, discovers
 blueprint modules under known roots, and exposes them via `swarm-cli` and the
-API (`/v1/models`, chat completions, library UI).
+API (`/v1/models`, chat completions). Do not add a blueprint Django app,
+`templates/`, or `kind=webui`.
 
 ## Key components
 
@@ -95,7 +98,6 @@ directory/alias keys include (aliases indented conceptually under their source):
 | `cli_ensemble`, `cli_fusion` | CLI consensus / fusion variants (distinct modules) |
 | `cli_map`, `cli_orchestrator`, `cli_pipeline`, `cli_planner`, `cli_recurse`, `cli_roundtable` | Orchestration patterns (`swarm_*` aliases applied by `discover_all_blueprints`) |
 | `codey` | Coding workflow |
-| `django_chat` | Django-integrated chat |
 | `dynamic_team` (alias `dynamic-team`) | Dynamic team from config profile |
 | `fs_introspect` | Filesystem introspection demo |
 | `gawd` | Present and discovered |

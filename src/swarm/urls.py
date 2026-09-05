@@ -113,6 +113,12 @@ from swarm.views.remotes_api import (
     RemotesListView,
 )
 from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
+from swarm.views.routines_api import (
+    AgentRoutineDetailAPIView,
+    AgentRoutinesAPIView,
+    AgentRoutineTestRunAPIView,
+    GithubRoutineMergeAPIView,
+)
 from swarm.views.cli_runs_api import CliRunStatusAPIView, CliRunTerminateAPIView
 from swarm.views.cli_sessions_api import CliSessionListAPIView, CliSessionSelectAPIView
 from swarm.views.suggestions_api import AgentSuggestionsAPIView
@@ -363,6 +369,31 @@ urlpatterns = [
     path("v1/agents/<str:agent_id>/suggestions/", AgentSuggestionsAPIView.as_view(), name="agent-suggestions-api"),
     path("v1/agents/<str:agent_id>/sessions", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api-no-slash"),
     path("v1/agents/<str:agent_id>/sessions/", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api"),
+    # REQ-80: agent-scoped Routines (PR-merge trigger, Test run, history).
+    path("v1/agents/<str:agent_id>/routines", AgentRoutinesAPIView.as_view(), name="agent-routines-api-no-slash"),
+    path("v1/agents/<str:agent_id>/routines/", AgentRoutinesAPIView.as_view(), name="agent-routines-api"),
+    path(
+        "v1/agents/<str:agent_id>/routines/<str:routine_id>",
+        AgentRoutineDetailAPIView.as_view(),
+        name="agent-routine-detail-api-no-slash",
+    ),
+    path(
+        "v1/agents/<str:agent_id>/routines/<str:routine_id>/",
+        AgentRoutineDetailAPIView.as_view(),
+        name="agent-routine-detail-api",
+    ),
+    path(
+        "v1/agents/<str:agent_id>/routines/<str:routine_id>/test-run",
+        AgentRoutineTestRunAPIView.as_view(),
+        name="agent-routine-test-run-api-no-slash",
+    ),
+    path(
+        "v1/agents/<str:agent_id>/routines/<str:routine_id>/test-run/",
+        AgentRoutineTestRunAPIView.as_view(),
+        name="agent-routine-test-run-api",
+    ),
+    path("v1/routines/github-merge", GithubRoutineMergeAPIView.as_view(), name="routines-github-merge-api-no-slash"),
+    path("v1/routines/github-merge/", GithubRoutineMergeAPIView.as_view(), name="routines-github-merge-api"),
     path(
         "v1/agents/<str:agent_id>/avatar/generate",
         AgentAvatarGenerateView.as_view(),
@@ -517,5 +548,5 @@ if frontend_path and frontend_path.exists():
 
     urlpatterns += [
         re_path(r'^assets/(?P<path>.*)$', spa_asset),
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/).*$', spa_fallback),
+        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/|django_chat).*$', spa_fallback),
     ]
