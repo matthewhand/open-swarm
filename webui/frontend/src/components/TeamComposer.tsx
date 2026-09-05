@@ -134,9 +134,23 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
   }, [closeMenu])
 
   const onDragStart = (event: React.DragEvent<HTMLElement>, agent: TeamAgent) => {
+    try {
+      event.dataTransfer.clearData('text/uri-list')
+      event.dataTransfer.clearData('URL')
+      event.dataTransfer.clearData('text/html')
+    } catch {
+      /* ignore */
+    }
     event.dataTransfer.setData(DRAG_MIME, encodeDragAgent(agent))
     event.dataTransfer.setData('text/plain', encodeDragAgent(agent))
     event.dataTransfer.effectAllowed = 'copy'
+    try {
+      event.dataTransfer.clearData('text/uri-list')
+      event.dataTransfer.clearData('URL')
+      event.dataTransfer.clearData('text/html')
+    } catch {
+      /* ignore */
+    }
   }
 
   const onDragOver = (event: React.DragEvent<HTMLElement>) => {
