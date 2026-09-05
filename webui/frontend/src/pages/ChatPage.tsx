@@ -129,6 +129,7 @@ import {
   shouldRecordDropdownChange,
   type DropdownKind,
 } from '../lib/chatStatus'
+import { insertCliSessionNotice } from '../lib/chatTranscript'
 import { restoreKindForAgent, restoredSessionNotice } from '../lib/sessionRestore'
 import {
   discoverChatClis,
@@ -858,15 +859,12 @@ const ChatPage = () => {
             )
             break
           case 'status':
-            next = [
-              ...current,
-              {
-                key: `status-${current.length}-${Date.now()}`,
-                role: 'status',
-                text: event.text,
-                streaming: false,
-              },
-            ]
+            next = insertCliSessionNotice(current, {
+              key: `status-${current.length}-${Date.now()}`,
+              role: 'status',
+              text: event.text,
+              streaming: false,
+            })
             break
         }
         return { ...prev, [threadKey]: next }

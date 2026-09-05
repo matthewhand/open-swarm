@@ -1020,6 +1020,131 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(started!.querySelector('span')).toHaveTextContent('Started a new grok session.')
     expect(screen.getByText('hello').closest('.chat-end')).toBeTruthy()
     expect(screen.getByText('hi').closest('.chat-start')).toBeTruthy()
+    const startedPos = started!.compareDocumentPosition(screen.getByText('hi'))
+    expect(startedPos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('REQ-92: live new-session status lands immediately before the assistant reply', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+        }),
+      } as Response),
+    )
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'hello grok' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">hello grok</div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-cli1" class="assistant-message"></div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="chat-status-line os-chat-status">Started a new grok session.</div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-cli1" class="assistant-message" hx-swap-oob="true">reply after start</div>',
+        }),
+      )
+    })
+
+    const started = screen.getByText('Started a new grok session.')
+    const reply = screen.getByText('reply after start')
+    expect(started.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(started.closest('.chat-start')).toBeNull()
+  })
+
+  it('REQ-92: a resume turn does not print a second Started a new line', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'agt-1-cli',
+              messages: [
+                { role: 'user', content: 'hello' },
+                { role: 'status', content: 'Started a new grok session.' },
+                { role: 'assistant', content: 'hi' },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByText('Started a new grok session.')).toBeInTheDocument()
+
+    const ws = MockWebSocket.instances[0]!
+    await act(async () => {
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="user-message">again</div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-cli2" class="assistant-message"></div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-list" hx-swap-oob="beforeend"><div class="chat-status-line os-chat-status">Resumed grok session.</div></div>',
+        }),
+      )
+      ws.onmessage?.(
+        new MessageEvent('message', {
+          data: '<div id="message-response-cli2" class="assistant-message" hx-swap-oob="true">second reply</div>',
+        }),
+      )
+    })
+
+    expect(screen.getAllByText('Started a new grok session.')).toHaveLength(1)
+    const resumed = screen.getByText('Resumed grok session.')
+    expect(resumed.compareDocumentPosition(screen.getByText('second reply')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('renders info and system thread rows as centred status chrome', async () => {

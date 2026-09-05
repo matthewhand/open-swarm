@@ -751,9 +751,91 @@ class TestBlueprintSelection:
                 assert any("Started a new echo session." in frame for frame in frames)
                 assert "Restored" not in "".join(frames)
                 assert {"role": "status", "content": "Started a new echo session."} in consumer.messages
+                roles = [m["role"] for m in consumer.messages]
+                assert roles.index("status") < roles.index("assistant")
+                status_i = next(i for i, frame in enumerate(frames) if "Started a new echo session." in frame)
+                assistant_i = next(i for i, frame in enumerate(frames) if "ok" in frame)
+                assert status_i < assistant_i
                 instance.set_params.assert_called()
                 passed = instance.set_params.call_args[0][0]
                 assert passed.get("agent") == "cli_agent"
+
+    @pytest.mark.asyncio
+    async def test_receive_new_cli_session_notice_before_assistant_start(
+        self, consumer, tmp_path, monkeypatch
+    ):
+        """REQ-92: first CLI turn sends the status line before assistant_start."""
+        monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+        consumer.messages = []
+        consumer.conversation_id = "conv-cli-new"
+
+        def fake_render(template, context=None):
+            if "user_message" in template:
+                return "<div class='user-message'>hi</div>"
+            if "system_message" in template:
+                div_id = (context or {}).get("contents_div_id", "message-response-x")
+                return (
+                    '<div id="message-list" hx-swap-oob="beforeend">'
+                    f'<div id="{div_id}" class="assistant-message"></div></div>'
+                )
+            return "<div></div>"
+
+        frames = []
+
+        async def capture_send(**kwargs):
+            frames.append(kwargs.get("text_data") or "")
+
+        with patch("swarm.consumers.render_to_string", side_effect=fake_render):
+            with patch.object(consumer, "respond_with_blueprint", new_callable=AsyncMock):
+                with patch.object(consumer, "send", new_callable=AsyncMock, side_effect=capture_send):
+                    await consumer.receive(
+                        json.dumps(
+                            {
+                                "message": "hello",
+                                "blueprint": "cli_agent",
+                                "params": {"cli": "grok"},
+                            }
+                        )
+                    )
+
+        assert any("Started a new grok session." in frame for frame in frames)
+        status_i = next(i for i, frame in enumerate(frames) if "Started a new grok session." in frame)
+        start_i = next(i for i, frame in enumerate(frames) if "assistant-message" in frame)
+        assert status_i < start_i
+        assert [m["role"] for m in consumer.messages[:2]] == ["user", "status"]
+        assert consumer.messages[1]["content"] == "Started a new grok session."
+
+    @pytest.mark.asyncio
+    async def test_receive_resume_does_not_emit_spurious_new_session(
+        self, consumer, tmp_path, monkeypatch
+    ):
+        """REQ-92 / REQ-52: same-session turns do not print Started a new …"""
+        monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+        from swarm.core.cli_sessions import put_cli_session
+
+        put_cli_session("u1", "cli_agent", "grok", "sid-1")
+        consumer.messages = []
+        consumer.conversation_id = "conv-cli-resume"
+
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "respond_with_blueprint", new_callable=AsyncMock):
+                with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                    await consumer.receive(
+                        json.dumps(
+                            {
+                                "message": "again",
+                                "blueprint": "cli_agent",
+                                "params": {"cli": "grok"},
+                            }
+                        )
+                    )
+                    frames = [
+                        call.kwargs.get("text_data") or call.args[0]
+                        for call in mock_send.await_args_list
+                    ]
+
+        assert all("Started a new" not in str(frame) for frame in frames)
+        assert all(m.get("content") != "Started a new grok session." for m in consumer.messages)
 
     @pytest.mark.asyncio
     async def test_blueprint_run_uses_compacted_context(self, consumer, monkeypatch):

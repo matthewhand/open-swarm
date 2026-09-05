@@ -295,6 +295,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         )
         await self.send(text_data=user_message_html)
 
+        # REQ-92: new-session status must precede the assistant bubble on the wire.
+        await self._emit_new_cli_session_notice(blueprint_id, params)
+
         message_id = uuid.uuid4().hex
         contents_div_id = f"message-response-{message_id}"
         system_message_html = render_to_string(
@@ -309,6 +312,44 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             await self.respond_with_blueprint(blueprint_id, contents_div_id, params=params)
         else:
             await self.respond_with_default_model(contents_div_id)
+
+    async def _emit_new_cli_session_notice(self, blueprint_id, params):
+        """REQ-92: send ``Started a new {cli} session.`` before assistant_start.
+
+        Resume / same-session turns stay quiet here. The blueprint still yields
+        the honest resumed/fallback line after it knows the outcome.
+        """
+        try:
+            from swarm.core import chat_store
+            from swarm.core.chat_transcript import (
+                insert_status_before_turn_assistant,
+                new_cli_session_notice_if_needed,
+                transcript_already_has_notice,
+            )
+
+            user_key = None
+            if getattr(self.user, "is_authenticated", False):
+                user_key = chat_store.user_key_for(self.user)
+            thread_params = dict(params or {})
+            thread_params.setdefault("agent", blueprint_id)
+            thread_params.setdefault("agent_id", blueprint_id)
+            thread_params.setdefault(
+                "conversation_id", getattr(self, "conversation_id", "") or ""
+            )
+            notice = new_cli_session_notice_if_needed(
+                blueprint_id=blueprint_id,
+                params=thread_params,
+                user_key=user_key,
+            )
+            if not notice or transcript_already_has_notice(self.messages, notice):
+                return
+            await self.send(text_data=_status_line_html(notice))
+            self.messages = insert_status_before_turn_assistant(
+                self.messages,
+                {"role": "status", "content": notice},
+            )
+        except Exception:
+            logger.debug("CLI new-session notice pre-emit skipped", exc_info=True)
 
     async def respond_with_team_stub(self, params, message_text, contents_div_id):
         """Stub team send-to-all / member-target runtime (REQ-23).
@@ -453,8 +494,17 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
                     notice = str(chunk.get("content") or "").strip()
                     if notice:
-                        await self.send(text_data=_status_line_html(notice))
-                        self.messages.append({"role": "status", "content": notice})
+                        from swarm.core.chat_transcript import (
+                            insert_status_before_turn_assistant,
+                            transcript_already_has_notice,
+                        )
+
+                        if not transcript_already_has_notice(self.messages, notice):
+                            await self.send(text_data=_status_line_html(notice))
+                            self.messages = insert_status_before_turn_assistant(
+                                self.messages,
+                                {"role": "status", "content": notice},
+                            )
                     continue
                 message = _extract_message_from_chunk(chunk)
                 if message is None:

@@ -273,6 +273,24 @@ def _session_notices(chunks):
     ]
 
 
+def _assert_notice_before_assistant(chunks, notice: str):
+    notice_idx = next(
+        i
+        for i, c in enumerate(chunks)
+        if isinstance(c, dict)
+        and c.get("type") == "cli_session_notice"
+        and c.get("content") == notice
+    )
+    assistant_idx = next(
+        i
+        for i, c in enumerate(chunks)
+        if isinstance(c, dict)
+        and c.get("messages")
+        and c["messages"][0].get("content") is not None
+    )
+    assert notice_idx < assistant_idx
+
+
 async def test_second_turn_passes_stored_resume_id(tmp_path, monkeypatch):
     """Fixture CLI echoes --resume ID; turn two must pass the stored id."""
     monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
@@ -307,6 +325,7 @@ async def test_second_turn_passes_stored_resume_id(tmp_path, monkeypatch):
     first = await _collect(bp.run([{"role": "user", "content": "hello"}]))
     assert _final_content(first) == "resume=None prompt=hello"
     assert _session_notices(first) == ["Started a new echo session."]
+    _assert_notice_before_assistant(first, "Started a new echo session.")
     assert "restored" not in " ".join(_session_notices(first)).lower()
 
     from swarm.core.cli_sessions import get_cli_session
@@ -325,6 +344,7 @@ async def test_second_turn_passes_stored_resume_id(tmp_path, monkeypatch):
     )
     assert _final_content(second) == "resume=sid-1 prompt=again"
     assert _session_notices(second) == ["Resumed echo session."]
+    assert all("Started a new" not in n for n in _session_notices(second))
 
 
 async def test_missing_session_starts_new_and_is_honest(tmp_path, monkeypatch):
@@ -372,6 +392,7 @@ async def test_cli_without_resume_never_claims_restore(tmp_path, monkeypatch):
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
     assert _final_content(chunks) == "ECHO: ping"
     assert _session_notices(chunks) == ["Started a new echo session."]
+    _assert_notice_before_assistant(chunks, "Started a new echo session.")
     assert all("Resumed" not in n and "restored" not in n.lower() for n in _session_notices(chunks))
 
 
@@ -400,6 +421,14 @@ async def test_blueprint_streams_deltas_without_duplication():
     chunks = await _collect(bp.run([{"role": "user", "content": "go"}], stream=True))
     # The concatenated deltas reproduce the output exactly — no final full resend.
     assert "".join(_message_contents(chunks)) == "line1\nline2\n"
+
+
+async def test_streaming_new_session_notice_precedes_deltas():
+    """REQ-92: live stream yields the new-session line before assistant deltas."""
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=_stream_config())
+    chunks = await _collect(bp.run([{"role": "user", "content": "go"}], stream=True))
+    _assert_notice_before_assistant(chunks, "Started a new s session.")
+    assert _session_notices(chunks) == ["Started a new s session."]
 
 
 async def test_blueprint_non_streaming_still_single_full_message():
