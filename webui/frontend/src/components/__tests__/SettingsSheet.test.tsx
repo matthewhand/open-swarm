@@ -569,7 +569,17 @@ describe('SettingsSheet', () => {
   it('shows 0 and not created yet when the local store is missing', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          created: false,
+          size_bytes: 0,
+          path: '',
+          conversation_count: 0,
+          message_count: 0,
+        }),
+      } as Response),
     )
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'System' }))

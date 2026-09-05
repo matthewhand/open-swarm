@@ -978,7 +978,7 @@ function SystemPane() {
     staleTime: 0,
     refetchOnMount: 'always',
   })
-  const facts = storeQuery.isError || !storeQuery.data ? EMPTY_LOCAL_STORE : storeQuery.data
+  const facts = storeQuery.data || EMPTY_LOCAL_STORE
   const sizeLabel =
     facts.created && facts.size_bytes > 0
       ? facts.size_label || formatStoreSize(facts.size_bytes)
@@ -998,6 +998,21 @@ function SystemPane() {
       </div>
       {storeQuery.isPending ? (
         <p className="text-sm text-base-content/60">Loading local database…</p>
+      ) : storeQuery.isError ? (
+        <div className="space-y-3" data-testid="system-store-error">
+          <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+            <span className="text-sm">
+              Failed to load local database facts. Check local daemon connection.
+            </span>
+          </Alert>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => void storeQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <dl className="space-y-3 text-sm">
           <div className="rounded-lg border border-base-300 bg-base-200/60 px-3 py-2">
