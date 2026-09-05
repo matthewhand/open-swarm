@@ -722,7 +722,12 @@ def apply_api_hop_messages(
     to_cli: str = "api",
     base_dir=None,
 ) -> list[dict[str, Any]]:
-    """Prepend a system seed after an API backend hop. Same conversation."""
+    """Prepend a system seed after an API backend hop. Same conversation.
+
+    Pending hop is conversation-scoped. ``to_cli`` is tried first; if the
+    stored target is ``api`` / ``api_agent`` (or ``kind=api``), consume that
+    even when the caller used a different alias.
+    """
     hop = consume_pending_hop(
         user_key,
         agent_id,
@@ -730,6 +735,22 @@ def apply_api_hop_messages(
         conversation_id=conversation_id,
         base_dir=base_dir,
     )
+    if hop is None:
+        record = _load_thread(
+            user_key, agent_id, conversation_id=conversation_id, base_dir=base_dir
+        )
+        raw = normalize_cli_hop(record.get("cli_hop"))
+        stored_target = str((raw or {}).get("to_cli") or "")
+        if raw and raw.get("pending") and (
+            raw.get("kind") == "api" or stored_target in {"api", "api_agent"}
+        ):
+            hop = consume_pending_hop(
+                user_key,
+                agent_id,
+                stored_target or to_cli,
+                conversation_id=conversation_id,
+                base_dir=base_dir,
+            )
     if hop is None:
         return list(messages or [])
     seed = str(hop.get("text") or "").strip()

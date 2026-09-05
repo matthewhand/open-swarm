@@ -11,6 +11,7 @@ CHAT = REPO / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 HOP_TS = REPO / "webui" / "frontend" / "src" / "lib" / "cliSessionHop.ts"
 CI = REPO / ".github" / "workflows" / "req138-session-hop.yml"
 AGENT = REPO / "src" / "swarm" / "blueprints" / "cli_agent" / "blueprint_cli_agent.py"
+CONSUMERS = REPO / "src" / "swarm" / "consumers.py"
 
 
 def test_hop_is_new_session_plus_inject_not_resume():
@@ -37,6 +38,14 @@ def test_cli_agent_consumes_pending_hop():
     agent = AGENT.read_text(encoding="utf-8")
     assert "prepare_cli_turn" in agent
     assert "context_carried_chunk" in agent
+
+
+def test_api_consumer_uses_real_user_key():
+    consumers = CONSUMERS.read_text(encoding="utf-8")
+    assert "_hop_user_key" in consumers
+    assert 'apply_api_hop_messages("u0"' not in consumers
+    assert "user_key_for" in consumers
+    assert ":8001" not in consumers
 
 
 def test_spa_calls_hop_on_cli_dropdown_switch():

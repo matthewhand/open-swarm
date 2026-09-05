@@ -290,6 +290,73 @@ def test_apply_injection_and_api_messages(tmp_path):
     assert messages[-1]["content"] == "next"
 
 
+def test_apply_api_hop_does_not_consume_another_users_pending(tmp_path):
+    chat_store.save(
+        "u7",
+        "api_agent",
+        FIXTURE,
+        conversation_id="api-7",
+        base_dir=tmp_path,
+    )
+    hop_backend(
+        "u7",
+        "api_agent",
+        from_cli="openai",
+        to_cli="api",
+        conversation_id="api-7",
+        kind="api",
+        base_dir=tmp_path,
+    )
+    missed = apply_api_hop_messages(
+        "u0",
+        "api_agent",
+        [{"role": "user", "content": "next"}],
+        conversation_id="api-7",
+        to_cli="api",
+        base_dir=tmp_path,
+    )
+    assert missed[0]["role"] == "user"
+    seeded = apply_api_hop_messages(
+        "u7",
+        "api_agent",
+        [{"role": "user", "content": "next"}],
+        conversation_id="api-7",
+        to_cli="api",
+        base_dir=tmp_path,
+    )
+    assert seeded[0]["role"] == "system"
+    assert "Carried context" in seeded[0]["content"]
+
+
+def test_apply_api_hop_accepts_api_agent_alias(tmp_path):
+    chat_store.save(
+        "u1",
+        "api_agent",
+        FIXTURE,
+        conversation_id="api-alias",
+        base_dir=tmp_path,
+    )
+    hop_backend(
+        "u1",
+        "api_agent",
+        from_cli="openai",
+        to_cli="api_agent",
+        conversation_id="api-alias",
+        kind="api",
+        base_dir=tmp_path,
+    )
+    messages = apply_api_hop_messages(
+        "u1",
+        "api_agent",
+        [{"role": "user", "content": "next"}],
+        conversation_id="api-alias",
+        to_cli="api",
+        base_dir=tmp_path,
+    )
+    assert messages[0]["role"] == "system"
+    assert "Carried context" in messages[0]["content"]
+
+
 def test_parse_exported_messages_skips_junk():
     raw = json.dumps(
         {

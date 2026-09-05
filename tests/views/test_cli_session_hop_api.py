@@ -74,6 +74,52 @@ def test_post_hop_seeds_same_conversation(api_client, tmp_path):
     assert get_cli_session("u0", "cli_agent", "agy") is None
 
 
+def test_consumer_api_hop_uses_authenticated_user(tmp_path):
+    from swarm.consumers import _apply_pending_api_hop, _hop_user_key
+
+    user = type("U", (), {"is_authenticated": True, "pk": 7})()
+    assert _hop_user_key(user) == "u7"
+    assert _hop_user_key(type("Anon", (), {"is_authenticated": False})()) == "u0"
+    chat_store.save(
+        "u7",
+        "api_agent",
+        [
+            {"role": "user", "content": "Design a rate limiter"},
+            {"role": "assistant", "content": "Token bucket."},
+        ],
+        conversation_id="api-7",
+        active_cli="openai",
+        base_dir=tmp_path,
+    )
+    from swarm.core.cli_session_hop import hop_backend
+
+    hop_backend(
+        "u7",
+        "api_agent",
+        from_cli="openai",
+        to_cli="api",
+        conversation_id="api-7",
+        kind="api",
+        base_dir=tmp_path,
+    )
+    missed = _apply_pending_api_hop(
+        "api-7",
+        [{"role": "user", "content": "next"}],
+        user=type("Anon", (), {"is_authenticated": False})(),
+        agent_id="api_agent",
+    )
+    assert missed[0]["role"] == "user"
+    seeded = _apply_pending_api_hop(
+        "api-7",
+        [{"role": "user", "content": "next"}],
+        user=user,
+        agent_id="api_agent",
+    )
+    assert seeded[0]["role"] == "system"
+    assert "Carried context" in seeded[0]["content"]
+    assert "Token bucket" in seeded[0]["content"] or "rate limiter" in seeded[0]["content"].lower()
+
+
 def test_post_same_cli_is_400(api_client):
     response = api_client.post(
         "/v1/cli-sessions/hop/",

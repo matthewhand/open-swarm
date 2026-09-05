@@ -193,19 +193,38 @@ async def _auto_compress_before_send(consumer, params=None, model_id=None):
         return None
 
 
-def _apply_pending_api_hop(conversation_id, messages):
+def _hop_user_key(user):
+    """Filesystem key for a pending #531 hop. Anonymous / preview stays ``u0``."""
+    if user is not None and getattr(user, "is_authenticated", False):
+        try:
+            from swarm.core import chat_store
+
+            return chat_store.user_key_for(user)
+        except Exception:
+            logger.debug("Could not resolve hop user_key", exc_info=True)
+    return "u0"
+
+
+def _apply_pending_api_hop(conversation_id, messages, user=None, agent_id=""):
     """#531: seed an API backend hop with the carried blob (same conversation)."""
     try:
         from swarm.core.cli_session_hop import apply_api_hop_messages
 
         cid = str(conversation_id or "")
-        return apply_api_hop_messages("u0", cid or "api_agent", messages, conversation_id=cid)
+        agent = str(agent_id or "").strip() or "api_agent"
+        return apply_api_hop_messages(
+            _hop_user_key(user),
+            agent,
+            messages,
+            conversation_id=cid,
+            to_cli="api",
+        )
     except Exception:
         logger.debug("API hop inject skipped", exc_info=True)
         return list(messages or [])
 
 
-async def _compacted_context(conversation_id, messages):
+async def _compacted_context(conversation_id, messages, user=None, agent_id=""):
     """Model context: summary tree replaces covered raw turns (REQ-37).
 
     Raw ``messages`` stay on the consumer and on disk. Failures fall back
@@ -217,14 +236,18 @@ async def _compacted_context(conversation_id, messages):
         compacted = await database_sync_to_async(context_for_conversation)(
             conversation_id, messages
         )
-        return _apply_pending_api_hop(conversation_id, compacted)
+        return _apply_pending_api_hop(
+            conversation_id, compacted, user=user, agent_id=agent_id
+        )
     except Exception:
         logger.debug("compact context unavailable; using filtered transcript", exc_info=True)
         from swarm.core.speaker_identity import apply_speaker_identity
         from swarm.core.transcript_roles import messages_for_model
 
         filtered = apply_speaker_identity(messages_for_model(messages), adapter_id="openai_compat")
-        return _apply_pending_api_hop(conversation_id, filtered)
+        return _apply_pending_api_hop(
+            conversation_id, filtered, user=user, agent_id=agent_id
+        )
 
 
 def _status_line_html(text: str) -> str:
@@ -690,12 +713,25 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             token = install_safety_session(session)
             compact_result = await _auto_compress_before_send(self, params=params)
+            hop_agent = str(
+                blueprint_id
+                or getattr(self, "active_agent", None)
+                or getattr(self, "default_blueprint", "")
+                or ""
+            )
             if compact_result is not None and compact_result.acted and compact_result.context:
-                model_messages = compact_result.context
+                model_messages = _apply_pending_api_hop(
+                    getattr(self, "conversation_id", ""),
+                    compact_result.context,
+                    user=getattr(self, "user", None),
+                    agent_id=hop_agent,
+                )
             else:
                 model_messages = await _compacted_context(
                     getattr(self, "conversation_id", ""),
                     self.messages,
+                    user=getattr(self, "user", None),
+                    agent_id=hop_agent,
                 )
             async for chunk in blueprint_instance.run(model_messages):
                 if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
@@ -957,12 +993,24 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         full_message = ""
         try:
             compact_result = await _auto_compress_before_send(self, model_id=model)
+            hop_agent = str(
+                getattr(self, "active_agent", None)
+                or getattr(self, "default_blueprint", "")
+                or ""
+            )
             if compact_result is not None and compact_result.acted and compact_result.context:
-                model_messages = compact_result.context
+                model_messages = _apply_pending_api_hop(
+                    getattr(self, "conversation_id", ""),
+                    compact_result.context,
+                    user=getattr(self, "user", None),
+                    agent_id=hop_agent,
+                )
             else:
                 model_messages = await _compacted_context(
                     getattr(self, "conversation_id", ""),
                     self.messages,
+                    user=getattr(self, "user", None),
+                    agent_id=hop_agent,
                 )
             stream = await client.chat.completions.create(
                 model=model,
