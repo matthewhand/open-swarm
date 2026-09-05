@@ -594,6 +594,28 @@ export default function AgentSidebar({
     [visiblePins, orderedRows],
   )
 
+  const navScrollRef = useRef<HTMLElement | null>(null)
+  const [canScroll, setCanScroll] = useState(false)
+
+  const updateCanScroll = useCallback(() => {
+    const el = navScrollRef.current
+    if (!el) return
+    const scrollable = el.scrollHeight > el.clientHeight
+    setCanScroll(scrollable)
+  }, [])
+
+  useEffect(() => {
+    updateCanScroll()
+    const el = navScrollRef.current
+    if (!el) return
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(updateCanScroll)
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+    return undefined
+  }, [updateCanScroll, orderedRows.length, visiblePins.length])
+
   const closeMenu = useCallback(() => setMenu(null), [])
 
   const openPalette = useCallback(() => {
@@ -1648,46 +1670,61 @@ export default function AgentSidebar({
           </div>
 
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="Agent list">
-          <div
-            className={`os-agent-list ${listDropActive ? 'os-agent-list--unfav' : ''}`}
-            data-testid="agent-list-drop"
-            data-unfavourite-target="true"
-            onDragOver={allowListUnfavourite}
-            onDragLeave={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-                setListDropActive(false)
-              }
-            }}
-            onDrop={dropUnfavourite}
+        <div className="relative min-h-0 flex-1 flex flex-col">
+          <nav
+            ref={navScrollRef}
+            onScroll={updateCanScroll}
+            className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
+            aria-label="Agent list"
           >
-            {loadingList ? (
-              <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
-            ) : loadFailed ? (
-              <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
-            ) : visibleCount === 0 ? (
-              <p className="px-2 py-3 text-sm text-base-content/45">
-                {isPinnedId(draggingId) ? 'drop here to unfavourite' : 'No agents yet.'}
-              </p>
-            ) : (
-              <ul className="space-y-0.5">
-                {orderedRows.map((row, index) => {
-                  const spillSlot =
-                    index < 9 - visiblePins.length ? visiblePins.length + index + 1 : undefined
-                  return (
-                    <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
-                      {row.kind === 'team'
-                        ? renderTeamRow(row.team, false, [], spillSlot)
-                        : row.kind === 'remote'
-                          ? renderRemoteRow(row.remote, false, spillSlot)
-                          : renderAgentRow(row.agent, false, spillSlot)}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </nav>
+            <div
+              className={`os-agent-list ${listDropActive ? 'os-agent-list--unfav' : ''}`}
+              data-testid="agent-list-drop"
+              data-unfavourite-target="true"
+              onDragOver={allowListUnfavourite}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                  setListDropActive(false)
+                }
+              }}
+              onDrop={dropUnfavourite}
+            >
+              {loadingList ? (
+                <p className="px-2 py-3 text-sm text-base-content/45">Loading agents…</p>
+              ) : loadFailed ? (
+                <p className="px-2 py-3 text-sm text-base-content/45">Could not load agents.</p>
+              ) : visibleCount === 0 ? (
+                <p className="px-2 py-3 text-sm text-base-content/45">
+                  {isPinnedId(draggingId) ? 'drop here to unfavourite' : 'No agents yet.'}
+                </p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {orderedRows.map((row, index) => {
+                    const spillSlot =
+                      index < 9 - visiblePins.length ? visiblePins.length + index + 1 : undefined
+                    return (
+                      <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
+                        {row.kind === 'team'
+                          ? renderTeamRow(row.team, false, [], spillSlot)
+                          : row.kind === 'remote'
+                            ? renderRemoteRow(row.remote, false, spillSlot)
+                            : renderAgentRow(row.agent, false, spillSlot)}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </nav>
+          <div
+            className={`os-rail-scroll-fade pointer-events-none transition-opacity duration-150 ${
+              canScroll ? 'opacity-100' : 'opacity-0'
+            }`}
+            data-testid="rail-scroll-fade"
+            data-can-scroll={canScroll ? 'true' : 'false'}
+            aria-hidden="true"
+          />
+        </div>
 
         <div
           className={`os-hidden-bots ${hiddenCount === 0 ? 'os-hidden-bots--empty' : 'os-hide-drop--has-hidden'} ${
@@ -1760,6 +1797,7 @@ export default function AgentSidebar({
             onClick={() => setPluginsOpen(true)}
             title="Plugins"
             aria-label="Plugins"
+            data-testid="os-plugins-button"
           >
             <Plug className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="os-plugins-label">Plugins</span>
