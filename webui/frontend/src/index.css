@@ -1197,6 +1197,26 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
 .os-composer__icon:hover {
   background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
 }
+.os-composer__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 0;
+  flex-shrink: 0;
+  background: var(--color-base-content);
+  color: var(--color-base-100);
+}
+.os-composer__send:hover {
+  opacity: 0.92;
+}
+html:not([data-theme="light"]) .os-composer__send,
+[data-theme="dark"] .os-composer__send {
+  background: #fff;
+  color: #111;
+}
 .os-composer__hint {
   font-size: 0.65rem;
   padding: 0.1rem 0.35rem;

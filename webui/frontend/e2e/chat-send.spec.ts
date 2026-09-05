@@ -36,7 +36,7 @@ async function awaitComposerReady(page: import('@playwright/test').Page) {
 async function sendChatMessage(page: import('@playwright/test').Page, text: string) {
   const { composer } = await awaitComposerReady(page)
   await composer.fill(text)
-  // Compact composer: Send is sr-only; Enter submits the form.
+  // REQ-76: circular up-arrow Send appears once the field has text.
   await expect(page.getByRole('button', { name: /^Send$/i })).toBeEnabled()
   await composer.press('Enter')
 }
