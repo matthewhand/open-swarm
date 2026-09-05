@@ -98,7 +98,7 @@ import {
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
-import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT } from '../lib/agentEdits'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel } from '../lib/agentEdits'
 import {
   agentLabel,
   defaultBlueprintId,
@@ -324,19 +324,18 @@ const ChatPage = () => {
   const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const runtimeBlueprint = teamFromUrl ? '' : assignedBlueprintId(selectedBlueprint)
+  const fallbackAgentName =
+    selectedAgent?.name ||
+    selectedCli?.name ||
+    (selectedBlueprint === SUPPORT_AGENT_ID ? 'Support' : selectedBlueprint)
   const selectedAgentName = teamFromUrl
     ? selectedTeamSession?.name || selectedTeam?.name || teamFromUrl
     : remoteFromUrl
       ? selectedRemoteSession?.name || selectedRemote?.title || remoteFromUrl
-      : selectedBlueprint === 'api_agent'
-        ? 'api_agent'
-        : selectedCli
-        ? selectedCli.name
-        : selectedAgent
-          ? agentLabel(selectedAgent)
-          : selectedBlueprint === SUPPORT_AGENT_ID
-            ? 'Support'
-            : selectedBlueprint
+      : editedAgentLabel({
+          id: selectedBlueprint,
+          name: fallbackAgentName,
+        })
   const signInHref = chatLoginHref(searchParams)
 
   const isRemoteBackedTeam = Boolean(
