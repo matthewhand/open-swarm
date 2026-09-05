@@ -22,15 +22,28 @@ export function agentIdFromBlueprint(blueprintId: string | null | undefined): st
 
 /** Stable per-agent conversation id (localStorage). Survives reload. */
 export function conversationIdForAgent(agentId: string): string {
+  const existing = peekConversationIdForAgent(agentId)
+  if (existing) return existing
+  const minted = newConversationId()
+  try {
+    window.localStorage.setItem(
+      `${STORAGE_PREFIX}${agentIdFromBlueprint(agentId)}`,
+      minted,
+    )
+  } catch {
+    /* private mode / quota */
+  }
+  return minted
+}
+
+/** Stored conversation id only — does not mint. REQ-82 copy-id. */
+export function peekConversationIdForAgent(agentId: string): string | null {
   const key = `${STORAGE_PREFIX}${agentIdFromBlueprint(agentId)}`
   try {
     const existing = window.localStorage.getItem(key)
-    if (existing) return existing
-    const minted = newConversationId()
-    window.localStorage.setItem(key, minted)
-    return minted
+    return existing && existing.trim() ? existing : null
   } catch {
-    return newConversationId()
+    return null
   }
 }
 
