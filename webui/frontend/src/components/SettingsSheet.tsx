@@ -424,7 +424,7 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
         <p className="mt-1 text-sm text-base-content/70">
           {blueprintId ? (
             <>
-              Editing <span className="font-medium">{label}</span>
+              Viewing <span className="font-medium">{label}</span>
               {isExampleRole(role) ? (
                 <>
                   {' '}
@@ -433,7 +433,7 @@ export function BlueprintEditorPane({ blueprintId }: { blueprintId: string }) {
               ) : (
                 '.'
               )}{' '}
-              This editor opens the Python/API recipe (tools, prompts, code) — not the Teams roster.
+              This view displays the Python/API recipe (tools, prompts, code) — not the Teams roster.
             </>
           ) : (
             'Select a roled agent in the rail to open its blueprint.'
