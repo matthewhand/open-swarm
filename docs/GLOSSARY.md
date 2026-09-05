@@ -69,6 +69,10 @@ This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 A **team roster** (`team_rosters.json`, `/v1/team-rosters/`) is a composition
 of members `{id, kind: api\|cli\|remote\|team\|herdr, role, source}`. This is
 **not** the `/v1/teams` alias. `kind=team` + `team_id` nests a child roster.
+A roster may optionally name one **API or CLI** member as Chief of Staff and
+store team-scoped how-to-use-the-roster instructions. The same agent id may
+sit on two teams; each team's CoS brief steers that roster only. CoS is not
+auto-assigned. Remotes cannot be CoS until runtime can inject a brief.
 ADR-006 adds `kind=blueprint` and redefines `kind=api` as an inference seat
 (Phase 1/2). Existing `kind=api` roster rows that point at recipes migrate to
 `blueprint`.

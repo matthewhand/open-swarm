@@ -25,6 +25,7 @@ from typing import Any
 
 from swarm.core.agent_roles import CANONICAL_ROLES, normalize_agent_role
 from swarm.core.paths import ensure_swarm_directories_exist, get_user_config_dir_for_swarm
+from swarm.core.team_cos import apply_cos_fields
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ def normalize_roster(raw: dict[str, Any], *, roster_id: str | None = None) -> di
         if len(blueprint_id) > 64:
             raise ValueError("blueprint_id too long (max 64).")
         out["blueprint_id"] = blueprint_id
-    return out
+    return apply_cos_fields(out, raw)
 
 
 def serialize_roster(entry: dict[str, Any]) -> dict[str, Any]:
@@ -145,6 +146,8 @@ def serialize_roster(entry: dict[str, Any]) -> dict[str, Any]:
         "name": normalized["name"],
         "members": normalized["members"],
         "wires": normalized["wires"],
+        "chief_of_staff_id": normalized.get("chief_of_staff_id"),
+        "chief_of_staff_instructions": normalized.get("chief_of_staff_instructions") or "",
     }
     if normalized.get("blueprint_id"):
         payload["blueprint_id"] = normalized["blueprint_id"]
@@ -209,6 +212,8 @@ def upsert_roster(roster: dict[str, Any]) -> dict[str, Any]:
             "name": normalized["name"],
             "members": normalized["members"],
             "wires": normalized["wires"],
+            "chief_of_staff_id": normalized.get("chief_of_staff_id"),
+            "chief_of_staff_instructions": normalized.get("chief_of_staff_instructions") or "",
         }
         if normalized.get("blueprint_id"):
             stored["blueprint_id"] = normalized["blueprint_id"]

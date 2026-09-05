@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { childTeamIds, nestRosters, parseTeamRoster, parseTeamRosterList } from '../teamRoster'
+import {
+  addMember,
+  childTeamIds,
+  cosBriefForMember,
+  DEFAULT_COS_STARTER,
+  emptyRosterDraft,
+  encodeDragAgent,
+  isCosEligibleMember,
+  nestRosters,
+  parseDragAgent,
+  parseTeamRoster,
+  parseTeamRosterList,
+  restoreCosId,
+  runtimeBriefForTarget,
+  stampCosRole,
+} from '../teamRoster'
 
 describe('teamRoster (REQ-28)', () => {
   it('parses kind=remote Hermes/OMB/Rakazo members (PR #318 / REQ-28)', () => {
@@ -59,5 +74,58 @@ describe('teamRoster (REQ-28)', () => {
     expect(tree).toHaveLength(1)
     expect(tree[0].id).toBe('office')
     expect(tree[0].children.map((c) => c.id)).toEqual(['research'])
+  })
+})
+
+describe('teamRoster CoS + composer helpers (REQ-107)', () => {
+  it('does not auto-pick a CoS on an empty draft', () => {
+    const draft = emptyRosterDraft()
+    expect(draft.chiefOfStaffId).toBeNull()
+    expect(draft.chiefOfStaffInstructions).toBe(DEFAULT_COS_STARTER)
+    expect(DEFAULT_COS_STARTER.toLowerCase()).not.toMatch(/api_key|secret|token|:8001/)
+  })
+
+  it('round-trips drag payload and adds members without assigning CoS', () => {
+    const agent = { id: 'jeeves', name: 'Jeeves', kind: 'api' as const, source: 'blueprint:jeeves' }
+    const parsed = parseDragAgent(encodeDragAgent(agent))
+    expect(parsed).toMatchObject(agent)
+    const members = addMember([], agent)
+    expect(members).toHaveLength(1)
+    expect(restoreCosId({ members, chief_of_staff_id: null })).toBeNull()
+  })
+
+  it('omits remotes from CoS eligibility and keeps two team briefs', () => {
+    const remote = { id: 'hermes', kind: 'remote' as const, role: 'default', source: 'remote:hermes' }
+    const jeeves = { id: 'jeeves', kind: 'api' as const, role: 'default', source: 'blueprint:jeeves' }
+    expect(isCosEligibleMember(remote)).toBe(false)
+    expect(isCosEligibleMember(jeeves)).toBe(true)
+    const stamped = stampCosRole([jeeves, remote], 'jeeves')
+    expect(stamped[0].role).toBe('chief_of_staff')
+    const teamA = {
+      chief_of_staff_id: 'jeeves',
+      chief_of_staff_instructions: 'prefer grok_agent for revision control',
+    }
+    const teamB = {
+      chief_of_staff_id: 'jeeves',
+      chief_of_staff_instructions: 'use skeptic only after implement',
+    }
+    expect(cosBriefForMember(teamA, 'jeeves')).toContain('revision control')
+    expect(cosBriefForMember(teamB, 'jeeves')).toContain('after implement')
+    expect(runtimeBriefForTarget(teamA, 'all')).toContain('revision control')
+    expect(runtimeBriefForTarget(teamA, 'skeptic')).toBeNull()
+    expect(runtimeBriefForTarget({ chief_of_staff_id: null, chief_of_staff_instructions: 'x' }, 'all')).toBeNull()
+  })
+
+  it('parses saved CoS fields on a roster', () => {
+    const roster = parseTeamRoster({
+      id: 'lab',
+      object: 'team_roster',
+      name: 'Lab',
+      members: [{ id: 'jeeves', kind: 'api', role: 'chief_of_staff', source: 'blueprint:jeeves' }],
+      chief_of_staff_id: 'jeeves',
+      chief_of_staff_instructions: 'coordinate the roster',
+    })
+    expect(roster?.chief_of_staff_id).toBe('jeeves')
+    expect(roster?.chief_of_staff_instructions).toBe('coordinate the roster')
   })
 })

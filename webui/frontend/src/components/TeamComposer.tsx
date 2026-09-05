@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Users } from 'lucide-react'
-import { Alert, Badge, Button, Input, Modal } from './DaisyUI'
+import { Alert, Badge, Button, Input, Modal, Textarea } from './DaisyUI'
 import {
   createTeamRoster,
   fetchTeamAgents,
@@ -9,23 +9,33 @@ import {
   updateTeamRoster,
   type TeamAgent,
   type TeamMemberRole,
-  type TeamRoster,
-  type TeamRosterMember,
+  type TeamRosterRecord,
 } from '../lib/api'
 import {
   addMember,
   agentDisplayName,
+  COS_EMPTY_ROSTER_HINT,
+  COS_INSTRUCTIONS_HELPER,
+  cosIneligibleReason,
+  DEFAULT_COS_STARTER,
   DEFAULT_TEAM_WIRES,
   DRAG_MIME,
+  eligibleCosMembers,
   emptyRosterDraft,
   encodeDragAgent,
+  isCosEligibleMember,
   KIND_LABEL,
+  NO_COS_VALUE,
   parseDragAgent,
+  parseRosterMember,
   PLACEHOLDER_TEAM_AGENTS,
   removeMember,
+  restoreCosId,
   rosterHasMember,
   setMemberRole,
+  stampCosRole,
   TEAM_MEMBER_ROLES,
+  type TeamRosterMember,
 } from '../lib/teamRoster'
 
 export const OPEN_TEAM_COMPOSER_EVENT = 'swarm:open-team-composer'
@@ -53,11 +63,14 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
   const [name, setName] = useState('')
   const [members, setMembers] = useState<TeamRosterMember[]>([])
   const [wires, setWires] = useState({ ...DEFAULT_TEAM_WIRES })
+  const [chiefOfStaffId, setChiefOfStaffId] = useState<string | null>(null)
+  const [cosInstructions, setCosInstructions] = useState(DEFAULT_COS_STARTER)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const cosChoices = useMemo(() => eligibleCosMembers(members), [members])
 
   const agentsQuery = useQuery({
     queryKey: ['team-agents'],
@@ -94,6 +107,8 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
     setName(draft.name)
     setMembers(draft.members)
     setWires({ ...draft.wires })
+    setChiefOfStaffId(draft.chiefOfStaffId)
+    setCosInstructions(draft.chiefOfStaffInstructions)
     setSavedId(null)
     setStatus(null)
   }, [])
@@ -122,6 +137,13 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
     }
   }, [menu, closeMenu])
 
+  const applyChiefOfStaff = useCallback((nextId: string | null) => {
+    setChiefOfStaffId(nextId)
+    setMembers((prev) => stampCosRole(prev, nextId))
+    setCosInstructions((prev) => (prev.trim() ? prev : DEFAULT_COS_STARTER))
+    setStatus(null)
+  }, [])
+
   const addFromAgent = useCallback((agent: TeamAgent) => {
     setMembers((prev) => addMember(prev, agent))
     setStatus(null)
@@ -129,9 +151,15 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
   }, [closeMenu])
 
   const removeFromAgent = useCallback((agent: Pick<TeamRosterMember, 'kind' | 'id' | 'source'>) => {
-    setMembers((prev) => removeMember(prev, agent))
+    setMembers((prev) => {
+      const next = removeMember(prev, agent)
+      if (chiefOfStaffId && agent.id === chiefOfStaffId) {
+        setChiefOfStaffId(null)
+      }
+      return next
+    })
     closeMenu()
-  }, [closeMenu])
+  }, [chiefOfStaffId, closeMenu])
 
   const onDragStart = (event: React.DragEvent<HTMLElement>, agent: TeamAgent) => {
     try {
@@ -178,24 +206,54 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
       if (!trimmed) {
         throw new Error('Team name is required.')
       }
-      const payload = { name: trimmed, members, wires }
+      const stamped = stampCosRole(members, chiefOfStaffId)
+      const payload = {
+        name: trimmed,
+        members: stamped,
+        wires,
+        chief_of_staff_id: chiefOfStaffId,
+        chief_of_staff_instructions: chiefOfStaffId ? cosInstructions : '',
+      }
       if (savedId) {
         return updateTeamRoster(savedId, payload)
       }
       return createTeamRoster(payload)
     },
-    onSuccess: (roster: TeamRoster) => {
+    onSuccess: (roster: TeamRosterRecord) => {
+      const nextMembers = (roster.members || [])
+        .map(parseRosterMember)
+        .filter((row): row is TeamRosterMember => row !== null)
+      const nextCos = restoreCosId({
+        members: nextMembers,
+        chief_of_staff_id: roster.chief_of_staff_id,
+      })
       setSavedId(roster.id)
       setName(roster.name)
+      setMembers(stampCosRole(nextMembers, nextCos))
+      setChiefOfStaffId(nextCos)
+      setCosInstructions(
+        nextCos ? roster.chief_of_staff_instructions || DEFAULT_COS_STARTER : DEFAULT_COS_STARTER,
+      )
       queryClient.invalidateQueries({ queryKey: ['team-rosters'] })
       setStatus(`Saved roster “${roster.name}” to team_rosters.json.`)
     },
   })
 
-  const loadRoster = (roster: TeamRoster) => {
+  const loadRoster = (roster: TeamRosterRecord) => {
     setSavedId(roster.id)
     setName(roster.name)
-    setMembers(roster.members)
+    const nextMembers = (roster.members || [])
+      .map(parseRosterMember)
+      .filter((row): row is TeamRosterMember => row !== null)
+    const nextCos = restoreCosId({
+      members: nextMembers,
+      chief_of_staff_id: roster.chief_of_staff_id,
+    })
+    setMembers(stampCosRole(nextMembers, nextCos))
+    setChiefOfStaffId(nextCos)
+    setCosInstructions(
+      nextCos ? roster.chief_of_staff_instructions || DEFAULT_COS_STARTER : DEFAULT_COS_STARTER,
+    )
     setWires({
       handoff: roster.wires?.handoff ?? true,
       as_tool: roster.wires?.as_tool ?? true,
@@ -303,6 +361,57 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
           </p>
         </fieldset>
 
+        <fieldset
+          className="rounded-lg border border-base-300 bg-base-200/40 px-3 py-2"
+          data-testid="team-cos-fieldset"
+        >
+          <legend className="px-1 text-xs font-semibold uppercase tracking-[0.08em] text-base-content/45">
+            Chief of Staff
+          </legend>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium">Chief of Staff</span>
+            <select
+              className="select select-sm"
+              value={chiefOfStaffId ?? NO_COS_VALUE}
+              disabled={members.length === 0}
+              aria-label="Chief of Staff"
+              data-testid="team-cos-select"
+              onChange={(event) => {
+                const next = event.target.value.trim()
+                applyChiefOfStaff(next ? next : null)
+              }}
+            >
+              <option value={NO_COS_VALUE}>No Chief of Staff</option>
+              {cosChoices.map((member) => (
+                <option key={`${member.kind}:${member.id}`} value={member.id}>
+                  {agentDisplayName(member)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {members.length === 0 ? (
+            <p className="mt-2 text-xs text-base-content/50">{COS_EMPTY_ROSTER_HINT}</p>
+          ) : (
+            <p className="mt-2 text-xs text-base-content/50">
+              Optional. Do not auto-assign — pick one roster member, or leave unset.
+              Remotes stay off this list until runtime can inject a CoS brief.
+            </p>
+          )}
+          <Textarea
+            id="team-cos-instructions"
+            data-testid="team-cos-instructions"
+            label="How to use this team"
+            size="sm"
+            rows={5}
+            disabled={!chiefOfStaffId}
+            value={chiefOfStaffId ? cosInstructions : ''}
+            onChange={(event) => setCosInstructions(event.target.value)}
+            placeholder={COS_INSTRUCTIONS_HELPER}
+            aria-label="Chief of Staff instructions"
+          />
+          <p className="mt-1 text-xs text-base-content/50">{COS_INSTRUCTIONS_HELPER}</p>
+        </fieldset>
+
         {saveMutation.isError && (
           <Alert type="error">
             {saveMutation.error instanceof Error
@@ -365,6 +474,26 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
                         <Badge type={kindBadgeType(member.kind)} size="sm">
                           {KIND_LABEL[member.kind]}
                         </Badge>
+                        {isCosEligibleMember(member) ? (
+                          <label className="flex items-center gap-1 text-xs">
+                            <input
+                              type="radio"
+                              name="team-chief-of-staff"
+                              className="radio radio-xs"
+                              checked={chiefOfStaffId === member.id}
+                              aria-label={`Chief of Staff: ${member.id}`}
+                              onChange={() => applyChiefOfStaff(member.id)}
+                            />
+                            <span className="text-base-content/60">CoS</span>
+                          </label>
+                        ) : (
+                          <span
+                            className="text-[11px] text-base-content/40"
+                            title={cosIneligibleReason(member) ?? undefined}
+                          >
+                            CoS n/a
+                          </span>
+                        )}
                         <label className="sr-only" htmlFor={`role-${member.kind}-${member.id}`}>
                           Role for {member.id}
                         </label>
@@ -372,17 +501,19 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
                           id={`role-${member.kind}-${member.id}`}
                           className="select select-xs"
                           value={member.role}
-                          onChange={(event) =>
-                            setMembers((prev) =>
-                              setMemberRole(
-                                prev,
-                                member,
-                                event.target.value as TeamMemberRole,
-                              ),
-                            )
-                          }
+                          onChange={(event) => {
+                            const role = event.target.value as TeamMemberRole
+                            if (role === 'chief_of_staff') {
+                              if (isCosEligibleMember(member)) applyChiefOfStaff(member.id)
+                              return
+                            }
+                            setMembers((prev) => setMemberRole(prev, member, role))
+                            if (chiefOfStaffId === member.id) applyChiefOfStaff(null)
+                          }}
                         >
-                          {TEAM_MEMBER_ROLES.map((role) => (
+                          {TEAM_MEMBER_ROLES.filter(
+                            (role) => role !== 'chief_of_staff' || isCosEligibleMember(member),
+                          ).map((role) => (
                             <option key={role} value={role}>
                               {role}
                             </option>

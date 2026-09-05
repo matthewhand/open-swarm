@@ -35,6 +35,8 @@ async function stubComposerApis(page: import('@playwright/test').Page) {
           name: body?.name ?? 'research-squad',
           members: body?.members ?? [],
           wires: body?.wires ?? { handoff: true, as_tool: true },
+          chief_of_staff_id: body?.chief_of_staff_id ?? null,
+          chief_of_staff_instructions: body?.chief_of_staff_instructions ?? '',
         }),
       })
       return
@@ -104,14 +106,27 @@ test(' + opens two-pane team composer; add/remove and save roster', async ({ pag
   await expect(page.getByRole('checkbox', { name: /as_tool/i })).toBeChecked()
   await expect(page.getByText(/gate is unwired/i)).toBeVisible()
 
+  const cos = page.getByTestId('team-cos-select')
+  await expect(cos).toBeDisabled()
+  await expect(page.getByText(/add agents first/i)).toBeVisible()
+
   await available.getByRole('button', { name: 'Add' }).first().click()
   const roster = page.getByRole('list', { name: /roster members/i })
   await expect(roster.getByText('jeeves')).toBeVisible()
   await expect(roster.getByText('API')).toBeVisible()
+  await expect(cos).toBeEnabled()
+  await expect(cos).toHaveValue('')
+
+  await cos.selectOption('jeeves')
+  const brief = page.getByTestId('team-cos-instructions')
+  await expect(brief).toBeEnabled()
+  await brief.fill('prefer grok_agent for revision control')
 
   await page.getByLabel(/team name/i).fill('research-squad')
   await page.getByRole('button', { name: /save roster/i }).click()
   await expect(page.getByRole('status')).toContainText(/team_rosters\.json/i)
+  await expect(cos).toHaveValue('jeeves')
+  await expect(brief).toHaveValue('prefer grok_agent for revision control')
 
   expect(jsErrors, `uncaught JS errors: ${jsErrors.join(' | ')}`).toHaveLength(0)
 })

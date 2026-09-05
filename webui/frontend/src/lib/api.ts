@@ -426,6 +426,8 @@ export interface TeamRosterRecord {
   blueprint_id?: string
   persona_count?: number
   personas?: Array<{ name: string }>
+  chief_of_staff_id?: string | null
+  chief_of_staff_instructions?: string
 }
 
 export function fetchTeamRosters(): Promise<ListResponse<TeamRosterRecord>> {
@@ -437,6 +439,29 @@ export interface CreateTeamRosterRequest {
   members?: TeamRosterRecord['members']
   wires?: TeamRosterRecord['wires']
   blueprint_id?: string
+  chief_of_staff_id?: string | null
+  chief_of_staff_instructions?: string
+}
+
+/** GET /v1/team-agents/ — designer palette (REQ-20 / REQ-107). */
+export type TeamMemberRole =
+  | 'default'
+  | 'support'
+  | 'gate'
+  | 'skeptic'
+  | 'chief_of_staff'
+  | 'suggestions'
+
+export interface TeamAgent {
+  id: string
+  name: string
+  kind: 'api' | 'cli' | 'remote' | 'team' | 'herdr'
+  source: string
+  placeholder?: boolean
+}
+
+export function fetchTeamAgents(): Promise<ListResponse<TeamAgent>> {
+  return apiGet<ListResponse<TeamAgent>>('/v1/team-agents/')
 }
 
 export function createTeamRoster(

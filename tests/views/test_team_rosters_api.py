@@ -92,6 +92,90 @@ def test_create_roster_with_blueprint_id_attaches_personas(api_client):
     ]
 
 
+def test_create_roster_with_cos_instructions_and_reload(api_client):
+    members = [
+        {"id": "jeeves", "kind": "api", "role": "default", "source": "blueprint:jeeves"},
+        {"id": "grok_agent", "kind": "cli", "role": "default", "source": "cli:grok_agent"},
+        {"id": "skeptic", "kind": "api", "role": "skeptic", "source": "blueprint:skeptic"},
+    ]
+    created = api_client.post(
+        "/v1/team-rosters/",
+        {
+            "name": "Research Squad",
+            "members": members,
+            "chief_of_staff_id": "jeeves",
+            "chief_of_staff_instructions": "prefer grok_agent for revision control",
+        },
+        format="json",
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["chief_of_staff_id"] == "jeeves"
+    assert body["chief_of_staff_instructions"] == "prefer grok_agent for revision control"
+    assert {m["id"]: m["role"] for m in body["members"]}["jeeves"] == "chief_of_staff"
+
+    loaded = api_client.get("/v1/team-rosters/research-squad/")
+    assert loaded.status_code == 200
+    again = loaded.json()
+    assert again["chief_of_staff_id"] == "jeeves"
+    assert again["chief_of_staff_instructions"] == "prefer grok_agent for revision control"
+
+    cleared = api_client.put(
+        "/v1/team-rosters/research-squad/",
+        {
+            "name": "Research Squad",
+            "members": members,
+            "chief_of_staff_id": None,
+            "chief_of_staff_instructions": "",
+        },
+        format="json",
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["chief_of_staff_id"] is None
+    assert cleared.json()["chief_of_staff_instructions"] == ""
+
+
+def test_create_roster_rejects_remote_cos(api_client):
+    response = api_client.post(
+        "/v1/team-rosters/",
+        {
+            "name": "Harness",
+            "members": [
+                {"id": "hermes", "kind": "remote", "role": "default"},
+                {"id": "jeeves", "kind": "api", "role": "default"},
+            ],
+            "chief_of_staff_id": "hermes",
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "API or CLI" in response.json()["error"]
+
+
+def test_team_agents_palette(api_client, monkeypatch):
+    from swarm.views import team_rosters_api as api
+
+    monkeypatch.setattr(
+        api,
+        "list_team_agents",
+        lambda: [
+            {
+                "id": "jeeves",
+                "name": "jeeves",
+                "kind": "api",
+                "source": "blueprint:jeeves",
+                "placeholder": False,
+            }
+        ],
+    )
+    response = api_client.get("/v1/team-agents/")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["object"] == "list"
+    assert body["data"][0]["id"] == "jeeves"
+    assert "api_key" not in str(body).lower()
+
+
 def test_create_roster_with_remote_members(api_client):
     """PR #318: POST /v1/team-rosters/ accepts Hermes/OMB/Rakazo as kind=remote."""
     response = api_client.post(

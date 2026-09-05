@@ -31,6 +31,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from swarm.core.team_agents import list_team_agents
 from swarm.core.team_rosters import (
     delete_roster,
     get_roster,
@@ -105,6 +106,22 @@ class TeamRostersAPIView(APIView):
                 ),
                 "members": serializers.ListField(required=False, child=serializers.DictField()),
                 "wires": serializers.DictField(required=False),
+                "chief_of_staff_id": serializers.CharField(
+                    required=False,
+                    allow_blank=True,
+                    allow_null=True,
+                    help_text="Optional roster member id (API or CLI). Empty = no CoS.",
+                ),
+                "chief_of_staff_instructions": serializers.CharField(
+                    required=False,
+                    allow_blank=True,
+                    help_text="Team-scoped how-to-use-the-roster brief for the CoS only.",
+                ),
+                "blueprint_id": serializers.CharField(
+                    required=False,
+                    allow_blank=True,
+                    help_text="Optional team blueprint id (declared persona roster).",
+                ),
             },
         ),
         examples=[
@@ -128,6 +145,11 @@ class TeamRostersAPIView(APIView):
                         },
                     ],
                     "wires": {"handoff": True, "as_tool": True},
+                    "chief_of_staff_id": "cos",
+                    "chief_of_staff_instructions": (
+                        "Coordinate this team's roster. Hand off or use-as-tool "
+                        "according to each member's strengths."
+                    ),
                 },
                 request_only=True,
             )
@@ -152,15 +174,20 @@ class TeamRostersAPIView(APIView):
             if slug in load_team_rosters():
                 return _error(f"Roster '{slug}' already exists.", status.HTTP_409_CONFLICT)
 
-            stored = upsert_roster(
-                {
-                    "id": slug,
-                    "name": name,
-                    "members": body.get("members") or body.get("agent_team") or [],
-                    "wires": body.get("wires"),
-                    "blueprint_id": body.get("blueprint_id") or body.get("blueprint"),
-                }
-            )
+            payload = {
+                "id": slug,
+                "name": name,
+                "members": body.get("members") or body.get("agent_team") or [],
+                "wires": body.get("wires"),
+                "blueprint_id": body.get("blueprint_id") or body.get("blueprint"),
+            }
+            if "chief_of_staff_id" in body:
+                payload["chief_of_staff_id"] = body.get("chief_of_staff_id")
+            if "chief_of_staff_instructions" in body:
+                payload["chief_of_staff_instructions"] = body.get(
+                    "chief_of_staff_instructions"
+                )
+            stored = upsert_roster(payload)
             return Response(_public_roster(stored), status=status.HTTP_201_CREATED)
         except ValueError as exc:
             return _error(str(exc), status.HTTP_400_BAD_REQUEST)
@@ -192,15 +219,26 @@ class TeamRosterDetailAPIView(APIView):
             body = request.data or {}
             name = (body.get("name") or existing.get("name") or roster_id).strip()
             blueprint_id = body.get("blueprint_id", body.get("blueprint", existing.get("blueprint_id")))
-            stored = upsert_roster(
-                {
-                    "id": roster_id,
-                    "name": name,
-                    "members": body.get("members", body.get("agent_team", existing.get("members") or [])),
-                    "wires": body.get("wires", existing.get("wires")),
-                    "blueprint_id": blueprint_id,
-                }
-            )
+            payload = {
+                "id": roster_id,
+                "name": name,
+                "members": body.get("members", body.get("agent_team", existing.get("members") or [])),
+                "wires": body.get("wires", existing.get("wires")),
+                "blueprint_id": blueprint_id,
+            }
+            if "chief_of_staff_id" in body:
+                payload["chief_of_staff_id"] = body.get("chief_of_staff_id")
+            elif "chief_of_staff_id" in existing:
+                payload["chief_of_staff_id"] = existing.get("chief_of_staff_id")
+            if "chief_of_staff_instructions" in body:
+                payload["chief_of_staff_instructions"] = body.get(
+                    "chief_of_staff_instructions"
+                )
+            elif "chief_of_staff_instructions" in existing:
+                payload["chief_of_staff_instructions"] = existing.get(
+                    "chief_of_staff_instructions"
+                )
+            stored = upsert_roster(payload)
             return Response(_public_roster(stored), status=status.HTTP_200_OK)
         except ValueError as exc:
             return _error(str(exc), status.HTTP_400_BAD_REQUEST)
@@ -216,3 +254,27 @@ class TeamRosterDetailAPIView(APIView):
         except Exception:
             logger.exception("Error deleting team roster '%s'.", roster_id)
             return _error("Failed to delete team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TeamAgentsAPIView(APIView):
+    """GET /v1/team-agents/ — designer palette (not /v1/teams aliases)."""
+
+    permission_classes = ROSTER_API_PERMISSIONS
+
+    @extend_schema(
+        operation_id="v1_team_agents_list",
+        summary="List agents available for a team roster",
+        description=(
+            "Palette for the team designer: API blueprints, CLI catalog "
+            "(placeholders when the binary is missing), and configured remotes. "
+            "No secrets. Django /teams/ aliases are not included."
+        ),
+        responses={200: OpenApiTypes.OBJECT, 500: OpenApiTypes.OBJECT},
+    )
+    def get(self, request, *_args, **_kwargs):
+        try:
+            data = list_team_agents()
+            return Response({"object": "list", "data": data}, status=status.HTTP_200_OK)
+        except Exception:
+            logger.exception("Error retrieving team agents.")
+            return _error("Failed to retrieve team agents.", status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -31,13 +31,20 @@ control (DaisyUI `modal-end` Settings sheet is not in this tree).
       {"id": "grok", "kind": "cli", "role": "skeptic", "source": "cli:grok"},
       {"id": "acp", "kind": "remote", "role": "support", "source": "placeholder:remote:acp"}
     ],
-    "wires": {"handoff": true, "as_tool": true}
+    "wires": {"handoff": true, "as_tool": true},
+    "chief_of_staff_id": "jeeves",
+    "chief_of_staff_instructions": "Coordinate this team's roster. Add specifics for this team: …"
   }
 }
 ```
 
 - `kind`: `api` | `cli` | `remote`
-- `role`: `support` | `gate` | `skeptic` | `default`
+- `role`: `support` | `gate` | `skeptic` | `default` | `chief_of_staff`
+- `chief_of_staff_id`: optional member id already on the roster (API or CLI).
+  Empty / omitted = no CoS. Never auto-picked.
+- `chief_of_staff_instructions`: team-scoped brief injected as a
+  developer/system message for **that team's CoS only**. Cleared when CoS
+  is cleared. The same agent on two teams keeps two briefs.
 - `wires.handoff` / `wires.as_tool`: default **both on**. These are roster
   toggles, not a per-seat edge list. Forced / circular **handoff graphs**
   live on API blueprints (`sdlc_handoff`); CLI/remote members stay native.
@@ -54,7 +61,7 @@ Remotes and missing CLIs are **placeholders**. They are not Blueprint classes.
 - Optional `blueprint_id` on a roster assigns a catalog recipe. `GET /v1/blueprints/<id>/personas`
   returns the declared openai-agents roster (static parse; never exec).
 - `GET /v1/team-agents/` — available palette (API from blueprints, CLI catalog
-  or placeholders, remote placeholders)
+  or placeholders, configured remotes). No secrets.
 
 Auth matches `/v1/teams/`: `HasValidTokenOrSession` when API auth is on.
 
@@ -63,3 +70,8 @@ Auth matches `/v1/teams/`: `HasValidTokenOrSession` when API auth is on.
 First-launch overlay: two panes. Left = grey dashed drop zone (“drop agents
 here”). Right = available agents (API / CLI / remote), each row HTML5-draggable.
 Context menu Add/Remove for keyboard / pointer a11y. No `@dnd-kit`.
+
+Optional **Chief of Staff** control (dropdown + radio on eligible roster
+rows) plus a how-to-use-this-team instructions field. Empty roster disables
+the picker (“Add agents first”). Remotes are omitted with a reason. Chat
+stays mounted (header **Compose team** overlay).

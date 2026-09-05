@@ -36,6 +36,7 @@ Oracle from anything in this tree.
 | [REQ-105](./REQ-105.md) | [Any agent — Select / New session (Django-backed session list)](https://github.com/matthewhand/open-swarm/issues/469) |
 | [REQ-114](./REQ-114.md) | [Rail right-click — Terminate running CLI process](https://github.com/matthewhand/open-swarm/issues/495) |
 | [REQ-106](./REQ-106.md) | [Bee brand mark — SVG favicon + multi-size app icons (colour + mono)](https://github.com/matthewhand/open-swarm/issues/470); surface split [minimal / geometric / cyber-swarm](https://github.com/matthewhand/open-swarm/issues/768) |
+| [REQ-107](./REQ-107.md) | [Team designer — optional Chief of Staff + how-to-use-the-team instructions](https://github.com/matthewhand/open-swarm/issues/475) |
 | [REQ-189](./REQ-189.md) | [Look-only — OMB+Rakazo local computer control → open-swarm adaptation](https://github.com/matthewhand/open-swarm/issues/645) |
 | [REQ-156](./REQ-156.md) | [README — why openai-agents + 3 harness types + workflow diagrams](https://github.com/matthewhand/open-swarm/issues/564) |
 | [REQ-159](./REQ-159.md) | [Three kind bases (API/CLI/remote) — Support builds from these](https://github.com/matthewhand/open-swarm/issues/570) |
