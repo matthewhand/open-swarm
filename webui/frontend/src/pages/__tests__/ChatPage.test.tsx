@@ -1391,10 +1391,12 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
     vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    window.localStorage.clear()
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    window.localStorage.clear()
   })
 
   it('lists only configured remotes plus Add remote on remote agents', async () => {
@@ -1442,12 +1444,147 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     const options = within(select)
       .getAllByRole('option')
       .map((opt) => opt.textContent)
+    expect(select).toHaveValue('omb')
     expect(options).toContain('OpenMousBot')
     expect(options).toContain('Add remote')
     expect(options).not.toContain('Hermes')
     expect(options).not.toContain('Rakazo')
     expect(options).not.toContain('OMB')
+    expect(options).not.toContain('No remotes')
     expect(select.textContent).not.toMatch(/\bOMB\b/)
+  })
+
+  it('shows the bound remote name for a remote agent (Issue #745)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/remotes') || url.includes('remotes_catalog')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+              configured: [
+                {
+                  id: 'omb',
+                  kind: 'omb',
+                  label: 'OpenMousBot',
+                  title: 'OpenMousBot',
+                  host_label: '',
+                  base_url: 'http://127.0.0.1:8802',
+                  source: 'config',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?remote=omb')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const select = await screen.findByRole('combobox', { name: 'Remote' })
+    expect(select).toHaveValue('omb')
+    expect(within(select).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(within(select).queryByRole('option', { name: 'No remotes' })).not.toBeInTheDocument()
+  })
+
+  it('opens Add remote instead of No remotes chrome when none are configured', async () => {
+    const opened: unknown[] = []
+    const listener = (event: Event) => opened.push((event as CustomEvent).detail)
+    window.addEventListener('swarm:open-settings', listener)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/remotes') || url.includes('remotes_catalog')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+              configured: [],
+              data: [],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?blueprint=starter-remote')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add remote' })).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+    expect(screen.queryByText('No remotes')).not.toBeInTheDocument()
+    expect(opened).toContainEqual({ section: 'remotes', addRemote: true })
+    window.removeEventListener('swarm:open-settings', listener)
+  })
+
+  it('offers Pick a remote when remotes exist but the agent is unbound', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/v1/remotes') || url.includes('remotes_catalog')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              kinds: [
+                { id: 'hermes', label: 'Hermes' },
+                { id: 'omb', label: 'OpenMousBot' },
+              ],
+              configured: [
+                {
+                  id: 'omb',
+                  kind: 'omb',
+                  label: 'OpenMousBot',
+                  title: 'OpenMousBot',
+                  host_label: '',
+                  base_url: 'http://127.0.0.1:8802',
+                  source: 'config',
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?blueprint=starter-remote')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    const select = await screen.findByRole('combobox', { name: 'Remote' })
+    const options = within(select)
+      .getAllByRole('option')
+      .map((opt) => opt.textContent)
+    expect(select).toHaveValue('')
+    expect(options).toContain('Pick a remote')
+    expect(options).toContain('OpenMousBot')
+    expect(options).not.toContain('No remotes')
   })
 
   it('hides the Remotes control on local API and CLI agents', async () => {

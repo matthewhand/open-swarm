@@ -1,4 +1,4 @@
-import { useState, useId, useMemo } from 'react'
+import { useState, useId, useMemo, useEffect } from 'react'
 import { Terminal, Bot, Globe, ArrowLeft, Plus, ExternalLink, Edit3 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Modal, Button, Alert } from './DaisyUI'
@@ -9,9 +9,14 @@ import {
   fetchBlueprints,
   fetchCliAgents,
   fetchCustomBlueprints,
+  fetchRemotes,
 } from '../lib/api'
 import { OPENMOUSBOT_LABEL } from '../lib/remotesCatalog'
 import { loadAgentEdit, saveAgentEdit } from '../lib/agentEdits'
+import { RemoteSelect } from './RemoteSelect'
+import { openSettingsSheet } from './SettingsSheet'
+import { configuredRemotes } from '../lib/remotes'
+import { remotesListForSelect, saveAgentRemoteBinding } from '../lib/agentRemote'
 
 export type AgentKind = 'cli' | 'api' | 'remote'
 
@@ -78,6 +83,7 @@ export default function AddAgentWizard({
   const [remoteKind, setRemoteKind] = useState<'omb' | 'generic'>('omb')
   const [remoteBaseUrl, setRemoteBaseUrl] = useState('')
   const [remoteApiKey, setRemoteApiKey] = useState('')
+  const [pickedRemoteId, setPickedRemoteId] = useState('')
 
   // Queries for existing agents
   const blueprintsQuery = useQuery({
@@ -101,6 +107,23 @@ export default function AddAgentWizard({
     retry: 1,
   })
 
+  const remotesQuery = useQuery({
+    queryKey: ['remotes-list'],
+    queryFn: fetchRemotes,
+    enabled: isOpen,
+    retry: 1,
+  })
+  const remotesCatalog = remotesListForSelect(remotesQuery.data)
+  const configuredRemoteRows = configuredRemotes(remotesCatalog)
+
+  useEffect(() => {
+    if (!isOpen || selectedKind !== 'remote' || step !== 'configure') return
+    if (remotesQuery.isPending) return
+    if (configuredRemoteRows.length === 0) {
+      openSettingsSheet({ section: 'remotes', addRemote: true })
+    }
+  }, [isOpen, selectedKind, step, remotesQuery.isPending, configuredRemoteRows.length])
+
   const resetFormFields = () => {
     setError(null)
     setFolderError(null)
@@ -115,6 +138,7 @@ export default function AddAgentWizard({
     setRemoteKind('omb')
     setRemoteBaseUrl('')
     setRemoteApiKey('')
+    setPickedRemoteId('')
     setEditingAgentId(null)
   }
 
@@ -391,23 +415,43 @@ export default function AddAgentWizard({
           setStep('manage')
         }
       } else if (selectedKind === 'remote') {
-        const baseUrl = remoteBaseUrl.trim()
-        if (!baseUrl) throw new Error('Base URL is required')
+        if (configuredRemoteRows.length > 0) {
+          const picked = configuredRemoteRows.find((row) => row.id === pickedRemoteId)
+          if (!picked) throw new Error('Pick a remote')
+          saveAgentRemoteBinding(picked.id, {
+            id: picked.id,
+            kind: picked.kind || picked.id,
+          })
+          onCreated?.({
+            id: picked.id,
+            name: picked.label || picked.title || picked.id,
+            kind: 'remote',
+          })
+          handleClose()
+        } else {
+          const baseUrl = remoteBaseUrl.trim()
+          if (!baseUrl) throw new Error('Base URL is required')
 
-        const created = await createRemote({
-          kind: remoteKind === 'omb' ? 'omb' : 'remote',
-          base_url: baseUrl,
-          ...(remoteApiKey.trim() ? { api_key: remoteApiKey.trim() } : {}),
-        })
+          const created = await createRemote({
+            kind: remoteKind === 'omb' ? 'omb' : 'remote',
+            base_url: baseUrl,
+            ...(remoteApiKey.trim() ? { api_key: remoteApiKey.trim() } : {}),
+          })
 
-        await queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
-        await queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
-        onCreated?.({
-          id: created.id,
-          name: remoteKind === 'omb' ? OPENMOUSBOT_LABEL : created.id,
-          kind: 'remote',
-        })
-        handleClose()
+          saveAgentRemoteBinding(created.id, {
+            id: created.id,
+            kind: created.kind || created.id,
+          })
+          await queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+          await queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+          await queryClient.invalidateQueries({ queryKey: ['remotes-list'] })
+          onCreated?.({
+            id: created.id,
+            name: remoteKind === 'omb' ? OPENMOUSBOT_LABEL : created.id,
+            kind: 'remote',
+          })
+          handleClose()
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save agent')
@@ -789,53 +833,65 @@ export default function AddAgentWizard({
             ) : null}
 
             {selectedKind === 'remote' ? (
-              <>
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-base-content/80">
-                    Remote Type <span className="text-error">*</span>
-                  </label>
-                  <select
-                    className="select select-sm select-bordered w-full"
-                    value={remoteKind}
-                    onChange={(e) => setRemoteKind(e.target.value as 'omb' | 'generic')}
-                    aria-label="Remote type"
-                    data-testid="select-remote-kind"
-                  >
-                    <option value="omb">{OPENMOUSBOT_LABEL}</option>
-                    <option value="generic">Generic Remote Agent</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-base-content/80">
-                    Base URL <span className="text-error">*</span>
-                  </label>
-                  <input
-                    type="url"
-                    className="input input-sm input-bordered w-full font-mono text-xs"
-                    placeholder="http://localhost:8000"
-                    value={remoteBaseUrl}
-                    onChange={(e) => setRemoteBaseUrl(e.target.value)}
-                    required
-                    autoFocus
-                    aria-label="Base URL"
-                    data-testid="input-remote-url"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-base-content/80">
-                    API Key / Token (optional)
-                  </label>
-                  <input
-                    type="password"
-                    className="input input-sm input-bordered w-full text-xs"
-                    placeholder="Optional authorization token"
-                    value={remoteApiKey}
-                    onChange={(e) => setRemoteApiKey(e.target.value)}
-                    aria-label="API Key"
-                    data-testid="input-remote-key"
-                  />
-                </div>
-              </>
+              configuredRemoteRows.length > 0 ? (
+                <RemoteSelect
+                  remotes={remotesCatalog}
+                  value={pickedRemoteId}
+                  onChange={setPickedRemoteId}
+                  label="Remote"
+                />
+              ) : (
+                <>
+                  <p className="text-xs text-base-content/60" data-testid="remote-empty-add-hint">
+                    No remotes configured yet. Add one here, or finish Add remote in Settings.
+                  </p>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-base-content/80">
+                      Remote Type <span className="text-error">*</span>
+                    </label>
+                    <select
+                      className="select select-sm select-bordered w-full"
+                      value={remoteKind}
+                      onChange={(e) => setRemoteKind(e.target.value as 'omb' | 'generic')}
+                      aria-label="Remote type"
+                      data-testid="select-remote-kind"
+                    >
+                      <option value="omb">{OPENMOUSBOT_LABEL}</option>
+                      <option value="generic">Generic Remote Agent</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-base-content/80">
+                      Base URL <span className="text-error">*</span>
+                    </label>
+                    <input
+                      type="url"
+                      className="input input-sm input-bordered w-full font-mono text-xs"
+                      placeholder="http://localhost:8000"
+                      value={remoteBaseUrl}
+                      onChange={(e) => setRemoteBaseUrl(e.target.value)}
+                      required
+                      autoFocus
+                      aria-label="Base URL"
+                      data-testid="input-remote-url"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-base-content/80">
+                      API Key / Token (optional)
+                    </label>
+                    <input
+                      type="password"
+                      className="input input-sm input-bordered w-full text-xs"
+                      placeholder="Optional authorization token"
+                      value={remoteApiKey}
+                      onChange={(e) => setRemoteApiKey(e.target.value)}
+                      aria-label="API Key"
+                      data-testid="input-remote-key"
+                    />
+                  </div>
+                </>
+              )
             ) : null}
 
             <div className="flex items-center justify-end gap-2 pt-2">

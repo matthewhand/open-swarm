@@ -6,6 +6,7 @@ import AgentEditor from '../AgentEditor'
 import SettingsSheet, { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from '../SettingsSheet'
 import { ToastProvider } from '../DaisyUI'
 import { AGENT_EDITS_KEY, assignedBlueprintId } from '../../lib/agentEdits'
+import { AGENT_REMOTE_BINDINGS_KEY } from '../../lib/agentRemote'
 
 const catalog = [
   {
@@ -114,6 +115,7 @@ function EditorThenSettings({ agentId = 'support' }: { agentId?: string }) {
 describe('AgentEditor (REQ-58)', () => {
   afterEach(() => {
     localStorage.removeItem(AGENT_EDITS_KEY)
+    localStorage.removeItem(AGENT_REMOTE_BINDINGS_KEY)
     vi.unstubAllGlobals()
   })
 
@@ -212,6 +214,47 @@ describe('AgentEditor (REQ-58)', () => {
       expect(within(dialog).getByText(/Remotes keep their own models/i)).toBeInTheDocument()
       expect(within(dialog).queryByRole('combobox', { name: /CLI override/i })).not.toBeInTheDocument()
       expect(within(dialog).queryByRole('combobox', { name: /API profile override/i })).not.toBeInTheDocument()
+    })
+
+    it('remote agent: requires picking a configured remote', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+          const url = String(input)
+          if (url.includes('/v1/remotes')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                object: 'list',
+                kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+                configured: [
+                  {
+                    id: 'omb',
+                    kind: 'omb',
+                    label: 'OpenMousBot',
+                    title: 'OpenMousBot',
+                    host_label: '',
+                    base_url: 'http://127.0.0.1:8802',
+                    source: 'config',
+                  },
+                ],
+              }),
+            } as Response
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ object: 'list', data: catalog }),
+          } as Response
+        }),
+      )
+      renderEditor({ agentId: 'remote-omb' })
+      const dialog = await screen.findByRole('dialog', { name: /Edit /i, hidden: true })
+      const select = await within(dialog).findByRole('combobox', { name: 'Remote' })
+      expect(within(select).getByRole('option', { name: 'Pick a remote' })).toBeInTheDocument()
+      expect(within(select).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+      expect(within(select).queryByRole('option', { name: 'No remotes' })).not.toBeInTheDocument()
     })
 
     it('CLI agent: renders CLIs and models, not agents from catalog', async () => {

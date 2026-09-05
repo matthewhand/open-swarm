@@ -196,6 +196,7 @@ function App() {
           initialSection={settingsDetail?.section}
           definitionKind={settingsDetail?.definitionKind}
           definitionId={settingsDetail?.definitionId}
+          initialAddRemote={settingsDetail?.addRemote}
         />
         <AgentEditor
           isOpen={agentEditorOpen}

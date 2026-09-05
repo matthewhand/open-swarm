@@ -5,6 +5,7 @@ import {
   configuredRemotes,
   remoteKinds,
   remoteOptionLabel,
+  remoteSelectPlaceholder,
 } from '../lib/remotes'
 import type { RemotesListResponse } from '../lib/api'
 
@@ -54,7 +55,7 @@ export function RemoteSelect({
       }}
     >
       <option value="" disabled>
-        {configured.length === 0 ? 'No remotes' : 'Remote'}
+        {remoteSelectPlaceholder(configured.length, selected)}
       </option>
       {configured.map((remote) => (
         <option key={remote.id} value={remote.id}>

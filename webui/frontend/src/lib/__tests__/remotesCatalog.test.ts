@@ -44,6 +44,22 @@ describe('remotesCatalog (REQ-68)', () => {
     expect(JSON.stringify(rail)).not.toMatch(/\bOMB\b/)
   })
 
+  it('parses a configured-only list payload used by Settings / RemoteSelect', () => {
+    const rail = parseRailRemotes({
+      object: 'list',
+      configured: [
+        {
+          id: 'omb',
+          kind: 'omb',
+          title: 'OpenMousBot',
+          source: 'config',
+        },
+      ],
+    })
+    expect(rail.map((row) => row.id)).toEqual(['omb'])
+    expect(rail[0]?.configured).toBe(true)
+  })
+
   it('ignores blueprint-shaped GET payloads so a mixed mock cannot poison the rail', () => {
     expect(
       parseRailRemotes({
