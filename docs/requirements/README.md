@@ -26,6 +26,7 @@ Oracle from anything in this tree.
 | [REQ-61](./REQ-61.md) | [Hermes remote — add, list, send (kind complete)](https://github.com/matthewhand/open-swarm/issues/387) |
 | [REQ-62](./REQ-62.md) | [OpenMousBot remote — add, list, send (kind complete)](https://github.com/matthewhand/open-swarm/issues/388) |
 | [REQ-64](./REQ-64.md) | [Herdr remote — addable in Settings, --remote on CLI](https://github.com/matthewhand/open-swarm/issues/390) |
+| [REQ-100](./REQ-100.md) | [Herdr remotes: local wrap vs SSH remote interrogation](https://github.com/matthewhand/open-swarm/issues/463) |
 | [REQ-65](./REQ-65.md) | [Agent setting — new chat per task (scale-out workers)](https://github.com/matthewhand/open-swarm/issues/393) |
 | [REQ-66](./REQ-66.md) | [Scale-out rail — stacked avatars + session picker popup](https://github.com/matthewhand/open-swarm/issues/394) |
 | [REQ-67](./REQ-67.md) | [Role chrome is the badge only — no row fill/border](https://github.com/matthewhand/open-swarm/issues/396) |

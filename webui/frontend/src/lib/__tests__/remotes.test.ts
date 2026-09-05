@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   configuredRemotes,
+  herdrLocationLabel,
+  isHerdrKind,
   remoteKindLabel,
   remoteKinds,
   remoteSelectPlaceholder,
@@ -95,5 +97,19 @@ describe('remotes catalog (REQ-59)', () => {
     expect(rows[0].id).toBe('omb')
     expect(remoteSelectPlaceholder(rows.length, '')).toBe('Pick a remote')
     expect(remoteSelectPlaceholder(0, '')).toBe('No remotes')
+  })
+
+  it('labels Herdr as local vs SSH (REQ-100)', () => {
+    expect(isHerdrKind('herdr')).toBe(true)
+    expect(isHerdrKind('omb')).toBe(false)
+    expect(herdrLocationLabel({ herdr_mode: 'local', base_url: '' })).toBe('Local Herdr (no SSH)')
+    expect(
+      herdrLocationLabel({
+        herdr_mode: 'ssh',
+        ssh_user: 'herdr',
+        ssh_host: 'herdr.example.test',
+        ssh_port: 22,
+      }),
+    ).toBe('SSH herdr@herdr.example.test')
   })
 })

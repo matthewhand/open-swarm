@@ -218,23 +218,42 @@
     <div class="mb-4" id="herdr-remote-kind">
       <h3 class="h6" id="herdr-remote-kind-heading">Herdr remote (Settings Remotes kind)</h3>
       <p class="os-meta mb-2">
-        Add kind <code>herdr</code> like Hermes / OpenMousBot / Rakazo.
-        Persist a base URL + api-key-env name. <code>herdr --remote</code> and
-        <code>swarm-cli remotes</code> use that configured base.
-        Localhost omits <code>--remote</code> only when you set a loopback URL.
-        Missing config is a clear error — we will not guess another host.
+        Add kind <code>herdr</code>. This is <strong>not</strong> an HTTP remote
+        like OpenMousBot / Hermes / Rakazo. <strong>Local Herdr</strong> talks to
+        Herdr on this host (no SSH; localhost URL only if you choose that).
+        <strong>Remote Herdr</strong> is SSH-shaped: host + user, optional
+        identity env-var name (path, never a private key) and SSH agent.
+        Health / list / send / interrogate go over SSH to that Herdr host, then
+        to Herdr’s CLIs. Missing SSH config is a clear error — we will not guess
+        a host. <code>kind=herdr</code>
       </p>
       <form id="herdr-remote-form" class="row g-2 align-items-end mb-2">
-        <div class="col-md-5">
-          <label class="form-label" for="herdr-remote-base">Base URL</label>
-          <input class="form-control" id="herdr-remote-base" name="base_url" required
-                 maxlength="500" placeholder="http://127.0.0.1:9" autocomplete="off">
+        <div class="col-md-2">
+          <label class="form-label" for="herdr-remote-mode">Location</label>
+          <select class="form-select" id="herdr-remote-mode" name="herdr_mode">
+            <option value="local" selected>Local (no SSH)</option>
+            <option value="ssh">Remote (SSH)</option>
+          </select>
         </div>
-        <div class="col-md-4">
-          <label class="form-label" for="herdr-remote-key-env">API key env name</label>
-          <input class="form-control" id="herdr-remote-key-env" name="api_key_env"
-                 maxlength="200" placeholder="HERDR_API_KEY" autocomplete="off"
-                 value="HERDR_API_KEY">
+        <div class="col-md-3" id="herdr-remote-base-wrap">
+          <label class="form-label" for="herdr-remote-base">Local URL (optional)</label>
+          <input class="form-control" id="herdr-remote-base" name="base_url"
+                 maxlength="500" placeholder="http://127.0.0.1 — only if you chose localhost" autocomplete="off">
+        </div>
+        <div class="col-md-3" id="herdr-remote-ssh-host-wrap" hidden>
+          <label class="form-label" for="herdr-remote-ssh-host">SSH host</label>
+          <input class="form-control" id="herdr-remote-ssh-host" name="ssh_host"
+                 maxlength="255" placeholder="herdr.example.test" autocomplete="off">
+        </div>
+        <div class="col-md-2" id="herdr-remote-ssh-user-wrap" hidden>
+          <label class="form-label" for="herdr-remote-ssh-user">SSH user</label>
+          <input class="form-control" id="herdr-remote-ssh-user" name="ssh_user"
+                 maxlength="128" placeholder="herdr" autocomplete="off">
+        </div>
+        <div class="col-md-2" id="herdr-remote-ssh-ident-wrap" hidden>
+          <label class="form-label" for="herdr-remote-ssh-ident">Identity env</label>
+          <input class="form-control" id="herdr-remote-ssh-ident" name="ssh_identity_env"
+                 maxlength="200" placeholder="HERDR_SSH_IDENTITY" autocomplete="off">
         </div>
         <div class="col-md-3">
           <button type="submit" class="btn btn-primary" data-action="add-herdr-remote">
@@ -243,7 +262,7 @@
         </div>
       </form>
       <div id="herdr-remote-status" class="os-meta" role="status">
-        Not configured — add a base URL to list it under Settings Remotes.
+        Not configured — add local Herdr or SSH host + user.
       </div>
     </div>
     <form id="herdr-add-form" class="row g-2 align-items-end mb-3">

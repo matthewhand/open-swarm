@@ -31,6 +31,8 @@ import { RemoteSelect } from './RemoteSelect'
 import { RemoteOperatePane } from './RemotesSettings'
 import {
   configuredRemotes,
+  herdrLocationLabel,
+  isHerdrKind,
   remoteKindLabel,
   remoteKinds,
   unusedRemoteKinds,
@@ -640,7 +642,14 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
   const [kind, setKind] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKeyEnv, setApiKeyEnv] = useState('')
+  const [herdrMode, setHerdrMode] = useState<'local' | 'ssh'>('local')
+  const [sshHost, setSshHost] = useState('')
+  const [sshUser, setSshUser] = useState('')
+  const [sshPort, setSshPort] = useState('')
+  const [sshIdentityEnv, setSshIdentityEnv] = useState('')
+  const [sshAgent, setSshAgent] = useState(true)
   const [selectedId, setSelectedId] = useState('')
+  const addingHerdr = isHerdrKind(kind)
 
   const remotesQuery = useQuery({
     queryKey: ['settings-remotes'],
@@ -668,8 +677,24 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
     mutationFn: () =>
       createRemote({
         kind,
-        ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
-        ...(apiKeyEnv.trim() ? { api_key_env: apiKeyEnv.trim() } : {}),
+        ...(addingHerdr
+          ? {
+              herdr_mode: herdrMode,
+              ...(herdrMode === 'local' && baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+              ...(herdrMode === 'ssh'
+                ? {
+                    ssh_host: sshHost.trim(),
+                    ssh_user: sshUser.trim(),
+                    ...(sshPort.trim() ? { ssh_port: sshPort.trim() } : {}),
+                    ...(sshIdentityEnv.trim() ? { ssh_identity_env: sshIdentityEnv.trim() } : {}),
+                    ssh_agent: sshAgent,
+                  }
+                : {}),
+            }
+          : {
+              ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+              ...(apiKeyEnv.trim() ? { api_key_env: apiKeyEnv.trim() } : {}),
+            }),
       }),
     onSuccess: (created) => {
       queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
@@ -683,6 +708,12 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
       setAdding(false)
       setBaseUrl('')
       setApiKeyEnv('')
+      setHerdrMode('local')
+      setSshHost('')
+      setSshUser('')
+      setSshPort('')
+      setSshIdentityEnv('')
+      setSshAgent(true)
       setKind('')
       setSelectedId(created.id)
       success('Remote added', `${remoteKindLabel(created.kind || created.id, kinds)} is now configured.`)
@@ -714,6 +745,7 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
   const handleAdd = (event: FormEvent) => {
     event.preventDefault()
     if (!kind) return
+    if (addingHerdr && herdrMode === 'ssh' && (!sshHost.trim() || !sshUser.trim())) return
     addMutation.mutate()
   }
 
@@ -725,7 +757,8 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
         <h4 className="text-lg font-semibold">Remotes</h4>
         <p className="mt-1 text-sm text-base-content/70">
           Only remotes you add appear here and in remote dropdowns. Unused kinds
-          stay off the list.
+          stay off the list. Herdr is SSH-shaped (local Herdr vs SSH to a Herdr
+          host) — not an HTTP remote like OpenMousBot / Hermes / Rakazo.
         </p>
       </div>
 
@@ -773,7 +806,7 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
                     <div className="min-w-0">
                       <p className="font-medium">{label}</p>
                       <p className="truncate font-mono text-xs text-base-content/60">
-                        {remote.base_url || 'localhost'}
+                        {isHerdrKind(remote.id) ? herdrLocationLabel(remote) : remote.base_url || 'localhost'}
                       </p>
                       <div className="mt-1">
                         <EnvOverrideBadge badge={remote.provenance?.base_url} />
@@ -822,36 +855,123 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
                   ))
                 )}
               </Select>
-              <Input
-                label="URL"
-                name="remote-url"
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              {kind === 'swarm' ? (
-                <p className="text-sm text-base-content/70">
-                  Nested open-swarm is another process (own DB). Do not add this
-                  instance as its own remote.
-                </p>
-              ) : null}
-              <Input
-                label="API key env (optional)"
-                name="remote-api-key-env"
-                value={apiKeyEnv}
-                onChange={(event) => setApiKeyEnv(event.target.value)}
-                placeholder="OMB_API_KEY"
-                autoComplete="off"
-                spellCheck={false}
-              />
+              {addingHerdr ? (
+                <>
+                  <p className="text-sm text-base-content/70">
+                    Remote Herdr is SSH-shaped — not HTTP. Local talks to Herdr
+                    on this host (no SSH). Remote SSHs to that Herdr host, then
+                    uses Herdr’s CLIs (agy / pi / grok). Identity is an env-var
+                    name only — never paste a private key.
+                  </p>
+                  <Select
+                    label="Herdr location"
+                    name="herdr-mode"
+                    size="sm"
+                    value={herdrMode}
+                    onChange={(event) => setHerdrMode(event.target.value === 'ssh' ? 'ssh' : 'local')}
+                  >
+                    <option value="local">Local Herdr (this host, no SSH)</option>
+                    <option value="ssh">Remote Herdr (SSH to Herdr host)</option>
+                  </Select>
+                  {herdrMode === 'local' ? (
+                    <Input
+                      label="Local URL (optional)"
+                      name="remote-url"
+                      value={baseUrl}
+                      onChange={(event) => setBaseUrl(event.target.value)}
+                      placeholder="http://127.0.0.1 — only if you chose localhost"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  ) : (
+                    <>
+                      <Input
+                        label="SSH host"
+                        name="herdr-ssh-host"
+                        value={sshHost}
+                        onChange={(event) => setSshHost(event.target.value)}
+                        placeholder="herdr.example.test"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <Input
+                        label="SSH user"
+                        name="herdr-ssh-user"
+                        value={sshUser}
+                        onChange={(event) => setSshUser(event.target.value)}
+                        placeholder="herdr"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <Input
+                        label="SSH port (optional)"
+                        name="herdr-ssh-port"
+                        value={sshPort}
+                        onChange={(event) => setSshPort(event.target.value)}
+                        placeholder="22"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <Input
+                        label="SSH identity env (optional)"
+                        name="herdr-ssh-identity-env"
+                        value={sshIdentityEnv}
+                        onChange={(event) => setSshIdentityEnv(event.target.value)}
+                        placeholder="HERDR_SSH_IDENTITY"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm"
+                          name="herdr-ssh-agent"
+                          checked={sshAgent}
+                          onChange={(event) => setSshAgent(event.target.checked)}
+                        />
+                        Use SSH agent
+                      </label>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Input
+                    label="URL"
+                    name="remote-url"
+                    value={baseUrl}
+                    onChange={(event) => setBaseUrl(event.target.value)}
+                    placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  {kind === 'swarm' ? (
+                    <p className="text-sm text-base-content/70">
+                      Nested open-swarm is another process (own DB). Do not add this
+                      instance as its own remote.
+                    </p>
+                  ) : null}
+                  <Input
+                    label="API key env (optional)"
+                    name="remote-api-key-env"
+                    value={apiKeyEnv}
+                    onChange={(event) => setApiKeyEnv(event.target.value)}
+                    placeholder="OMB_API_KEY"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="submit"
                   variant="primary"
                   size="sm"
-                  disabled={!kind || addMutation.isPending}
+                  disabled={
+                    !kind ||
+                    addMutation.isPending ||
+                    (addingHerdr && herdrMode === 'ssh' && (!sshHost.trim() || !sshUser.trim()))
+                  }
                 >
                   Save remote
                 </Button>

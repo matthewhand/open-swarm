@@ -127,9 +127,11 @@ def test_from_remote_config_uses_configured_base(monkeypatch):
     assert "--remote" not in calls[0]
 
     calls.clear()
+    from swarm.herdr.ssh import SSHNotConfiguredError
+
     cfg = {"remotes": {"herdr": {"base_url": "http://herdr.example.test:9"}}}
-    HerdrClient.from_remote_config(cfg, runner=runner).agent_list()
-    assert calls[0][:3] == ["herdr", "--remote", "http://herdr.example.test:9"]
+    with pytest.raises(SSHNotConfiguredError, match="SSH-shaped"):
+        HerdrClient.from_remote_config(cfg, runner=runner)
 
     with pytest.raises(remotes_core.RemoteError, match="not configured"):
         HerdrClient.from_remote_config({"remotes": {}}, runner=runner)
@@ -164,5 +166,6 @@ def test_herdr_health_and_list_stub_http(http_router, monkeypatch):
 
 def test_herdr_not_configured_constant_mentions_settings():
     assert "Settings" in HERDR_NOT_CONFIGURED
-    assert "api-key-env" in HERDR_NOT_CONFIGURED
+    assert "SSH" in HERDR_NOT_CONFIGURED
     assert "10.0.0." not in HERDR_NOT_CONFIGURED
+    assert "OpenMousBot" in HERDR_NOT_CONFIGURED

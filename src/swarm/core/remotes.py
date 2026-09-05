@@ -148,10 +148,14 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
         "health_path": "/health",
         "version_path": "/health",
         "notes": (
-            "Opt-in Herdr remote. No baked LAN host. Add via Settings or "
-            "swarm-cli remotes set herdr --base-url <url> --api-key-env "
-            "HERDR_API_KEY. GET /health, GET /agents. herdr --remote uses "
-            "the configured base; localhost omits the flag. No baked LAN."
+            "Opt-in Herdr remote. SSH-shaped — not HTTP like OpenMousBot / "
+            "Hermes / Rakazo. Local: talk to Herdr on this host (no SSH; "
+            "localhost URL only when you choose that). Remote: SSH to the "
+            "Herdr host, then herdr CLI there (agy / pi / grok). "
+            "swarm-cli remotes set herdr --herdr-mode local | "
+            "--herdr-mode ssh --ssh-host <host> --ssh-user <user> "
+            "--ssh-identity-env HERDR_SSH_IDENTITY. No baked LAN host. "
+            "Identity is an env-var name (path), never a private key."
         ),
     },
     "swarm": {
@@ -191,6 +195,11 @@ _ENV_KEY = {
 }
 _ENV_UI = {"rakazo": "RAKAZO_UI_URL", "hermes": "HERMES_UI_URL"}
 _ENV_COOKIE = {"rakazo": "RAKAZO_SESSION_COOKIE"}
+_ENV_HERDR_SSH_HOST = "HERDR_SSH_HOST"
+_ENV_HERDR_SSH_USER = "HERDR_SSH_USER"
+_ENV_HERDR_SSH_PORT = "HERDR_SSH_PORT"
+_ENV_HERDR_SSH_IDENTITY = "HERDR_SSH_IDENTITY"
+_ENV_HERDR_SSH_AGENT = "HERDR_SSH_AGENT"
 
 _UP = frozenset({200, 201, 202, 204})
 _AUTH = frozenset({401, 403})
@@ -221,6 +230,12 @@ class RemoteSpec:
     source: str = "default"
     api_key_env: str = ""
     session_cookie_env: str = ""
+    herdr_mode: str = ""
+    ssh_host: str = ""
+    ssh_user: str = ""
+    ssh_port: int = 22
+    ssh_identity_env: str = ""
+    ssh_agent: bool = True
     provenance: dict[str, Any] = field(default_factory=dict)
 
     def origin(self) -> tuple[str, int]:
@@ -231,7 +246,7 @@ class RemoteSpec:
 
     def public_dict(self) -> dict[str, Any]:
         """JSON-safe view with secrets redacted."""
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "title": self.title,
             "host_label": self.host_label,
@@ -256,6 +271,25 @@ class RemoteSpec:
                 "place_in": "Team (handoff members — not /teams/ profile aliases)",
             },
         }
+        if self.id == "herdr":
+            from swarm.herdr.remote import HOP_MODEL, resolve_herdr_mode
+
+            mode = resolve_herdr_mode(self)
+            payload["herdr_mode"] = mode
+            payload["ssh_host"] = self.ssh_host
+            payload["ssh_user"] = self.ssh_user
+            payload["ssh_port"] = int(self.ssh_port or 22)
+            payload["ssh_identity_env"] = self.ssh_identity_env
+            payload["ssh_agent"] = bool(self.ssh_agent)
+            payload["transport"] = "ssh" if mode == "ssh" else "local"
+            payload["ssh_shaped"] = True
+            payload["hop_model"] = HOP_MODEL
+            if mode == "ssh" and self.ssh_host and self.ssh_user:
+                port = f":{self.ssh_port}" if self.ssh_port and int(self.ssh_port) != 22 else ""
+                payload["host_label"] = payload["host_label"] or f"{self.ssh_user}@{self.ssh_host}{port}"
+            elif mode == "local":
+                payload["host_label"] = payload["host_label"] or "local Herdr"
+        return payload
 
 
 @dataclass
@@ -427,6 +461,31 @@ def _as_env_name(value: str) -> str:
     return derived or raw
 
 
+def _coerce_bool(value: Any, default: bool = True) -> bool:
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return value
+    raw = str(value).strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _coerce_ssh_port(value: Any, default: int = 22) -> int:
+    if value in (None, ""):
+        return default
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return default
+    if port < 1 or port > 65535:
+        return default
+    return port
+
+
 def _opt_in_not_configured_message(remote_id: str) -> str:
     if remote_id == "herdr":
         from swarm.herdr.remote import not_configured_message
@@ -516,9 +575,17 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
             "notes",
             "api_key_env",
             "session_cookie_env",
+            "herdr_mode",
+            "ssh_host",
+            "ssh_user",
+            "ssh_identity_env",
         ):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
+        if "ssh_port" in block and block["ssh_port"] is not None:
+            spec.ssh_port = _coerce_ssh_port(block["ssh_port"])
+        if "ssh_agent" in block and block["ssh_agent"] is not None:
+            spec.ssh_agent = _coerce_bool(block["ssh_agent"], default=True)
         persisted_base = str(block.get("base_url") or "").strip()
         persisted_ui = str(block.get("ui_url") or "").strip()
 
@@ -546,6 +613,28 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
         spec.api_key_env = _placeholder_env_name(str(spec.api_key or "")) or (env_key_name or "")
     if not spec.session_cookie_env:
         spec.session_cookie_env = _placeholder_env_name(str(spec.cookie or ""))
+
+    if rid == "herdr":
+        env_ssh_host = os.environ.get(_ENV_HERDR_SSH_HOST, "").strip()
+        if env_ssh_host and not str(spec.ssh_host or "").strip():
+            spec.ssh_host = env_ssh_host
+            spec.source = "env"
+        env_ssh_user = os.environ.get(_ENV_HERDR_SSH_USER, "").strip()
+        if env_ssh_user and not str(spec.ssh_user or "").strip():
+            spec.ssh_user = env_ssh_user
+        env_ssh_port = os.environ.get(_ENV_HERDR_SSH_PORT, "").strip()
+        if env_ssh_port:
+            spec.ssh_port = _coerce_ssh_port(env_ssh_port, default=spec.ssh_port)
+        if not spec.ssh_identity_env:
+            spec.ssh_identity_env = _ENV_HERDR_SSH_IDENTITY if os.environ.get(_ENV_HERDR_SSH_IDENTITY, "").strip() else ""
+        if os.environ.get(_ENV_HERDR_SSH_AGENT, "").strip():
+            spec.ssh_agent = _coerce_bool(os.environ.get(_ENV_HERDR_SSH_AGENT), default=spec.ssh_agent)
+        spec.herdr_mode = str(spec.herdr_mode or "").strip().lower()
+        spec.ssh_host = str(spec.ssh_host or "").strip()
+        spec.ssh_user = str(spec.ssh_user or "").strip()
+        spec.ssh_identity_env = _as_env_name(str(spec.ssh_identity_env or ""))
+        spec.ssh_port = _coerce_ssh_port(spec.ssh_port)
+
     spec.base_url = _normalize_base_url(_expand(spec.base_url))
     spec.ui_url = _normalize_base_url(_expand(spec.ui_url)) if spec.ui_url else ""
     spec.api_key = str(_expand(spec.api_key) or "")
@@ -603,6 +692,8 @@ def configured_remote_ids(config: dict[str, Any] | None = None) -> list[str]:
     for rid, env_name in _ENV_BASE.items():
         if os.environ.get(env_name, "").strip() and rid not in ids:
             ids.append(rid)
+    if os.environ.get(_ENV_HERDR_SSH_HOST, "").strip() and "herdr" not in ids:
+        ids.append("herdr")
     order = {kid: index for index, kid in enumerate(REMOTE_KIND_IDS)}
     ids.sort(key=lambda item: order.get(item, len(order)))
     return ids
@@ -756,6 +847,78 @@ def unplace_team_member(remote_id: str, *, config_path: str | Path | None = None
     return persist_agent_team(current, config_path=path)
 
 
+def _apply_herdr_persist(
+    entry: dict[str, Any],
+    *,
+    herdr_mode: str | None,
+    ssh_host: str | None,
+    ssh_user: str | None,
+    ssh_port: int | str | None,
+    ssh_identity_env: str | None,
+    ssh_agent: bool | str | None,
+) -> None:
+    """Persist local vs SSH Herdr fields. Never store a private key."""
+    from swarm.herdr.remote import (
+        HERDR_HTTP_REMOTE_REFUSED,
+        HERDR_MODE_LOCAL,
+        HERDR_MODE_SSH,
+        is_localhost_base,
+    )
+    from swarm.herdr.ssh import looks_like_key_material
+
+    if herdr_mode is not None:
+        mode = str(herdr_mode).strip().lower()
+        if mode and mode not in (HERDR_MODE_LOCAL, HERDR_MODE_SSH):
+            raise RemoteError("herdr_mode must be 'local' or 'ssh'.")
+        if mode:
+            entry["herdr_mode"] = mode
+    if ssh_host is not None:
+        entry["ssh_host"] = str(ssh_host).strip()
+    if ssh_user is not None:
+        entry["ssh_user"] = str(ssh_user).strip()
+    if ssh_port is not None:
+        entry["ssh_port"] = _coerce_ssh_port(ssh_port)
+    if ssh_identity_env is not None:
+        raw_ident = str(ssh_identity_env)
+        if looks_like_key_material(raw_ident):
+            raise RemoteError(
+                "Refusing to persist a private key. ssh_identity_env must be "
+                "an env-var name whose value is a key *path*."
+            )
+        env_name = _as_env_name(raw_ident)
+        if env_name:
+            from swarm.core import config_ownership as ownership
+
+            if not ownership.looks_like_env_name(env_name) and not ownership.is_placeholder(raw_ident):
+                raise RemoteError(
+                    "ssh_identity_env must be an env-var name or ${ENV}, not a key path or token."
+                )
+        entry["ssh_identity_env"] = env_name
+    if ssh_agent is not None:
+        entry["ssh_agent"] = _coerce_bool(ssh_agent, default=True)
+
+    mode = str(entry.get("herdr_mode") or "").strip().lower()
+    host = str(entry.get("ssh_host") or "").strip()
+    user = str(entry.get("ssh_user") or "").strip()
+    base = str(entry.get("base_url") or "").strip()
+    if not mode:
+        if host or user:
+            mode = HERDR_MODE_SSH
+            entry["herdr_mode"] = mode
+        elif (base and is_localhost_base(base)) or (not base and not host and not user):
+            mode = HERDR_MODE_LOCAL
+            entry["herdr_mode"] = mode
+
+    if mode == HERDR_MODE_SSH and (not host or not user):
+        raise RemoteError(
+            "Remote Herdr SSH needs ssh_host + ssh_user "
+            "(optional ssh_identity_env / ssh_agent). "
+            "This is not an HTTP remote. Refusing to guess a host."
+        )
+    if base and not is_localhost_base(base) and mode != HERDR_MODE_LOCAL and not (host and user):
+        raise RemoteError(HERDR_HTTP_REMOTE_REFUSED)
+
+
 def persist_remote(
     remote_id: str,
     *,
@@ -765,6 +928,12 @@ def persist_remote(
     ui_url: str | None = None,
     cookie: str | None = None,
     session_cookie_env: str | None = None,
+    herdr_mode: str | None = None,
+    ssh_host: str | None = None,
+    ssh_user: str | None = None,
+    ssh_port: int | str | None = None,
+    ssh_identity_env: str | None = None,
+    ssh_agent: bool | str | None = None,
     config_path: str | Path | None = None,
 ) -> tuple[RemoteSpec, Path]:
     """Merge fields into ``remotes.<id>`` and write swarm_config.json."""
@@ -851,6 +1020,29 @@ def persist_remote(
             raise RemoteError(
                 "Refusing to persist a plaintext cookie. Use session_cookie_env or ${ENV}."
             )
+    herdr_kwargs = {
+        "herdr_mode": herdr_mode,
+        "ssh_host": ssh_host,
+        "ssh_user": ssh_user,
+        "ssh_port": ssh_port,
+        "ssh_identity_env": ssh_identity_env,
+        "ssh_agent": ssh_agent,
+    }
+    if rid != "herdr" and any(value is not None for value in herdr_kwargs.values()):
+        raise RemoteError(
+            "ssh_host / ssh_user / herdr_mode apply only to kind=herdr. "
+            "Hermes / OpenMousBot / Rakazo / swarm stay HTTP remotes."
+        )
+    if rid == "herdr":
+        _apply_herdr_persist(
+            entry,
+            herdr_mode=herdr_mode,
+            ssh_host=ssh_host,
+            ssh_user=ssh_user,
+            ssh_port=ssh_port,
+            ssh_identity_env=ssh_identity_env,
+            ssh_agent=ssh_agent,
+        )
     remotes[rid] = entry
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
@@ -1015,6 +1207,48 @@ def _extract_version(payload: Any) -> Any:
     return None
 
 
+def _herdr_cli_health(spec: RemoteSpec, timeout: float) -> HealthResult:  # noqa: ARG001
+    """Health via local herdr or SSH hop (never a guessed host)."""
+    from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
+    from swarm.herdr.ssh import SSHNotConfiguredError
+
+    mode = resolve_herdr_mode(spec)
+    try:
+        client = herdr_client_from_spec(spec)
+        payload = client.workspace_list()
+    except SSHNotConfiguredError as exc:
+        return HealthResult(remote="herdr", ok=False, state="UNKNOWN", detail=str(exc))
+    except Exception as exc:
+        return HealthResult(
+            remote="herdr",
+            ok=False,
+            state="DOWN",
+            detail=f"Herdr {mode} health failed: {exc}",
+        )
+    detail = (
+        f"ssh {spec.ssh_user}@{spec.ssh_host} · herdr workspace list"
+        if mode == "ssh"
+        else "local herdr workspace list (no SSH)"
+    )
+    return HealthResult(
+        remote="herdr",
+        ok=True,
+        state="UP",
+        detail=detail,
+        version=_extract_version(payload),
+        url=spec.ssh_host if mode == "ssh" else "local",
+    )
+
+
+def _herdr_health(spec: RemoteSpec, timeout: float) -> HealthResult | None:
+    """SSH or local-CLI health. None means fall through to localhost HTTP."""
+    from swarm.herdr.remote import uses_local_http_health
+
+    if uses_local_http_health(spec):
+        return None
+    return _herdr_cli_health(spec, timeout)
+
+
 def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeout: float = _DEFAULT_TIMEOUT_S) -> HealthResult:
     """Honest health/version. One attempt. Never raises."""
     try:
@@ -1024,6 +1258,11 @@ def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeou
 
     if not is_configured(spec.id, config):
         return HealthResult(remote=spec.id, ok=False, state="UNKNOWN", detail="remote not added")
+
+    if spec.id == "herdr":
+        herdr_health = _herdr_health(spec, timeout)
+        if herdr_health is not None:
+            return herdr_health
 
     if not spec.base_url:
         return HealthResult(remote=spec.id, ok=False, state="UNKNOWN", detail="base_url is empty")
@@ -1527,56 +1766,129 @@ def _swarm_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> O
 
 
 def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
-    from swarm.herdr.remote import LIST_PATH, members_from_http_list
-
-    result = http_json(
-        "GET",
-        f"{spec.base_url}{LIST_PATH}",
-        headers=_auth_headers(spec),
-        timeout=timeout,
+    from swarm.herdr.remote import (
+        LIST_PATH,
+        herdr_client_from_spec,
+        members_from_http_list,
+        resolve_herdr_mode,
+        uses_local_http_health,
     )
-    if result.status in _UP:
-        members = members_from_http_list(result.body or {}, remote=spec.base_url)
-        return OperateResult(
-            remote="herdr",
-            op="list",
-            ok=True,
-            detail=f"Herdr listed {len(members)} member(s) via GET {LIST_PATH}",
-            http_status=result.status,
-            data={"members": members, "raw": result.body},
+    from swarm.herdr.ssh import SSHNotConfiguredError
+
+    if uses_local_http_health(spec):
+        result = http_json(
+            "GET",
+            f"{spec.base_url}{LIST_PATH}",
+            headers=_auth_headers(spec),
+            timeout=timeout,
         )
-    if result.status in _AUTH:
+        if result.status in _UP:
+            members = members_from_http_list(result.body or {}, remote=spec.base_url)
+            return OperateResult(
+                remote="herdr",
+                op="list",
+                ok=True,
+                detail=f"Herdr listed {len(members)} member(s) via GET {LIST_PATH}",
+                http_status=result.status,
+                data={"members": members, "raw": result.body},
+            )
+        if result.status in _AUTH:
+            return OperateResult(
+                remote="herdr",
+                op="list",
+                ok=False,
+                detail="Herdr GET /agents requires auth. Set remotes.herdr.api_key or HERDR_API_KEY.",
+                http_status=result.status,
+                data=result.body,
+            )
         return OperateResult(
             remote="herdr",
             op="list",
             ok=False,
-            detail="Herdr GET /agents requires auth. Set remotes.herdr.api_key or HERDR_API_KEY.",
+            detail=result.error or f"Herdr list failed (http {result.status})",
             http_status=result.status,
-            data=result.body,
+            data=result.body or result.text,
         )
+
+    mode = resolve_herdr_mode(spec)
+    try:
+        client = herdr_client_from_spec(spec)
+        members = client.discover_members()
+    except SSHNotConfiguredError as exc:
+        return OperateResult(remote="herdr", op="list", ok=False, detail=str(exc))
+    except Exception as exc:
+        return OperateResult(remote="herdr", op="list", ok=False, detail=f"Herdr list failed: {exc}")
+    hop = f"ssh {spec.ssh_user}@{spec.ssh_host}" if mode == "ssh" else "local herdr (no SSH)"
     return OperateResult(
         remote="herdr",
         op="list",
-        ok=False,
-        detail=result.error or f"Herdr list failed (http {result.status})",
-        http_status=result.status,
-        data=result.body or result.text,
+        ok=True,
+        detail=f"Herdr listed {len(members)} member(s) via {hop}",
+        data={"members": members},
     )
 
 
-def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:
+def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:  # noqa: ARG001
+    from swarm.herdr.client import HerdrBlockedError, extract_prompt_type
+    from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
+    from swarm.herdr.ssh import SSHNotConfiguredError
+
     if not prompt.strip():
         return OperateResult(remote="herdr", op="send", ok=False, detail="prompt is required")
+    if not (target or "").strip():
+        return OperateResult(
+            remote="herdr",
+            op="send",
+            ok=False,
+            detail="target is required (Herdr pane / CLI id, e.g. w3:p1 or grok)",
+        )
+    mode = resolve_herdr_mode(spec)
+    try:
+        client = herdr_client_from_spec(spec)
+        payload = client.agent_prompt(target.strip(), prompt)
+    except SSHNotConfiguredError as exc:
+        return OperateResult(remote="herdr", op="send", ok=False, detail=str(exc))
+    except HerdrBlockedError as exc:
+        return OperateResult(remote="herdr", op="send", ok=False, detail=str(exc), data={"target": target})
+    except Exception as exc:
+        return OperateResult(remote="herdr", op="send", ok=False, detail=f"Herdr send failed: {exc}")
+    hop = f"ssh {spec.ssh_user}@{spec.ssh_host}" if mode == "ssh" else "local herdr (no SSH)"
     return OperateResult(
         remote="herdr",
         op="send",
-        ok=False,
-        detail=(
-            "Herdr send uses HerdrClient (herdr agent prompt), not this HTTP "
-            "operate path. Configure remotes.herdr then call the CLI wrapper."
-        ),
-        data={"target": target, "base_url": spec.base_url},
-        gap="herdr_send_via_cli",
+        ok=True,
+        detail=f"Herdr prompted {target} via {hop} (type={extract_prompt_type(payload) or 'ok'})",
+        data={"target": target, "response": payload, "transport": mode},
+    )
+
+
+def _herdr_interrogate(spec: RemoteSpec, target: str, timeout: float) -> OperateResult:  # noqa: ARG001
+    """Inspect one CLI/pane Herdr manages (agent get) over local or SSH hop."""
+    from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
+    from swarm.herdr.ssh import SSHNotConfiguredError
+
+    if not (target or "").strip():
+        return OperateResult(
+            remote="herdr",
+            op="interrogate",
+            ok=False,
+            detail="target is required to interrogate a CLI Herdr manages (agy / pi / grok / pane id)",
+        )
+    mode = resolve_herdr_mode(spec)
+    try:
+        client = herdr_client_from_spec(spec)
+        payload = client.agent_get(target.strip())
+    except SSHNotConfiguredError as exc:
+        return OperateResult(remote="herdr", op="interrogate", ok=False, detail=str(exc))
+    except Exception as exc:
+        return OperateResult(remote="herdr", op="interrogate", ok=False, detail=f"Herdr interrogate failed: {exc}")
+    hop = f"ssh {spec.ssh_user}@{spec.ssh_host}" if mode == "ssh" else "local herdr (no SSH)"
+    return OperateResult(
+        remote="herdr",
+        op="interrogate",
+        ok=True,
+        detail=f"Herdr interrogated {target} via {hop}",
+        data={"target": target, "agent": payload, "transport": mode},
     )
 
 
@@ -1604,10 +1916,23 @@ def operate(
         action = (op or "list").strip().lower()
         if action in ("start", "job", "run"):
             action = "send"
-        if action not in ("list", "send"):
+        if action == "interrogate" and rid != "herdr":
+            return OperateResult(
+                remote=rid,
+                op=action,
+                ok=False,
+                detail="interrogate is Herdr-only (SSH or local CLI). HTTP remotes use list / send.",
+            )
+        if action not in ("list", "send", "interrogate"):
             return OperateResult(remote=rid, op=action, ok=False, detail=f"Unknown op '{op}'. Use list or send.")
         if not is_configured(rid, config):
             return OperateResult(remote=rid, op=action, ok=False, detail="remote not added")
+        if rid == "herdr":
+            if action == "list":
+                return _herdr_list(spec, timeout)
+            if action == "interrogate":
+                return _herdr_interrogate(spec, target, timeout)
+            return _herdr_send(spec, prompt, target, timeout)
         if not spec.base_url:
             return OperateResult(remote=rid, op=action, ok=False, detail="base_url is empty")
         if _looks_like_forbidden_llm_proxy(spec.base_url):
@@ -1627,8 +1952,6 @@ def operate(
             return _rakazo_list(spec, timeout) if action == "list" else _rakazo_send(spec, prompt, target, timeout)
         if rid == "swarm":
             return _swarm_list(spec, timeout) if action == "list" else _swarm_send(spec, prompt, target, timeout)
-        if rid == "herdr":
-            return _herdr_list(spec, timeout) if action == "list" else _herdr_send(spec, prompt, target, timeout)
         return OperateResult(
             remote=rid,
             op=action,

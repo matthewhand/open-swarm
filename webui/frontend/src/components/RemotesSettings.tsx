@@ -12,6 +12,7 @@ import {
   type RemoteOperateResult,
 } from '../lib/api'
 import { isOpenMousBotKind, OPENMOUSBOT_LABEL, remoteKindLabel } from '../lib/remoteKinds'
+import { herdrLocationLabel, isHerdrKind } from '../lib/remotes'
 
 export const REMOTES_QUERY_KEY = ['settings-remotes'] as const
 
@@ -52,17 +53,41 @@ export function AddRemoteForm({
         { id: 'hermes', label: 'Hermes' },
         { id: 'omb', label: OPENMOUSBOT_LABEL },
         { id: 'rakazo', label: 'Rakazo' },
+        { id: 'herdr', label: 'Herdr' },
       ]
   const [kind, setKind] = useState(options[0]?.id ?? 'omb')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKeyEnv, setApiKeyEnv] = useState('')
+  const [herdrMode, setHerdrMode] = useState<'local' | 'ssh'>('local')
+  const [sshHost, setSshHost] = useState('')
+  const [sshUser, setSshUser] = useState('')
+  const [sshPort, setSshPort] = useState('')
+  const [sshIdentityEnv, setSshIdentityEnv] = useState('')
+  const [sshAgent, setSshAgent] = useState(true)
+  const herdr = isHerdrKind(kind)
 
   const addMutation = useMutation({
     mutationFn: () =>
       addRemote({
         kind,
-        base_url: baseUrl.trim(),
-        api_key_env: apiKeyEnv.trim() || undefined,
+        ...(herdr
+          ? {
+              herdr_mode: herdrMode,
+              ...(herdrMode === 'local' && baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+              ...(herdrMode === 'ssh'
+                ? {
+                    ssh_host: sshHost.trim(),
+                    ssh_user: sshUser.trim(),
+                    ...(sshPort.trim() ? { ssh_port: sshPort.trim() } : {}),
+                    ...(sshIdentityEnv.trim() ? { ssh_identity_env: sshIdentityEnv.trim() } : {}),
+                    ssh_agent: sshAgent,
+                  }
+                : {}),
+            }
+          : {
+              base_url: baseUrl.trim(),
+              api_key_env: apiKeyEnv.trim() || undefined,
+            }),
       }),
     onSuccess: (remote) => {
       queryClient.setQueryData(REMOTES_QUERY_KEY, (prev: { object?: string; kinds?: RemoteKind[]; data?: RemoteConnection[] } | undefined) => {
@@ -89,8 +114,9 @@ export function AddRemoteForm({
       <div>
         <h4 className="text-lg font-semibold">Add remote</h4>
         <p className="mt-1 text-sm text-base-content/70">
-          Pick a kind, then enter a base URL and an optional api-key-env name
-          (placeholder only — never paste a token).
+          {herdr
+            ? 'Herdr is SSH-shaped — not an HTTP remote like OpenMousBot, Hermes, or Rakazo. Local talks to Herdr on this host (no SSH). Remote SSHs to that Herdr host, then uses Herdr’s CLIs there.'
+            : 'Pick a kind, then enter a base URL and an optional api-key-env name (placeholder only — never paste a token).'}
         </p>
       </div>
       <Select
@@ -106,25 +132,103 @@ export function AddRemoteForm({
           </option>
         ))}
       </Select>
-      <Input
-        label="Base URL"
-        name="remote-base-url"
-        value={baseUrl}
-        onChange={(event) => setBaseUrl(event.target.value)}
-        placeholder="http://127.0.0.1:9"
-        autoComplete="off"
-        spellCheck={false}
-        required
-      />
-      <Input
-        label="API key env (optional)"
-        name="remote-api-key-env"
-        value={apiKeyEnv}
-        onChange={(event) => setApiKeyEnv(event.target.value)}
-        placeholder="OMB_API_KEY"
-        autoComplete="off"
-        spellCheck={false}
-      />
+      {herdr ? (
+        <>
+          <Select
+            label="Herdr location"
+            name="herdr-mode"
+            value={herdrMode}
+            onChange={(event) => setHerdrMode(event.target.value === 'ssh' ? 'ssh' : 'local')}
+          >
+            <option value="local">Local Herdr (this host, no SSH)</option>
+            <option value="ssh">Remote Herdr (SSH to Herdr host)</option>
+          </Select>
+          {herdrMode === 'local' ? (
+            <Input
+              label="Local URL (optional)"
+              name="remote-base-url"
+              value={baseUrl}
+              onChange={(event) => setBaseUrl(event.target.value)}
+              placeholder="http://127.0.0.1 — only if you chose localhost"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          ) : (
+            <>
+              <Input
+                label="SSH host"
+                name="herdr-ssh-host"
+                value={sshHost}
+                onChange={(event) => setSshHost(event.target.value)}
+                placeholder="herdr.example.test"
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+              <Input
+                label="SSH user"
+                name="herdr-ssh-user"
+                value={sshUser}
+                onChange={(event) => setSshUser(event.target.value)}
+                placeholder="herdr"
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+              <Input
+                label="SSH port (optional)"
+                name="herdr-ssh-port"
+                value={sshPort}
+                onChange={(event) => setSshPort(event.target.value)}
+                placeholder="22"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Input
+                label="SSH identity env (optional)"
+                name="herdr-ssh-identity-env"
+                value={sshIdentityEnv}
+                onChange={(event) => setSshIdentityEnv(event.target.value)}
+                placeholder="HERDR_SSH_IDENTITY"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm"
+                  name="herdr-ssh-agent"
+                  checked={sshAgent}
+                  onChange={(event) => setSshAgent(event.target.checked)}
+                />
+                Use SSH agent
+              </label>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <Input
+            label="Base URL"
+            name="remote-base-url"
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder="http://127.0.0.1:9"
+            autoComplete="off"
+            spellCheck={false}
+            required
+          />
+          <Input
+            label="API key env (optional)"
+            name="remote-api-key-env"
+            value={apiKeyEnv}
+            onChange={(event) => setApiKeyEnv(event.target.value)}
+            placeholder="OMB_API_KEY"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </>
+      )}
       <Button type="submit" variant="primary" size="sm" loading={addMutation.isPending}>
         Add remote
       </Button>
@@ -139,6 +243,8 @@ function botsFromOperate(result: RemoteOperateResult | undefined): Array<{ id: s
   if (raw && typeof raw === 'object') {
     if ('bots' in raw) {
       list = (raw as { bots: unknown }).bots
+    } else if ('members' in raw) {
+      list = (raw as { members: unknown }).members
     } else if ('agents' in raw) {
       list = (raw as { agents: unknown }).agents
     } else if ('data' in raw) {
@@ -154,9 +260,11 @@ function botsFromOperate(result: RemoteOperateResult | undefined): Array<{ id: s
   return list
     .map((item) => {
       if (typeof item === 'string') return { id: item }
-      if (item && typeof item === 'object' && 'id' in item) {
-        const rec = item as { id: unknown; name?: unknown }
-        return { id: String(rec.id), name: rec.name != null ? String(rec.name) : undefined }
+      if (item && typeof item === 'object') {
+        const rec = item as { id?: unknown; name?: unknown }
+        const id = rec.id != null ? String(rec.id) : rec.name != null ? String(rec.name) : ''
+        if (!id) return null
+        return { id, name: rec.name != null ? String(rec.name) : undefined }
       }
       return null
     })
@@ -167,9 +275,11 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
   const { error } = useToast()
   const label = remoteKindLabel(remote.id, remote.label || remote.title)
   const isOmb = isOpenMousBotKind(remote.id)
+  const isHerdr = isHerdrKind(remote.id)
   const [health, setHealth] = useState<RemoteHealthResult | null>(null)
   const [listed, setListed] = useState<RemoteOperateResult | null>(null)
   const [sent, setSent] = useState<RemoteOperateResult | null>(null)
+  const [interrogated, setInterrogated] = useState<RemoteOperateResult | null>(null)
   const [botId, setBotId] = useState('')
   const [prompt, setPrompt] = useState('')
 
@@ -203,6 +313,20 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
     },
   })
 
+  const interrogateMutation = useMutation({
+    mutationFn: () =>
+      operateRemote(remote.id, { op: 'interrogate', target: botId.trim() }, { timeoutMs: 12000 }),
+    onSuccess: (result) => setInterrogated(result),
+    onError: (err: Error) => {
+      setInterrogated({
+        remote: remote.id,
+        op: 'interrogate',
+        ok: false,
+        detail: err.message || 'interrogate failed',
+      })
+    },
+  })
+
   const sendMutation = useMutation({
     mutationFn: () =>
       operateRemote(remote.id, { op: 'send', prompt: prompt.trim(), target: botId.trim() }),
@@ -227,9 +351,16 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
       <div>
         <h4 className="text-lg font-semibold">{label}</h4>
         <p className="mt-1 text-sm text-base-content/70">
-          {remote.base_url || 'No base URL'}
-          {remote.api_key_env ? ` · env ${remote.api_key_env}` : ''}
+          {isHerdr
+            ? herdrLocationLabel(remote)
+            : `${remote.base_url || 'No base URL'}${remote.api_key_env ? ` · env ${remote.api_key_env}` : ''}`}
         </p>
+        {isHerdr ? (
+          <p className="mt-1 text-sm text-base-content/70">
+            Remote Herdr is SSH-shaped — not an HTTP remote like OpenMousBot / Hermes / Rakazo.
+            Health, list, send, and interrogate go to Herdr on that host (then its CLIs).
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -249,8 +380,20 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
           loading={listMutation.isPending}
           onClick={() => listMutation.mutate()}
         >
-          {isOmb ? 'List bots' : 'List'}
+          {isOmb ? 'List bots' : isHerdr ? 'List CLIs' : 'List'}
         </Button>
+        {isHerdr ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            loading={interrogateMutation.isPending}
+            disabled={!botId.trim()}
+            onClick={() => interrogateMutation.mutate()}
+          >
+            Interrogate CLI
+          </Button>
+        ) : null}
       </div>
 
       {health && (
@@ -270,7 +413,7 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
 
       {listed && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">{isOmb ? 'Bots' : 'List'}</p>
+          <p className="text-sm font-medium">{isOmb ? 'Bots' : isHerdr ? 'CLIs / panes' : 'List'}</p>
           {listed.ok && bots.length > 0 ? (
             <ul className="space-y-1 text-sm os-scrollable-picker-list pr-1">
               {bots.map((bot) => (
@@ -296,11 +439,11 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
         }}
       >
         <Input
-          label={isOmb ? 'Bot id' : 'Target'}
+          label={isOmb ? 'Bot id' : isHerdr ? 'CLI / pane' : 'Target'}
           name="remote-bot-id"
           value={botId}
           onChange={(event) => setBotId(event.target.value)}
-          placeholder={isOmb ? 'bot id' : 'optional target'}
+          placeholder={isOmb ? 'bot id' : isHerdr ? 'w3:p1 or grok' : 'optional target'}
           autoComplete="off"
           spellCheck={false}
         />
@@ -318,6 +461,11 @@ export function RemoteOperatePane({ remote }: { remote: RemoteConnection }) {
         </Button>
       </form>
 
+      {interrogated && (
+        <Alert type={interrogated.ok ? 'success' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">{interrogated.detail}</span>
+        </Alert>
+      )}
       {sent && (
         <Alert type={sent.ok ? 'success' : 'warning'} icon={<AlertCircle className="h-5 w-5" />}>
           <span className="text-sm">{sent.detail}</span>

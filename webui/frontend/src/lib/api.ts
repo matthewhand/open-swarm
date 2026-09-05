@@ -540,6 +540,15 @@ export interface RemoteConnection {
   notes?: string
   source?: string
   added?: boolean
+  herdr_mode?: 'local' | 'ssh' | string
+  ssh_host?: string
+  ssh_user?: string
+  ssh_port?: number
+  ssh_identity_env?: string
+  ssh_agent?: boolean
+  transport?: 'local' | 'ssh' | string
+  ssh_shaped?: boolean
+  hop_model?: string
   provenance?: {
     base_url?: import('./configOwnership').EnvBadge
     ui_url?: import('./configOwnership').EnvBadge
@@ -563,6 +572,12 @@ export interface AddRemoteRequest {
   api_key?: string
   ui_url?: string
   cookie?: string
+  herdr_mode?: 'local' | 'ssh' | string
+  ssh_host?: string
+  ssh_user?: string
+  ssh_port?: number | string
+  ssh_identity_env?: string
+  ssh_agent?: boolean
 }
 
 export type CreateRemoteRequest = AddRemoteRequest
@@ -621,7 +636,7 @@ export interface OperateRemoteOptions {
  */
 export async function operateRemote(
   remoteId: string,
-  body: { op: 'list' | 'send'; prompt?: string; target?: string },
+  body: { op: 'list' | 'send' | 'interrogate'; prompt?: string; target?: string },
   options?: OperateRemoteOptions,
 ): Promise<RemoteOperateResult> {
   const timeoutMs = options?.timeoutMs ?? 12000

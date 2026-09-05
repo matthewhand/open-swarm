@@ -70,6 +70,62 @@ def test_remotes_set_rakazo_session_cookie_env(tmp_path: Path):
     assert "sid=" not in cfg.read_text(encoding="utf-8")
 
 
+def test_remotes_set_herdr_ssh_and_local(tmp_path: Path):
+    cfg = tmp_path / "swarm_config.json"
+    cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    local = run_swarm_cli(
+        "remotes",
+        "set",
+        "herdr",
+        "--herdr-mode",
+        "local",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert local.returncode == 0, local.stderr + local.stdout
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["herdr"]["herdr_mode"] == "local"
+    ssh = run_swarm_cli(
+        "remotes",
+        "set",
+        "herdr",
+        "--herdr-mode",
+        "ssh",
+        "--ssh-host",
+        "herdr.example.test",
+        "--ssh-user",
+        "herdr",
+        "--ssh-identity-env",
+        "HERDR_SSH_IDENTITY",
+        "--config",
+        str(cfg),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert ssh.returncode == 0, ssh.stderr + ssh.stdout
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["remotes"]["herdr"]["ssh_host"] == "herdr.example.test"
+    assert data["remotes"]["herdr"]["ssh_identity_env"] == "HERDR_SSH_IDENTITY"
+    assert "BEGIN" not in cfg.read_text(encoding="utf-8")
+    empty = tmp_path / "empty_swarm_config.json"
+    empty.write_text(json.dumps({"llm": {}}), encoding="utf-8")
+    missing = run_swarm_cli(
+        "remotes",
+        "set",
+        "herdr",
+        "--herdr-mode",
+        "ssh",
+        "--config",
+        str(empty),
+        xdg_root=tmp_path / "xdg",
+        timeout=30,
+    )
+    assert missing.returncode == 1
+    assert "ssh_host" in (missing.stderr + missing.stdout) or "SSH" in (missing.stderr + missing.stdout)
+
+
 def test_remotes_set_refuses_fly(tmp_path: Path):
     cfg = tmp_path / "swarm_config.json"
     cfg.write_text(json.dumps({"llm": {}}), encoding="utf-8")

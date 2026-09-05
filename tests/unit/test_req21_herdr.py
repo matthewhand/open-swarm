@@ -9,6 +9,7 @@ SIDEBAR = REPO / "src" / "swarm" / "static" / "js" / "agent_sidebar.js"
 SETTINGS = REPO / "src" / "swarm" / "templates" / "settings_dashboard.html"
 TEAMS = REPO / "src" / "swarm" / "templates" / "teams_admin.html"
 SETTINGS_PY = REPO / "src" / "swarm" / "settings.py"
+SUPPORT = REPO / "skills" / "support-session-ownership" / "SKILL.md"
 
 
 def test_client_uses_official_herdr_argv_only():
@@ -30,6 +31,8 @@ def test_docs_are_not_hermes_omb_rakazo_and_same_host_default():
     assert "Rakazo" in text
     assert "localhost" in text
     assert "--remote" in text
+    assert "SSH-shaped" in text
+    assert "not an HTTP remote" in text or "not HTTP" in text
     assert "agent_prompted" in text
     assert "HERDR_PING_OK" in text
     assert "w3:p1" in text
@@ -51,6 +54,15 @@ def test_sidepane_and_teams_can_pick_herdr_members():
     assert "discover-herdr-agents" in settings
     assert "Add Herdr remote" in settings
     assert "OpenMousBot" in settings
+    assert "SSH-shaped" in settings or "SSH" in settings
+    assert "herdr-remote-ssh-host" in settings
+
+
+def test_support_skill_says_herdr_is_ssh_shaped():
+    text = SUPPORT.read_text(encoding="utf-8")
+    assert "SSH-shaped" in text
+    assert "OpenMousBot" in text
+    assert "private key" in text
 
 
 def test_sqlite_default_unchanged_no_neon_url():
