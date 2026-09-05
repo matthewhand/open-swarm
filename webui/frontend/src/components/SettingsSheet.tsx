@@ -634,133 +634,154 @@ function RemotesCatalogPane() {
         </p>
       </div>
 
-      {configured.length > 0 ? (
-        <RemoteSelect
-          remotes={catalog}
-          value={selectedId}
-          onChange={setSelectedId}
-          label="Remote"
-        />
-      ) : null}
+      {remotesQuery.isPending ? (
+        <p className="text-sm text-base-content/60" data-testid="remotes-loading">
+          Loading remotes…
+        </p>
+      ) : remotesQuery.isError ? (
+        <div className="space-y-3" data-testid="remotes-error">
+          <Alert type="error" icon={<AlertCircle className="h-5 w-5" />}>
+            <span className="text-sm">Failed to load remotes catalog.</span>
+          </Alert>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => void remotesQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <>
+          {configured.length > 0 ? (
+            <RemoteSelect
+              remotes={catalog}
+              value={selectedId}
+              onChange={setSelectedId}
+              label="Remote"
+            />
+          ) : null}
 
-      {configured.length === 0 && !adding ? (
-        <Alert type="info" icon={<Server className="h-5 w-5" />}>
-          <span className="text-sm">No remotes configured yet.</span>
-        </Alert>
-      ) : configured.length === 0 ? null : (
-        <ul className="space-y-2 os-scrollable-picker-list" aria-label="Configured remotes">
-          {configured.map((remote) => {
-            const label = remoteKindLabel(remote.kind || remote.id, kinds)
-            return (
-              <li
-                key={remote.id}
-                className="flex items-start justify-between gap-3 rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
+          {configured.length === 0 && !adding ? (
+            <Alert type="info" icon={<Server className="h-5 w-5" />}>
+              <span className="text-sm">No remotes configured yet.</span>
+            </Alert>
+          ) : configured.length === 0 ? null : (
+            <ul className="space-y-2 os-scrollable-picker-list" aria-label="Configured remotes">
+              {configured.map((remote) => {
+                const label = remoteKindLabel(remote.kind || remote.id, kinds)
+                return (
+                  <li
+                    key={remote.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-base-300 bg-base-200/60 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{label}</p>
+                      <p className="truncate font-mono text-xs text-base-content/60">
+                        {remote.base_url || 'localhost'}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => removeMutation.mutate(remote.id)}
+                      disabled={removeMutation.isPending}
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          {selected ? <RemoteOperatePane remote={selected} /> : null}
+
+          {adding ? (
+            <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>
+              <Select
+                label="Kind"
+                name="remote-kind"
+                size="sm"
+                value={kind}
+                onChange={(event) => setKind(event.target.value)}
               >
-                <div className="min-w-0">
-                  <p className="font-medium">{label}</p>
-                  <p className="truncate font-mono text-xs text-base-content/60">
-                    {remote.base_url || 'localhost'}
-                  </p>
-                </div>
+                {unused.length === 0 ? (
+                  <option value="" disabled>
+                    All kinds added
+                  </option>
+                ) : (
+                  unused.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))
+                )}
+              </Select>
+              <Input
+                label="URL"
+                name="remote-url"
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {kind === 'swarm' ? (
+                <p className="text-sm text-base-content/70">
+                  Nested open-swarm is another process (own DB). Do not add this
+                  instance as its own remote.
+                </p>
+              ) : null}
+              <Input
+                label="API key env (optional)"
+                name="remote-api-key-env"
+                value={apiKeyEnv}
+                onChange={(event) => setApiKeyEnv(event.target.value)}
+                placeholder="OMB_API_KEY"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Input
+                label="API key"
+                name="remote-api-key"
+                type="password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="${API_KEY}"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={!kind || addMutation.isPending}
+                >
+                  Save remote
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="xs"
-                  onClick={() => removeMutation.mutate(remote.id)}
-                  disabled={removeMutation.isPending}
+                  size="sm"
+                  onClick={() => {
+                    setAdding(false)
+                    setApiKey('')
+                  }}
                 >
-                  Remove
+                  Cancel
                 </Button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-
-      {selected ? <RemoteOperatePane remote={selected} /> : null}
-
-      {adding ? (
-        <form className="space-y-3 rounded-box border border-base-300 p-3" onSubmit={handleAdd}>
-          <Select
-            label="Kind"
-            name="remote-kind"
-            size="sm"
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-          >
-            {unused.length === 0 ? (
-              <option value="" disabled>
-                All kinds added
-              </option>
-            ) : (
-              unused.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))
-            )}
-          </Select>
-          <Input
-            label="URL"
-            name="remote-url"
-            value={baseUrl}
-            onChange={(event) => setBaseUrl(event.target.value)}
-            placeholder={kind === 'swarm' ? 'http://127.0.0.1:9' : 'http://127.0.0.1:8802'}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {kind === 'swarm' ? (
-            <p className="text-sm text-base-content/70">
-              Nested open-swarm is another process (own DB). Do not add this
-              instance as its own remote.
-            </p>
-          ) : null}
-          <Input
-            label="API key env (optional)"
-            name="remote-api-key-env"
-            value={apiKeyEnv}
-            onChange={(event) => setApiKeyEnv(event.target.value)}
-            placeholder="OMB_API_KEY"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <Input
-            label="API key"
-            name="remote-api-key"
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="${API_KEY}"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={!kind || addMutation.isPending}
-            >
-              Save remote
+              </div>
+            </form>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add remote
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setAdding(false)
-                setApiKey('')
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      ) : (
-        <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add remote
-        </Button>
+          )}
+        </>
       )}
     </div>
   )
