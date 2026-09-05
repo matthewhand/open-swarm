@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  botCountLabel,
   collapseInterBotHops,
   groupChatItems,
   hopFromAssistantName,
+  interBotChatHref,
   parseHandoffAssistant,
+  uniqueHopsInOrder,
   type ChatItem,
   type InterBotHop,
 } from '../interBot'
@@ -56,5 +59,26 @@ describe('groupChatItems', () => {
       expect(rows[1].hops).toHaveLength(2)
     }
     expect(rows[2]).toMatchObject({ type: 'message' })
+  })
+})
+
+describe('interBotChatHref', () => {
+  it('uses the same /chat?blueprint= destination as rail jumps', () => {
+    expect(interBotChatHref('hass')).toBe('/chat?blueprint=hass')
+    expect(interBotChatHref('cli:grok')).toBe('/chat?blueprint=cli%3Agrok')
+  })
+})
+
+describe('uniqueHopsInOrder', () => {
+  it('keeps first-seen hop order and drops later duplicates', () => {
+    const hops = [hop('1', 'A'), hop('2', 'B'), hop('3', 'A'), hop('4', 'C')]
+    expect(uniqueHopsInOrder(hops).map((row) => row.name)).toEqual(['A', 'B', 'C'])
+  })
+})
+
+describe('botCountLabel', () => {
+  it('pluralizes the consolidated count', () => {
+    expect(botCountLabel(1)).toBe('1 Bot')
+    expect(botCountLabel(4)).toBe('4 Bots')
   })
 })
