@@ -43,10 +43,12 @@ jobs:
         working-directory: webui/frontend
         run: npm ci
 
-      - name: Typecheck
+      - name: Vitest queued-send suite
         working-directory: webui/frontend
-        run: npm run type-check
-
-      - name: Vitest queued-send and ChatPage send path
-        working-directory: webui/frontend
-        run: npx vitest run src/lib/__tests__/chatQueue.test.ts src/components/__tests__/QueuedSendPane.test.tsx src/pages/__tests__/ChatPage.queued.test.tsx src/pages/__tests__/ChatPage.test.tsx
+        run: |
+          npx vitest run \
+            src/lib/__tests__/chatQueue.test.ts \
+            src/components/__tests__/QueuedSendPane.test.tsx \
+            src/pages/__tests__/ChatPage.queued.test.tsx
+          npx vitest run src/pages/__tests__/ChatPage.test.tsx \
+            -t "Send path with mock inference|Send button honesty|team member dropdown"

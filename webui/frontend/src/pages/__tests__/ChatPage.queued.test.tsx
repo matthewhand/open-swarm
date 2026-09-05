@@ -7,8 +7,8 @@ import { ToastProvider } from '../../components/DaisyUI'
 import { resetConversationThreads } from '../../lib/chatMeter'
 import {
   QUEUED_PANE_MAX_HEIGHT_CLASS,
-  QUEUED_SENDS_KEY,
   SUGGESTION_CHIP_EVENT,
+  clearAllQueuedSends,
 } from '../../lib/chatQueue'
 
 type WsHandler = ((ev?: Event) => void) | null
@@ -83,7 +83,7 @@ describe('ChatPage queued sends (REQ-90 / #447)', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
-    localStorage.removeItem(QUEUED_SENDS_KEY)
+    clearAllQueuedSends()
     vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
     vi.stubGlobal(
       'fetch',
@@ -97,7 +97,7 @@ describe('ChatPage queued sends (REQ-90 / #447)', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    localStorage.removeItem(QUEUED_SENDS_KEY)
+    clearAllQueuedSends()
     resetConversationThreads()
   })
 

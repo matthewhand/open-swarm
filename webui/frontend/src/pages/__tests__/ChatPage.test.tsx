@@ -6,6 +6,7 @@ import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 import { ToastProvider, TOAST_KIND_WS_DISCONNECT } from '../../components/DaisyUI'
 import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAvatar'
 import { resetConversationThreads } from '../../lib/chatMeter'
+import { clearAllQueuedSends } from '../../lib/chatQueue'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
 import { OPEN_AGENT_EDITOR_EVENT } from '../../lib/agentSettings'
 
@@ -2023,11 +2024,13 @@ describe('ChatPage team member dropdown', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
+    clearAllQueuedSends()
     vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
     stubTeamAndBlueprints()
   })
 
   afterEach(() => {
+    clearAllQueuedSends()
     vi.unstubAllGlobals()
   })
 

@@ -1319,14 +1319,14 @@ const ChatPage = () => {
     (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || status !== 'open') return
-      if (generationIsInFlight(messages, awaitingAssistant)) {
+      if (messages.some((message) => message.streaming)) {
         queued.enqueue(trimmed)
         return
       }
       setAwaitingAssistant(true)
       if (!sendText(trimmed)) setAwaitingAssistant(false)
     },
-    [awaitingAssistant, messages, queued, sendText, status],
+    [messages, queued, sendText, status],
   )
 
   useEffect(() => {

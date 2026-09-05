@@ -73,6 +73,14 @@ export function loadQueuedSends(conversationId: string): QueuedSendRow[] {
   return loadQueuedSendsMap()[id] ?? []
 }
 
+export function clearAllQueuedSends(): void {
+  try {
+    localStorage.removeItem(QUEUED_SENDS_KEY)
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function saveQueuedSends(conversationId: string, rows: QueuedSendRow[]): void {
   const id = conversationId.trim()
   if (!id) return
