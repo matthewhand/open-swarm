@@ -9,6 +9,7 @@ AGENT_BUBBLE = (
     REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentChat" / "AgentMessageBubble.tsx"
 )
 MARKDOWN = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "markdown.ts"
+HTML_SAFE = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "htmlSafe.ts"
 THEME_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "theme.ts"
 
 
@@ -38,7 +39,8 @@ def test_index_css_reuses_grok_tokens_with_light_variants():
     css = _css()
     assert "--os-grok-code-inline: #ff5667" in css
     assert "--os-grok-link: #4194eb" in css
-    light = css.split('[data-theme="light"]')[1]
+    light_idx = css.index('[data-theme="light"] {\n  --os-chrome-sidebar')
+    light = css[light_idx : light_idx + 400]
     assert "--os-grok-code-inline: #c43d4e" in light
     assert "--os-grok-link: var(--color-primary)" in light
 
@@ -95,11 +97,13 @@ def test_bubbles_still_render_safe_markdown():
     bubble = BUBBLE.read_text(encoding="utf-8")
     agent = AGENT_BUBBLE.read_text(encoding="utf-8")
     md = MARKDOWN.read_text(encoding="utf-8")
+    html_safe = HTML_SAFE.read_text(encoding="utf-8")
     assert "renderSafeMarkdown" in bubble
     assert 'data-testid="chat-md"' in bubble
     assert "chat-md" in bubble
     assert "chat-md" in agent
     assert "os-chat-md" in agent
-    assert "TABLE" in md
-    assert "BLOCKQUOTE" in md
-    assert "HR" in md
+    assert "renderSafeMarkdown" in md
+    assert "TABLE" in html_safe
+    assert "BLOCKQUOTE" in html_safe
+    assert "HR" in html_safe

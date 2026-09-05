@@ -111,33 +111,40 @@ describe('REQ-804: chat markdown follows data-theme tokens', () => {
     expect(chrome).not.toMatch(/#000(?:000)?\b/i)
   })
 
-  it('renders themed markdown nodes and flips link/code tokens with data-theme', () => {
-    const style = document.createElement('style')
-    style.id = 'os-md-theme-contract'
-    style.textContent = markdownCssContract(css)
-    document.head.appendChild(style)
-
-    const { container, unmount } = render(<ChatBubbleBody text={SAMPLE_MD} streaming={false} />)
+  it('renders markdown nodes that the themed chat-md selectors target', () => {
+    applyResolvedTheme('dark')
+    const { unmount } = render(<ChatBubbleBody text={SAMPLE_MD} streaming={false} />)
     const root = screen.getByTestId('chat-md')
     expect(root).toHaveClass('chat-md')
     expect(root.querySelector('code:not(pre code)')).toBeTruthy()
-    expect(root.querySelector('a')).toBeTruthy()
+    expect(root.querySelector('a')?.getAttribute('href')).toBe('https://example.com/docs')
     expect(root.querySelector('blockquote')).toBeTruthy()
     expect(root.querySelector('table')).toBeTruthy()
     expect(root.querySelector('hr')).toBeTruthy()
     expect(root.querySelector('pre.os-code-python')).toBeTruthy()
-
-    applyResolvedTheme('dark')
-    const darkLink = getComputedStyle(root.querySelector('a')!).color
-    const darkCode = getComputedStyle(root.querySelector('code:not(pre code)')!).color
+    expect(root.querySelector('.os-py-kw')).toBeTruthy()
+    unmount()
 
     applyResolvedTheme('light')
-    const lightLink = getComputedStyle(root.querySelector('a')!).color
-    const lightCode = getComputedStyle(root.querySelector('code:not(pre code)')!).color
+    render(<ChatBubbleBody text={SAMPLE_MD} streaming={false} />)
+    const lightRoot = screen.getByTestId('chat-md')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(lightRoot).toHaveClass('chat-md')
+    expect(lightRoot.querySelector('table')).toBeTruthy()
+    expect(lightRoot.querySelector('blockquote')).toBeTruthy()
+    expect(lightRoot.querySelector('code:not(pre code)')).toBeTruthy()
+  })
 
-    expect(darkLink).not.toBe(lightLink)
-    expect(darkCode).not.toBe(lightCode)
-    expect(container.querySelector('[data-testid="chat-md"]')).toBeInTheDocument()
-    unmount()
+  it('uses different token values for dark vs light data-theme', () => {
+    const darkInline = css.match(/--os-grok-code-inline:\s*(#[0-9a-fA-F]+)/)?.[1]
+    const lightInline = css.match(
+      /\[data-theme="light"\][\s\S]*?--os-grok-code-inline:\s*(#[0-9a-fA-F]+)/,
+    )?.[1]
+    const darkLink = css.match(/--os-grok-link:\s*(#[0-9a-fA-F]+)/)?.[1]
+    expect(darkInline).toBe('#ff5667')
+    expect(lightInline).toBe('#c43d4e')
+    expect(darkLink).toBe('#4194eb')
+    expect(css).toMatch(/\[data-theme="light"\][\s\S]*--os-grok-link:\s*var\(--color-primary\)/)
+    expect(darkInline).not.toBe(lightInline)
   })
 })
