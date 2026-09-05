@@ -1030,6 +1030,62 @@ describe('ChatPage per-agent persistence (no retention chrome)', () => {
     expect(startedPos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('reconstructs status chrome from turns + ui_events metadata', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'agt-1-cli',
+              turns: [
+                { role: 'user', content: 'hello', seq: 0 },
+                { role: 'assistant', content: 'hi', seq: 2 },
+              ],
+              ui_events: [
+                {
+                  role: 'status',
+                  content: 'Started a new grok session.',
+                  ts: '2026-09-05T12:00:00Z',
+                  seq: 1,
+                },
+              ],
+              messages: [{ role: 'user', content: 'stale mixed should be ignored' }],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI Agent', description: 'CLI' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const notices = await screen.findAllByTestId('chat-status')
+    const started = notices.find((n) => n.textContent?.includes('Started a new grok session.'))
+    expect(started).toBeTruthy()
+    expect(started!.querySelector('[data-testid="chat-status-time"]')).toBeTruthy()
+    expect(started).toHaveAttribute('data-ts', '2026-09-05T12:00:00Z')
+    expect(screen.queryByText('stale mixed should be ignored')).not.toBeInTheDocument()
+    expect(screen.getByText('hello')).toBeInTheDocument()
+    expect(screen.getByText('hi')).toBeInTheDocument()
+  })
+
   it('renders prior history as a System/Agent family pill, not a deleted transcript', async () => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
