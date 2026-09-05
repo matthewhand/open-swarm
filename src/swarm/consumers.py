@@ -48,7 +48,11 @@ def _save_agent_json(user, agent_id, messages, *, conversation_id=""):
         from swarm.core.agent_settings import is_new_chat_per_task
 
         session_id = ""
-        if agent_id and is_new_chat_per_task(agent_id) and conversation_id:
+        default_cid = chat_store.conversation_id_for(user, agent_id) if agent_id else ""
+        if conversation_id and (
+            conversation_id != default_cid
+            or (agent_id and is_new_chat_per_task(agent_id))
+        ):
             session_id = conversation_id
         chat_store.save(
             chat_store.user_key_for(user),
@@ -70,7 +74,11 @@ def _load_agent_json(user, agent_id, *, conversation_id=""):
         from swarm.core.agent_settings import is_new_chat_per_task
 
         session_id = ""
-        if agent_id and is_new_chat_per_task(agent_id) and conversation_id:
+        default_cid = chat_store.conversation_id_for(user, agent_id) if agent_id else ""
+        if conversation_id and (
+            conversation_id != default_cid
+            or (agent_id and is_new_chat_per_task(agent_id))
+        ):
             session_id = conversation_id
         record = chat_store.load(
             chat_store.user_key_for(user),
@@ -942,20 +950,22 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         row exists for another student); ownership is then validated.
         """
         cache_key = _conversation_cache_key(self.user, conversation_id)
-        chat, created = ChatConversation.objects.get_or_create(
-            conversation_id=conversation_id,
-            defaults={"student": self.user},
-        )
-        if not created and chat.student_id is not None and chat.student_id != self.user.pk:
+        from swarm.core.agent_sessions import get_or_create_session, touch_session
+
+        agent_id = getattr(self, "active_agent", None) or getattr(self, "default_blueprint", None)
+        try:
+            chat = get_or_create_session(
+                self.user,
+                conversation_id,
+                agent_id=str(agent_id or ""),
+            )
+        except PermissionError:
             logger.warning(
                 "Refusing to save conversation %s: owned by another user (requested by %s)",
                 conversation_id,
                 self.user,
             )
             return
-        if chat.student_id is None:
-            chat.student = self.user
-            chat.save(update_fields=["student"])
 
         chat_messages = [
             ChatMessage(
@@ -968,6 +978,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         # Idempotent replace: delete then insert current transcript.
         ChatMessage.objects.filter(conversation=chat).delete()
         ChatMessage.objects.bulk_create(chat_messages)
+        try:
+            touch_session(chat, new_messages, agent_id=str(agent_id or ""))
+        except Exception:
+            logger.exception("Failed to touch Django session %s", conversation_id)
 
         IN_MEMORY_CONVERSATIONS[cache_key] = list(new_messages)
         _save_agent_json(

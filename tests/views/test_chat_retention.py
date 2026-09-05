@@ -112,6 +112,47 @@ def test_chat_thread_isolates_two_agents_after_switch(client, user):
 
 
 @pytest.mark.django_db
+def test_chat_thread_isolates_two_sessions_and_summaries(client, user):
+    """REQ-105: switching sessions does not leak transcript or compact state."""
+    from swarm.core.agent_sessions import create_empty_session
+    from swarm.core.chat_compact import compact_backlog
+
+    first = create_empty_session(user, "codey", title="Alpha")
+    second = create_empty_session(user, "codey", title="Beta")
+    chat_store.save(
+        chat_store.user_key_for(user),
+        "codey",
+        [{"role": "user", "content": "alpha only"}, {"role": "assistant", "content": "ok-a"}],
+        conversation_id=first.conversation_id,
+        session_id=first.conversation_id,
+    )
+    compact_backlog(
+        user=user,
+        conversation_id=first.conversation_id,
+        agent_id="codey",
+        messages=[
+            {"role": "user", "content": "alpha only"},
+            {"role": "assistant", "content": "ok-a"},
+        ],
+    )
+    alpha = client.get(
+        f"/chat/thread/?agent=codey&conversation_id={first.conversation_id}"
+    )
+    beta = client.get(
+        f"/chat/thread/?agent=codey&conversation_id={second.conversation_id}"
+    )
+    assert alpha.status_code == 200
+    assert beta.status_code == 200
+    assert alpha.json()["conversation_id"] == first.conversation_id
+    assert beta.json()["conversation_id"] == second.conversation_id
+    assert alpha.json()["messages"][0]["content"] == "alpha only"
+    assert beta.json()["messages"] == []
+    assert alpha.json()["summaries"]
+    assert beta.json()["summaries"] == []
+    assert all(row["content"] != "alpha only" for row in beta.json()["messages"])
+
+
+@pytest.mark.django_db
 def test_chat_thread_requires_login():
     resp = Client().get("/chat/thread/?agent=jeeves")
     assert resp.status_code == 302

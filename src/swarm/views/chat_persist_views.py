@@ -101,23 +101,21 @@ def _public_messages(messages) -> list[dict]:
     return out
 
 
-def _sync_django_and_memory(user, messages, conversation_ids: list[str]) -> None:
+def _sync_django_and_memory(
+    user, messages, conversation_ids: list[str], *, agent_id: str = ""
+) -> None:
     from swarm.consumers import IN_MEMORY_CONVERSATIONS, _conversation_cache_key
+    from swarm.core.agent_sessions import get_or_create_session, touch_session
 
     seen: set[str] = set()
     for cid in conversation_ids:
         if not cid or cid in seen:
             continue
         seen.add(cid)
-        chat, created = ChatConversation.objects.get_or_create(
-            conversation_id=cid,
-            defaults={"student": user},
-        )
-        if not created and chat.student_id is not None and chat.student_id != user.pk:
+        try:
+            chat = get_or_create_session(user, cid, agent_id=agent_id)
+        except PermissionError:
             continue
-        if chat.student_id is None:
-            chat.student = user
-            chat.save(update_fields=["student"])
         ChatMessage.objects.filter(conversation=chat).delete()
         ChatMessage.objects.bulk_create(
             [
@@ -142,6 +140,10 @@ def _sync_django_and_memory(user, messages, conversation_ids: list[str]) -> None
                 row["edited"] = True
             mem_rows.append(row)
         IN_MEMORY_CONVERSATIONS[_conversation_cache_key(user, cid)] = mem_rows
+        try:
+            touch_session(chat, messages, agent_id=agent_id)
+        except Exception:
+            logger.exception("Failed to touch Django session %s", cid)
 
 
 @login_required
@@ -155,58 +157,71 @@ def chat_thread(request):
     agent_raw = request.GET.get("agent")
     agent = chat_store.normalize_agent_id(agent_raw)
     user_key = _user_key(request.user)
-    conversation_id = chat_store.conversation_id_for(request.user, agent)
+    default_cid = chat_store.conversation_id_for(request.user, agent)
+    conversation_id = default_cid
     requested_cid = (request.GET.get("conversation_id") or "").strip()
     if request.method in ("PATCH", "POST"):
         body = _json_body(request)
         if isinstance(body.get("conversation_id"), str) and body["conversation_id"].strip():
             requested_cid = body["conversation_id"].strip()
     fresh_task = is_new_chat_per_task(agent)
-    if fresh_task:
+    session_id = ""
+    if requested_cid and requested_cid != default_cid:
+        session_id = requested_cid
+    if fresh_task and not requested_cid:
+        # New task: do not hydrate the reused agent transcript.
+        record = None
+        messages = []
+    else:
         record = chat_store.load(
             user_key,
             agent,
             conversation_id=requested_cid,
-            session_id=requested_cid,
-        ) if requested_cid else None
-    else:
-        record = chat_store.load(user_key, agent)
-    messages = (record or {}).get("messages") if record else None
-    if fresh_task and not requested_cid:
-        # New task: do not hydrate the reused agent transcript.
-        messages = []
-    if not messages and not (fresh_task and not requested_cid):
-        db_id = requested_cid or (record or {}).get("conversation_id") or conversation_id
-        messages = _messages_from_db(request.user, db_id)
-        if messages and record is None and not fresh_task:
-            # Upgrade path: mirror an existing Django row onto disk.
-            try:
-                chat_store.save(
-                    user_key,
-                    agent,
-                    messages,
-                    conversation_id=db_id,
-                )
-            except OSError:
-                logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
+            session_id=session_id,
+        )
+        messages = (record or {}).get("messages") if record else None
+        if not messages:
+            db_id = requested_cid or (record or {}).get("conversation_id") or default_cid
+            messages = _messages_from_db(request.user, db_id)
+            if messages and record is None and not session_id:
+                # Upgrade path: mirror an existing Django row onto disk.
+                try:
+                    chat_store.save(
+                        user_key,
+                        agent,
+                        messages,
+                        conversation_id=db_id,
+                    )
+                except OSError:
+                    logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
     if requested_cid:
         conversation_id = requested_cid
     elif record and record.get("conversation_id") and not fresh_task:
         conversation_id = record["conversation_id"]
-    conversation_id, summaries = _summaries_for(
-        requested_cid,
-        (record or {}).get("conversation_id") if record else "",
-        conversation_id,
-    )
-    if not conversation_id:
-        conversation_id = requested_cid or (record or {}).get("conversation_id") or chat_store.conversation_id_for(
-            request.user, agent
+    # REQ-105: never fall back to another conversation's compact tree.
+    if requested_cid:
+        summaries = [summary_to_dict(row) for row in list_summaries(requested_cid)]
+    else:
+        conversation_id, summaries = _summaries_for(
+            (record or {}).get("conversation_id") if record else "",
+            conversation_id,
         )
+    if not conversation_id:
+        conversation_id = requested_cid or (record or {}).get("conversation_id") or default_cid
     sessions = list_active_task_sessions(user_key, agent) if fresh_task else []
     kind = classify_agent_kind(agent_raw or agent)
+    session_title = ""
+    try:
+        from swarm.core.agent_sessions import get_or_create_session
+
+        row = get_or_create_session(request.user, conversation_id, agent_id=agent)
+        session_title = row.title or ""
+    except Exception:
+        session_title = ""
     payload = {
         "agent_id": agent,
         "conversation_id": conversation_id,
+        "session_title": session_title,
         "kind": kind,
         "editable": kind == "api",
         "new_chat_per_task": fresh_task,
@@ -240,13 +255,15 @@ def chat_thread(request):
                     agent,
                     current_messages,
                     conversation_id=conversation_id,
+                    session_id=conversation_id if conversation_id != default_cid else "",
                 )
             except OSError:
                 logger.exception("Failed to append chat JSON for %s/%s", user_key, agent)
             _sync_django_and_memory(
                 request.user,
                 current_messages,
-                [conversation_id, chat_store.conversation_id_for(request.user, agent)],
+                [conversation_id],
+                agent_id=agent,
             )
             payload["messages"] = _public_messages(current_messages)
             return JsonResponse(payload)
@@ -277,6 +294,7 @@ def chat_thread(request):
             agent,
             current_messages,
             conversation_id=conversation_id,
+            session_id=conversation_id if conversation_id != default_cid else "",
         )
     except OSError:
         logger.exception("Failed to persist edited chat JSON for %s/%s", user_key, agent)
@@ -287,7 +305,8 @@ def chat_thread(request):
     _sync_django_and_memory(
         request.user,
         current_messages,
-        [conversation_id, chat_store.conversation_id_for(request.user, agent)],
+        [conversation_id],
+        agent_id=agent,
     )
     payload["messages"] = _public_messages(current_messages)
     return JsonResponse(payload)

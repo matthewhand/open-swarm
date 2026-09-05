@@ -43,6 +43,7 @@ def test_patch_toggle_on(api_client):
     assert again.json()["new_chat_per_task"] is True
 
 
+@pytest.mark.django_db
 def test_allocate_session_reuses_when_off(api_client):
     first = api_client.post("/v1/agents/worker/sessions/", {}, format="json")
     second = api_client.post("/v1/agents/worker/sessions/", {}, format="json")
@@ -51,6 +52,30 @@ def test_allocate_session_reuses_when_off(api_client):
     assert first.json()["conversation_id"] == second.json()["conversation_id"]
 
 
+def test_list_and_create_django_sessions(api_client, django_user_model, db, tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    user = django_user_model.objects.create_user(username="sess-api", password="pw")
+    api_client.force_authenticate(user=user)
+    created = [
+        api_client.post("/v1/agents/codey/sessions/", {"new": True}, format="json")
+        for _ in range(3)
+    ]
+    assert all(row.status_code == 200 for row in created)
+    ids = {row.json()["conversation_id"] for row in created}
+    assert len(ids) == 3
+    listed = api_client.get("/v1/agents/codey/sessions/")
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["object"] == "agent_session_list"
+    listed_ids = {row["id"] for row in body["sessions"]}
+    assert ids <= listed_ids
+    assert all(row["agent_id"] == "codey" for row in body["sessions"])
+    empty = created[0].json()
+    assert empty["empty"] is True
+    assert empty["title"] == "New session"
+
+
+@pytest.mark.django_db
 def test_allocate_session_mints_when_on(api_client):
     api_client.patch(
         "/v1/agents/worker/settings/",
