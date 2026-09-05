@@ -11,10 +11,12 @@ import {
   AVATAR_THEME_STORAGE_KEY,
   saveAvatarTheme,
 } from '../../lib/avatarTheme'
+import { rememberGeneratedAvatar, resetGeneratedAvatars } from '../../lib/agentAvatars'
 
 describe('AgentAvatar', () => {
   afterEach(() => {
     localStorage.removeItem(AVATAR_THEME_STORAGE_KEY)
+    resetGeneratedAvatars()
   })
 
   it('uses Blobs-with-eyes by default when no custom src is set', () => {
@@ -116,6 +118,32 @@ describe('AgentAvatar', () => {
     const blob = container.querySelector('.os-blob-avatar')
     expect(blob).toHaveClass('os-blob-avatar--xs')
     expect(blob).not.toHaveStyle({ width: '100%', height: '100%' })
+  })
+
+  it('uses a generated still on Bland and ignores it while Blobs is selected', () => {
+    rememberGeneratedAvatar('codey', '/avatars/codey_still.png')
+    const blobs = render(<AgentAvatar agentId="codey" />)
+    expect(blobs.container.querySelector('[data-avatar-theme="blobs"]')).toBeInTheDocument()
+    expect(blobs.container.querySelector('[data-avatar-still="generated"]')).not.toBeInTheDocument()
+    blobs.unmount()
+
+    saveAvatarTheme('bland')
+    const bland = render(<AgentAvatar agentId="codey" />)
+    expect(bland.container.querySelector('[data-agent-avatar]')).toHaveAttribute(
+      'data-avatar-still',
+      'generated',
+    )
+    expect(bland.container.querySelector('img')).toHaveAttribute('src', '/avatars/codey_still.png')
+    bland.unmount()
+  })
+
+  it('keeps an uploaded custom face even when a generated still exists', () => {
+    rememberGeneratedAvatar('codey', '/avatars/codey_still.png')
+    const { container } = render(
+      <AgentAvatar agentId="codey" src="/avatars/uploaded.png" alt="Codey" />,
+    )
+    expect(container.querySelector('img')).toHaveAttribute('src', '/avatars/uploaded.png')
+    expect(container.querySelector('[data-avatar-still]')).not.toBeInTheDocument()
   })
 
   it('sizes a custom xs face with the capped class instead of 100% fill', () => {

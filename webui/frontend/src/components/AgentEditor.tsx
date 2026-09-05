@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Button, Input, Modal, Select } from './DaisyUI'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button, Input, Modal, Select, Textarea, useToast } from './DaisyUI'
 import InferenceOrderList, { type InferenceCatalogOption } from './InferenceOrderList'
 import {
   fetchBlueprints,
@@ -8,7 +8,9 @@ import {
   fetchCliModels,
   fetchLlmProfiles,
   fetchModels,
+  fetchImageGenSettings,
   fetchRemotes,
+  generateAgentAvatar,
   type AgentRole,
   type Blueprint,
 } from '../lib/api'
@@ -39,6 +41,9 @@ import { agentRole, exampleRoleAgents } from '../lib/agentRoles'
 import { ROLE_BRIEFS } from '../lib/definitionExplain'
 import { agentLabel, catalogLabel, sessionKindForAgent } from '../lib/supportAgent'
 import { isCliBlueprintId } from '../lib/cliAgentContext'
+import { rememberGeneratedAvatar } from '../lib/agentAvatars'
+import { defaultAvatarPrompt, isImageGenConfigured, parseImageGenSettings } from '../lib/imageGenSettings'
+import AgentAvatar from './AgentAvatar'
 import { openSettingsSheet } from './SettingsSheet'
 
 /** Window event so the rail hover-edit and tests can open the agent editor. */
@@ -81,6 +86,8 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const id = agentId || ''
   const toggleId = useId()
   const suggestionsToggleId = useId()
+  const { success, error: toastError } = useToast()
+  const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [role, setRole] = useState<AgentRole>('default')
   const [blueprintId, setBlueprintId] = useState('')
@@ -92,6 +99,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [savingSettings, setSavingSettings] = useState(false)
   const [boundRemoteId, setBoundRemoteId] = useState('')
   const [inferenceSeats, setInferenceSeats] = useState<InferenceSeat[]>([])
+  const [avatarPrompt, setAvatarPrompt] = useState('')
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -161,6 +169,15 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     enabled: isOpen,
     retry: 1,
   })
+
+  const imageGenQuery = useQuery({
+    queryKey: ['image-gen-settings'],
+    queryFn: () => fetchImageGenSettings(false),
+    enabled: isOpen,
+    retry: 1,
+  })
+  const imageGen = parseImageGenSettings(imageGenQuery.data)
+  const canGenerateAvatar = isImageGenConfigured(imageGen)
   const remotesCatalog = remotesListForSelect(
     remotesQuery.data,
     null,
@@ -200,6 +217,9 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setProfileOverride(edit.profileOverride || '')
     setBoundRemoteId(loadAgentRemoteBinding(id)?.id || '')
     setInferenceSeats(loadInferenceList(id))
+    const catalogNameForPrompt = catalogAgent?.name || id
+    const roleForPrompt = edit.role || agentRole({ id, name: catalogAgent?.name, role: catalogAgent?.role })
+    setAvatarPrompt(defaultAvatarPrompt(edit.name || catalogNameForPrompt, roleForPrompt))
 
     let cancelled = false
     ;(async () => {
@@ -249,6 +269,36 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const persistRole = (next: AgentRole) => {
     setRole(next)
     saveAgentEdit(id, { role: next })
+    setAvatarPrompt((current) => {
+      const derived = defaultAvatarPrompt(name || catalogName, next)
+      if (!current.trim() || current === defaultAvatarPrompt(name || catalogName, role)) {
+        return derived
+      }
+      return current
+    })
+  }
+
+  const generateAvatar = useMutation({
+    mutationFn: () =>
+      generateAgentAvatar(id, {
+        prompt: avatarPrompt.trim() || defaultAvatarPrompt(name || catalogName, role),
+        name: name || catalogName,
+        role,
+      }),
+    onSuccess: (result) => {
+      rememberGeneratedAvatar(id, result.avatar_path)
+      void queryClient.invalidateQueries({ queryKey: ['image-gen-settings'] })
+      void queryClient.invalidateQueries({ queryKey: ['blueprints'] })
+      success('Avatar generated', 'Still image stored for this agent.')
+    },
+    onError: (err: Error) => {
+      toastError('Could not generate avatar', err.message)
+    },
+  })
+
+  const openImageGenSettings = () => {
+    onClose()
+    openSettingsSheet({ section: 'image-gen' })
   }
 
   const persistInference = (next: InferenceSeat[]) => {
@@ -358,6 +408,63 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
           defaultLabel={defaultInferenceLabel}
           onChange={persistInference}
         />
+
+        <div
+          className="space-y-3 rounded-box border border-base-300 bg-base-200/40 p-3"
+          data-testid="agent-editor-avatar"
+        >
+          <div className="flex items-start gap-3">
+            <AgentAvatar
+              agentId={id}
+              alt=""
+              size="lg"
+              className="shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-semibold text-base-content/80">Still avatar</span>
+              <p className="text-xs text-base-content/60 mt-0.5">
+                Generated stills apply on Bland. Blobs with eyes stay a separate
+                Rail theme and ignore generated stills.
+              </p>
+            </div>
+          </div>
+          <Textarea
+            label="Avatar prompt"
+            name="agent-avatar-prompt"
+            value={avatarPrompt}
+            onChange={(event) => setAvatarPrompt(event.target.value)}
+            rows={3}
+            spellCheck={false}
+          />
+          {canGenerateAvatar ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={!id || generateAvatar.isPending}
+              onClick={() => generateAvatar.mutate()}
+            >
+              {generateAvatar.isPending ? 'Generating…' : 'Generate avatar'}
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <Button type="button" variant="primary" size="sm" disabled>
+                Generate avatar
+              </Button>
+              <p className="text-xs text-base-content/60" data-testid="generate-avatar-disabled-hint">
+                Set a base URL in{' '}
+                <button
+                  type="button"
+                  className="link link-hover font-medium"
+                  onClick={openImageGenSettings}
+                >
+                  Settings → Image generation
+                </button>{' '}
+                first. Empty/off does not guess a host.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* LLM Override Picker by Kind (REQ-124) */}
         {agentKind === 'remote' && (

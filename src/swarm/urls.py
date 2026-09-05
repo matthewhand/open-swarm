@@ -110,6 +110,7 @@ from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessio
 from swarm.views.cli_runs_api import CliRunStatusAPIView, CliRunTerminateAPIView
 from swarm.views.cli_sessions_api import CliSessionListAPIView, CliSessionSelectAPIView
 from swarm.views.suggestions_api import AgentSuggestionsAPIView
+from swarm.views.image_gen_api import AgentAvatarGenerateView, ImageGenSettingsView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
@@ -327,6 +328,18 @@ urlpatterns = [
     path("v1/agents/<str:agent_id>/suggestions/", AgentSuggestionsAPIView.as_view(), name="agent-suggestions-api"),
     path("v1/agents/<str:agent_id>/sessions", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api-no-slash"),
     path("v1/agents/<str:agent_id>/sessions/", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api"),
+    path(
+        "v1/agents/<str:agent_id>/avatar/generate",
+        AgentAvatarGenerateView.as_view(),
+        name="agent-avatar-generate-no-slash",
+    ),
+    path(
+        "v1/agents/<str:agent_id>/avatar/generate/",
+        AgentAvatarGenerateView.as_view(),
+        name="agent-avatar-generate",
+    ),
+    path("v1/image-gen", ImageGenSettingsView.as_view(), name="image-gen-settings-no-slash"),
+    path("v1/image-gen/", ImageGenSettingsView.as_view(), name="image-gen-settings"),
     # Settings System section — local store facts (REQ-56). Read-only.
     path("v1/system", LocalStoreView.as_view(), name="system-local-store-no-slash"),
     path("v1/system/", LocalStoreView.as_view(), name="system-local-store"),

@@ -7,6 +7,7 @@ import AvatarThemePicker from './AvatarThemePicker'
 import EnvOverrideBadge from './EnvOverrideBadge'
 import McpServersPane from './McpServersPane'
 import CliAgentsSettingsPane from './CliAgentsSettingsPane'
+import ImageGenPane from './ImageGenSettings'
 import {
   EMPTY_LOCAL_STORE,
   createRemote,
@@ -76,6 +77,7 @@ export type SettingsSection =
   | 'mcp'
   | 'cli-agents'
   | 'rail'
+  | 'image-gen'
   | 'system'
 
 export interface OpenSettingsDetail {
@@ -301,6 +303,16 @@ export default function SettingsSheet({
             <li>
               <button
                 type="button"
+                className={section === 'image-gen' ? 'menu-active' : undefined}
+                aria-current={section === 'image-gen' ? 'page' : undefined}
+                onClick={() => setSection('image-gen')}
+              >
+                Image generation
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
                 className={section === 'system' ? 'menu-active' : undefined}
                 aria-current={section === 'system' ? 'page' : undefined}
                 onClick={() => setSection('system')}
@@ -347,6 +359,7 @@ export default function SettingsSheet({
               }}
             />
           )}
+          {section === 'image-gen' && <ImageGenPane />}
           {section === 'system' && <SystemPane />}
         </div>
       </div>

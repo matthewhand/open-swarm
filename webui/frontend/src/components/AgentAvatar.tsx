@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useGeneratedAvatar } from '../lib/agentAvatars'
+import { isGeneratedStillSrc } from '../lib/imageGenSettings'
 import { useAvatarTheme } from '../lib/useAvatarTheme'
 import BlobAvatar from './BlobAvatar'
 
@@ -42,7 +44,9 @@ export function agentAvatarKind(src?: string | null): 'custom' | 'default' {
  * Shared agent face for the rail tile, favourites large tiles, and the chat header.
  * Display-only: no click handler. Sizes: rail sm, header/favs lg.
  * Unset or broken avatars resolve to Blobs-with-eyes by default (REQ-155),
- * or bland static circles when opt-in chosen in Settings. Custom faces always win.
+ * or bland static circles when opt-in chosen in Settings. Uploaded custom
+ * faces always win. Generated stills (REQ-83) apply on Bland/Default and
+ * stay unused while Blobs is selected.
  */
 export default function AgentAvatar({
   src,
@@ -55,26 +59,37 @@ export default function AgentAvatar({
 }: AgentAvatarProps) {
   const [broken, setBroken] = useState(false)
   const theme = useAvatarTheme()
+  const generatedSrc = useGeneratedAvatar(agentId)
 
   useEffect(() => {
     setBroken(false)
-  }, [src])
+  }, [src, generatedSrc])
 
   const customSrc = typeof src === 'string' ? src.trim() : ''
-  const isCustom = Boolean(customSrc && !broken)
+  const uploadedSrc =
+    customSrc && !isGeneratedStillSrc(customSrc) ? customSrc : ''
+  const stillSrc =
+    uploadedSrc ||
+    (customSrc && isGeneratedStillSrc(customSrc) ? customSrc : '') ||
+    generatedSrc
+  const showGeneratedStill = Boolean(stillSrc && !uploadedSrc && theme !== 'blobs')
+  const showUploaded = Boolean(uploadedSrc && !broken)
+  const isCustom = showUploaded || (showGeneratedStill && !broken)
 
   if (isCustom) {
+    const faceSrc = uploadedSrc || stillSrc
     return (
       <div
         className={`avatar ${className}`.trim()}
         data-agent-avatar="custom"
         data-avatar-size={size}
+        data-avatar-still={showGeneratedStill ? 'generated' : undefined}
         aria-hidden={alt ? undefined : true}
         style={style}
       >
         <div className={`os-agent-avatar os-agent-avatar--${size} rounded-full`}>
           <img
-            src={customSrc}
+            src={faceSrc}
             alt={alt}
             draggable={false}
             data-agent-avatar="custom"
