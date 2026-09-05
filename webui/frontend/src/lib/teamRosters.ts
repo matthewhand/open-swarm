@@ -14,6 +14,28 @@ export const ALL_MEMBERS_TARGET = 'all'
 export const MANAGE_TEAMS_VALUE = '__manage__'
 export const MANAGE_TEAMS_HREF = '/teams/'
 
+/**
+ * Shared ?team=&session= contract for the header Team members dropdown
+ * and the rail SessionPicker (REQ-171A-1 / #601).
+ *
+ * A member id writes `session=<id>`. All members clears `session` (the
+ * picker has no all-members href; `all` is only the send-target sentinel).
+ */
+export function applyTeamMemberSessionParam(
+  params: URLSearchParams,
+  teamId: string,
+  memberId: string,
+): URLSearchParams {
+  const next = new URLSearchParams(params)
+  if (teamId) next.set('team', teamId)
+  if (!memberId || memberId === ALL_MEMBERS_TARGET) {
+    next.delete('session')
+  } else {
+    next.set('session', memberId)
+  }
+  return next
+}
+
 export interface TeamMember {
   id: string
   name: string

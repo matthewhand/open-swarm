@@ -146,6 +146,7 @@ import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
   MANAGE_TEAMS_VALUE,
+  applyTeamMemberSessionParam,
   fetchTeamRosters,
   memberOptionLabel,
   teamHideId,
@@ -943,48 +944,57 @@ const ChatPage = () => {
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
+  //
+  // Team hydrate is isolated from ?session= (member target). Writing the
+  // header dropdown into the URL must not refetch or wipe the in-memory
+  // team thread (REQ-171A-1 / #601).
   useEffect(() => {
+    if (!teamFromUrl) return
     setThreadReady(false)
     setSuggestionChips([])
-    if (teamFromUrl) {
-      const key = teamThreadId(teamFromUrl)
-      const switched =
-        lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
-      lastHydratedAgentRef.current = key
-      setConversationId(key)
-      setEditingKey(null)
-      setAgentKind('api')
-      setMessagesEditable(false)
-      userKeyCounterRef.current = 0
-      if (switched) {
-        setThreads((prev) => ({ ...prev, [key]: [] }))
-        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
-      }
-      let cancelled = false
-      ;(async () => {
-        const thread = await fetchAgentThread(key, key)
-        if (cancelled) return
-        setSummariesByThread((prev) => ({
-          ...prev,
-          [key]: thread.summaries,
-        }))
-        if (thread.context_meta) setContextMeta(thread.context_meta)
-        if (thread.messages.length === 0) {
-          setRestoreNotice(null)
-          setThreadReady(true)
-          return
-        }
-        setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
-        setThreads((prev) => ({
-          ...prev,
-          [key]: thread.messages.map(chatMessageFromThreadRow),
-        }))
-        setThreadReady(true)
-      })()
-      return () => {
-        cancelled = true
-      }
+    const key = teamThreadId(teamFromUrl)
+    const switched =
+      lastHydratedAgentRef.current !== null && lastHydratedAgentRef.current !== key
+    lastHydratedAgentRef.current = key
+    setConversationId(key)
+    setEditingKey(null)
+    setAgentKind('api')
+    setMessagesEditable(false)
+    userKeyCounterRef.current = 0
+    if (switched) {
+      setThreads((prev) => ({ ...prev, [key]: [] }))
+      setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
     }
+    let cancelled = false
+    ;(async () => {
+      const thread = await fetchAgentThread(key, key)
+      if (cancelled) return
+      setSummariesByThread((prev) => ({
+        ...prev,
+        [key]: thread.summaries,
+      }))
+      if (thread.context_meta) setContextMeta(thread.context_meta)
+      if (thread.messages.length === 0) {
+        setRestoreNotice(null)
+        setThreadReady(true)
+        return
+      }
+      setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
+      setThreads((prev) => ({
+        ...prev,
+        [key]: thread.messages.map(chatMessageFromThreadRow),
+      }))
+      setThreadReady(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [teamFromUrl])
+
+  useEffect(() => {
+    if (teamFromUrl) return
+    setThreadReady(false)
+    setSuggestionChips([])
     if (remoteFromUrl) {
       const key = `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
       const switched =
@@ -2467,6 +2477,12 @@ const ChatPage = () => {
                 const fromLabel = prev === ALL_MEMBERS_TARGET ? 'All members' : memberOptionLabel(prevMember || { id: prev, name: prev })
                 const toLabel = value === ALL_MEMBERS_TARGET ? 'All members' : memberOptionLabel(nextMember || { id: value, name: value })
                 setMemberTarget(value)
+                if (teamFromUrl) {
+                  setSearchParams(
+                    (prevParams) => applyTeamMemberSessionParam(prevParams, teamFromUrl, value),
+                    { replace: true },
+                  )
+                }
                 recordDropdownChange('team', fromLabel, toLabel)
               }}
             >
