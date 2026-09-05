@@ -28,7 +28,8 @@ export default function AvatarThemePicker({ id = 'os-avatar-theme' }: AvatarThem
       </select>
       <p className="text-xs text-base-content/55">
         Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles.
-        Custom uploaded faces always win.
+        Custom uploaded faces always win. Generated still avatars from Settings → Image
+        generation apply on Bland and stay unused while Blobs is selected.
       </p>
     </div>
   )

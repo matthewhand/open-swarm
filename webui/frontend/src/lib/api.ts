@@ -836,6 +836,69 @@ export function fetchLocalStore(): Promise<LocalStoreFacts> {
   return apiGet<LocalStoreFacts>('/v1/system/')
 }
 
+/**
+ * GET/PATCH /v1/image-gen/ and POST /v1/agents/<id>/avatar/generate/
+ * (swarm/views/image_gen_api.py). Opt-in OpenAI-compat image endpoint.
+ * Auth is an env-var *name* only; never send a live token.
+ */
+export interface ImageGenSettings {
+  object?: 'image_gen'
+  configured: boolean
+  base_url: string
+  model: string
+  api_key_env: string
+  api_key_set?: boolean
+  status?: string
+  detail?: string
+  avatars?: Record<string, string>
+  source?: string
+}
+
+export interface ImageGenPatchRequest {
+  base_url?: string
+  model?: string
+  api_key_env?: string
+}
+
+export interface GeneratedAgentAvatar {
+  object?: 'agent_avatar'
+  agent_id: string
+  avatar_path: string
+  still: boolean
+  prompt?: string
+}
+
+export const EMPTY_IMAGE_GEN: ImageGenSettings = {
+  object: 'image_gen',
+  configured: false,
+  base_url: '',
+  model: '',
+  api_key_env: '',
+  api_key_set: false,
+  status: 'off',
+  detail: 'Image generation is off. No host is used until you set a base URL.',
+  avatars: {},
+}
+
+export function fetchImageGenSettings(probe = true): Promise<ImageGenSettings> {
+  const q = probe ? '' : '?probe=0'
+  return apiGet<ImageGenSettings>(`/v1/image-gen/${q}`)
+}
+
+export function patchImageGenSettings(body: ImageGenPatchRequest): Promise<ImageGenSettings> {
+  return apiPatch<ImageGenSettings>('/v1/image-gen/', body)
+}
+
+export function generateAgentAvatar(
+  agentId: string,
+  body: { prompt?: string; name?: string; role?: string } = {},
+): Promise<GeneratedAgentAvatar> {
+  return apiPost<GeneratedAgentAvatar>(
+    `/v1/agents/${encodeURIComponent(agentId)}/avatar/generate/`,
+    body,
+  )
+}
+
 /** GET /v1/blueprints/<id>/source — read-only blueprint source (file list + content). */
 export interface BlueprintSource {
   id: string
