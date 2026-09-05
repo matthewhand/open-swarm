@@ -50,6 +50,20 @@ describe('buildChatWsFrame', () => {
     })
   })
 
+  it('forwards attached skills on API / Blueprint turns', () => {
+    expect(
+      JSON.parse(
+        buildChatWsFrame('hi', 'chatbot', {
+          skills: ['conventional-commit', 'writing-changelog'],
+        }),
+      ),
+    ).toEqual({
+      message: 'hi',
+      blueprint: 'chatbot',
+      params: { skills: ['conventional-commit', 'writing-changelog'] },
+    })
+  })
+
   it('includes team send-to-all / member params on the send path', () => {
     expect(
       JSON.parse(buildChatWsFrame('hi', undefined, { team: 'demo-team', target: 'all' })),

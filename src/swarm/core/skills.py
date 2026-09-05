@@ -1,4 +1,4 @@
-"""Skills: reusable, named capabilities a CLI agent can be given for a task.
+"""Skills: reusable, named capabilities a CLI or Blueprint-backed API seat can be given.
 
 A **skill** is a directory containing a ``SKILL.md`` file: YAML frontmatter
 (``name``, ``description``) plus a markdown body of instructions. It may bundle
@@ -129,6 +129,98 @@ def discover_skills(root: str | Path | None = None) -> dict[str, Skill]:
             continue
         found.setdefault(skill.name, skill)
     return found
+
+
+def skill_relpath(skill: Skill) -> str:
+    """Repo-relative ``SKILL.md`` path used as the chip/popup source id."""
+    if skill.path is not None:
+        try:
+            root = Path(get_project_root_dir()).resolve()
+            return (skill.path / SKILL_FILE).resolve().relative_to(root).as_posix()
+        except ValueError:
+            return f"{skill.path.name}/{SKILL_FILE}"
+    return f"skills/{skill.name}/{SKILL_FILE}"
+
+
+def skill_payload(skill: Skill, *, include_instructions: bool = True) -> dict[str, Any]:
+    """JSON row for ``GET /v1/skills/`` / config-options."""
+    row: dict[str, Any] = {
+        "name": skill.name,
+        "id": skill.name,
+        "description": skill.description,
+        "path": skill_relpath(skill),
+        "assets": list(skill.assets),
+    }
+    if include_instructions:
+        row["instructions"] = skill.instructions
+    return row
+
+
+def requested_skill_names(params: dict[str, Any] | None) -> list[str]:
+    """Collect unique skill names from ``skill`` and/or ``skills`` (order preserved)."""
+    if not params:
+        return []
+    names: list[str] = []
+    raw_list = params.get("skills")
+    if isinstance(raw_list, str) and raw_list.strip():
+        names.append(raw_list.strip())
+    elif isinstance(raw_list, (list, tuple)):
+        for item in raw_list:
+            if isinstance(item, str) and item.strip():
+                names.append(item.strip())
+    raw = params.get("skill")
+    if isinstance(raw, str) and raw.strip():
+        names.append(raw.strip())
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+    return out
+
+
+def resolve_skills(
+    params: dict[str, Any] | None,
+    root: str | Path | None = None,
+) -> tuple[list[Skill], list[str]]:
+    """Resolve requested skill names to loaded skills plus missing names."""
+    names = requested_skill_names(params)
+    if not names:
+        return [], []
+    catalog = discover_skills(root)
+    found: list[Skill] = []
+    missing: list[str] = []
+    for name in names:
+        skill = catalog.get(name)
+        if skill is None:
+            missing.append(name)
+        else:
+            found.append(skill)
+    return found, missing
+
+
+def apply_skills(skill_list: list[Skill], task: str) -> str:
+    """Apply one or more skills to ``task`` (single skill uses :func:`apply_skill`)."""
+    if not skill_list:
+        return task
+    if len(skill_list) == 1:
+        return apply_skill(skill_list[0], task)
+    parts = ["You have been given these skills:", ""]
+    for skill in skill_list:
+        parts.append(f'## "{skill.name}"')
+        if skill.description:
+            parts += [skill.description, ""]
+        parts += ["--- SKILL INSTRUCTIONS ---", skill.instructions, ""]
+        if skill.assets:
+            parts += [
+                "This skill ships these files in your working directory; read or run "
+                "them with your tools as needed: " + ", ".join(skill.assets),
+                "",
+            ]
+    parts += ["--- TASK ---", task]
+    return "\n".join(parts)
 
 
 def apply_skill(skill: Skill, task: str) -> str:

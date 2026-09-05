@@ -1190,8 +1190,46 @@ export type TraitVector = Record<string, number>
 
 /** GET /v1/config-options/ — everything the Builder needs to configure the
  *  skills / inference-profile / tool-capability decoupling features. */
+export interface SkillRecord {
+  name: string
+  id?: string
+  description: string
+  path?: string
+  assets: string[]
+  instructions?: string
+  found?: boolean
+  error?: string
+}
+
+export interface SkillsList {
+  object: 'list'
+  data: SkillRecord[]
+}
+
+export function fetchSkills(): Promise<SkillsList> {
+  return apiGet<SkillsList>('/v1/skills/')
+}
+
+export async function fetchSkill(name: string): Promise<SkillRecord> {
+  try {
+    return await apiGet<SkillRecord>(`/v1/skills/${encodeURIComponent(name)}/`)
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return {
+        name,
+        id: name,
+        description: '',
+        assets: [],
+        found: false,
+        error: error.message,
+      }
+    }
+    throw error
+  }
+}
+
 export interface ConfigOptions {
-  skills: { name: string; description: string; assets: string[]; instructions: string }[]
+  skills: SkillRecord[]
   inference: {
     traits: string[]
     cli_traits: Record<string, TraitVector>

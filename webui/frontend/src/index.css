@@ -2195,6 +2195,46 @@ html:not([data-theme="light"]) .os-composer__send,
   gap: 0.4rem;
 }
 
+.os-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0.15rem;
+  vertical-align: middle;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 16%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-base-100));
+  color: var(--color-base-content);
+  padding: 0.12rem 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.os-skill-chip:hover {
+  background: color-mix(in srgb, var(--color-primary) 22%, var(--color-base-100));
+}
+
+.os-skill-chip--missing {
+  background: color-mix(in srgb, var(--color-error) 12%, var(--color-base-100));
+  border-color: color-mix(in srgb, var(--color-error) 35%, transparent);
+}
+
+.os-skill-chip__mark {
+  font-weight: 700;
+  opacity: 0.65;
+}
+
+.os-skill-chip__state {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.os-skill-preview :is(p, ul, ol) {
+  margin: 0.35rem 0;
+}
+
 .os-attach-chip {
   display: inline-flex;
   align-items: center;

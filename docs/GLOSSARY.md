@@ -48,6 +48,10 @@ among API seats. Forced sequence = each seat has only the next hop
 to an earlier role. Tests lock live `Handoff.agent_name` against the JSON.
 This is **not** the peer mailbox (`list_agents` / `send_message`, REQ-153 / #561). Mailbox tools are a team-scoped API↔API channel; see [ADR-009](./adr/009-peer-mailbox.md) and [PEER_MAILBOX.md](./PEER_MAILBOX.md).
 
+## Skill (`SKILL.md`)
+
+A directory under `<project>/skills` with a `SKILL.md` (Anthropic Agent Skills format). Discovered by `swarm.core.skills.discover_skills` / `GET /v1/skills/`. Attached with `skill` / `skills` params on CLI and today's Blueprint-backed API seats. Chat chips + popup: [docs/SKILLS.md](./SKILLS.md). Not a harness kind. True inference-only API seats (ADR-006 Phase 2) do not attach skills yet.
+
 ## Blueprint
 
 A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defines a runnable agent workflow: agents, tools/MCP requirements, coordination, and optional config. Selected by OpenAI-compatible `model` id on `/v1/chat/completions` and `/v1/responses`, or launched with `swarm-cli`. Blueprints are **CLI/API only** — they do not ship a webpage; the Grok-like WebUI is product chrome. Live discovery lives in `swarm.core.blueprint_discovery` (the old `swarm.extensions.blueprint` path was removed). New recipes should subclass a [kind base](#kind-base-apikindbase--clikindbase--remotekindbase) (ADR-005). Do not add `kind=webui`.

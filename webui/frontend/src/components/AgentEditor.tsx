@@ -4,6 +4,7 @@ import { Button, Input, Modal, Select, Textarea, useToast } from './DaisyUI'
 import InferenceOrderList, { type InferenceCatalogOption } from './InferenceOrderList'
 import {
   fetchBlueprints,
+  fetchSkills,
   fetchCliAgents,
   fetchCliModels,
   fetchLlmProfiles,
@@ -112,6 +113,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [avatarPrompt, setAvatarPrompt] = useState('')
   const [folder, setFolder] = useState('')
   const [folderError, setFolderError] = useState<string | null>(null)
+  const [attachedSkills, setAttachedSkills] = useState<string[]>([])
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -158,6 +160,13 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     queryKey: ['cli-models', activeCli],
     queryFn: () => (activeCli ? fetchCliModels(activeCli) : Promise.resolve({ cli: '', models: [] })),
     enabled: Boolean(isOpen && agentKind === 'cli' && activeCli),
+    retry: 1,
+  })
+
+  const skillsQuery = useQuery({
+    queryKey: ['skills'],
+    queryFn: fetchSkills,
+    enabled: isOpen && agentKind !== 'remote',
     retry: 1,
   })
 
@@ -231,6 +240,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setInferenceSeats(loadInferenceList(id))
     setFolder(edit.folder || '')
     setFolderError(null)
+    setAttachedSkills(edit.skills || [])
     const catalogNameForPrompt = catalogAgent?.name || id
     const roleForPrompt = edit.role || agentRole({ id, name: catalogAgent?.name, role: catalogAgent?.role })
     setAvatarPrompt(defaultAvatarPrompt(edit.name || catalogNameForPrompt, roleForPrompt))
@@ -457,6 +467,54 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
           defaultLabel={defaultInferenceLabel}
           onChange={persistInference}
         />
+
+        {agentKind !== 'remote' ? (
+          <div className="space-y-2" data-testid="agent-editor-skills">
+            <span className="text-sm font-semibold text-base-content/80">Skills</span>
+            <p className="text-xs text-base-content/60">
+              Attach one or more SKILL.md capabilities discovered under skills/.
+              Today&apos;s API seats are Blueprint-backed (ADR-006); true
+              inference-only API seats do not attach skills until that kind
+              exists.
+            </p>
+            {(skillsQuery.data?.data ?? []).length === 0 ? (
+              <p className="text-xs text-base-content/55">No discoverable skills.</p>
+            ) : (
+              <ul className="space-y-1">
+                {(skillsQuery.data?.data ?? []).map((skill) => {
+                  const checked = attachedSkills.includes(skill.name)
+                  return (
+                    <li key={skill.name}>
+                      <label className="flex items-start gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm mt-0.5"
+                          data-testid={`agent-skill-${skill.name}`}
+                          checked={checked}
+                          onChange={() => {
+                            const next = checked
+                              ? attachedSkills.filter((name) => name !== skill.name)
+                              : [...attachedSkills, skill.name]
+                            setAttachedSkills(next)
+                            saveAgentEdit(id, { skills: next })
+                          }}
+                        />
+                        <span>
+                          <span className="font-medium">{skill.name}</span>
+                          {skill.description ? (
+                            <span className="block text-xs text-base-content/60">
+                              {skill.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        ) : null}
 
         <div
           className="space-y-3 rounded-box border border-base-300 bg-base-200/40 p-3"

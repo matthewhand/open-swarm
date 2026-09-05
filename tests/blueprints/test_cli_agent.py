@@ -127,6 +127,12 @@ def test_apply_skill_to_prompt_helper():
     assert "Conventional Commit" in prompt and prompt.rstrip().endswith("do x")
     # Unknown skill → unchanged, name None (caller warns).
     assert support.apply_skill_to_prompt("do x", {"skill": "nope-not-real"}) == ("do x", None)
+    prompt, applied, missing = support.apply_skills_to_prompt(
+        "do x", {"skills": ["conventional-commit", "nope-not-real"]}
+    )
+    assert applied == ["conventional-commit"]
+    assert missing == ["nope-not-real"]
+    assert "Conventional Commit" in prompt
 
 
 async def test_blueprint_applies_skill_param():

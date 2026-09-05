@@ -303,15 +303,20 @@ class CliAgentBlueprint(BlueprintBase):
         workdir: str | None,
         **kwargs: Any,
     ) -> Any:
-        if params.get(support.PARAM_SKILL):
-            prompt, applied = support.apply_skill_to_prompt(
+        from swarm.core.skills import requested_skill_names
+
+        requested = requested_skill_names(params)
+        if requested:
+            prompt, applied, missing = support.apply_skills_to_prompt(
                 prompt, params, workdir=workdir
             )
-            if applied:
-                yield support.progress_chunk(f"_Applying skill `{applied}`…_")
-            else:
+            for name in applied:
                 yield support.progress_chunk(
-                    f"_Skill `{params[support.PARAM_SKILL]}` not found — running without it._"
+                    f"_Applying skill `{name}` (`skills/{name}/SKILL.md`)…_"
+                )
+            for name in missing:
+                yield support.progress_chunk(
+                    f"_Skill `{name}` not found — running without it._"
                 )
 
         # Per-model inference-profile resolution: with a profile in play and

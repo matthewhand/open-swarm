@@ -46,6 +46,15 @@ describe('agentEdits', () => {
     expect(loadAgentEdit('cli_agent')).toEqual({})
   })
 
+  it('persists attached skills on the agent record', () => {
+    saveAgentEdit('chatbot', { skills: [' conventional-commit ', 'writing-changelog'] })
+    expect(loadAgentEdit('chatbot')).toEqual({
+      skills: ['conventional-commit', 'writing-changelog'],
+    })
+    saveAgentEdit('chatbot', { skills: [] })
+    expect(loadAgentEdit('chatbot')).toEqual({})
+  })
+
   it('records an explicit role override separately from the value', () => {
     saveAgentEdit('codey', { role: 'engineer', roleOverridden: true, workflow: 'handoff' })
     expect(loadAgentEdit('codey')).toEqual({

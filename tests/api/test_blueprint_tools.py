@@ -10,6 +10,10 @@ def test_blueprint_tools_and_config_options_urls_accept_trailing_slash():
     assert resolve("/v1/blueprints/cli_fusion/tools/").url_name == "blueprint-tools-slash"
     assert resolve("/v1/config-options").url_name == "config-options-api-no-slash"
     assert resolve("/v1/config-options/").url_name == "config-options-api"
+    assert resolve("/v1/skills").url_name == "skills-api-no-slash"
+    assert resolve("/v1/skills/").url_name == "skills-api"
+    assert resolve("/v1/skills/conventional-commit").url_name == "skill-detail-api-no-slash"
+    assert resolve("/v1/skills/conventional-commit/").url_name == "skill-detail-api"
 
 
 @pytest.fixture(autouse=True)

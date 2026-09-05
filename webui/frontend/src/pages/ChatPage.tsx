@@ -48,6 +48,7 @@ import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { NavbarRoutingPicker, type RoutingPathChange } from '../components/NavbarRoutingPicker'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
+import { SkillPopup } from '../components/SkillPopup'
 import ReadAloudButton from '../components/ReadAloudButton'
 import { SystemPreloadPill } from '../components/SystemPreloadPill'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
@@ -61,6 +62,8 @@ import {
 import {
   EMPTY_SPEECH,
   fetchConfigOptions,
+  fetchSkills,
+  type SkillRecord,
   fetchBlueprints,
   fetchCliAgents,
   fetchCliModels,
@@ -190,7 +193,8 @@ import { workingLabel } from '../lib/chatBubble'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
-import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel, loadInferenceList } from '../lib/agentEdits'
+import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel, loadAgentEdit, loadInferenceList } from '../lib/agentEdits'
+import { buildSkillParams, parseComposerSkillNames } from '../lib/skills'
 import { chatFolderParams } from '../lib/agentFolder'
 import { TEAM_EDITS_CHANGED_EVENT } from '../lib/teamEdits'
 import { nextInferenceIndex, serializeInferenceList } from '../lib/inferenceList'
@@ -364,6 +368,8 @@ const ChatPage = () => {
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [recentSlashIds, setRecentSlashIds] = useState<string[]>(() => getRecentSlashIds())
   const [dynamicSkills, setDynamicSkills] = useState<{ name: string; description?: string }[]>([])
+  const [skillCatalog, setSkillCatalog] = useState<SkillRecord[]>([])
+  const [openSkillName, setOpenSkillName] = useState<string | null>(null)
   const [status, setStatus] = useState<ConnectionStatus>('connecting')
   const [memberTarget, setMemberTarget] = useState(ALL_MEMBERS_TARGET)
   const [connectAttempt, setConnectAttempt] = useState(0)
@@ -1551,6 +1557,11 @@ const ChatPage = () => {
         scaleSeat = inferenceSeats[inferenceIndex]
       }
       const folderParams = chatFolderParams(agentIdForInference)
+      const persistedSkills = loadAgentEdit(agentIdForInference).skills ?? []
+      const skillParams = buildSkillParams([
+        ...persistedSkills,
+        ...parseComposerSkillNames(trimmed),
+      ])
       const cliParams = isCliAgent
         ? {
             cli: currentCli,
@@ -1577,8 +1588,20 @@ const ChatPage = () => {
         buildChatWsFrame(
           trimmed,
           runtimeBlueprint || selectedBlueprint || undefined,
-          supportParams || cliParams || inferenceParams || pluginParams || folderParams
-            ? { ...cliParams, ...inferenceParams, ...supportParams, ...pluginParams, ...folderParams }
+          supportParams ||
+          cliParams ||
+          inferenceParams ||
+          pluginParams ||
+          folderParams ||
+          Object.keys(skillParams).length
+            ? {
+                ...cliParams,
+                ...inferenceParams,
+                ...supportParams,
+                ...pluginParams,
+                ...folderParams,
+                ...skillParams,
+              }
             : undefined,
         ),
       )
@@ -1681,9 +1704,14 @@ const ChatPage = () => {
   // Dynamic skills loading for slash catalog (REQ-169)
   useEffect(() => {
     let unmounted = false
-    void fetchConfigOptions()
-      .then((opts) => {
-        if (!unmounted && opts?.skills) {
+    void Promise.all([fetchConfigOptions(), fetchSkills().catch(() => null)])
+      .then(([opts, listed]) => {
+        if (unmounted) return
+        const rows = listed?.data?.length ? listed.data : opts?.skills || []
+        if (rows.length) {
+          setSkillCatalog(rows)
+          setDynamicSkills(rows.map((s) => ({ name: s.name, description: s.description })))
+        } else if (opts?.skills) {
           setDynamicSkills(
             opts.skills.map((s) => ({ name: s.name, description: s.description })),
           )
@@ -2724,6 +2752,8 @@ const ChatPage = () => {
                   text={message.text}
                   streaming={message.streaming}
                   edited={message.edited}
+                  skillCatalog={skillCatalog}
+                  onOpenSkill={setOpenSkillName}
                   canEdit={canEditThis}
                   canCompress={
                     !message.streaming &&
@@ -3062,6 +3092,13 @@ const ChatPage = () => {
         assistantMessageCount={assistantMessageCount}
         contextStrategy={contextStrategy}
         lastContextEvent={contextMeta.last_event}
+      />
+
+      <SkillPopup
+        name={openSkillName}
+        open={openSkillName != null}
+        onClose={() => setOpenSkillName(null)}
+        catalog={skillCatalog}
       />
 
       <ConfirmModal

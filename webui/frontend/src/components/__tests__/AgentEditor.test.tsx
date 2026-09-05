@@ -62,6 +62,24 @@ function stubCatalog() {
     'fetch',
     vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input)
+      if (url.includes('/v1/skills')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'list',
+            data: [
+              {
+                name: 'conventional-commit',
+                id: 'conventional-commit',
+                description: 'Write a conventional commit.',
+                path: 'skills/conventional-commit/SKILL.md',
+                assets: [],
+              },
+            ],
+          }),
+        } as Response
+      }
       if (url.includes('/v1/models')) {
         return {
           ok: true,
@@ -141,6 +159,14 @@ describe('AgentEditor (REQ-58)', () => {
     localStorage.removeItem(AGENT_EDITS_KEY)
     localStorage.removeItem(AGENT_REMOTE_BINDINGS_KEY)
     vi.unstubAllGlobals()
+  })
+
+  it('attaches a discovered skill on an API / Blueprint seat', async () => {
+    stubCatalog()
+    renderEditor({ agentId: 'codey' })
+    const checkbox = await screen.findByTestId('agent-skill-conventional-commit')
+    fireEvent.click(checkbox)
+    expect(loadAgentEdit('codey').skills).toEqual(['conventional-commit'])
   })
 
   it('is agent-scoped: name, role, blueprint picker — no Remotes or System nav', async () => {

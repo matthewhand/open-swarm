@@ -733,6 +733,33 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                     getattr(self, "conversation_id", ""),
                     self.messages,
                 )
+            from swarm.core.skill_attach import (
+                apply_skills_to_messages,
+                blueprint_applies_own_skills,
+            )
+
+            skill_owner = run_id if "run_id" in locals() else blueprint_id
+            if (
+                isinstance(params, dict)
+                and not blueprint_applies_own_skills(str(skill_owner))
+            ):
+                model_messages, applied_skills, missing_skills = apply_skills_to_messages(
+                    model_messages, params
+                )
+                for name in applied_skills:
+                    await self.send(
+                        text_data=_oob_append_html(
+                            contents_div_id,
+                            f"_Applying skill `{name}` (`skills/{name}/SKILL.md`)…_",
+                        )
+                    )
+                for name in missing_skills:
+                    await self.send(
+                        text_data=_oob_append_html(
+                            contents_div_id,
+                            f"_Skill `{name}` not found — running without it._",
+                        )
+                    )
             async for chunk in blueprint_instance.run(model_messages):
                 if isinstance(chunk, dict) and chunk.get("type") == "cli_session_notice":
                     notice = str(chunk.get("content") or "").strip()
