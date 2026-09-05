@@ -1500,6 +1500,12 @@ const STACK_REMOTES = {
       agents: [{ id: 'hermes-1', name: 'Hermes', started_at: '2026-09-03T00:00:00Z' }],
     },
     {
+      id: 'empty-box',
+      title: 'Empty Box',
+      configured: true,
+      agents: [],
+    },
+    {
       id: 'rakazo',
       title: 'Rakazo',
       configured: true,
@@ -1649,6 +1655,41 @@ describe('AgentSidebar stacked avatars (REQ-68)', () => {
     expect(within(dialog).getAllByRole('option')).toHaveLength(1)
     fireEvent.click(within(dialog).getByRole('option', { name: /Worker 1/ }))
     expect(screen.queryByRole('dialog', { name: 'OpenMousBot sessions' })).not.toBeInTheDocument()
+  })
+
+  it('omits Select Agent on a one-bot remote (Hermes is implicit)', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const hermes = await within(list).findByRole('link', { name: /Hermes \(remote\)/ })
+    fireEvent.contextMenu(hermes)
+    const menu = await screen.findByRole('menu', { name: 'Actions for Hermes' })
+    expect(within(menu).queryByRole('menuitem', { name: 'Select Agent' })).not.toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Hide from sidebar' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /sessions/i })).not.toBeInTheDocument()
+  })
+
+  it('omits Select Agent on a remote with no listed bots', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const empty = await within(list).findByRole('link', { name: /Empty Box \(remote\)/ })
+    fireEvent.contextMenu(empty)
+    const menu = await screen.findByRole('menu', { name: 'Actions for Empty Box' })
+    expect(within(menu).queryByRole('menuitem', { name: 'Select Agent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /sessions/i })).not.toBeInTheDocument()
+  })
+
+  it('shows Select Agent for a two-bot remote and lists both names', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const rakazo = await within(list).findByRole('link', { name: /Rakazo \(remote\)/ })
+    fireEvent.contextMenu(rakazo)
+    const selectAgent = await screen.findByRole('menuitem', { name: 'Select Agent' })
+    fireEvent.click(selectAgent)
+    const dialog = await screen.findByRole('dialog', { name: 'Rakazo sessions' })
+    const options = within(dialog).getAllByRole('option')
+    expect(options).toHaveLength(2)
+    expect(dialog).toHaveTextContent('Rakazo A')
+    expect(dialog).toHaveTextContent('Rakazo B')
   })
 
   it('opens the team picker filtered to that roster via Select Agent, and opens CoS directly on click', async () => {
