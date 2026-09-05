@@ -63,6 +63,28 @@ export function hopFromAssistantName(
   }
 }
 
+/** Same /chat?blueprint= destination as rail tiles and Search bot rows. */
+export function interBotChatHref(agentId: string): string {
+  return `/chat?blueprint=${encodeURIComponent(agentId)}`
+}
+
+/** First-seen hop order; one row per agent so the picker is unambiguous. */
+export function uniqueHopsInOrder(hops: readonly InterBotHop[]): InterBotHop[] {
+  const seen = new Set<string>()
+  const out: InterBotHop[] = []
+  for (const hop of hops) {
+    const key = (hop.agentId || hop.name).trim().toLowerCase()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(hop)
+  }
+  return out
+}
+
+export function botCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'Bot' : 'Bots'}`
+}
+
 /**
  * Collapse one adjacent hop run.
  * Any in-flight hop → dots only (no avatars). One completed hop → Message from.
