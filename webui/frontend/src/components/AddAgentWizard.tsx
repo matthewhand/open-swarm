@@ -163,7 +163,11 @@ export default function AddAgentWizard({
         const commandMatch = item.code?.match(/# Command:\s*(.*)/)
         const folderMatch = item.code?.match(/# Folder:\s*(.*)/)
         const command =
-          edits.command || (commandMatch ? commandMatch[1].trim() : '') || item.description || ''
+          edits.command ||
+          item.command ||
+          (commandMatch ? commandMatch[1].trim() : '') ||
+          item.description ||
+          ''
         const folder = edits.folder || (folderMatch ? folderMatch[1].trim() : '')
         seen.add(item.id)
         list.push({
@@ -350,6 +354,10 @@ ${folderComment}`
             category: 'cli',
             code,
             tags: ['cli'],
+            kind: 'cli',
+            command,
+            rail: true,
+            source: 'add-agent',
           })
 
           saveAgentEdit(created.id, {
@@ -377,6 +385,9 @@ ${folderComment}`
               name,
               description: description || `CLI: ${command}`,
               code,
+              kind: 'cli',
+              command,
+              rail: true,
             })
           } catch {
             // Local edits already saved via saveAgentEdit
@@ -402,6 +413,9 @@ ${folderComment}`
             code: prompt || `# API Assistant: ${name}
 `,
             tags: ['api'],
+            kind: 'api',
+            rail: true,
+            source: 'add-agent',
           })
 
           saveAgentEdit(created.id, { name })
@@ -419,6 +433,8 @@ ${folderComment}`
               description,
               code: prompt || `# API Assistant: ${name}
 `,
+              kind: 'api',
+              rail: true,
             })
           } catch {
             // Local edits already saved via saveAgentEdit

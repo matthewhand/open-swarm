@@ -141,6 +141,10 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
         expect.objectContaining({
           name: 'My CLI Tool',
           category: 'cli',
+          kind: 'cli',
+          command: 'custom-tool',
+          rail: true,
+          source: 'add-agent',
           code: expect.stringContaining('# Folder: /home/dev/tool'),
         }),
       )
@@ -204,6 +208,9 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
         expect.objectContaining({
           name: 'Researcher',
           category: 'ai_assistants',
+          kind: 'api',
+          rail: true,
+          source: 'add-agent',
         }),
       )
       expect(onCreated).toHaveBeenCalledWith({
@@ -514,5 +521,55 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
       expect(screen.getByTestId('input-cli-name')).toHaveValue('')
       expect(onClose).not.toHaveBeenCalled()
     })
+  })
+
+  it('REQ-171B: shows an honest error when CLI create is rejected without a command', async () => {
+    const createSpy = vi.spyOn(api, 'createCustomBlueprint').mockRejectedValue(
+      new api.ApiError(
+        400,
+        'CLI command is required. Enter a binary or command the AGENTS rail can list, or choose API instead.',
+      ),
+    )
+
+    const { onCreated } = renderWizard()
+    fireEvent.click(screen.getByTestId('kind-option-cli'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
+    fireEvent.change(screen.getByTestId('input-cli-name'), {
+      target: { value: 'Blank CLI' },
+    })
+    fireEvent.change(screen.getByTestId('input-cli-command'), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByTestId('submit-create-agent'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/CLI command or binary is required/i)).toBeInTheDocument()
+    })
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(onCreated).not.toHaveBeenCalled()
+  })
+
+  it('REQ-171B: surfaces backend kind-rejected copy', async () => {
+    vi.spyOn(api, 'createCustomBlueprint').mockRejectedValue(
+      new api.ApiError(
+        400,
+        'Add-agent custom seats only support CLI or API. Use Remotes for remote harnesses.',
+      ),
+    )
+
+    const { onCreated } = renderWizard()
+    fireEvent.click(screen.getByTestId('kind-option-api'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
+    fireEvent.change(screen.getByTestId('input-api-name'), {
+      target: { value: 'Bad Kind' },
+    })
+    fireEvent.click(screen.getByTestId('submit-create-agent'))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Add-agent custom seats only support CLI or API/i),
+      ).toBeInTheDocument()
+    })
+    expect(onCreated).not.toHaveBeenCalled()
   })
 })

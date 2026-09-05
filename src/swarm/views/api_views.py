@@ -16,7 +16,12 @@ from swarm.core.blueprint_source import (
     save_blueprint_source,
 )
 from swarm.core.blueprint_source import custom_blueprint_code as _custom_blueprint_code
-from swarm.core.rail_seats import metadata_rail
+from swarm.core.rail_seats import (
+    CustomSeatError,
+    custom_library_to_blueprint_rows,
+    metadata_rail,
+    build_custom_rail_item,
+)
 from swarm.core.persona_parse import parse_openai_agent_personas, serialize_personas
 from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
@@ -119,12 +124,39 @@ _custom_blueprint_request = inline_serializer(
         "code": serializers.CharField(required=False, allow_blank=True, help_text="Blueprint source."),
         "required_mcp_servers": serializers.ListField(child=serializers.CharField(), required=False),
         "env_vars": serializers.ListField(child=serializers.CharField(), required=False),
+        "kind": serializers.CharField(
+            required=False,
+            help_text="Add-agent seat kind: cli or api. Other kinds are rejected.",
+        ),
+        "command": serializers.CharField(
+            required=False,
+            allow_blank=True,
+            help_text="CLI binary or command (required when kind/category is cli).",
+        ),
+        "rail": serializers.BooleanField(
+            required=False,
+            help_text="Opt the seat onto the AGENTS rail (CLI/API creates set true).",
+        ),
+        "source": serializers.CharField(required=False, help_text="Provenance, e.g. add-agent."),
     },
 )
 
 # In-memory fallback registry used in tests to simulate persistence when
 # get_user_blueprint_library/save_user_blueprint_library are monkeypatched.
 _custom_blueprints_registry: list[dict] = []
+
+
+def _custom_library_items() -> list[dict]:
+    """Custom-library rows for list/merge. Disk first, then in-memory test registry."""
+    try:
+        lib = get_user_blueprint_library()
+        items = list(lib.get("custom") or [])
+    except Exception:
+        logger.exception("Error loading custom blueprint library for rail merge")
+        items = []
+    if not items and _custom_blueprints_registry:
+        items = list(_custom_blueprints_registry)
+    return [item for item in items if isinstance(item, dict)]
 
 
 class ModelsListView(APIView):
@@ -225,6 +257,15 @@ class BlueprintsListView(APIView):
             else:
                 logger.error(f"Unexpected type from get_available_blueprints: {type(available_blueprints)}")
 
+            # REQ-171B: Add-agent CLI/API customs are seats, not catalog-only JSON.
+            seen = {row.get("id") for row in data}
+            custom_seats = [
+                row
+                for row in custom_library_to_blueprint_rows(_custom_library_items())
+                if row.get("id") and row["id"] not in seen
+            ]
+            data = custom_seats + data
+
             response_payload = {
                 "object": "list",
                 "data": data,
@@ -291,18 +332,28 @@ class CustomBlueprintsView(APIView):
             if bp_id in existing_ids:
                 return Response({"error": "id already exists"}, status=status.HTTP_409_CONFLICT)
 
-            item = {
-                "id": bp_id,
-                "name": body.get("name") or bp_id,
-                "description": body.get("description") or "",
-                "category": body.get("category") or "ai_assistants",
-                "tags": body.get("tags") or [],
-                "requirements": body.get("requirements") or "",
-                "code": body.get("code") or "",
-                # Optional metadata to help clients
-                "required_mcp_servers": body.get("required_mcp_servers") or [],
-                "env_vars": body.get("env_vars") or [],
-            }
+            try:
+                item = build_custom_rail_item(
+                    {
+                        "id": bp_id,
+                        "name": body.get("name") or bp_id,
+                        "description": body.get("description") or "",
+                        "category": body.get("category") or "ai_assistants",
+                        "tags": body.get("tags") or [],
+                        "requirements": body.get("requirements") or "",
+                        "code": body.get("code") or "",
+                        # Optional metadata to help clients
+                        "required_mcp_servers": body.get("required_mcp_servers") or [],
+                        "env_vars": body.get("env_vars") or [],
+                        **{
+                            key: body[key]
+                            for key in ("kind", "command", "cli", "rail", "source")
+                            if key in body
+                        },
+                    }
+                )
+            except CustomSeatError as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
             custom.append(item)
             lib["custom"] = custom
             if not save_user_blueprint_library(lib):
@@ -378,9 +429,20 @@ class CustomBlueprintDetailView(APIView):
                 "code",
                 "required_mcp_servers",
                 "env_vars",
+                "kind",
+                "command",
+                "cli",
+                "rail",
+                "source",
             ]:
                 if key in body:
                     item[key] = body[key]
+            try:
+                stamped = build_custom_rail_item(item, existing=item)
+            except CustomSeatError as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            item.clear()
+            item.update(stamped)
             if not save_user_blueprint_library(lib):
                 return Response({"error": "failed to persist"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             try:

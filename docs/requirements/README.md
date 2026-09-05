@@ -49,6 +49,7 @@ Oracle from anything in this tree.
 | [REQ-157](./REQ-157.md) | [CLI agents — empty until added; startup discover+prepopulate (no auth check)](https://github.com/matthewhand/open-swarm/issues/565) |
 | [REQ-159](./REQ-159.md) | [Three kind bases (API/CLI/remote) — Support builds from these](https://github.com/matthewhand/open-swarm/issues/570) |
 | [REQ-170](./REQ-170.md) | [Stop listing blueprints as agents; redundant name/blueprint pairing](https://github.com/matthewhand/open-swarm/issues/595) |
+| [REQ-171B](./REQ-171B.md) | [Add-agent CLI/API must create a rail-visible seat](https://github.com/matthewhand/open-swarm/issues/607) |
 
 ## Archived transcripts
 

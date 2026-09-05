@@ -1,0 +1,76 @@
+name: REQ-171B add-agent rail seat
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/rail_seats.py"
+      - "src/swarm/views/api_views.py"
+      - "tests/core/test_rail_seats.py"
+      - "tests/core/test_req171b_add_agent_rail.py"
+      - "tests/unit/test_req171b_add_agent_rail.py"
+      - "webui/frontend/src/lib/railSeats.ts"
+      - "webui/frontend/src/lib/__tests__/railSeats.test.ts"
+      - "webui/frontend/src/lib/api.ts"
+      - "webui/frontend/src/components/AddAgentWizard.tsx"
+      - "webui/frontend/src/components/__tests__/AddAgentWizard.test.tsx"
+      - "webui/frontend/src/components/AgentSidebar.tsx"
+      - "webui/frontend/src/components/__tests__/AgentSidebar.test.tsx"
+      - ".github/workflows/req171b-add-agent-rail.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/rail_seats.py"
+      - "src/swarm/views/api_views.py"
+      - "tests/core/test_rail_seats.py"
+      - "tests/core/test_req171b_add_agent_rail.py"
+      - "tests/unit/test_req171b_add_agent_rail.py"
+      - "webui/frontend/src/lib/railSeats.ts"
+      - "webui/frontend/src/lib/__tests__/railSeats.test.ts"
+      - "webui/frontend/src/lib/api.ts"
+      - "webui/frontend/src/components/AddAgentWizard.tsx"
+      - "webui/frontend/src/components/__tests__/AddAgentWizard.test.tsx"
+      - "webui/frontend/src/components/AgentSidebar.tsx"
+      - "webui/frontend/src/components/__tests__/AgentSidebar.test.tsx"
+      - ".github/workflows/req171b-add-agent-rail.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-171B
+        run: |
+          uv run pytest \
+            tests/core/test_req171b_add_agent_rail.py \
+            tests/core/test_rail_seats.py \
+            tests/unit/test_req171b_add_agent_rail.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-171B suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/railSeats.test.ts \
+            src/components/__tests__/AddAgentWizard.test.tsx \
+            src/components/__tests__/AgentSidebar.test.tsx

@@ -1730,6 +1730,9 @@ export default function AgentSidebar({
         description: `Copy of ${row.agentName}`,
         category: 'ai_assistants',
         tags: ['api'],
+        kind: 'api',
+        rail: true,
+        source: 'add-agent',
         code: `# Copy of ${assignedBlueprintId(row.entityId)}\n`,
       })
       saveAgentEdit(created.id, {

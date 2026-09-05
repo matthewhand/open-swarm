@@ -43,6 +43,24 @@ describe('railSeats (REQ-170)', () => {
     expect(isRailSeat({ kind: 'api' })).toBe(true)
   })
 
+  it('REQ-171B: Add-agent custom seats appear only when the API sets rail true', () => {
+    const cliSeat = {
+      ...recipe('desk_cli', true),
+      kind: 'cli',
+      command: 'grok -p',
+    }
+    const apiSeat = { ...recipe('researcher', true), kind: 'api' }
+    const hiddenCustom = { ...recipe('scratch', false), kind: 'api' }
+    const agents = railSeatAgents([cliSeat, apiSeat, hiddenCustom, recipe('poets')])
+    const ids = agents.map((agent) => agent.id)
+    expect(ids).toContain('desk_cli')
+    expect(ids).toContain('researcher')
+    expect(ids).not.toContain('scratch')
+    expect(ids).not.toContain('poets')
+    expect(isCatalogRailSeat(cliSeat)).toBe(true)
+    expect(isCatalogRailSeat(hiddenCustom)).toBe(false)
+  })
+
   it('railSeatAgents drops the demo catalog and keeps injected role seats', () => {
     const agents = railSeatAgents([
       recipe('poets'),
