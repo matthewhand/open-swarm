@@ -345,10 +345,10 @@ def test_public_server_exposes_openapi_source_without_secrets():
 
 
 def test_openapi_discover_honest_missing_proxy(monkeypatch):
-    def boom(*_args, **_kwargs):
+    async def boom(*_args, **_kwargs):
         raise FileNotFoundError("uvx")
 
-    monkeypatch.setattr("swarm.core.mcp_plugins._run_async", boom)
+    monkeypatch.setattr("swarm.core.mcp_plugins._discover_live", boom)
     with pytest.raises(McpPluginError) as exc:
         list_tools_for_spec(
             {
