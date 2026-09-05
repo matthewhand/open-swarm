@@ -383,7 +383,8 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
     fireEvent.click(screen.getByTestId('kind-option-remote'))
     const select = await screen.findByRole('combobox', { name: 'Remote' })
     expect(within(select).getByRole('option', { name: 'Pick a remote' })).toBeInTheDocument()
-    expect(screen.queryByTestId('input-remote-url')).not.toBeInTheDocument()
+    // REQ-184: Add-new fields are visible on the same tab alongside configured remotes
+    expect(screen.getByTestId('input-remote-url')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('submit-create-agent'))
     expect(await screen.findByText(/Select a configured remote/i)).toBeInTheDocument()
@@ -400,5 +401,118 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
       expect(onClose).toHaveBeenCalled()
     })
     expect(createRemoteSpy).not.toHaveBeenCalled()
+  })
+
+  describe('REQ-184: Add-agent wizard tabs + manage + create on same view', () => {
+    it('switches between tabs and shows both existing list and create section on each tab', async () => {
+      vi.spyOn(api, 'fetchCustomBlueprints').mockResolvedValue({
+        object: 'list',
+        data: [
+          {
+            id: 'custom_cli_tool',
+            name: 'CLI Helper',
+            description: 'Helper binary',
+            category: 'cli',
+            tags: ['cli'],
+            requirements: '',
+            code: '# CLI agent: CLI Helper\n# Command: cli-helper\n',
+            required_mcp_servers: [],
+            env_vars: [],
+          },
+          {
+            id: 'custom_api_assistant',
+            name: 'API Assistant',
+            description: 'Assistant bot',
+            category: 'ai_assistants',
+            tags: ['api'],
+            requirements: '',
+            code: 'Instructions',
+            required_mcp_servers: [],
+            env_vars: [],
+          },
+        ],
+      })
+      vi.spyOn(api, 'fetchRemotes').mockResolvedValue({
+        object: 'list',
+        kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+        configured: [
+          {
+            id: 'omb_remote',
+            kind: 'omb',
+            label: 'OpenMousBot Live',
+            title: 'OpenMousBot Live',
+            host_label: '',
+            base_url: 'http://127.0.0.1:8802',
+            source: 'config',
+          },
+        ],
+      })
+
+      renderWizard()
+
+      // 1. Initial tab is CLI: has tabs, manage section with existing CLI item, and create form
+      expect(screen.getByTestId('kind-option-cli')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('manage-agent-surface')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByText('CLI Helper')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('add-agent-form')).toBeInTheDocument()
+      expect(screen.getByTestId('input-cli-name')).toBeInTheDocument()
+
+      // 2. Switch to API tab: shows API existing item and API create form
+      fireEvent.click(screen.getByTestId('kind-option-api'))
+      expect(screen.getByTestId('kind-option-api')).toHaveAttribute('aria-selected', 'true')
+      await waitFor(() => {
+        expect(screen.getByText('API Assistant')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('add-agent-form')).toBeInTheDocument()
+      expect(screen.getByTestId('input-api-name')).toBeInTheDocument()
+
+      // 3. Switch to Remote tab: shows configured remote item, OpenMousBot copy, and remote inputs
+      fireEvent.click(screen.getByTestId('kind-option-remote'))
+      expect(screen.getByTestId('kind-option-remote')).toHaveAttribute('aria-selected', 'true')
+      await waitFor(() => {
+        expect(screen.getByTestId('agent-row-omb_remote')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('input-remote-url')).toBeInTheDocument()
+      expect(screen.getByTestId('select-remote-kind')).toBeInTheDocument()
+      expect(screen.queryByText(/^OMB$/)).not.toBeInTheDocument()
+    })
+
+    it('allows canceling edit mode to return to create mode without closing modal', async () => {
+      vi.spyOn(api, 'fetchCustomBlueprints').mockResolvedValue({
+        object: 'list',
+        data: [
+          {
+            id: 'custom_cli_1',
+            name: 'Tool One',
+            description: 'Tool',
+            category: 'cli',
+            tags: ['cli'],
+            requirements: '',
+            code: '# CLI agent: Tool One\n# Command: tool-one\n',
+            required_mcp_servers: [],
+            env_vars: [],
+          },
+        ],
+      })
+
+      const { onClose } = renderWizard()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('edit-agent-custom_cli_1')).toBeInTheDocument()
+      })
+
+      // Click Edit
+      fireEvent.click(screen.getByTestId('edit-agent-custom_cli_1'))
+      expect(screen.getByTestId('cancel-edit-btn')).toBeInTheDocument()
+      expect(screen.getByTestId('input-cli-name')).toHaveValue('Tool One')
+
+      // Click Cancel edit
+      fireEvent.click(screen.getByTestId('cancel-edit-btn'))
+      expect(screen.queryByTestId('cancel-edit-btn')).not.toBeInTheDocument()
+      expect(screen.getByTestId('input-cli-name')).toHaveValue('')
+      expect(onClose).not.toHaveBeenCalled()
+    })
   })
 })
