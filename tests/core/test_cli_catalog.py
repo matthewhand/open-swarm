@@ -53,6 +53,12 @@ def test_catalog_list_capability_table():
     assert table["grok"]["list_argv"][0] == "grok"
     assert table["agy"]["list_store"] == cli_catalog.AGY_CONVERSATIONS_STORE
     assert table["claude"]["capability"] == "paste-only"
+    assert table["grok"]["export_capability"] == cli_catalog.EXPORT_CAPABILITY_SUMMARY
+    assert table["agy"]["export_argv"] is None
+    assert cli_catalog.export_capability("grok") == cli_catalog.EXPORT_CAPABILITY_SUMMARY
+    cfg = {"cli_agents": {"grok": {"export_argv": ["grok", "export", "{session_id}"]}}}
+    assert cli_catalog.can_export_transcript("grok", cfg) is True
+    assert cli_catalog.export_capability("grok", cfg) == cli_catalog.EXPORT_CAPABILITY_TRANSCRIPT
 
 
 def test_config_can_disable_catalog_list_argv():

@@ -119,7 +119,7 @@ A stateful `/v1/responses` record (and related conversation/delegation data) own
 **Scale-out chat sessions (REQ-66)** are per-agent websocket conversations (`?session=` on SPA Chat). They are not Session Explorer rows. An agent with more than one of these stays one rail row with stacked avatars.
 ## CLI session
 
-An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id file). Open Swarm stores it next to the chat thread (`cli_sessions`) and passes it back so the CLI restores its own context (REQ-52). Select session lists those ids from the CLI’s own list API or session store when supported (#795) — Django recents are not the source of truth for CLI resume. Not a Django `conversation_id`, not a `/v1/responses` Session, and not OS `start_new_session` (process-group kill). Remotes keep the remote’s session.
+An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id file). Open Swarm stores it next to the chat thread (`cli_sessions`) and passes it back so the CLI restores its own context (REQ-52). Select session lists those ids from the CLI’s own list API or session store when supported (#795) — Django recents are not the source of truth for CLI resume. **Quota hop (#531 / REQ-138)** is the opposite move: a CLI/API dropdown switch starts a **new** native session and seeds it from the swarm thread (summary/full, secrets and tool noise omitted). Switching back is also a new session — do not resume the earlier id. Not a Django `conversation_id`, not a `/v1/responses` Session, and not OS `start_new_session` (process-group kill). Remotes keep the remote’s session.
 
 ## Herdr member (`kind=herdr`)
 

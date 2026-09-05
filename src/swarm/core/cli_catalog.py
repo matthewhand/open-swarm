@@ -197,6 +197,24 @@ LIST_CAPABILITY_UNSUPPORTED = "unsupported"
 LIST_CAPABILITIES = frozenset(
     {LIST_CAPABILITY_WORKS, LIST_CAPABILITY_PASTE_ONLY, LIST_CAPABILITY_UNSUPPORTED}
 )
+# Native transcript export for a quota hop (#531). Catalog CLIs are summary
+# inject only until a non-interactive export argv is verified. Fixtures may
+# set ``export_argv`` to exercise the transcript path. Never invent export.
+EXPORT_CAPABILITY_TRANSCRIPT = "transcript"
+EXPORT_CAPABILITY_SUMMARY = "summary"
+EXPORT_CAPABILITY_NONE = "none"
+EXPORT_CAPABILITIES = frozenset(
+    {
+        EXPORT_CAPABILITY_TRANSCRIPT,
+        EXPORT_CAPABILITY_SUMMARY,
+        EXPORT_CAPABILITY_NONE,
+    }
+)
+DEFAULT_EXPORT_NOTES = (
+    "No verified non-interactive transcript export. A CLI/API switch starts "
+    "a new session and seeds it from the swarm thread (summary inject). "
+    "Do not resume the earlier native session — including when switching back."
+)
 # Agy conversations live as ``<uuid>.db`` under this directory (filename stem
 # is the ``--conversation`` id). No official ``agy conversations list`` yet
 # (google-antigravity/antigravity-cli#602).
@@ -293,6 +311,10 @@ SESSION: dict[str, dict[str, Any]] = {
     },
 }
 
+for _policy in SESSION.values():
+    _policy.setdefault("export_capability", EXPORT_CAPABILITY_SUMMARY)
+    _policy.setdefault("export_notes", DEFAULT_EXPORT_NOTES)
+
 # Non-interactive session-list argv / provider store. Never invent rows.
 LIST_SESSIONS_TIMEOUT = 15.0
 RECENT_SESSION_LIMIT = 10
@@ -386,8 +408,50 @@ def can_list_sessions(name: str, config: dict[str, Any] | None = None) -> bool:
     return list_sessions_argv(name, config) is not None or list_sessions_store(name, config) is not None
 
 
+def export_sessions_argv(name: str, config: dict[str, Any] | None = None) -> list[str] | None:
+    """Non-interactive transcript-export argv, or None.
+
+    Config ``cli_agents.<name>.export_argv`` wins. An empty list disables a
+    catalogued argv. Catalog CLIs ship no export argv (honest summary inject).
+    ``{session_id}`` is replaced by the caller when invoking.
+    """
+    entry = _cli_agent_entry(name, config)
+    if "export_argv" in entry:
+        argv = entry.get("export_argv")
+        if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
+            return list(argv)
+        return None
+    policy = session_policy(name) or {}
+    argv = policy.get("export_argv")
+    if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
+        return list(argv)
+    return None
+
+
+def export_capability(name: str, config: dict[str, Any] | None = None) -> str:
+    """``transcript`` | ``summary`` | ``none`` for hop import from this CLI."""
+    entry = _cli_agent_entry(name, config)
+    override = entry.get("export_capability")
+    if isinstance(override, str) and override in EXPORT_CAPABILITIES:
+        return override
+    if export_sessions_argv(name, config) is not None:
+        return EXPORT_CAPABILITY_TRANSCRIPT
+    policy = session_policy(name) or {}
+    documented = policy.get("export_capability")
+    if isinstance(documented, str) and documented in EXPORT_CAPABILITIES:
+        return documented
+    if session_policy(name) or _cli_agent_entry(name, config):
+        return EXPORT_CAPABILITY_SUMMARY
+    return EXPORT_CAPABILITY_NONE
+
+
+def can_export_transcript(name: str, config: dict[str, Any] | None = None) -> bool:
+    """True when a real export argv is configured (fixture or verified CLI)."""
+    return export_sessions_argv(name, config) is not None
+
+
 def list_sessions_catalog() -> dict[str, dict[str, Any]]:
-    """Machine-readable list/resume table for every catalogued CLI."""
+    """Machine-readable list/resume/export table for every catalogued CLI."""
     out: dict[str, dict[str, Any]] = {}
     for name in catalog_names():
         policy = session_policy(name) or {}
@@ -396,6 +460,8 @@ def list_sessions_catalog() -> dict[str, dict[str, Any]]:
             "list_argv": list_sessions_argv(name),
             "list_store": list_sessions_store(name),
             "resume_argv": list(policy["resume_argv"]) if policy.get("resume_argv") else None,
+            "export_capability": export_capability(name),
+            "export_argv": export_sessions_argv(name),
         }
     return out
 

@@ -299,6 +299,8 @@ def empty_record(
         "messages": [],
         "ui_events": [],
         "cli_sessions": {},
+        "cli_hop": None,
+        "active_cli": "",
     }
 
 
@@ -311,12 +313,16 @@ def save(
     session_id: str = "",
     cli_sessions: dict[str, Any] | None = None,
     ui_events: list[dict[str, Any]] | None = None,
+    cli_hop: Any = ...,
+    active_cli: str | None = None,
     base_dir: Path | None = None,
 ) -> Path | None:
     """Write (or replace) the active thread. Returns the path, or None if ids are unsafe.
 
     ``messages`` is the model-turn list. Status/info/hop chrome is stored in
     ``ui_events``. Mixed schema-1 lists are split on write.
+    ``cli_hop`` / ``active_cli`` default to preserving the existing record
+    (``cli_hop=None`` clears a pending quota hop).
     """
     agent = normalize_agent_id(agent_id)
     uk = _safe_id(user_key)
@@ -333,6 +339,21 @@ def save(
         if cli_sessions is not None
         else normalize_cli_sessions((existing or {}).get("cli_sessions"))
     )
+    if cli_hop is ...:
+        hop = (existing or {}).get("cli_hop")
+    else:
+        hop = cli_hop
+    try:
+        from swarm.core.cli_session_hop import normalize_cli_hop
+
+        hop = normalize_cli_hop(hop)
+    except Exception:
+        hop = hop if isinstance(hop, dict) else None
+    if active_cli is None:
+        previous_cli = str((existing or {}).get("active_cli") or "")
+    else:
+        previous_cli = str(active_cli or "")
+    previous_cli = normalize_agent_id(previous_cli) if previous_cli else ""
     if messages is not None:
         if ui_events is not None:
             incoming_events = ui_events
@@ -365,6 +386,8 @@ def save(
         "messages": turns,
         "ui_events": events,
         "cli_sessions": sessions,
+        "cli_hop": hop,
+        "active_cli": previous_cli,
     }
     _atomic_write(path, record)
     return path
@@ -396,6 +419,9 @@ def load(
         record["schema"] = SCHEMA
         record["messages"] = turns
         record["ui_events"] = events
+        record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
+        record["cli_hop"] = record.get("cli_hop")
+        record["active_cli"] = str(record.get("active_cli") or "")
         return record
     wanted = (conversation_id or "").strip()
     if wanted:
@@ -417,6 +443,8 @@ def load(
                 return None
             record["messages"] = _normalize_messages(record.get("messages"))
             record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
+            record["cli_hop"] = record.get("cli_hop")
+            record["active_cli"] = str(record.get("active_cli") or "")
             return record
         return None
     path = _active_path(user_key, agent, base)
@@ -430,6 +458,8 @@ def load(
     record["messages"] = turns
     record["ui_events"] = events
     record["cli_sessions"] = normalize_cli_sessions(record.get("cli_sessions"))
+    record["cli_hop"] = record.get("cli_hop")
+    record["active_cli"] = str(record.get("active_cli") or "")
     return record
 
 

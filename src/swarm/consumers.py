@@ -193,6 +193,18 @@ async def _auto_compress_before_send(consumer, params=None, model_id=None):
         return None
 
 
+def _apply_pending_api_hop(conversation_id, messages):
+    """#531: seed an API backend hop with the carried blob (same conversation)."""
+    try:
+        from swarm.core.cli_session_hop import apply_api_hop_messages
+
+        cid = str(conversation_id or "")
+        return apply_api_hop_messages("u0", cid or "api_agent", messages, conversation_id=cid)
+    except Exception:
+        logger.debug("API hop inject skipped", exc_info=True)
+        return list(messages or [])
+
+
 async def _compacted_context(conversation_id, messages):
     """Model context: summary tree replaces covered raw turns (REQ-37).
 
@@ -202,15 +214,17 @@ async def _compacted_context(conversation_id, messages):
     try:
         from swarm.core.chat_compact import context_for_conversation
 
-        return await database_sync_to_async(context_for_conversation)(
+        compacted = await database_sync_to_async(context_for_conversation)(
             conversation_id, messages
         )
+        return _apply_pending_api_hop(conversation_id, compacted)
     except Exception:
         logger.debug("compact context unavailable; using filtered transcript", exc_info=True)
         from swarm.core.speaker_identity import apply_speaker_identity
         from swarm.core.transcript_roles import messages_for_model
 
-        return apply_speaker_identity(messages_for_model(messages), adapter_id="openai_compat")
+        filtered = apply_speaker_identity(messages_for_model(messages), adapter_id="openai_compat")
+        return _apply_pending_api_hop(conversation_id, filtered)
 
 
 def _status_line_html(text: str) -> str:

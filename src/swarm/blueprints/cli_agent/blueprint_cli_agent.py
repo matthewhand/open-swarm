@@ -127,6 +127,64 @@ class CliAgentBlueprint(BlueprintBase):
         prompt, _applied = support.apply_skill_to_prompt(latest, params, workdir=workdir)
         return prompt
 
+    def _prepare_cli_turn(
+        self,
+        adapter: Any,
+        messages: list[dict[str, Any]],
+        full_prompt: str,
+        params: dict[str, Any],
+        workdir: str | None,
+    ) -> dict[str, Any]:
+        """Resume, or force a new session with a #531 context seed."""
+        stored = self._stored_session(params, adapter.name)
+        can_resume = bool(stored and adapter.can_resume())
+        latest = support.latest_user_prompt(messages)
+        if latest:
+            latest, _applied = support.apply_skill_to_prompt(latest, params, workdir=workdir)
+        ref = self._thread_ref(params)
+        if ref is None:
+            return {
+                "resume_id": stored if can_resume else None,
+                "prompt": self._turn_prompt(
+                    messages, full_prompt, params, workdir, resume=can_resume
+                ),
+                "hop": None,
+                "notice": None,
+            }
+        from swarm.core.cli_session_hop import prepare_cli_turn
+
+        return prepare_cli_turn(
+            ref[0],
+            ref[1],
+            adapter.name,
+            messages,
+            full_prompt,
+            latest,
+            conversation_id=str(params.get("conversation_id") or ""),
+            stored_session_id=stored,
+            can_resume=can_resume,
+            mode=str(params.get("hop_mode") or params.get("session_hop_mode") or ""),
+            token_budget=params.get("hop_token_budget") or params.get("token_budget"),
+            config=self._config if isinstance(getattr(self, "_config", None), dict) else None,
+        )
+
+    def _mark_active_cli(self, params: dict[str, Any], cli_name: str) -> None:
+        ref = self._thread_ref(params)
+        if ref is None:
+            return
+        try:
+            from swarm.core import chat_store
+
+            chat_store.save(
+                ref[0],
+                ref[1],
+                None,
+                conversation_id=str(params.get("conversation_id") or ""),
+                active_cli=cli_name,
+            )
+        except Exception:
+            logger.debug("Could not persist active_cli=%s", cli_name, exc_info=True)
+
     async def _invoke_cli(
         self,
         adapter: CliAdapter,
@@ -134,17 +192,19 @@ class CliAgentBlueprint(BlueprintBase):
         full_prompt: str,
         params: dict[str, Any],
         workdir: str | None,
+        prepared: dict[str, Any] | None = None,
     ) -> tuple[CliResult, bool]:
         """Run one CLI, replaying a stored session id when the CLI can resume.
 
         Returns ``(result, resumed)``. ``resumed`` is True only when a stored
         id was passed and the run succeeded without falling back to a new session.
         """
-        stored = self._stored_session(params, adapter.name)
-        can_resume = bool(stored and adapter.can_resume())
-        prompt = self._turn_prompt(
-            messages, full_prompt, params, workdir, resume=can_resume
+        prepared = prepared or self._prepare_cli_turn(
+            adapter, messages, full_prompt, params, workdir
         )
+        stored = prepared.get("resume_id")
+        can_resume = bool(stored)
+        prompt = str(prepared.get("prompt") or full_prompt)
         result = await adapter.run(
             prompt, workdir=workdir, session_id=stored if can_resume else None
         )
@@ -160,6 +220,8 @@ class CliAgentBlueprint(BlueprintBase):
             self._remember_session(params, adapter.name, result.session_id)
         elif resumed and stored:
             self._remember_session(params, adapter.name, stored)
+        if result.ok:
+            self._mark_active_cli(params, adapter.name)
         return result, resumed
 
     async def run(self, messages: list[dict[str, Any]], **kwargs) -> Any:
@@ -285,14 +347,15 @@ class CliAgentBlueprint(BlueprintBase):
             if target is not None and (registry.get(target).config.parse or "text") == "text":
                 adapter = registry.get(target)
                 yield support.progress_chunk(f"_Streaming CLI agent `{target}`…_")
-                stored = self._stored_session(params, adapter.name)
-                can_resume = bool(stored and adapter.can_resume())
+                prepared = self._prepare_cli_turn(adapter, messages, prompt, params, workdir)
+                stored = prepared.get("resume_id")
+                can_resume = bool(stored)
+                if prepared.get("notice"):
+                    yield support.context_carried_chunk(str(prepared["notice"]))
                 # REQ-92: new-session status is context for the reply — emit first.
                 if not can_resume:
                     yield support.session_notice_chunk(adapter.name, resumed=False)
-                turn_prompt = self._turn_prompt(
-                    messages, prompt, params, workdir, resume=can_resume
-                )
+                turn_prompt = str(prepared.get("prompt") or prompt)
                 result = None
                 async for chunk in adapter.stream_run(
                     turn_prompt,
@@ -323,6 +386,8 @@ class CliAgentBlueprint(BlueprintBase):
                     self._remember_session(params, adapter.name, result.session_id)
                 elif resumed and stored:
                     self._remember_session(params, adapter.name, stored)
+                if result is not None and result.ok:
+                    self._mark_active_cli(params, adapter.name)
                 if result is not None and result.terminated:
                     yield support.terminated_notice_chunk()
                     return
@@ -343,14 +408,15 @@ class CliAgentBlueprint(BlueprintBase):
                 yield support.progress_chunk(f"_Skipping `{name}` (not installed); failing over…_")
                 continue
             yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
-            announce_new = not bool(
-                self._stored_session(params, adapter.name) and adapter.can_resume()
-            )
+            prepared = self._prepare_cli_turn(adapter, messages, prompt, params, workdir)
+            announce_new = not bool(prepared.get("resume_id"))
+            if prepared.get("notice"):
+                yield support.context_carried_chunk(str(prepared["notice"]))
             # REQ-92: new-session line before the CLI runs so it precedes the reply.
             if announce_new:
                 yield support.session_notice_chunk(adapter.name, resumed=False)
             result, resumed = await self._invoke_cli(
-                adapter, messages, prompt, params, workdir
+                adapter, messages, prompt, params, workdir, prepared=prepared
             )
             if result.terminated:
                 yield support.terminated_notice_chunk()

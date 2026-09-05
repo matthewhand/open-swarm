@@ -667,3 +667,87 @@ async def test_param_consensus_overrides_config_to_single():
     chunks = await _collect(bp.run([{"role": "user", "content": "ping"}]))
     assert _final_content(chunks) == "SOLO:ping"
     assert "consensus agent" not in _progress_text(chunks)
+
+
+async def test_hop_fixture_transcript_seeds_new_cli_prompt(tmp_path, monkeypatch):
+    """Fixture transcript → hop CLI → new session receives the injection payload."""
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    from swarm.core import agent_settings as settings_store
+
+    settings_store.reset_agent_settings_cache()
+    script = tmp_path / "hop_cli.py"
+    script.write_text(
+        "import json, sys\n"
+        "args = sys.argv[1:]\n"
+        "resume = None\n"
+        "if '--resume' in args:\n"
+        "    resume = args[args.index('--resume') + 1]\n"
+        "prompt = args[-1] if args else ''\n"
+        "print(json.dumps({\n"
+        "    'result': f'resume={resume} prompt={prompt}',\n"
+        "    'session_id': resume or 'sid-beta',\n"
+        "}))\n"
+    )
+    cfg = {
+        "cli_agents": {
+            "beta": {
+                "cmd": [PY, str(script), "{prompt}"],
+                "parse": "json:.result",
+                "resume_argv": ["--resume", "{session_id}"],
+                "resume_insert": 2,
+                "session_id_paths": [".session_id"],
+            }
+        },
+        "cli_fusion": {"default_cli": "beta"},
+    }
+    transcript = [
+        {"role": "user", "content": "Design a rate limiter"},
+        {"role": "assistant", "content": "Use a token bucket."},
+        {"role": "tool", "content": "secret sk-testfixturehop"},
+        {"role": "user", "content": "continue the limiter"},
+    ]
+    from swarm.core import chat_store
+    from swarm.core.cli_session_hop import hop_backend
+    from swarm.core.cli_sessions import put_cli_session
+
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        transcript[:-1],
+        conversation_id="t-hop",
+        cli_sessions={"beta": "sid-should-not-resume"},
+        active_cli="grok",
+        base_dir=tmp_path,
+    )
+    put_cli_session("u1", "cli_agent", "beta", "sid-should-not-resume", base_dir=tmp_path)
+    hop_backend(
+        "u1",
+        "cli_agent",
+        from_cli="grok",
+        to_cli="beta",
+        conversation_id="t-hop",
+        base_dir=tmp_path,
+    )
+    bp = CliAgentBlueprint(blueprint_id="cli_agent", config=cfg)
+    bp.set_params(
+        {
+            "user_key": "u1",
+            "agent": "cli_agent",
+            "conversation_id": "t-hop",
+            "cli": "beta",
+            "failover": False,
+        }
+    )
+    chunks = await _collect(bp.run(transcript))
+    final = _final_content(chunks)
+    assert final.startswith("resume=None")
+    assert "Carried context from grok → beta" in final
+    assert "token bucket" in final.lower() or "rate limiter" in final.lower()
+    assert "continue the limiter" in final
+    assert "sk-testfixturehop" not in final
+    assert "sid-should-not-resume" not in final
+    notices = _session_notices(chunks)
+    assert any("Started a new beta session" in n for n in notices)
+    assert all("Resumed" not in n for n in notices)
+    settings_store.reset_agent_settings_cache()

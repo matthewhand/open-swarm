@@ -662,7 +662,8 @@ class CliAgentsView(APIView):
 
     GET /v1/cli-agents/ -> {clis: [...], native_consensus: {cli: [flag,"{n}"]},
     list_models: {cli: [argv…]}, list_sessions: {cli: {capability, list_argv,
-    list_store, resume_argv}}}. Live probes are GET /v1/cli-agents/<cli>/models.
+    list_store, resume_argv, export_capability, export_argv}}}. Live probes are
+    GET /v1/cli-agents/<cli>/models. Hop matrix is GET /v1/cli-sessions/hop/.
     """
     def get_permissions(self):
         return [perm() for perm in api_permission_classes()]

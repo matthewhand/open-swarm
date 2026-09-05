@@ -226,6 +226,63 @@ Status meanings: **works** = picker lists provider sessions; **paste-only** =
 resume by pasted id + swarm recents; **unsupported** = no list and no resume
 (none in the catalog today). Antigravity is not a separate catalog entry.
 
+### Cross-tool session hop (REQ-138 / #531)
+
+Quota death mid-task is a **switch**, not a restart. Changing the CLI (or API)
+dropdown — still in the **same** swarm chat/task pane — always starts a **new**
+session on the target tool and **seeds** it with prior context. Switching
+**back** to Grok (or any earlier CLI) is also a new session; open-swarm does
+**not** resume or patch the earlier native session. The switch is **manual**
+(the user changes the dropdown). There is no automated quota failover.
+
+This is not Select session (#468 / #795): that *attaches* a provider session
+id so the next send uses `--resume`. Hop *leaves* the current backend.
+
+**What is injected**
+
+| Mode | Default token budget | What the new CLI/API sees |
+|---|---|---|
+| `summary` (default; also called condensed) | 4000 | Newest user/assistant/system turns that fit, plus a carried-context header |
+| `full` | 16000 | Same filter, larger budget |
+
+Omitted from every blob: **secrets** (key-shaped tokens, `Bearer`, URI
+passwords) and **tool noise** (tool roles, `tool_calls`, status/info chrome,
+prior-history pills). Limits live in Settings → CLI agents → **When switching
+CLI**, or `mode` / `token_budget` on `POST /v1/cli-sessions/hop/`.
+
+**CLI vs API**
+
+- **CLI:** next send is one-shot with no resume argv. The first prompt is
+  `[Carried context from {from} → {to} — {mode}…]` plus the latest user turn.
+- **API:** same conversation; `previous_response_id` is not continued across
+  the hop. The carried blob is prepended as a system message when a pending
+  hop exists.
+
+**Export / import capability**
+
+Prefer a native transcript export when a CLI has `export_argv` (fixtures).
+Catalog CLIs today have **no verified non-interactive export**, so import
+falls back to the swarm thread (the pane of glass) and the UI says so.
+Select session → **Continue on…** hops a listed provider session onto another
+CLI the same way: new target session + seed; honest error + summary fallback
+when the source cannot export.
+
+| CLI | List | Resume | Native export | Hop inject |
+|---|---|---|---|---|
+| `grok` | works | `--resume` | none verified | summary (swarm thread) |
+| `agy` | works (store stems; sqlite never opened) | `--conversation` | none (store not read) | summary |
+| `opencode` | works | `--session` | none verified | summary |
+| `claude` / `gemini` / `codex` / `pi` | paste-only | resume argv | none | summary |
+| Fixture `export_argv` | — | — | **transcript** | native turns, then seed |
+
+**Status line:** `Carried summary context from grok → agy (847 tokens).` —
+distinct from the #362 dropdown line `CLI: grok → agy`. Empty thread:
+`Started a new agy session. No prior context to carry from grok.`
+
+`GET /v1/cli-sessions/hop/` is the machine-readable matrix. Config
+`cli_agents.<name>.export_argv` / `export_capability` can enable a fixture
+transcript path (`{session_id}` substituted).
+
 ### Example adapters
 
 ```jsonc
