@@ -4,6 +4,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NOTIFY_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "agentNotifications.ts"
+RAIL_MENU_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "railContextMenu.ts"
 SIDEBAR_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 CHAT_PAGE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 RAIL_ORDER_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "railOrder.ts"
@@ -22,9 +23,11 @@ def test_notify_store_is_local_swarm_key_not_neon():
 
 
 def test_sidebar_menu_has_notifications_toggle():
+    menu = RAIL_MENU_TS.read_text(encoding="utf-8")
+    assert "id: 'notify'" in menu
+    assert "Notifications: On" in menu
+    assert "Notifications: Off" in menu
     content = SIDEBAR_TSX.read_text(encoding="utf-8")
-    assert "Notifications: On" in content
-    assert "Notifications: Off" in content
     assert "maybeNotifyAgentTurn" in content
     assert "enableAgentNotifications" in content
     assert "notify-permission-hint" in content
