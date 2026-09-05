@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Bell,
   Circle,
+  CircleStop,
   ClipboardCopy,
   CopyPlus,
   Eye,
@@ -27,6 +28,7 @@ const ICONS: Record<RailMenuItemId, LucideIcon> = {
   edit: Pencil,
   duplicate: CopyPlus,
   'copy-id': ClipboardCopy,
+  terminate: CircleStop,
   hide: EyeOff,
   unhide: Eye,
   notify: Bell,

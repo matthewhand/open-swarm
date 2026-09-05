@@ -28,12 +28,22 @@ import {
   deleteTeamRoster,
   fetchBlueprints,
   fetchCliAgents,
+  fetchCliRunStatus,
   fetchHerdrAgents,
   fetchRemotes,
+  terminateCliRun,
   type Blueprint,
   type CliRailAgent,
   type HerdrAgent,
 } from '../lib/api'
+import { useOptionalToast } from './DaisyUI'
+import {
+  CLI_PROCESS_STOPPED_TOAST,
+  CLI_RUN_STATE_EVENT,
+  cliRunStateFromEvent,
+  notifyCliTerminated,
+  peekCliRunning,
+} from '../lib/cliRunState'
 import AgentAvatar from './AgentAvatar'
 import {
   agentRole,
@@ -331,6 +341,23 @@ export default function AgentSidebar({
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [remotesPopupOpen, setRemotesPopupOpen] = useState(false)
   const [localWsStatus, setLocalWsStatus] = useState<ChatConnectionStatus>(() => getChatConnection())
+  const [cliRunningIds, setCliRunningIds] = useState<Set<string>>(() => new Set())
+  const toast = useOptionalToast()
+
+  useEffect(() => {
+    const onRunState = (event: Event) => {
+      const detail = cliRunStateFromEvent(event)
+      if (!detail) return
+      setCliRunningIds((current) => {
+        const next = new Set(current)
+        if (detail.running) next.add(detail.agentId)
+        else next.delete(detail.agentId)
+        return next
+      })
+    }
+    window.addEventListener(CLI_RUN_STATE_EVENT, onRunState)
+    return () => window.removeEventListener(CLI_RUN_STATE_EVENT, onRunState)
+  }, [])
 
   useEffect(() => {
     const handleStatus = (event: Event) => {
@@ -1140,6 +1167,20 @@ export default function AgentSidebar({
       isCli,
       cli: cliName,
     })
+    if (isCli) {
+      void fetchCliRunStatus(hideId)
+        .then((status) => {
+          setCliRunningIds((current) => {
+            const next = new Set(current)
+            if (status.running) next.add(hideId)
+            else next.delete(hideId)
+            return next
+          })
+        })
+        .catch(() => {
+          /* keep event-sourced state */
+        })
+    }
   }
 
   const clearLongPress = () => {
@@ -1580,6 +1621,27 @@ export default function AgentSidebar({
       void copyMenuConversationId(menu)
       return
     }
+    if (id === 'terminate') {
+      const agentId = menu.agentId
+      const conversationId =
+        copyableConversationId(menu.kind, menu.agentId, menu.entityId) || undefined
+      closeMenu()
+      void (async () => {
+        try {
+          const result = await terminateCliRun({
+            agent: agentId,
+            conversation_id: conversationId,
+          })
+          if (result.status === 'terminated') {
+            notifyCliTerminated(agentId, conversationId)
+            toast?.success(CLI_PROCESS_STOPPED_TOAST, 'This cannot be undone.')
+          }
+        } catch {
+          toast?.error('Could not stop process', 'The CLI subprocess was not terminated.')
+        }
+      })()
+      return
+    }
     if (id === 'hide') {
       hideAgent(menu.agentId)
       return
@@ -1611,6 +1673,8 @@ export default function AgentSidebar({
           menu.kind === 'cli' || menu.kind === 'remote'
             ? Boolean(copyableConversationId(menu.kind, menu.agentId, menu.entityId))
             : true,
+        cliRunning:
+          cliRunningIds.has(menu.agentId) || peekCliRunning(menu.agentId),
       })
     : []
 

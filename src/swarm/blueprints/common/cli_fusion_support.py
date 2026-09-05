@@ -452,5 +452,15 @@ def session_notice_chunk(cli_name: str, *, resumed: bool) -> dict:
     }
 
 
+def terminated_notice_chunk() -> dict:
+    """Bubble-less status when the user stops a CLI process (REQ-114)."""
+    return {
+        "type": SESSION_NOTICE_TYPE,
+        "content": "Terminated",
+        "terminated": True,
+        "session_notice": True,
+    }
+
+
 def format_cli_error(adapter: CliAdapter, error: str) -> str:
     return f"[{adapter.name}] failed: {error}"

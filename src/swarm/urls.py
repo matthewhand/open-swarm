@@ -107,6 +107,7 @@ from swarm.views.remotes_api import (
     RemotesListView,
 )
 from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
+from swarm.views.cli_runs_api import CliRunStatusAPIView, CliRunTerminateAPIView
 from swarm.views.cli_sessions_api import CliSessionListAPIView, CliSessionSelectAPIView
 from swarm.views.suggestions_api import AgentSuggestionsAPIView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
@@ -197,6 +198,18 @@ urlpatterns = [
     ),
     path("v1/cli-agents", CliAgentsView.as_view(), name="cli-agents-api-no-slash"),
     path("v1/cli-agents/", CliAgentsView.as_view(), name="cli-agents-api"),
+    path("v1/cli-agents/runs", CliRunStatusAPIView.as_view(), name="cli-runs-status-no-slash"),
+    path("v1/cli-agents/runs/", CliRunStatusAPIView.as_view(), name="cli-runs-status"),
+    path(
+        "v1/cli-agents/runs/terminate",
+        CliRunTerminateAPIView.as_view(),
+        name="cli-runs-terminate-no-slash",
+    ),
+    path(
+        "v1/cli-agents/runs/terminate/",
+        CliRunTerminateAPIView.as_view(),
+        name="cli-runs-terminate",
+    ),
     path("v1/cli-sessions", CliSessionListAPIView.as_view(), name="cli-sessions-list-no-slash"),
     path("v1/cli-sessions/", CliSessionListAPIView.as_view(), name="cli-sessions-list"),
     path("v1/cli-sessions/select", CliSessionSelectAPIView.as_view(), name="cli-sessions-select-no-slash"),

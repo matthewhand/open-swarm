@@ -243,6 +243,9 @@ export const useToast = () => {
   return context;
 };
 
+/** Toast when a provider is present; null in isolated rail tests. */
+export const useOptionalToast = () => useContext(ToastContext);
+
 /**
  * Convenience hooks for specific toast types
  */

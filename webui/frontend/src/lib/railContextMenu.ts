@@ -23,6 +23,7 @@ export type RailMenuItemId =
   | 'edit'
   | 'duplicate'
   | 'copy-id'
+  | 'terminate'
   | 'hide'
   | 'unhide'
   | 'notify'
@@ -47,11 +48,14 @@ export interface RailMenuOptions {
   hasNewSession?: boolean
   canCopyId?: boolean
   notifyEnabled?: boolean
+  /** True when a CLI subprocess is running for this rail row (REQ-114). */
+  cliRunning?: boolean
 }
 
 const CLI_NO_PROFILE = 'CLI agents have no swarm-owned profile'
 const CLI_NO_DUPLICATE = 'CLI agents cannot be duplicated from the rail'
 const NO_CONVERSATION_ID = 'No swarm-side conversation id for this row'
+const NOTHING_RUNNING = 'Nothing running'
 
 export function isRailMenuKey(event: { key: string; shiftKey: boolean }): boolean {
   return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)
@@ -103,6 +107,17 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
     reason: copyEnabled ? undefined : NO_CONVERSATION_ID,
   })
 
+  if (opts.kind === 'cli') {
+    const running = Boolean(opts.cliRunning)
+    items.push({
+      id: 'terminate',
+      label: 'Terminate',
+      group: 4,
+      disabled: !running,
+      reason: running ? undefined : NOTHING_RUNNING,
+    })
+  }
+
   if (opts.hidden) {
     items.push({ id: 'unhide', label: 'Unhide', group: 4 })
   } else {
@@ -130,6 +145,7 @@ export const RAIL_MENU_REASONS = {
   cliNoProfile: CLI_NO_PROFILE,
   cliNoDuplicate: CLI_NO_DUPLICATE,
   noConversationId: NO_CONVERSATION_ID,
+  nothingRunning: NOTHING_RUNNING,
 } as const
 
 export function peekStoredConversationId(rowId: string): string | null {

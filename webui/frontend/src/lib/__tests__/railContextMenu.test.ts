@@ -42,6 +42,7 @@ describe('railMenuItems (REQ-82)', () => {
       'pin',
       'unread',
       'copy-id',
+      'terminate',
       'hide',
       'notify',
       'delete',
@@ -60,6 +61,32 @@ describe('railMenuItems (REQ-82)', () => {
     const on = railMenuItems({ ...base, kind: 'api', notifyEnabled: true })
     expect(on.find((item) => item.id === 'notify')?.label).toBe('Notifications: On')
     expect(on.at(-1)?.id).toBe('delete')
+  })
+
+  it('disables Terminate when idle and enables it while a CLI run is tracked (REQ-114)', () => {
+    const idle = railMenuItems({ ...base, kind: 'cli' })
+    const stop = idle.find((item) => item.id === 'terminate')
+    expect(stop).toMatchObject({
+      label: 'Terminate',
+      disabled: true,
+      reason: RAIL_MENU_REASONS.nothingRunning,
+    })
+    expect(idle.at(-1)?.id).toBe('delete')
+    expect(idle.find((item) => item.id === 'delete')?.danger).toBe(true)
+    expect(stop?.danger).toBeFalsy()
+
+    const running = railMenuItems({ ...base, kind: 'cli', cliRunning: true })
+    expect(running.find((item) => item.id === 'terminate')).toMatchObject({
+      disabled: false,
+      reason: undefined,
+    })
+  })
+
+  it('omits Terminate for API, team, and remote (REQ-114 v1 = CLI only)', () => {
+    for (const kind of ['api', 'team', 'remote'] as const) {
+      const ids = railMenuItems({ ...base, kind, cliRunning: true }).map((item) => item.id)
+      expect(ids).not.toContain('terminate')
+    }
   })
 
   it('adds Select session for CLI when requested (REQ-104)', () => {

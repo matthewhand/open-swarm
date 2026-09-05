@@ -872,6 +872,34 @@ export function fetchCliAgents(): Promise<CliAgentsInfo> {
   return apiGet<CliAgentsInfo>('/v1/cli-agents/')
 }
 
+export interface CliRunStatus {
+  object: 'cli_run_status'
+  agent: string
+  running: boolean
+  count?: number
+}
+
+export interface CliRunTerminateResult {
+  object: 'cli_run_terminate'
+  agent: string
+  status: 'terminated' | 'not_running'
+  running: boolean
+}
+
+/** GET /v1/cli-agents/runs/?agent= — tracked CLI subprocess for a rail row. */
+export function fetchCliRunStatus(agent: string): Promise<CliRunStatus> {
+  const q = new URLSearchParams({ agent })
+  return apiGet<CliRunStatus>(`/v1/cli-agents/runs/?${q.toString()}`)
+}
+
+/** POST /v1/cli-agents/runs/terminate/ — SIGTERM then SIGKILL that CLI group. */
+export function terminateCliRun(body: {
+  agent: string
+  conversation_id?: string
+}): Promise<CliRunTerminateResult> {
+  return apiPost<CliRunTerminateResult>('/v1/cli-agents/runs/terminate/', body)
+}
+
 export interface CliModelsResponse {
   cli: string
   models: string[]
