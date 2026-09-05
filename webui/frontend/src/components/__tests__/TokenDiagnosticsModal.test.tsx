@@ -106,6 +106,21 @@ describe('TokenDiagnosticsModal (REQ-115)', () => {
     expect(screen.getByTestId('diag-estimated-cost')).toHaveTextContent('—')
   })
 
+  it('shows cull strategy and last start-from-here event', () => {
+    render(
+      <TokenDiagnosticsModal
+        isOpen={true}
+        onClose={vi.fn()}
+        tokenCount={100}
+        contextStrategy="cull"
+        lastContextEvent={{ kind: 'start_from_here', at: '2026-09-05T12:00:00Z' }}
+      />,
+    )
+    expect(screen.getByTestId('diag-context-strategy')).toHaveTextContent('Cull')
+    expect(screen.getByTestId('diag-last-context-event')).toHaveTextContent('Start context from here')
+    expect(screen.getByTestId('diag-last-context-event')).toHaveTextContent('2026-09-05T12:00:00Z')
+  })
+
   it('triggers onClose when close button or X button is clicked', () => {
     const onClose = vi.fn()
     render(

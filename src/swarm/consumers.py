@@ -160,7 +160,7 @@ def _conversation_cache_key(user, conversation_id):
 async def _auto_compress_before_send(consumer, params=None, model_id=None):
     """REQ-87: compact older span when estimated tokens hit N% of known max."""
     try:
-        from swarm.core.context_compress_policy import auto_compact_before_send
+        from swarm.core.context_cull_policy import prepare_context_before_send
 
         inference_entry = None
         mid = model_id
@@ -172,7 +172,7 @@ async def _auto_compress_before_send(consumer, params=None, model_id=None):
             seats = params.get("inference_list")
             if isinstance(seats, list) and seats and isinstance(seats[0], dict):
                 inference_entry = seats[0]
-        result = await database_sync_to_async(auto_compact_before_send)(
+        result = await database_sync_to_async(prepare_context_before_send)(
             user=getattr(consumer, "user", None),
             conversation_id=getattr(consumer, "conversation_id", "") or "",
             agent_id=str(
@@ -687,7 +687,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             token = install_safety_session(session)
             compact_result = await _auto_compress_before_send(self, params=params)
-            if compact_result is not None and compact_result.acted and compact_result.context:
+            if compact_result is not None and compact_result.context and (
+                compact_result.acted or getattr(compact_result, "strategy", "") == "cull"
+            ):
                 model_messages = compact_result.context
             else:
                 model_messages = await _compacted_context(
@@ -954,7 +956,9 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         full_message = ""
         try:
             compact_result = await _auto_compress_before_send(self, model_id=model)
-            if compact_result is not None and compact_result.acted and compact_result.context:
+            if compact_result is not None and compact_result.context and (
+                compact_result.acted or getattr(compact_result, "strategy", "") == "cull"
+            ):
                 model_messages = compact_result.context
             else:
                 model_messages = await _compacted_context(

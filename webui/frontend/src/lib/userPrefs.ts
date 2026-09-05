@@ -40,6 +40,17 @@ import {
   loadHostnameOverride,
   saveHostnameOverride,
 } from './settingsPrefs'
+import {
+  DEFAULT_CONTEXT_STRATEGY,
+  DEFAULT_CULL_FRACTION_PCT,
+  DEFAULT_CULL_TRIGGER_PCT,
+  parseContextStrategy,
+  parseCullFractionPct,
+  parseCullTriggerPct,
+  type ContextStrategy,
+} from './contextCull'
+
+export type { ContextStrategy } from './contextCull'
 
 export type { AgentDropdownChoice, AgentDropdowns }
 
@@ -58,6 +69,9 @@ export interface UserPrefs {
   hidden_agents: string[]
   hostname_override: string
   context_auto_compress_pct: number
+  context_strategy: ContextStrategy
+  context_cull_trigger_pct: number
+  context_cull_fraction_pct: number
   values?: Record<string, unknown>
   agent_dropdowns: AgentDropdowns
 }
@@ -117,6 +131,16 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
     rec.context_auto_compress_pct !== undefined
       ? rec.context_auto_compress_pct
       : values.context_auto_compress_pct
+  const strategyRaw =
+    rec.context_strategy !== undefined ? rec.context_strategy : values.context_strategy
+  const cullTriggerRaw =
+    rec.context_cull_trigger_pct !== undefined
+      ? rec.context_cull_trigger_pct
+      : values.context_cull_trigger_pct
+  const cullFractionRaw =
+    rec.context_cull_fraction_pct !== undefined
+      ? rec.context_cull_fraction_pct
+      : values.context_cull_fraction_pct
   return {
     object: 'user_preferences',
     principal: typeof rec.principal === 'string' ? rec.principal : '',
@@ -126,6 +150,9 @@ export function parseUserPrefs(raw: unknown): UserPrefs | null {
     hidden_agents: Array.from(new Set(hidden)),
     hostname_override: hostname,
     context_auto_compress_pct: parseAutoCompressPct(pctRaw),
+    context_strategy: parseContextStrategy(strategyRaw ?? DEFAULT_CONTEXT_STRATEGY),
+    context_cull_trigger_pct: parseCullTriggerPct(cullTriggerRaw),
+    context_cull_fraction_pct: parseCullFractionPct(cullFractionRaw),
     values,
     agent_dropdowns:
       Object.keys(fromTop).length > 0 ? fromTop : fromValues,
@@ -184,6 +211,9 @@ export async function saveUserPrefs(patch: {
   hidden_agents?: string[]
   hostname_override?: string
   context_auto_compress_pct?: number
+  context_strategy?: ContextStrategy
+  context_cull_trigger_pct?: number
+  context_cull_fraction_pct?: number
   values?: Record<string, unknown>
   agent_dropdowns?: AgentDropdowns
 }): Promise<UserPrefs | null> {
@@ -192,6 +222,9 @@ export async function saveUserPrefs(patch: {
     patch.hidden_agents === undefined &&
     patch.hostname_override === undefined &&
     patch.context_auto_compress_pct === undefined &&
+    patch.context_strategy === undefined &&
+    patch.context_cull_trigger_pct === undefined &&
+    patch.context_cull_fraction_pct === undefined &&
     patch.values === undefined &&
     patch.agent_dropdowns === undefined
   ) {
@@ -203,6 +236,15 @@ export async function saveUserPrefs(patch: {
   if (patch.hostname_override !== undefined) body.hostname_override = patch.hostname_override
   if (patch.context_auto_compress_pct !== undefined) {
     body.context_auto_compress_pct = parseAutoCompressPct(patch.context_auto_compress_pct)
+  }
+  if (patch.context_strategy !== undefined) {
+    body.context_strategy = parseContextStrategy(patch.context_strategy)
+  }
+  if (patch.context_cull_trigger_pct !== undefined) {
+    body.context_cull_trigger_pct = parseCullTriggerPct(patch.context_cull_trigger_pct)
+  }
+  if (patch.context_cull_fraction_pct !== undefined) {
+    body.context_cull_fraction_pct = parseCullFractionPct(patch.context_cull_fraction_pct)
   }
   const values = { ...(patch.values || {}) }
   if (patch.agent_dropdowns !== undefined) values.agent_dropdowns = patch.agent_dropdowns

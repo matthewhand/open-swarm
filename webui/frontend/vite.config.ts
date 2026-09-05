@@ -56,6 +56,14 @@ export default defineConfig({
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
             },
+            '/chat/compact': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
+            '/chat/context-start': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+            },
             // Django operator pages linked from the SPA (ADR-001): without
             // these, dev-mode navigations hit the SPA catch-all and silently
             // dump the user on the dashboard instead of the Django page.

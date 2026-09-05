@@ -70,6 +70,15 @@ class UserPreferencesView(APIView):
                 "context_auto_compress_pct": serializers.IntegerField(
                     required=False, min_value=1, max_value=99
                 ),
+                "context_strategy": serializers.ChoiceField(
+                    required=False, choices=["compress", "cull"]
+                ),
+                "context_cull_trigger_pct": serializers.IntegerField(
+                    required=False, min_value=1, max_value=99
+                ),
+                "context_cull_fraction_pct": serializers.IntegerField(
+                    required=False, min_value=1, max_value=99
+                ),
                 "values": serializers.DictField(required=False),
             },
         ),
@@ -84,6 +93,9 @@ class UserPreferencesView(APIView):
                 "hidden_agents",
                 "hostname_override",
                 prefs.AUTO_COMPRESS_KEY,
+                prefs.CONTEXT_STRATEGY,
+                prefs.CULL_TRIGGER_KEY,
+                prefs.CULL_FRACTION_KEY,
                 "values",
             )
         ):
@@ -91,7 +103,9 @@ class UserPreferencesView(APIView):
                 {
                     "error": (
                         "Provide at least one of favourites, hidden_agents, "
-                        "hostname_override, context_auto_compress_pct, values."
+                        "hostname_override, context_auto_compress_pct, "
+                        "context_strategy, context_cull_trigger_pct, "
+                        "context_cull_fraction_pct, values."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -132,6 +146,12 @@ class UserPreferencesView(APIView):
             patch[prefs.HOSTNAME_KEY] = body["hostname_override"]
         if prefs.AUTO_COMPRESS_KEY in body:
             patch[prefs.AUTO_COMPRESS_KEY] = body[prefs.AUTO_COMPRESS_KEY]
+        if prefs.CONTEXT_STRATEGY in body:
+            patch[prefs.CONTEXT_STRATEGY] = body[prefs.CONTEXT_STRATEGY]
+        if prefs.CULL_TRIGGER_KEY in body:
+            patch[prefs.CULL_TRIGGER_KEY] = body[prefs.CULL_TRIGGER_KEY]
+        if prefs.CULL_FRACTION_KEY in body:
+            patch[prefs.CULL_FRACTION_KEY] = body[prefs.CULL_FRACTION_KEY]
 
         current = row.values if row is not None else {}
         merged = prefs.merge_values(current, patch)

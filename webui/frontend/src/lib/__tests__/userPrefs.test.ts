@@ -70,6 +70,9 @@ describe('userPrefs', () => {
       hidden_agents: ['gate', 'skeptic'],
       hostname_override: 'lab-box',
       context_auto_compress_pct: 80,
+      context_strategy: 'compress',
+      context_cull_trigger_pct: 90,
+      context_cull_fraction_pct: 50,
       values: {},
       agent_dropdowns: {},
     })

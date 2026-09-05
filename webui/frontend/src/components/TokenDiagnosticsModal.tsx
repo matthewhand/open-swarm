@@ -2,6 +2,12 @@ import React from 'react'
 import { X, Activity, MessageSquare, Wrench, Layers, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { Modal } from './DaisyUI/Modal'
 import { CONTEXT_METER_TOKENS, formatMeterLabel, formatTokenCount } from '../lib/chatMeter'
+import {
+  lastEventLabel,
+  strategyLabel,
+  type ContextLastEvent,
+  type ContextStrategy,
+} from '../lib/contextCull'
 
 export interface TokenDiagnosticsModalProps {
   isOpen: boolean
@@ -18,6 +24,8 @@ export interface TokenDiagnosticsModalProps {
   userMessageCount?: number
   assistantMessageCount?: number
   estimatedCost?: string | null
+  contextStrategy?: ContextStrategy
+  lastContextEvent?: ContextLastEvent | null
 }
 
 export function TokenDiagnosticsModal({
@@ -35,6 +43,8 @@ export function TokenDiagnosticsModal({
   userMessageCount = 0,
   assistantMessageCount = 0,
   estimatedCost = null,
+  contextStrategy = 'compress',
+  lastContextEvent = null,
 }: TokenDiagnosticsModalProps) {
   const meterMax = contextMax != null && contextMax > 0 ? contextMax : CONTEXT_METER_TOKENS
   const tokenPct = Math.min(100, Math.round((Math.max(0, tokenCount) / meterMax) * 100))
@@ -80,6 +90,21 @@ export function TokenDiagnosticsModal({
             Session:{' '}
             <span className="font-mono text-base-content" data-testid="diag-session-id">
               {conversationId || '—'}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-base-content/70">
+          <div>
+            Strategy:{' '}
+            <span className="font-medium text-base-content" data-testid="diag-context-strategy">
+              {strategyLabel(contextStrategy)}
+            </span>
+          </div>
+          <div>
+            Last context action:{' '}
+            <span className="font-medium text-base-content" data-testid="diag-last-context-event">
+              {lastEventLabel(lastContextEvent)}
+              {lastContextEvent?.at ? ` · ${lastContextEvent.at}` : ''}
             </span>
           </div>
         </div>

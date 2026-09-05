@@ -96,6 +96,7 @@ from swarm.views.session_explorer import (
 from swarm.views.chat_persist_views import (
     chat_attachment_upload,
     chat_compact,
+    chat_context_start,
     chat_retention_action,
     chat_thread,
 )
@@ -452,6 +453,7 @@ urlpatterns = [
     path("v1/chat/attachments/", chat_attachment_upload, name="chat-attachments"),
     # REQ-37: compact the backlog into a nested sqlite summary (raw JSON stays).
     path("chat/compact/", chat_compact, name="chat_compact"),
+    path("chat/context-start/", chat_context_start, name="chat_context_start"),
     # Blueprint Library endpoints
     path("blueprint-library/", blueprint_library, name="blueprint_library"),
     path("blueprint-library/creator/", blueprint_creator, name="blueprint_creator"),

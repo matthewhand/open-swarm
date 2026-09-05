@@ -6,6 +6,7 @@ import {
   agentChatHref,
   agentIdFromBlueprint,
   compactAgentThread,
+  startContextFromHere,
   conversationIdForAgent,
   conversationIdForTask,
   fetchAgentThread,
@@ -424,5 +425,41 @@ describe('compactAgentThread', () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0][1].body))
     expect(body.through_message_id).toBe(12)
     expect(body.span_end).toBe(0)
+  })
+
+  it('posts start_offset and confirm for start-context-from-here', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        applied: false,
+        warning: true,
+        reason: 'over_full_warning',
+        info: 'Starting context here still leaves usage at 93% (cull trigger 90%). Confirm to proceed or cancel.',
+        start_offset: 2,
+        estimated_pct: 93,
+        cull_trigger_pct: 90,
+        context: [{ role: 'user', content: 'keep' }],
+        context_meta: { start_offset: 2, last_event: null },
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const result = await startContextFromHere({
+      conversationId: 'c1',
+      agentId: 'jeeves',
+      messages: [
+        { role: 'user', content: 'drop' },
+        { role: 'assistant', content: 'also' },
+        { role: 'user', content: 'keep' },
+      ],
+      startOffset: 2,
+      confirm: false,
+    })
+    expect(result.warning).toBe(true)
+    expect(result.applied).toBe(false)
+    expect(result.start_offset).toBe(2)
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body))
+    expect(body.start_offset).toBe(2)
+    expect(body.confirm).toBe(false)
   })
 })

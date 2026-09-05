@@ -14,6 +14,17 @@ from swarm.core.context_compress_policy import (
     DEFAULT_AUTO_COMPRESS_PCT,
     normalize_auto_compress_pct,
 )
+from swarm.core.context_cull_policy import (
+    CONTEXT_STRATEGY_KEY,
+    CULL_FRACTION_PCT_KEY,
+    CULL_TRIGGER_PCT_KEY,
+    DEFAULT_CONTEXT_STRATEGY,
+    DEFAULT_CULL_FRACTION_PCT,
+    DEFAULT_CULL_TRIGGER_PCT,
+    normalize_context_strategy,
+    normalize_cull_fraction_pct,
+    normalize_cull_trigger_pct,
+)
 
 # First-class rail chrome. More knobs (theme, …) can join this registry
 # without a new table — they persist in UserPreference.values.
@@ -34,6 +45,18 @@ PREF_REGISTRY: dict[str, dict[str, str]] = {
         "type": "percent_1_99",
         "description": "Auto-compress context at this percent of known max (default 80).",
     },
+    CONTEXT_STRATEGY_KEY: {
+        "type": "enum_compress_cull",
+        "description": "API context strategy: compress (summarise) or cull (drop oldest slice).",
+    },
+    CULL_TRIGGER_PCT_KEY: {
+        "type": "percent_1_99",
+        "description": "Auto-cull context at this percent of known max (default 90).",
+    },
+    CULL_FRACTION_PCT_KEY: {
+        "type": "percent_1_99",
+        "description": "Oldest fraction to drop on auto-cull (default 50).",
+    },
 }
 
 SECRET_KEY_FRAGMENTS = (
@@ -51,6 +74,9 @@ FAVOURITES_KEY = "favourites"
 HIDDEN_KEY = "hidden_agents"
 HOSTNAME_KEY = "hostname_override"
 AUTO_COMPRESS_KEY = AUTO_COMPRESS_PCT_KEY
+CONTEXT_STRATEGY = CONTEXT_STRATEGY_KEY
+CULL_TRIGGER_KEY = CULL_TRIGGER_PCT_KEY
+CULL_FRACTION_KEY = CULL_FRACTION_PCT_KEY
 AGENT_DROPDOWNS_KEY = "agent_dropdowns"
 HOSTNAME_MAX_LEN = 255
 AGENT_DROPDOWN_FIELDS = ("cli", "model", "remote", "blueprint", "api")
@@ -188,6 +214,9 @@ def empty_values() -> dict[str, Any]:
         HIDDEN_KEY: [],
         HOSTNAME_KEY: "",
         AUTO_COMPRESS_KEY: DEFAULT_AUTO_COMPRESS_PCT,
+        CONTEXT_STRATEGY: DEFAULT_CONTEXT_STRATEGY,
+        CULL_TRIGGER_KEY: DEFAULT_CULL_TRIGGER_PCT,
+        CULL_FRACTION_KEY: DEFAULT_CULL_FRACTION_PCT,
     }
 
 
@@ -206,6 +235,12 @@ def coerce_values(raw: Any) -> dict[str, Any]:
             out[key] = normalize_hostname_override(value)
         elif key == AUTO_COMPRESS_KEY:
             out[key] = normalize_auto_compress_pct(value)
+        elif key == CONTEXT_STRATEGY:
+            out[key] = normalize_context_strategy(value)
+        elif key == CULL_TRIGGER_KEY:
+            out[key] = normalize_cull_trigger_pct(value)
+        elif key == CULL_FRACTION_KEY:
+            out[key] = normalize_cull_fraction_pct(value)
         elif key == AGENT_DROPDOWNS_KEY:
             out[key] = normalize_agent_dropdowns(value)
         else:
@@ -214,6 +249,9 @@ def coerce_values(raw: Any) -> dict[str, Any]:
     out.setdefault(HIDDEN_KEY, [])
     out.setdefault(HOSTNAME_KEY, "")
     out.setdefault(AUTO_COMPRESS_KEY, DEFAULT_AUTO_COMPRESS_PCT)
+    out.setdefault(CONTEXT_STRATEGY, DEFAULT_CONTEXT_STRATEGY)
+    out.setdefault(CULL_TRIGGER_KEY, DEFAULT_CULL_TRIGGER_PCT)
+    out.setdefault(CULL_FRACTION_KEY, DEFAULT_CULL_FRACTION_PCT)
     return out
 
 
@@ -231,6 +269,12 @@ def merge_values(current: dict[str, Any], patch: dict[str, Any]) -> dict[str, An
             merged[key] = normalize_hostname_override(value)
         elif key == AUTO_COMPRESS_KEY:
             merged[key] = normalize_auto_compress_pct(value)
+        elif key == CONTEXT_STRATEGY:
+            merged[key] = normalize_context_strategy(value)
+        elif key == CULL_TRIGGER_KEY:
+            merged[key] = normalize_cull_trigger_pct(value)
+        elif key == CULL_FRACTION_KEY:
+            merged[key] = normalize_cull_fraction_pct(value)
         elif key == AGENT_DROPDOWNS_KEY:
             merged[key] = normalize_agent_dropdowns(value)
         else:
@@ -263,6 +307,9 @@ def public_payload(
         "hidden_agents": bag[HIDDEN_KEY],
         "hostname_override": bag[HOSTNAME_KEY],
         AUTO_COMPRESS_KEY: normalize_auto_compress_pct(bag.get(AUTO_COMPRESS_KEY)),
+        CONTEXT_STRATEGY: normalize_context_strategy(bag.get(CONTEXT_STRATEGY)),
+        CULL_TRIGGER_KEY: normalize_cull_trigger_pct(bag.get(CULL_TRIGGER_KEY)),
+        CULL_FRACTION_KEY: normalize_cull_fraction_pct(bag.get(CULL_FRACTION_KEY)),
         "values": extras_bag(bag),
         "registry": [
             {"key": key, **meta} for key, meta in PREF_REGISTRY.items()
@@ -274,6 +321,9 @@ def public_payload(
 __all__ = [
     "AGENT_DROPDOWNS_KEY",
     "AUTO_COMPRESS_KEY",
+    "CONTEXT_STRATEGY",
+    "CULL_FRACTION_KEY",
+    "CULL_TRIGGER_KEY",
     "FAVOURITES_KEY",
     "HIDDEN_KEY",
     "HOSTNAME_KEY",
