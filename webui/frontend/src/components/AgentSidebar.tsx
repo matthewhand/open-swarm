@@ -176,6 +176,10 @@ import {
   loadAgentEdit,
   saveAgentEdit,
 } from '../lib/agentEdits'
+import { TEAM_EDITS_CHANGED_EVENT } from '../lib/teamEdits'
+import { declaredRosterForTeam } from '../lib/declaredRoster'
+import { openTeamEditor } from './TeamEditor'
+import PersonaRoster from './PersonaRoster'
 import SessionPicker from './SessionPicker'
 import CliSessionPicker from './CliSessionPicker'
 import {
@@ -566,7 +570,11 @@ export default function AgentSidebar({
   useEffect(() => {
     const onEdits = () => setEditsTick((tick) => tick + 1)
     window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
-    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    window.addEventListener(TEAM_EDITS_CHANGED_EVENT, onEdits)
+    return () => {
+      window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+      window.removeEventListener(TEAM_EDITS_CHANGED_EVENT, onEdits)
+    }
   }, [])
 
   const blueprintsQuery = useQuery({
@@ -1437,7 +1445,7 @@ export default function AgentSidebar({
   const editMenuRow = (row: ContextMenuState) => {
     if (row.kind === 'cli') return
     if (row.kind === 'team') {
-      openDefinition('team', row.entityId, { teamId: row.entityId })
+      openTeamEditor({ teamId: row.entityId, teamName: row.agentName })
       closeMenu()
       return
     }
@@ -1899,9 +1907,17 @@ export default function AgentSidebar({
     const hideId = teamHideId(team.id)
     const active = selectedTeamId === team.id
     const sessions = sessionsForTeam(team)
-    const stacked = selectStackedFaces(stackFacesForTeam(team))
-    const totalMembers = team.members ? team.members.length : (stacked.faces.length + (stacked.remainder || 0))
-    const singleMember = totalMembers === 1
+    const declared = declaredRosterForTeam(team, catalog)
+    const declaredFaces = declared ? null : selectStackedFaces(stackFacesForTeam(team))
+    const stacked = declaredFaces || { faces: [], remainder: 0 }
+    const totalMembers = declared
+      ? declared.parsed
+        ? declared.count
+        : 1
+      : team.members
+        ? team.members.length
+        : stacked.faces.length + (stacked.remainder || 0)
+    const singleMember = !declared && totalMembers === 1
     const singleFace = stacked.faces[0]
     const dragging = draggingId === hideId
     const dropping = dropTargetId === hideId
@@ -1925,8 +1941,10 @@ export default function AgentSidebar({
         data-agent-id={hideId}
         data-kind="team"
         data-hotkey={spillSlot}
-        data-stack-count={String(stacked.faces.length)}
-        data-remainder={String(stacked.remainder)}
+        data-stack-count={String(declared ? (declared.parsed ? declared.count : 1) : stacked.faces.length)}
+        data-remainder={String(declared ? 0 : stacked.remainder)}
+        data-persona-count={declared ? String(declared.parsed ? declared.count : 1) : undefined}
+        data-roster={declared ? 'declared' : undefined}
         draggable={!hidden}
         onDragStart={(event) => beginRowDrag(event, { id: hideId, name })}
         onDragEnd={finishDrag}
@@ -1945,7 +1963,9 @@ export default function AgentSidebar({
         {...rowMenuHandlers(hideId, name, hidden, 'team', sessions, team.id)}
       >
         <span className="os-agent-row__avatar-slot relative inline-flex shrink-0 items-center justify-center">
-          {totalMembers >= 2 ? (
+          {declared ? (
+            <PersonaRoster roster={declared} groupId={team.id} label={`${name} declared members`} />
+          ) : totalMembers >= 2 ? (
             <AvatarStack
               faces={stacked.faces}
               remainder={stacked.remainder}

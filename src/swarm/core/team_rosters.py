@@ -122,24 +122,33 @@ def normalize_roster(raw: dict[str, Any], *, roster_id: str | None = None) -> di
     for member in members:
         if member.get("kind") == "team" and member.get("team_id") == rid:
             raise ValueError("A team cannot nest itself as a member.")
-    return {
+    blueprint_id = str(raw.get("blueprint_id") or raw.get("blueprint") or "").strip()
+    out = {
         "id": rid,
         "name": name,
         "members": members,
         "wires": normalize_wires(raw.get("wires")),
     }
+    if blueprint_id:
+        if len(blueprint_id) > 64:
+            raise ValueError("blueprint_id too long (max 64).")
+        out["blueprint_id"] = blueprint_id
+    return out
 
 
 def serialize_roster(entry: dict[str, Any]) -> dict[str, Any]:
     """Public JSON shape (OpenAPI / SPA)."""
     normalized = normalize_roster(entry, roster_id=entry.get("id"))
-    return {
+    payload = {
         "id": normalized["id"],
         "object": "team_roster",
         "name": normalized["name"],
         "members": normalized["members"],
         "wires": normalized["wires"],
     }
+    if normalized.get("blueprint_id"):
+        payload["blueprint_id"] = normalized["blueprint_id"]
+    return payload
 
 
 def load_team_rosters() -> dict[str, dict[str, Any]]:
@@ -195,12 +204,15 @@ def upsert_roster(roster: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_roster(roster)
     with _roster_lock:
         reg = load_team_rosters()
-        reg[normalized["id"]] = {
+        stored = {
             "id": normalized["id"],
             "name": normalized["name"],
             "members": normalized["members"],
             "wires": normalized["wires"],
         }
+        if normalized.get("blueprint_id"):
+            stored["blueprint_id"] = normalized["blueprint_id"]
+        reg[normalized["id"]] = stored
         save_team_rosters()
         return reg[normalized["id"]]
 

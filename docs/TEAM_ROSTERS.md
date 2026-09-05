@@ -51,6 +51,8 @@ Remotes and missing CLIs are **placeholders**. They are not Blueprint classes.
 
 - `GET/POST /v1/team-rosters/` — list / create
 - `GET/PUT/DELETE /v1/team-rosters/<id>/` — read / replace / delete
+- Optional `blueprint_id` on a roster assigns a catalog recipe. `GET /v1/blueprints/<id>/personas`
+  returns the declared openai-agents roster (static parse; never exec).
 - `GET /v1/team-agents/` — available palette (API from blueprints, CLI catalog
   or placeholders, remote placeholders)
 

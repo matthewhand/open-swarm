@@ -5,6 +5,7 @@ import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
 import SearchPalette, { type SearchPaletteOptions } from './components/SearchPalette'
 import AgentEditor, { OPEN_AGENT_EDITOR_EVENT, type OpenAgentEditorDetail } from './components/AgentEditor'
+import TeamEditor, { OPEN_TEAM_EDITOR_EVENT, type OpenTeamEditorDetail } from './components/TeamEditor'
 import SettingsSheet, {
   OPEN_SETTINGS_EVENT,
   type OpenSettingsDetail,
@@ -73,6 +74,9 @@ function App() {
   const [settingsDetail, setSettingsDetail] = useState<OpenSettingsDetail | null>(null)
   const [agentEditorOpen, setAgentEditorOpen] = useState(false)
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null)
+  const [teamEditorOpen, setTeamEditorOpen] = useState(false)
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingTeamName, setEditingTeamName] = useState<string | null>(null)
 
   const openRail = useCallback(() => setRailOpen(true), [])
   const closeRail = useCallback(() => {
@@ -150,6 +154,12 @@ function App() {
       setEditingAgentId(detail?.agentId ?? null)
       setAgentEditorOpen(true)
     }
+    const onOpenTeamEditor = (event: Event) => {
+      const detail = (event as CustomEvent<OpenTeamEditorDetail>).detail
+      setEditingTeamId(detail?.teamId ?? null)
+      setEditingTeamName(detail?.teamName ?? null)
+      setTeamEditorOpen(true)
+    }
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -164,6 +174,7 @@ function App() {
     window.addEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
     window.addEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
     window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
+    window.addEventListener(OPEN_TEAM_EDITOR_EVENT, onOpenTeamEditor)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
@@ -173,6 +184,7 @@ function App() {
       window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
       window.removeEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
       window.removeEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
+      window.removeEventListener(OPEN_TEAM_EDITOR_EVENT, onOpenTeamEditor)
     }
   }, [])
 
@@ -202,6 +214,12 @@ function App() {
           isOpen={agentEditorOpen}
           onClose={() => setAgentEditorOpen(false)}
           agentId={editingAgentId}
+        />
+        <TeamEditor
+          isOpen={teamEditorOpen}
+          onClose={() => setTeamEditorOpen(false)}
+          teamId={editingTeamId}
+          teamName={editingTeamName}
         />
         <RailChromeProvider value={{ narrow, railOpen, openRail, closeRail }}>
           <div

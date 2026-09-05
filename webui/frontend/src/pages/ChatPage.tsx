@@ -27,6 +27,9 @@ import {
   openAgentEditor,
   type AgentSettingsChangedDetail,
 } from '../lib/agentSettings'
+import { openTeamEditor } from '../components/TeamEditor'
+import PersonaRoster from '../components/PersonaRoster'
+import { declaredRosterForTeam } from '../lib/declaredRoster'
 import { persistAgentDropdownChoice } from '../lib/userPrefs'
 import { persistableMessages, putAgentChatSession } from '../lib/agentChatSessions'
 import { useRailChrome } from '../components/RailChrome'
@@ -171,6 +174,7 @@ import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
 import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel, loadInferenceList } from '../lib/agentEdits'
+import { TEAM_EDITS_CHANGED_EVENT } from '../lib/teamEdits'
 import { nextInferenceIndex, serializeInferenceList } from '../lib/inferenceList'
 import {
   agentLabel,
@@ -514,6 +518,9 @@ const ChatPage = () => {
   const teams = teamsQuery.data ?? []
   const remotes = remotesQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
+  const teamDeclaredRoster = selectedTeam
+    ? declaredRosterForTeam(selectedTeam, blueprintsQuery.data?.data ?? [])
+    : null
   const selectedRemote = remotes.find((remote) => remote.id === remoteFromUrl) ?? null
   const selectedRemoteSession = selectedRemote?.agents.find((agent) => agent.id === sessionFromUrl)
   const selectedTeamSession = selectedTeam?.members.find((member) => member.id === sessionFromUrl)
@@ -768,10 +775,12 @@ const ChatPage = () => {
     const onEdits = () => setEditsTick((tick) => tick + 1)
     const onDropdowns = () => setDropdownTick((tick) => tick + 1)
     window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    window.addEventListener(TEAM_EDITS_CHANGED_EVENT, onEdits)
     window.addEventListener(AGENT_REMOTE_BINDINGS_CHANGED_EVENT, onEdits)
     window.addEventListener(AGENT_DROPDOWNS_CHANGED_EVENT, onDropdowns)
     return () => {
       window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+      window.removeEventListener(TEAM_EDITS_CHANGED_EVENT, onEdits)
       window.removeEventListener(AGENT_REMOTE_BINDINGS_CHANGED_EVENT, onEdits)
       window.removeEventListener(AGENT_DROPDOWNS_CHANGED_EVENT, onDropdowns)
     }
@@ -1998,11 +2007,9 @@ const ChatPage = () => {
                 return
               }
               if (teamFromUrl) {
-                openSettingsSheet({
-                  section: 'definition',
-                  definitionKind: 'team',
-                  definitionId: teamFromUrl,
+                openTeamEditor({
                   teamId: teamFromUrl,
+                  teamName: selectedTeam?.name || teamFromUrl,
                 })
                 return
               }
@@ -2028,11 +2035,9 @@ const ChatPage = () => {
                   return
                 }
                 if (teamFromUrl) {
-                  openSettingsSheet({
-                    section: 'definition',
-                    definitionKind: 'team',
-                    definitionId: teamFromUrl,
+                  openTeamEditor({
                     teamId: teamFromUrl,
+                    teamName: selectedTeam?.name || teamFromUrl,
                   })
                   return
                 }
@@ -2050,7 +2055,14 @@ const ChatPage = () => {
               }
             }}
           >
-            {!teamFromUrl ? (
+            {teamFromUrl && teamDeclaredRoster ? (
+              <PersonaRoster
+                roster={teamDeclaredRoster}
+                groupId={teamFromUrl}
+                label={`${selectedAgentName} declared members`}
+                size="md"
+              />
+            ) : !teamFromUrl ? (
               <AgentAvatar
                 src={selectedAgent?.avatar_path}
                 agentId={agentIdFromBlueprint(selectedBlueprint)}
@@ -2067,11 +2079,9 @@ const ChatPage = () => {
                 onClick={(e) => {
                   e.stopPropagation()
                   if (teamFromUrl) {
-                    openSettingsSheet({
-                      section: 'definition',
-                      definitionKind: 'team',
-                      definitionId: teamFromUrl,
+                    openTeamEditor({
                       teamId: teamFromUrl,
+                      teamName: selectedTeam?.name || teamFromUrl,
                     })
                     return
                   }
@@ -2091,7 +2101,24 @@ const ChatPage = () => {
                 {selectedAgentName}
               </button>
             </h1>
-            {!teamFromUrl && selectedBlueprint ? (
+            {teamFromUrl ? (
+              <div className="tooltip tooltip-bottom shrink-0" data-tip="Edit team">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm btn-square os-navbar-edit-btn"
+                  aria-label="Edit team"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openTeamEditor({
+                      teamId: teamFromUrl,
+                      teamName: selectedTeam?.name || teamFromUrl,
+                    })
+                  }}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            ) : selectedBlueprint ? (
               <div className="tooltip tooltip-bottom shrink-0" data-tip="Edit agent">
                 <button
                   type="button"

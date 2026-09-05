@@ -235,6 +235,9 @@ export interface Blueprint {
   suggestions_agent?: string | null
   /** Optional custom face URL. Missing/blank → SPA bland (or Bert) default. */
   avatar_path?: string | null
+  /** Declared openai-agents personas from a static source parse (REQ-81). */
+  persona_count?: number
+  personas?: Array<{ name: string }>
 }
 
 /** GET /v1/support/context/ — live agents + inference for the System → Support pill. */
@@ -403,6 +406,9 @@ export interface TeamRosterRecord {
     team_id?: string
   }>
   wires: { handoff: boolean; as_tool: boolean }
+  blueprint_id?: string
+  persona_count?: number
+  personas?: Array<{ name: string }>
 }
 
 export function fetchTeamRosters(): Promise<ListResponse<TeamRosterRecord>> {
@@ -413,6 +419,7 @@ export interface CreateTeamRosterRequest {
   name: string
   members?: TeamRosterRecord['members']
   wires?: TeamRosterRecord['wires']
+  blueprint_id?: string
 }
 
 export function createTeamRoster(
@@ -993,11 +1000,26 @@ export interface BlueprintSource {
   primary: string | null
   selected: string | null
   content: string
+  persona_count?: number
+  personas?: Array<{ name: string }>
 }
 
 export function fetchBlueprintSource(id: string, file?: string): Promise<BlueprintSource> {
   const q = file ? `?file=${encodeURIComponent(file)}` : ''
   return apiGet<BlueprintSource>(`/v1/blueprints/${encodeURIComponent(id)}/source${q}`)
+}
+
+/** GET /v1/blueprints/<id>/personas — declared openai-agents roster (REQ-81). */
+export interface BlueprintPersonas {
+  object: 'blueprint.personas'
+  id: string
+  count: number
+  personas: Array<{ name: string }>
+  parsed?: boolean
+}
+
+export function fetchBlueprintPersonas(id: string): Promise<BlueprintPersonas> {
+  return apiGet<BlueprintPersonas>(`/v1/blueprints/${encodeURIComponent(id)}/personas`)
 }
 
 /** GET /v1/cli-agents/ — CLI catalog + native (built-in) consensus capability. */

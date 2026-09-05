@@ -39,6 +39,7 @@ from swarm.core.team_rosters import (
     slugify_roster_name,
     upsert_roster,
 )
+from swarm.views.api_views import personas_for_blueprint
 from swarm.permissions import HasValidTokenOrSession
 from swarm.settings import ENABLE_API_AUTH
 
@@ -49,6 +50,19 @@ ROSTER_API_PERMISSIONS = [HasValidTokenOrSession] if ENABLE_API_AUTH else [Allow
 
 def _error(message: str, code: int) -> Response:
     return Response({"error": message}, status=code)
+
+
+def _public_roster(entry: dict) -> dict:
+    """Serialize a roster and attach the declared blueprint persona roster."""
+    data = serialize_roster(entry)
+    blueprint_id = str(entry.get("blueprint_id") or data.get("blueprint_id") or "").strip()
+    if not blueprint_id:
+        return data
+    parsed = personas_for_blueprint(blueprint_id)
+    data["blueprint_id"] = blueprint_id
+    data["persona_count"] = parsed["count"]
+    data["personas"] = parsed["personas"]
+    return data
 
 
 class TeamRostersAPIView(APIView):
@@ -69,7 +83,7 @@ class TeamRostersAPIView(APIView):
     def get(self, request, *_args, **_kwargs):
         try:
             rosters = list(load_team_rosters().values())
-            data = [serialize_roster(r) for r in rosters]
+            data = [_public_roster(r) for r in rosters]
             return Response({"object": "list", "data": data}, status=status.HTTP_200_OK)
         except Exception:
             logger.exception("Error retrieving team rosters.")
@@ -144,9 +158,10 @@ class TeamRostersAPIView(APIView):
                     "name": name,
                     "members": body.get("members") or body.get("agent_team") or [],
                     "wires": body.get("wires"),
+                    "blueprint_id": body.get("blueprint_id") or body.get("blueprint"),
                 }
             )
-            return Response(serialize_roster(stored), status=status.HTTP_201_CREATED)
+            return Response(_public_roster(stored), status=status.HTTP_201_CREATED)
         except ValueError as exc:
             return _error(str(exc), status.HTTP_400_BAD_REQUEST)
         except Exception:
@@ -164,7 +179,7 @@ class TeamRosterDetailAPIView(APIView):
             entry = get_roster(roster_id)
             if not entry:
                 return _error("not found", status.HTTP_404_NOT_FOUND)
-            return Response(serialize_roster(entry), status=status.HTTP_200_OK)
+            return Response(_public_roster(entry), status=status.HTTP_200_OK)
         except Exception:
             logger.exception("Error reading team roster '%s'.", roster_id)
             return _error("Failed to retrieve team roster.", status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -176,15 +191,17 @@ class TeamRosterDetailAPIView(APIView):
                 return _error("not found", status.HTTP_404_NOT_FOUND)
             body = request.data or {}
             name = (body.get("name") or existing.get("name") or roster_id).strip()
+            blueprint_id = body.get("blueprint_id", body.get("blueprint", existing.get("blueprint_id")))
             stored = upsert_roster(
                 {
                     "id": roster_id,
                     "name": name,
                     "members": body.get("members", body.get("agent_team", existing.get("members") or [])),
                     "wires": body.get("wires", existing.get("wires")),
+                    "blueprint_id": blueprint_id,
                 }
             )
-            return Response(serialize_roster(stored), status=status.HTTP_200_OK)
+            return Response(_public_roster(stored), status=status.HTTP_200_OK)
         except ValueError as exc:
             return _error(str(exc), status.HTTP_400_BAD_REQUEST)
         except Exception:

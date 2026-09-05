@@ -71,6 +71,27 @@ def test_does_not_write_teams_json_aliases(api_client, monkeypatch):
     assert called["register"] is False
 
 
+def test_create_roster_with_blueprint_id_attaches_personas(api_client):
+    response = api_client.post(
+        "/v1/team-rosters/",
+        {
+            "name": "Dev squad",
+            "blueprint_id": "software_dev",
+            "members": [{"id": "cos", "kind": "api", "role": "cos"}],
+        },
+        format="json",
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["blueprint_id"] == "software_dev"
+    assert body["persona_count"] == 3
+    assert [p["name"] for p in body["personas"]] == [
+        "engineer",
+        "skeptic",
+        "coding-requirements-gate",
+    ]
+
+
 def test_create_roster_with_remote_members(api_client):
     """PR #318: POST /v1/team-rosters/ accepts Hermes/OMB/Rakazo as kind=remote."""
     response = api_client.post(

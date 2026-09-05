@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
 from swarm.core.agent_roles import blueprint_role_fields
+from swarm.core.persona_parse import parse_openai_agent_personas, serialize_personas
 from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
     ENABLE_GITHUB_MARKETPLACE,
@@ -194,6 +195,7 @@ class BlueprintsListView(APIView):
                     if required_mcp and required_mcp not in req_mcps:
                         continue
 
+                    parsed = personas_for_blueprint(blueprint_id)
                     data.append({
                         "id": blueprint_id,
                         "object": "blueprint",
@@ -206,6 +208,8 @@ class BlueprintsListView(APIView):
                         "installed": None,
                         "compiled": None,
                         "avatar_path": _metadata_avatar_path(meta),
+                        "persona_count": parsed["count"],
+                        "personas": parsed["personas"],
                         **blueprint_role_fields(meta),
                     })
             else:
@@ -519,12 +523,15 @@ def load_blueprint_source(
         if p.is_file() and p.suffix in _ALLOWED_SOURCE_SUFFIXES
     )
     if not files:
+        parsed = serialize_personas(None)
         return {
             "id": blueprint_id,
             "files": [],
             "primary": None,
             "selected": None,
             "content": "",
+            "persona_count": parsed["count"],
+            "personas": parsed["personas"],
         }, 200
 
     primary = next((p for p in files if p.name.startswith("blueprint_")), files[0])
@@ -543,13 +550,65 @@ def load_blueprint_source(
     except OSError:
         content = ""
 
+    parsed = serialize_personas(parse_openai_agent_personas(content))
     return {
         "id": blueprint_id,
         "files": [{"name": p.name, "path": p.name} for p in files],
         "primary": primary.name,
         "selected": target.name,
         "content": content,
+        "persona_count": parsed["count"],
+        "personas": parsed["personas"],
     }, 200
+
+
+def _custom_blueprint_code(blueprint_id: str) -> str | None:
+    lib = get_user_blueprint_library()
+    items = list(lib.get("custom") or [])
+    if not items and _custom_blueprints_registry:
+        items = list(_custom_blueprints_registry)
+    for item in items:
+        if isinstance(item, dict) and item.get("id") == blueprint_id:
+            code = item.get("code")
+            return code if isinstance(code, str) else ""
+    return None
+
+
+def personas_for_blueprint(blueprint_id: str) -> dict:
+    """Static persona parse for a catalog or custom blueprint. Never execs."""
+    payload, code = load_blueprint_source(blueprint_id)
+    if code == 200:
+        return serialize_personas(parse_openai_agent_personas(payload.get("content") or ""))
+    custom = _custom_blueprint_code(blueprint_id)
+    if custom is not None:
+        return serialize_personas(parse_openai_agent_personas(custom))
+    return serialize_personas(None)
+
+
+class BlueprintPersonasView(APIView):
+    """GET /v1/blueprints/<id>/personas — declared openai-agents roster (REQ-81)."""
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, blueprint_id: str, *_args, **_kwargs):
+        payload, src_code = load_blueprint_source(blueprint_id)
+        custom = None if src_code == 200 else _custom_blueprint_code(blueprint_id)
+        if src_code != 200 and custom is None:
+            return Response({"error": "blueprint not found"}, status=status.HTTP_404_NOT_FOUND)
+        parsed = (
+            serialize_personas(parse_openai_agent_personas(payload.get("content") or ""))
+            if src_code == 200
+            else serialize_personas(parse_openai_agent_personas(custom or ""))
+        )
+        return Response(
+            {
+                "object": "blueprint.personas",
+                "id": blueprint_id,
+                **parsed,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 def _wants_html(request) -> bool:

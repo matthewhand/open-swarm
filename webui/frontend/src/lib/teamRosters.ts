@@ -38,6 +38,11 @@ export interface TeamRoster {
   name: string
   description: string
   members: TeamMember[]
+  /** Catalog recipe assigned to this team (REQ-81). */
+  blueprintId?: string
+  blueprint?: string
+  persona_count?: number
+  personas?: Array<{ name: string }>
 }
 
 /** One-team fixture so the sidepane stays visible without a live roster file. */
@@ -122,7 +127,36 @@ function parseRoster(raw: unknown): TeamRoster | null {
   const members = Array.isArray(rec.members)
     ? rec.members.map(parseMember).filter((m): m is TeamMember => m !== null)
     : []
-  return { id, name, description, members }
+  const blueprintId =
+    typeof rec.blueprint_id === 'string' && rec.blueprint_id.trim()
+      ? rec.blueprint_id.trim()
+      : typeof rec.blueprint === 'string' && rec.blueprint.trim()
+        ? rec.blueprint.trim()
+        : undefined
+  const personas = Array.isArray(rec.personas)
+    ? rec.personas
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null
+          const personaName = typeof (item as { name?: unknown }).name === 'string'
+            ? (item as { name: string }).name.trim()
+            : ''
+          return personaName ? { name: personaName } : null
+        })
+        .filter((item): item is { name: string } => item !== null)
+    : undefined
+  const personaCount =
+    typeof rec.persona_count === 'number' && Number.isFinite(rec.persona_count)
+      ? rec.persona_count
+      : undefined
+  return {
+    id,
+    name,
+    description,
+    members,
+    ...(blueprintId ? { blueprintId, blueprint: blueprintId } : {}),
+    ...(personaCount != null ? { persona_count: personaCount } : {}),
+    ...(personas ? { personas } : {}),
+  }
 }
 
 /** Accept list envelopes, `{ teams: [...] }`, or a bare array. */
