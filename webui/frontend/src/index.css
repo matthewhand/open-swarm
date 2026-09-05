@@ -1116,6 +1116,26 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
   opacity: 0.5;
 }
 
+/* REQ-192: Tighter chat bubble margins — less wasted side gap (Grok transcript layout) */
+.os-chat-transcript {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+@media (min-width: 640px) {
+  .os-chat-transcript {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+.os-chat-transcript .chat {
+  column-gap: 0.25rem;
+  padding-block: 0.15rem;
+}
+.os-chat-transcript .chat-start .chat-bubble,
+.os-chat-transcript .chat-end .chat-bubble {
+  max-width: 95%;
+}
+
 .os-chat-footer {
   display: flex;
   align-items: center;
