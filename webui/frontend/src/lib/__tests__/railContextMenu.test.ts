@@ -48,6 +48,17 @@ describe('railMenuItems (REQ-82)', () => {
     expect(items[0]).toMatchObject({ id: 'select-session', label: 'Select session' })
   })
 
+  it('adds Select session and New session for API when requested (REQ-105)', () => {
+    const items = railMenuItems({
+      ...base,
+      kind: 'api',
+      hasSelectSession: true,
+      hasNewSession: true,
+    })
+    expect(items.map((item) => item.id).slice(0, 2)).toEqual(['select-session', 'new-session'])
+    expect(items[1]).toMatchObject({ id: 'new-session', label: 'New session' })
+  })
+
   it('keeps Edit / Duplicate for API, team, and remote', () => {
     for (const kind of ['api', 'team', 'remote'] as const) {
       const ids = railMenuItems({ ...base, kind }).map((item) => item.id)

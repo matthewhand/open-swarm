@@ -15,6 +15,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from swarm.core.agent_sessions import (
+    create_empty_session,
+    list_agent_sessions,
+    persist_allocated_session,
+    session_to_dict,
+)
 from swarm.core.agent_settings import get_settings, update_settings
 from swarm.core.chat_store import normalize_agent_id
 from swarm.core.session_policy import allocate_task_session, list_active_task_sessions
@@ -85,25 +91,80 @@ class AgentSettingsAPIView(APIView):
 
 
 class AgentTaskSessionAPIView(APIView):
-    """POST /v1/agents/<agent_id>/sessions/ — swarm owns session create."""
+    """GET/POST /v1/agents/<agent_id>/sessions/ — Django session list + create.
+
+    POST ``{"new": true}`` (or ``{"empty": true}``) always mints an empty
+    user session. POST without that flag keeps REQ-65 allocate-task behaviour.
+    """
 
     permission_classes = SETTINGS_API_PERMISSIONS
 
     @extend_schema(
+        operation_id="v1_agent_sessions_list",
+        summary="List Django-backed sessions for one agent (REQ-105)",
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request, agent_id: str, *_args, **_kwargs):
+        agent = normalize_agent_id(agent_id)
+        user = request.user
+        user_key = ""
+        try:
+            from swarm.core.chat_store import user_key_for
+
+            if user is not None and getattr(user, "is_authenticated", False):
+                user_key = user_key_for(user)
+        except Exception:
+            user_key = ""
+        active = list_active_task_sessions(user_key, agent) if user_key else []
+        rows = list_agent_sessions(user, agent)
+        return Response(
+            {
+                "object": "agent_session_list",
+                "agent_id": agent,
+                "sessions": [session_to_dict(row, active_ids=active) for row in rows],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
         operation_id="v1_agent_task_session_create",
-        summary="Allocate a chat session for one task (honours new_chat_per_task)",
+        summary="Allocate a chat session (task reuse, or New session)",
         responses={200: OpenApiTypes.OBJECT},
     )
     def post(self, request, agent_id: str, *_args, **_kwargs):
         agent = normalize_agent_id(agent_id)
         body = request.data if isinstance(request.data, dict) else {}
+        new_session = body.get("new") is True or body.get("empty") is True
+        if new_session:
+            labels = body.get("labels") if isinstance(body.get("labels"), list) else None
+            title = str(body.get("title") or "").strip()
+            row = create_empty_session(request.user, agent, title=title, labels=labels)
+            payload = session_to_dict(row)
+            payload.update(
+                {
+                    "object": "agent_session",
+                    "new_chat_per_task": False,
+                    "empty": True,
+                    "resume_external": False,
+                    "task_id": "",
+                },
+            )
+            return Response(payload, status=status.HTTP_200_OK)
+
         task_id = str(body.get("task_id") or "").strip() or None
         session = allocate_task_session(request.user, agent, task_id=task_id)
+        persist_allocated_session(
+            request.user,
+            agent,
+            session.conversation_id,
+            empty=session.empty,
+        )
         return Response(
             {
                 "object": "agent_task_session",
                 "agent_id": session.agent_id,
                 "conversation_id": session.conversation_id,
+                "id": session.conversation_id,
                 "new_chat_per_task": session.new_chat_per_task,
                 "empty": session.empty,
                 "resume_external": session.resume_external,
