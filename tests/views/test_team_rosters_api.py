@@ -198,3 +198,31 @@ def test_create_roster_with_remote_members(api_client):
     listed = api_client.get("/v1/team-rosters/")
     assert listed.status_code == 200
     assert listed.json()["data"][0]["id"] == "harness"
+
+
+def test_create_showoff_roster_keeps_kind_clear_names(api_client):
+    response = api_client.post(
+        "/v1/team-rosters/",
+        {
+            "name": "Demo Harness Kinds",
+            "members": [
+                {"id": "grok-cli", "name": "Grok CLI", "kind": "cli", "role": "default"},
+                {
+                    "id": "openmousbot-remote",
+                    "name": "OpenMousBot Remote",
+                    "kind": "remote",
+                    "role": "default",
+                },
+            ],
+        },
+        format="json",
+    )
+    assert response.status_code == 201
+    names = {m["id"]: m["name"] for m in response.json()["members"]}
+    assert names["grok-cli"] == "Grok CLI"
+    assert names["openmousbot-remote"] == "OpenMousBot Remote"
+    loaded = api_client.get("/v1/team-rosters/demo-harness-kinds/")
+    assert loaded.status_code == 200
+    again = {m["id"]: m["name"] for m in loaded.json()["members"]}
+    assert again == names
+    assert "OMB" not in again.values()

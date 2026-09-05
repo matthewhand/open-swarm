@@ -41,7 +41,31 @@ def test_role_cos_persists_on_member():
     member = normalize_member({"id": "pat", "kind": "api", "role": "cos"})
     assert member["role"] == "chief_of_staff"
     assert member["kind"] == "api"
-    assert set(member) >= {"id", "kind", "role", "source"}
+    assert member["name"] == "pat"
+    assert set(member) >= {"id", "name", "kind", "role", "source"}
+
+
+def test_member_display_name_is_preserved():
+    member = normalize_member(
+        {"id": "grok-cli", "name": "Grok CLI", "kind": "cli", "role": "default"}
+    )
+    assert member["name"] == "Grok CLI"
+    stored = upsert_roster(
+        {
+            "id": "demo-harness-kinds",
+            "name": "Demo Harness Kinds",
+            "members": [
+                {
+                    "id": "openmousbot-remote",
+                    "name": "OpenMousBot Remote",
+                    "kind": "remote",
+                    "role": "default",
+                }
+            ],
+        }
+    )
+    assert stored["members"][0]["name"] == "OpenMousBot Remote"
+    assert stored["members"][0]["name"] != "OMB"
 
 
 def test_role_engineer_persists_on_member():

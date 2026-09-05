@@ -7,7 +7,7 @@ LLM-profile alias registry at ``teams.json`` / ``/v1/teams/`` / Django
 
 Member shape::
 
-    {id, kind: api|cli|remote|team|herdr, role, source}
+    {id, name, kind: api|cli|remote|team|herdr, role, source}
 
 ``kind=team`` also stores ``team_id``. Isolation / CoS consult tools live in
 ``swarm.core.team_isolation`` and ``swarm.core.team_consult``.

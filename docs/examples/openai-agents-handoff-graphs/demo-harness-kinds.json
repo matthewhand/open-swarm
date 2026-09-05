@@ -1,33 +1,39 @@
 {
   "id": "demo-harness-kinds",
   "name": "Demo Harness Kinds",
+  "description": "Mode A (REQ-135) — kind-clear names. Demo only. Placeholders / env for URLs and keys.",
   "members": [
     {
       "id": "grok-cli",
+      "name": "Grok CLI",
       "kind": "cli",
       "role": "default",
       "source": "cli:grok"
     },
     {
       "id": "antigravity-cli",
+      "name": "Antigravity CLI",
       "kind": "cli",
       "role": "default",
       "source": "cli:agy"
     },
     {
       "id": "litellm-api",
+      "name": "LiteLLM API",
       "kind": "api",
       "role": "default",
       "source": "blueprint:sdlc_handoff"
     },
     {
       "id": "hermes-remote",
+      "name": "Hermes Remote",
       "kind": "remote",
       "role": "default",
       "source": "placeholder:remote:hermes"
     },
     {
       "id": "openmousbot-remote",
+      "name": "OpenMousBot Remote",
       "kind": "remote",
       "role": "default",
       "source": "placeholder:remote:omb"

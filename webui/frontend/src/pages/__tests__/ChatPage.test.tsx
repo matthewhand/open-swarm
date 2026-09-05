@@ -2108,6 +2108,56 @@ describe('ChatPage team member dropdown', () => {
     expect(screen.getByRole('heading', { name: 'Demo Team' })).toBeInTheDocument()
   })
 
+  it('shows Mode A kind-clear names in the team chat header dropdown', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('team_rosters') || url.includes('team-rosters')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'list',
+              data: [
+                {
+                  id: 'demo-harness-kinds',
+                  object: 'team_roster',
+                  name: 'Demo Harness Kinds',
+                  members: [
+                    { id: 'grok-cli', name: 'Grok CLI', kind: 'cli', role: 'default' },
+                    { id: 'litellm-api', name: 'LiteLLM API', kind: 'api', role: 'default' },
+                    { id: 'openmousbot-remote', name: 'OpenMousBot Remote', kind: 'remote', role: 'default' },
+                  ],
+                },
+              ],
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response
+      }),
+    )
+    renderChat('/chat?team=demo-harness-kinds')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    expect(await screen.findByRole('heading', { name: 'Demo Harness Kinds' })).toBeInTheDocument()
+    const select = await screen.findByRole('combobox', { name: 'Team members' })
+    const options = within(select).getAllByRole('option').map((opt) => opt.textContent)
+    expect(options).toEqual([
+      'All members',
+      'Grok CLI (cli/default)',
+      'LiteLLM API (api/default)',
+      'OpenMousBot Remote (remote/default)',
+      'Manage Team',
+    ])
+    expect(options.join(' ')).not.toMatch(/\bOMB\b/)
+  })
+
   it('sends params {team, target} for all-members and a chosen member', async () => {
     renderChat('/chat?team=demo-team')
     await act(async () => {

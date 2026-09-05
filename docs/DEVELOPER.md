@@ -57,6 +57,8 @@ Worked configs, Mode A/B demo names, tests that lock the edges, and
 `:8001` seed steps (no secrets):
 [docs/examples/openai-agents-handoff-graphs/](./examples/openai-agents-handoff-graphs/README.md)
 (REQ-156 / [#564](https://github.com/matthewhand/open-swarm/issues/564)).
+Showoff naming SoT: [SHOWOFF_DEMO_AGENTS.md](./SHOWOFF_DEMO_AGENTS.md)
+(REQ-135 / [#526](https://github.com/matthewhand/open-swarm/issues/526)).
 
 ---
 

@@ -1,25 +1,31 @@
 {
   "id": "demo-bridge",
   "name": "Demo Bridge",
+  "description": "Intentional mix (REQ-135) — CoS persona plus kind-clear harness seats. Demo only.",
   "members": [
     {
       "id": "cos",
+      "name": "Chief of Staff",
       "kind": "api",
       "role": "chief_of_staff",
       "source": "blueprint:sdlc_handoff"
     },
     {
       "id": "grok-cli",
+      "name": "Grok CLI",
       "kind": "cli",
       "role": "default",
       "source": "cli:grok"
     },
     {
       "id": "hermes-remote",
+      "name": "Hermes Remote",
       "kind": "remote",
       "role": "default",
       "source": "placeholder:remote:hermes"
     }
   ],
-  "wires": {"handoff": true, "as_tool": true}
+  "wires": {"handoff": true, "as_tool": true},
+  "chief_of_staff_id": "cos",
+  "chief_of_staff_instructions": "Coordinate this Demo Bridge. Hand the user task to Grok CLI or Hermes Remote by kind. Do not pretend CLI or remote seats run the openai-agents graph. Report back."
 }

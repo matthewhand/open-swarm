@@ -67,7 +67,7 @@ This is **not** the Django `/teams/` + `/v1/teams/` JSON registry.
 ## Team roster (composition) / Chief of Staff
 
 A **team roster** (`team_rosters.json`, `/v1/team-rosters/`) is a composition
-of members `{id, kind: api\|cli\|remote\|team\|herdr, role, source}`. This is
+of members `{id, name, kind: api\|cli\|remote\|team\|herdr, role, source}`. This is
 **not** the `/v1/teams` alias. `kind=team` + `team_id` nests a child roster.
 A roster may optionally name one **API or CLI** member as Chief of Staff and
 store team-scoped how-to-use-the-roster instructions. The same agent id may
