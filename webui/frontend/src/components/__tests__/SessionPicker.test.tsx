@@ -77,6 +77,25 @@ describe('SessionPicker', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('keeps New session available when the list is empty', () => {
+    const onNew = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <SessionPicker
+        open
+        agentName="Codey"
+        sessions={[]}
+        onClose={onClose}
+        onSelect={() => undefined}
+        onNewSession={onNew}
+      />,
+    )
+    expect(screen.getByText('no sessions yet')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^New session$/i }))
+    expect(onNew).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('shows the empty copy when nothing matches', () => {
     render(
       <SessionPicker

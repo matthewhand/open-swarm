@@ -17,6 +17,12 @@ export const RESTORED_SESSION_TEXT: Record<RestoreKind, string> = {
   team: 'Restored session',
 }
 
+/** REQ-105: honest status after the user picks or creates a session. */
+export function switchedSessionNotice(title?: string | null): string {
+  const label = String(title || '').trim()
+  return label ? `Switched to session ${label}` : 'Switched to session'
+}
+
 export function restoreKindForAgent(agentId: string): RestoreKind {
   const id = (agentId || '').trim().toLowerCase()
   if (id.startsWith('team-') || id.startsWith('team:')) return 'team'
@@ -39,7 +45,8 @@ export function isRestoreStatusText(text: string | null | undefined): boolean {
     t.startsWith('restored session') ||
     t.startsWith('resumed ') ||
     t.startsWith('reconnected remote') ||
-    t.startsWith('continued chat')
+    t.startsWith('continued chat') ||
+    t.startsWith('switched to session')
   )
 }
 

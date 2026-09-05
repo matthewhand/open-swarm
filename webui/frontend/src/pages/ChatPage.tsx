@@ -137,7 +137,11 @@ import {
   type DropdownKind,
 } from '../lib/chatStatus'
 import { insertCliSessionNotice } from '../lib/chatTranscript'
-import { restoreKindForAgent, restoredSessionNotice } from '../lib/sessionRestore'
+import {
+  restoreKindForAgent,
+  restoredSessionNotice,
+  switchedSessionNotice,
+} from '../lib/sessionRestore'
 import {
   discoverChatClis,
   isCliAgentContext,
@@ -741,11 +745,15 @@ const ChatPage = () => {
         ...prev,
         [threadKey]: thread.summaries,
       }))
-      if (thread.messages.length === 0) {
+      if (switched && sessionFromUrl) {
+        setRestoreNotice(switchedSessionNotice(thread.session_title || thread.conversation_id))
+        if (thread.messages.length === 0) return
+      } else if (thread.messages.length === 0) {
         setRestoreNotice(null)
         return
+      } else {
+        setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
       }
-      setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
       setThreads((prev) => ({
         ...prev,
         [threadKey]: thread.messages.map(chatMessageFromThreadRow),

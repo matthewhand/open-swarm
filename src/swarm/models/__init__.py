@@ -4,15 +4,30 @@ from django.db import models
 
 
 class ChatConversation(models.Model):
-    """Represents a single chat session."""
+    """One chat session scoped to an agent (REQ-105).
+
+    Messages, info-blocks, and compact summaries belong to this row — not
+    a loose agent-global blob. ``cli_session_id`` binds a CLI provider id
+    when #468 imports; this model does not list provider sessions.
+    """
+
     conversation_id = models.CharField(max_length=255, primary_key=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     student = models.ForeignKey("auth.User", on_delete=models.CASCADE, blank=True, null=True)
+    agent_id = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    title = models.CharField(max_length=255, blank=True, default="")
+    snippet = models.CharField(max_length=255, blank=True, default="")
+    labels = models.JSONField(blank=True, default=list)
+    cli_session_id = models.CharField(max_length=128, blank=True, default="")
 
     class Meta:
         app_label = "swarm"
         verbose_name = "Chat Conversation"
         verbose_name_plural = "Chat Conversations"
+        indexes = [
+            models.Index(fields=["student", "agent_id", "-updated_at"], name="swarm_chat_agent_upd"),
+        ]
 
     def __str__(self):
         return f"ChatConversation({self.conversation_id})"

@@ -88,8 +88,9 @@ function dragTo(source: Element, target: Element) {
 }
 
 function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
-  return vi.fn().mockImplementation(async (input: RequestInfo) => {
+  return vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
     const url = String(input)
+    const method = String(init?.method || 'GET').toUpperCase()
     if (url.includes('/v1/preferences')) {
       return {
         ok: true,
@@ -122,6 +123,61 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
           rail: [
             { id: 'cli_agent', object: 'cli.agent', name: 'cli_agent', cli: 'grok', kind: 'cli', description: 'Host CLI', installed: true },
             { id: 'api_agent', object: 'cli.agent', name: 'api_agent', cli: '', kind: 'api', description: 'LiteLLM', installed: true },
+          ],
+        }),
+      } as Response
+    }
+    if (url.includes('/sessions')) {
+      if (method === 'POST') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'agent_session',
+            id: 'sess-new-1',
+            conversation_id: 'sess-new-1',
+            agent_id: 'codey',
+            title: 'New session',
+            snippet: '',
+            created_at: '2026-09-05T00:00:00Z',
+            updated_at: '2026-09-05T00:00:00Z',
+            labels: [],
+            cli_session_id: null,
+            empty: true,
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'agent_session_list',
+          agent_id: 'codey',
+          sessions: [
+            {
+              id: 'agt-1-codey',
+              conversation_id: 'agt-1-codey',
+              agent_id: 'codey',
+              title: 'Session 1',
+              snippet: 'hello from session one',
+              created_at: '2026-09-05T00:00:00Z',
+              updated_at: '2026-09-05T00:10:00Z',
+              labels: [],
+              cli_session_id: null,
+              status: 'finished',
+            },
+            {
+              id: 'sess-notes',
+              conversation_id: 'sess-notes',
+              agent_id: 'codey',
+              title: 'Notes',
+              snippet: 'later notes',
+              created_at: '2026-09-05T00:20:00Z',
+              updated_at: '2026-09-05T00:30:00Z',
+              labels: [],
+              cli_session_id: null,
+              status: 'finished',
+            },
           ],
         }),
       } as Response
@@ -371,6 +427,35 @@ describe('AgentSidebar Grok rail', () => {
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([
       { id: 'codey', name: 'Codey' },
     ])
+  })
+
+  it('offers Select session and New session on an API agent, not on a team row', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    fireEvent.contextMenu(codey)
+    expect(await screen.findByRole('menuitem', { name: /Select session/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /^New session$/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: /Select session/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Codey sessions' })
+    expect(within(dialog).getByRole('option', { name: /Notes/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: /^New session$/i })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('option', { name: /Notes/ }))
+    expect(screen.getByTestId('os-test-search')).toHaveTextContent('session=sess-notes')
+
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Office \(team\)/ }))
+    expect(screen.queryByRole('menuitem', { name: /Select session/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Select Agent' })).toBeInTheDocument()
+  })
+
+  it('creates an empty Django session from New session and keeps chat mounted', async () => {
+    renderSidebar('/chat?blueprint=codey')
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /Codey/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^New session$/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId('os-test-search')).toHaveTextContent('session=sess-new-1')
+    })
   })
 
   it('exposes Plugins and an editable hostname after the conversation list', async () => {
