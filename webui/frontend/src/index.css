@@ -689,10 +689,27 @@ button.os-agent-row {
 .os-agent-role-badge[data-kind="team"] { color: #6b7c8a; }
 
 /* REQ-116: Avatar-only rail mode when width <= AVATAR_ONLY_THRESHOLD */
+/* REQ-196: Collapsed sidepane — Support-role unpinned row vertically aligned with peers */
 .os-agent-sidebar--avatar-only .os-agent-row {
   justify-content: center;
+  align-items: center;
   padding-left: 0.25rem;
   padding-right: 0.25rem;
+  min-height: 2.75rem;
+  height: 2.75rem;
+}
+.os-agent-sidebar--avatar-only .os-agent-row-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.os-agent-sidebar--avatar-only .os-agent-row__avatar-slot {
+  margin-top: 0;
+  align-self: center;
+}
+.os-agent-sidebar--avatar-only .os-agent-role-badge {
+  display: none;
 }
 .os-agent-sidebar--avatar-only .os-agent-row > span.flex-1,
 .os-agent-sidebar--avatar-only .os-agent-row__label-col {
