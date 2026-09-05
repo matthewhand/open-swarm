@@ -526,7 +526,7 @@ describe('AgentSidebar Grok rail', () => {
 
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /Office \(team\)/ }))
     expect(screen.queryByRole('menuitem', { name: /Select session/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Select Agent' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /^New session$/i })).not.toBeInTheDocument()
   })
 
   it('creates an empty Django session from New session and keeps chat mounted', async () => {
