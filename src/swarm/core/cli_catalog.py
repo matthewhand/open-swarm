@@ -193,7 +193,9 @@ SESSION: dict[str, dict[str, Any]] = {
         "session_id_paths": [".sessionId", ".session_id"],
         "notes": (
             "grok -p --resume <uuid> (also -r). --session-id / -s names a NEW "
-            "session; do not use it to resume. JSON often includes sessionId."
+            "session; do not use it to resume. JSON often includes sessionId. "
+            "No non-interactive session list — Select session degrades to paste-id "
+            "+ swarm-touch recents (REQ-104)."
         ),
     },
     "claude": {
@@ -203,7 +205,8 @@ SESSION: dict[str, dict[str, Any]] = {
         "notes": (
             "claude -p --resume <uuid> (also -r). JSON result includes session_id "
             "even when parse is json:.result. A resume may mint a new session_id; "
-            "store the latest. --session-id names a new session, not a resume."
+            "store the latest. --session-id names a new session, not a resume. "
+            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
         ),
     },
     "gemini": {
@@ -212,7 +215,8 @@ SESSION: dict[str, dict[str, Any]] = {
         "session_id_paths": [".session_id", ".sessionId"],
         "notes": (
             "gemini -p --resume <uuid> (also -r). --session-id starts a NEW "
-            "session and conflicts with --resume. Capture id from JSON when present."
+            "session and conflicts with --resume. Capture id from JSON when present. "
+            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
         ),
     },
     "codex": {
@@ -222,7 +226,8 @@ SESSION: dict[str, dict[str, Any]] = {
         "notes": (
             "codex exec resume <SESSION_ID> <prompt> (subcommand, not a --flag). "
             "Default catalog parse is text; thread_id appears when --json is used. "
-            "Interactive `codex resume` is a TUI — do not use it here."
+            "Interactive `codex resume` is a TUI — do not use it here. "
+            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
         ),
     },
     "opencode": {
@@ -232,7 +237,8 @@ SESSION: dict[str, dict[str, Any]] = {
         "notes": (
             "opencode run --session <id> (also -s). --continue/-c is last-session "
             "in the cwd, not thread-scoped — do not use it. Capture id when the "
-            "CLI emits JSON; the default catalog parse is text."
+            "CLI emits JSON; the default catalog parse is text. "
+            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
         ),
     },
     "agy": {
@@ -241,7 +247,8 @@ SESSION: dict[str, dict[str, Any]] = {
         "session_id_paths": [".conversation_id", ".conversationId"],
         "notes": (
             "agy -p --conversation <id>. --continue is most-recent, not "
-            "thread-scoped — do not use it here."
+            "thread-scoped — do not use it here. "
+            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
         ),
     },
     "pi": {
@@ -251,10 +258,40 @@ SESSION: dict[str, dict[str, Any]] = {
         "notes": (
             "pi -p --session <path|id>. --resume/-r is a TUI picker; "
             "--continue/-c is last session — do not use those here. "
-            "Catalog verify runs use --no-session (ephemeral)."
+            "Catalog verify runs use --no-session (ephemeral). "
+            "No non-interactive session list — paste-id + swarm recents (REQ-104)."
         ),
     },
 }
+
+# Non-interactive session-list argv. Catalog CLIs have none (TUI pickers only).
+# A fixture or ``cli_agents.<name>.list_argv`` may enable listing. Never invent rows.
+LIST_SESSIONS_TIMEOUT = 15.0
+RECENT_SESSION_LIMIT = 10
+
+
+def list_sessions_argv(name: str, config: dict[str, Any] | None = None) -> list[str] | None:
+    """Copy of a non-interactive list-sessions argv, or None if this CLI cannot list.
+
+    Config ``cli_agents.<name>.list_argv`` wins over the catalog (fixtures).
+    """
+    raw_agents = (config or {}).get("cli_agents") or {}
+    if isinstance(raw_agents, dict):
+        entry = raw_agents.get(name)
+        if isinstance(entry, dict):
+            argv = entry.get("list_argv")
+            if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
+                return list(argv)
+    policy = session_policy(name) or {}
+    argv = policy.get("list_argv")
+    if isinstance(argv, (list, tuple)) and argv and all(isinstance(p, str) for p in argv):
+        return list(argv)
+    return None
+
+
+def can_list_sessions(name: str, config: dict[str, Any] | None = None) -> bool:
+    """True when a real list-sessions argv is configured. Catalog defaults are False."""
+    return list_sessions_argv(name, config) is not None
 
 
 # Default capability traits (0..1) per known CLI for inference-profile matching

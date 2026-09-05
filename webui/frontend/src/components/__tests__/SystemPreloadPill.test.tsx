@@ -55,4 +55,9 @@ describe('REQ-207: Support preload — Message from System pill', () => {
     render(<SystemPreloadPill text={samplePreload} label="System Notice" />)
     expect(screen.getByRole('button', { name: /System Notice/i })).toBeInTheDocument()
   })
+
+  it('renders the REQ-104 Prior history label', () => {
+    render(<SystemPreloadPill text="**User:** old thread" label="Prior history" />)
+    expect(screen.getByRole('button', { name: /Prior history/i })).toBeInTheDocument()
+  })
 })

@@ -74,6 +74,18 @@ def test_render_prompt_multiturn_transcript():
     assert "SYSTEM: be terse" in out and "USER: hello" in out
 
 
+def test_render_prompt_skips_prior_history_and_status():
+    out = support.render_prompt(
+        [
+            {"role": "system", "kind": "prior_history", "content": "old thread"},
+            {"role": "status", "content": "Switched to echo session sid-2."},
+            {"role": "user", "content": "next"},
+        ]
+    )
+    assert out == "next"
+    assert "old thread" not in out
+
+
 def test_select_single_cli_priority():
     cfg = _echo_config()
     reg = CliAdapterRegistry.from_config(cfg)
