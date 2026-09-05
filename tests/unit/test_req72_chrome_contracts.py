@@ -13,6 +13,7 @@ REMOTES_LIB = REPO / "webui" / "frontend" / "src" / "lib" / "remotes.ts"
 SEARCH_PALETTE = REPO / "webui" / "frontend" / "src" / "components" / "SearchPalette.tsx"
 CHAT_PAGE = REPO / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
+RAIL_MENU = REPO / "webui" / "frontend" / "src" / "lib" / "railContextMenu.ts"
 APP = REPO / "webui" / "frontend" / "src" / "App.tsx"
 HOSTNAME = REPO / "webui" / "frontend" / "src" / "lib" / "hostname.ts"
 SETTINGS_PREFS = REPO / "webui" / "frontend" / "src" / "lib" / "settingsPrefs.ts"
@@ -52,12 +53,21 @@ def test_chat_page_support_default_and_manage_teams():
 
 
 def test_sidebar_team_hide_id_and_plugins_empty_copy():
-    """#342 team hide uses teamHideId; #322 Plugins dialog is empty."""
+    """#342 team hide uses teamHideId; #322 Plugins dialog is empty; REQ-82 menu labels."""
     src = SIDEBAR.read_text(encoding="utf-8")
+    menu = RAIL_MENU.read_text(encoding="utf-8")
     assert "teamHideId(team.id)" in src
     assert "No plugins installed." in src
-    assert "Unpin" in src
     assert 'aria-label="Open agents sidebar"' not in src  # REQ-54: hamburger removed
+    # Unpin / Delete / Edit live in the menu builder, not inline rail JSX.
+    assert "id: 'unpin', label: 'Unpin'" in menu
+    assert "if (opts.pinned)" in menu
+    assert "id: 'delete'" in menu
+    assert "label: 'Delete'" in menu
+    assert "danger: true" in menu
+    assert "label: 'Edit Profile'" in menu
+    assert "opts.kind === 'cli'" in menu
+    assert "id: 'edit'" in menu
 
 
 def test_app_mobile_rail_and_settings_event():

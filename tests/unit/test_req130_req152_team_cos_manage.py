@@ -15,6 +15,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SIDEBAR = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
+RAIL_MENU = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "railContextMenu.ts"
 CHAT_PAGE = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 SESSION_PICKER_COMPONENT = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "SessionPicker.tsx"
 SESSION_PICKER_LIB = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "sessionPicker.ts"
@@ -38,12 +39,18 @@ def test_req130_sidebar_primary_click_direct_nav_no_picker():
 
 
 def test_req130_sidebar_context_menu_select_agent():
-    """REQ-130: right-click menu has 'Select Agent' action opening group picker."""
-    src = SIDEBAR.read_text(encoding="utf-8")
-    assert "openMenu(event, hideId, name, hidden, 'team', sessions)" in src
-    assert "openMenu(event, hideId, name, hidden, 'remote', sessions)" in src
-    assert "Select Agent" in src
-    assert "openGroupPicker(title, s)" in src or "openGroupPicker" in src
+    """REQ-130: right-click rail menu offers Select Agent and opens the group picker."""
+    sidebar = SIDEBAR.read_text(encoding="utf-8")
+    menu = RAIL_MENU.read_text(encoding="utf-8")
+    assert "rowMenuHandlers(hideId, name, hidden, 'team', sessions, team.id)" in sidebar
+    assert "rowMenuHandlers(hideId, name, hidden, 'remote', sessions, remote.id)" in sidebar
+    assert "onContextMenu" in sidebar
+    assert "id: 'select-agent', label: 'Select Agent'" in menu
+    assert "id === 'select-agent'" in sidebar
+    assert "openGroupPicker(title, sessions)" in sidebar
+    # REQ-82 retired the old openMenu(event, hideId, …) call-shape lock.
+    assert "openMenu(event, hideId, name, hidden, 'team', sessions)" not in sidebar
+    assert "openMenu(event, hideId, name, hidden, 'remote', sessions)" not in sidebar
 
 
 def test_req152_chat_page_team_dropdown_separator_and_manage():
