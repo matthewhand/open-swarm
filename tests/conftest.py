@@ -17,6 +17,21 @@ def isolate_swarm_chat_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
 
 
+@pytest.fixture(autouse=True)
+def isolate_custom_blueprint_registry():
+    """Keep leftover custom-blueprint POSTs from poisoning empty-list / matrix tests.
+
+    CustomBlueprintsView writes a process-global `_custom_blueprints_registry`
+    fallback. A prior create (e.g. REQ-81 fixture) must not fill GET
+    `/v1/blueprints/custom/` when the library is empty.
+    """
+    from swarm.views import api_views
+
+    api_views._custom_blueprints_registry.clear()
+    yield
+    api_views._custom_blueprints_registry.clear()
+
+
 # --- Fixtures ---
 
 def pytest_collection_modifyitems(config, items):
