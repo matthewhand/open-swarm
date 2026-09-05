@@ -515,6 +515,23 @@ html[data-theme="light"] #root {
   color: color-mix(in srgb, var(--color-base-content) 90%, transparent);
   transition: background-color 0.15s ease;
 }
+/* REQ-217: Unpinned agent labels — shared left vertical alignment across all avatar treatments */
+.os-agent-row__avatar-slot {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  max-width: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  align-self: flex-start;
+  margin-top: 0.125rem;
+}
+.os-agent-row__label-col {
+  min-width: 0;
+  flex: 1 1 0%;
+}
 button.os-agent-row {
   width: 100%;
   background: transparent;
@@ -620,7 +637,8 @@ button.os-agent-row {
   padding-left: 0.25rem;
   padding-right: 0.25rem;
 }
-.os-agent-sidebar--avatar-only .os-agent-row > span.flex-1 {
+.os-agent-sidebar--avatar-only .os-agent-row > span.flex-1,
+.os-agent-sidebar--avatar-only .os-agent-row__label-col {
   display: none;
 }
 .os-agent-sidebar--avatar-only .os-fav-grid {
