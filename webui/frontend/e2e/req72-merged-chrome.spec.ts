@@ -19,6 +19,7 @@ const BLUEPRINTS = {
       tags: [],
       installed: true,
       compiled: true,
+      rail: true,
     },
     {
       id: 'stewie',
@@ -30,6 +31,7 @@ const BLUEPRINTS = {
       tags: [],
       installed: true,
       compiled: true,
+      rail: true,
     },
     {
       id: 'cos',
@@ -42,6 +44,7 @@ const BLUEPRINTS = {
       tags: [],
       installed: true,
       compiled: true,
+      rail: true,
     },
   ],
 }

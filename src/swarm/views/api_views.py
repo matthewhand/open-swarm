@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from swarm.auth import api_permission_classes
 from swarm.core.agent_roles import blueprint_role_fields, is_webui_blueprint
+from swarm.core.rail_seats import metadata_rail
 from swarm.core.persona_parse import parse_openai_agent_personas, serialize_personas
 from swarm.services import github_topics_service as gh_service
 from swarm.settings import (
@@ -211,6 +212,8 @@ class BlueprintsListView(APIView):
                         "persona_count": parsed["count"],
                         "personas": parsed["personas"],
                         "webui": is_webui_blueprint(blueprint_id, meta),
+                        # REQ-170: missing/false = catalog-only (not an AGENTS rail seat).
+                        "rail": metadata_rail(meta),
                         **blueprint_role_fields(meta),
                     })
             else:

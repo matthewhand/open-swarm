@@ -29,6 +29,7 @@ class GateBlueprint(BlueprintBase):
         "author": "Open Swarm Team",
         "tags": ["gate", "approval", "stub"],
         "role": "gate",
+        "rail": True,
         "required_mcp_servers": [],
         "env_vars": [],
     }

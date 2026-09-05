@@ -48,6 +48,7 @@ export const SYNTHETIC_GATE: Blueprint = {
   installed: true,
   compiled: true,
   role: 'gate',
+  rail: true,
 }
 
 export const SYNTHETIC_SKEPTIC: Blueprint = {
@@ -61,6 +62,7 @@ export const SYNTHETIC_SKEPTIC: Blueprint = {
   installed: true,
   compiled: true,
   role: 'skeptic',
+  rail: true,
 }
 
 const SYNTHETICS: Record<ExampleRole, Blueprint> = {

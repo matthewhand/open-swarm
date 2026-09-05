@@ -16,6 +16,7 @@ const blueprints = [
     tags: [],
     installed: true,
     compiled: true,
+    rail: true,
   },
 ]
 
@@ -93,7 +94,7 @@ describe('SearchPalette', () => {
     expect(screen.getByRole('tab', { name: 'Messages' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('Bots tab lists Support + catalog agents and Enter chooses a /chat href (REQ-17 / #322)', async () => {
+  it('Bots tab lists Support + rail seats and Enter chooses a /chat href (REQ-17 / #322)', async () => {
     const { onClose } = renderPalette()
     expect(await screen.findByRole('option', { name: /Codey/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Bots' }))
@@ -104,6 +105,110 @@ describe('SearchPalette', () => {
 
     fireEvent.keyDown(window, { key: 'Enter' })
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('REQ-170: Search Bots omit catalog recipes that are not rail seats', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          object: 'list',
+          data: [
+            {
+              id: 'support',
+              object: 'blueprint',
+              name: 'Support',
+              description: 'Onboarding',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+              rail: true,
+              role: 'support',
+            },
+            {
+              id: 'poets',
+              object: 'blueprint',
+              name: 'Poets',
+              description: 'Poet swarm',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+            {
+              id: 'chucks_angels',
+              object: 'blueprint',
+              name: "Chuck's Angels",
+              description: 'Demo',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+            {
+              id: 'django_chat',
+              object: 'blueprint',
+              name: 'Django Chat',
+              description: 'Retired leftover',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+            {
+              id: 'moa',
+              object: 'blueprint',
+              name: 'mixture_of_agents',
+              description: 'MoA',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+            {
+              id: 'cli_fusion',
+              object: 'blueprint',
+              name: 'cli_fusion',
+              description: 'CLI fusion',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+            {
+              id: 'codey',
+              object: 'blueprint',
+              name: 'Codey',
+              description: 'Code assistant',
+              abbreviation: null,
+              required_mcp_servers: [],
+              tags: [],
+              installed: true,
+              compiled: true,
+            },
+          ],
+        }),
+      } as Response),
+    )
+    renderPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Bots' }))
+    expect(await screen.findByRole('option', { name: /Support/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Poets/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Chuck/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Django Chat/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /mixture_of_agents/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /cli_fusion/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Codey/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Actions' })).toBeInTheDocument()
   })
 
   it('Actions tab lists theme + Django operator destinations, not live remotes (REQ-17 / #322)', () => {

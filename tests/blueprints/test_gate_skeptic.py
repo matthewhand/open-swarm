@@ -16,6 +16,8 @@ async def _final(bp, messages=None):
 def test_roles():
     assert GateBlueprint.metadata["role"] == "gate"
     assert SkepticBlueprint.metadata["role"] == "skeptic"
+    assert GateBlueprint.metadata["rail"] is True
+    assert SkepticBlueprint.metadata["rail"] is True
 
 
 async def test_gate_stub_is_one_line():

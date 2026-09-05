@@ -40,6 +40,7 @@ const blueprints = [
     tags: [],
     installed: true,
     compiled: true,
+    rail: true,
   },
   {
     id: 'stewie',
@@ -51,6 +52,7 @@ const blueprints = [
     tags: [],
     installed: true,
     compiled: true,
+    rail: true,
   },
 ]
 

@@ -535,9 +535,13 @@
             kind: "herdr",
             remote: row.remote || "",
             description: row.remote ? "Herdr · " + row.remote : "Herdr · localhost",
+            rail: true,
           };
         });
-        agents = blueprints.concat(herdrAgents);
+        var catalogSeats = blueprints.filter(function (row) {
+          return row && row.rail === true;
+        });
+        agents = catalogSeats.concat(herdrAgents);
         hiddenIds = seedHidden(agents);
         if (!agents.length && !teams.length) statusEl.textContent = "No agents yet.";
         loadTeams(render);

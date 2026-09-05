@@ -16,7 +16,7 @@ import { fetchBlueprints } from '../lib/api'
 import { openChromeOverlay, type ChromeOverlay } from '../lib/chromeOverlay'
 import { openSettingsSheet } from './SettingsSheet'
 import { agentMarkIndex, loadHiddenAgentIds, unhideAgentId } from '../lib/hiddenAgents'
-import { exampleRoleAgents } from '../lib/agentRoles'
+import { railSeatAgents } from '../lib/railSeats'
 import { agentLabel } from '../lib/supportAgent'
 import { dispatchToggleTheme } from '../lib/theme'
 import { searchShortcutLabel } from '../lib/keybindingTips'
@@ -85,7 +85,7 @@ export default function SearchPalette({ open, onClose, options }: SearchPaletteP
     enabled: open,
     retry: 1,
   })
-  const agents = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
+  const agents = railSeatAgents(blueprintsQuery.data?.data ?? [])
 
   const rows = useMemo<PaletteRow[]>(() => {
     const botRows: PaletteRow[] = agents.map((agent) => ({

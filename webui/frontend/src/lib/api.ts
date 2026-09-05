@@ -247,6 +247,8 @@ export interface Blueprint {
   workflow?: BlueprintWorkflow | string | null
   /** Leftover webui/django-chat recipe. Pickers must hide these (REQ-75). */
   webui?: boolean | null
+  /** REQ-170: true = AGENTS rail seat. Missing/false = catalog-only. */
+  rail?: boolean | null
   kind?: string | null
   urls_module?: string | null
   url_prefix?: string | null

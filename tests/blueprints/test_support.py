@@ -41,6 +41,7 @@ def _test_mode(monkeypatch):
 def test_metadata_role_is_support():
     assert SupportBlueprint.metadata["role"] == "support"
     assert SupportBlueprint.metadata["name"] == "support"
+    assert SupportBlueprint.metadata["rail"] is True
     assert issubclass(SupportBlueprint, BlueprintBase)
 
 

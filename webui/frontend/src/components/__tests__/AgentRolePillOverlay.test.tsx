@@ -15,6 +15,7 @@ const blueprints = [
     role: 'chief_of_staff',
     installed: true,
     compiled: true,
+    rail: true,
   },
   {
     id: 'codey',
@@ -24,6 +25,7 @@ const blueprints = [
     role: 'default',
     installed: true,
     compiled: true,
+    rail: true,
   },
 ]
 

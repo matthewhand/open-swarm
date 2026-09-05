@@ -13,6 +13,7 @@ const BLUEPRINTS = {
       tags: [],
       installed: true,
       compiled: true,
+      rail: true,
     },
     {
       id: 'cli_agent',
@@ -24,6 +25,7 @@ const BLUEPRINTS = {
       tags: ['cli'],
       installed: true,
       compiled: true,
+      rail: true,
     },
   ],
 }

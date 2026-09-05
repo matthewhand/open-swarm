@@ -30,6 +30,7 @@ function stubBlueprint(
     installed: true,
     compiled: true,
     role,
+    rail: true,
   }
 }
 

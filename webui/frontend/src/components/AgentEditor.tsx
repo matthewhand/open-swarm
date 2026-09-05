@@ -45,6 +45,7 @@ import {
   catalogPickerLabel,
   exampleRoleAgents,
 } from '../lib/agentRoles'
+import { displayNameMatchesBlueprint } from '../lib/railSeats'
 import { ROLE_BRIEFS } from '../lib/definitionExplain'
 import { agentLabel, sessionKindForAgent } from '../lib/supportAgent'
 import { isCliBlueprintId } from '../lib/cliAgentContext'
@@ -364,6 +365,14 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     openSettingsSheet({ section: 'blueprint', blueprintId: assigned })
   }
 
+  const recipeId = blueprintId || id
+  const assignedRecipe = catalog.find((item) => item.id === recipeId)
+  const nameMatchesRecipe = displayNameMatchesBlueprint(
+    name,
+    recipeId,
+    assignedRecipe?.name,
+  )
+
   return (
     <Modal
       isOpen={isOpen}
@@ -415,21 +424,32 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
           </p>
         </div>
 
-        <Select
-          label="Blueprint"
-          name="agent-blueprint"
-          value={blueprintId}
-          onChange={(event) => persistBlueprint(event.target.value)}
-        >
-          {catalog.length === 0 || !catalog.some((item) => item.id === (blueprintId || id)) ? (
-            <option value={blueprintId || id}>{blueprintId || id || 'Loading…'}</option>
+        <div className="space-y-1">
+          <Select
+            label={nameMatchesRecipe ? undefined : 'Blueprint'}
+            aria-label="Blueprint"
+            name="agent-blueprint"
+            value={blueprintId}
+            onChange={(event) => persistBlueprint(event.target.value)}
+          >
+            {catalog.length === 0 || !catalog.some((item) => item.id === recipeId) ? (
+              <option value={recipeId}>{recipeId || 'Loading…'}</option>
+            ) : null}
+            {catalog.map((item) => (
+              <option key={item.id} value={item.id}>
+                {catalogPickerLabel(item)}
+              </option>
+            ))}
+          </Select>
+          {nameMatchesRecipe ? (
+            <p
+              className="text-xs text-base-content/60"
+              data-testid="blueprint-recipe-meta"
+            >
+              Recipe: {recipeId}
+            </p>
           ) : null}
-          {catalog.map((item) => (
-            <option key={item.id} value={item.id}>
-              {catalogPickerLabel(item)}
-            </option>
-          ))}
-        </Select>
+        </div>
 
         <InferenceOrderList
           seats={inferenceSeats}
