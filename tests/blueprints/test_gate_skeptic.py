@@ -20,11 +20,15 @@ def test_roles():
 
 async def test_gate_stub_is_one_line():
     text = await _final(GateBlueprint(blueprint_id="gate"))
-    assert text == "Gate — dangerous tool call? yes/no. Until wired, all approved."
+    assert text == (
+        "Gate — call submit_gate_verdict (yes=dangerous / no=safe). Until wired, all approved."
+    )
     assert "\n" not in text
 
 
 async def test_skeptic_stub_is_one_line():
     text = await _final(SkepticBlueprint(blueprint_id="skeptic"))
-    assert text == "Skeptic — prompt done? If not, findings go back to retry."
+    assert text == (
+        "Skeptic — call submit_skeptic_verdict (pass/fail). If fail, findings go back to retry."
+    )
     assert "\n" not in text

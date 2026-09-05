@@ -9,8 +9,8 @@ Rakazo seats.
 |---|---|---|
 | `default` / `none` | (no badge) | Ordinary worker. No special wiring. |
 | `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7). Introduces the concept; copy below. |
-| `gate` (`tool_gate`) | `os-agent-role-gate` `data-role="gate"` | Classifies a **pending tool call** as dangerous or not (single-token YES/NO). |
-| `skeptic` | `os-agent-role-skeptic` `data-role="skeptic"` | Reviews whether the original prompt was accomplished. |
+| `gate` (`tool_gate`) | `os-agent-role-gate` `data-role="gate"` | Classifies a **pending tool call** as dangerous or not via `submit_gate_verdict` (yes/no). |
+| `skeptic` | `os-agent-role-skeptic` `data-role="skeptic"` | Reviews whether the original prompt was accomplished via `submit_skeptic_verdict` (pass/fail). |
 | `chief_of_staff` (`cos`) | `os-agent-role-chief_of_staff` `data-role="chief_of_staff"` | Talks to any team. Badge only (`CoS`). |
 | `engineer` | `os-agent-role-engineer` `data-role="engineer"` | Implementer seat (software-dev / Chatty). Badge only. |
 | `suggestions` | `os-agent-role-suggestions` `data-role="suggestions"` | Prepares 2–5 quick-select chips after a turn (REQ-85). |
@@ -50,11 +50,15 @@ for the accent. Support should **reuse these class names**, not invent a paralle
 * **Gate is default-open.** If no gate is wired to the team, every tool call is
   approved and the user is never asked. The gate only applies when a `gate`
   (or `tool_gate`) role is actually on the roster.
-* **Dangerous ≠ denied.** A wired gate that says YES (dangerous) **elicits**
-  the user. Safe calls go through without a prompt.
-* **Skeptic is a bounded retry, not a nag.** On failure, findings are handed
-  back to the original agent (max 2 retries). On success, stop. Do not surface
-  extra critique to the user.
+* **Dangerous ≠ denied.** A wired gate that says yes (dangerous) via
+  `submit_gate_verdict` **elicits** the user. Safe calls go through without a
+  prompt. The runtime never parses YES/NO from chat prose. If the model stops
+  without the tool, it is nudged (default 3 times) then **fail closed**
+  (needs-human / block).
+* **Skeptic is a bounded retry, not a nag.** It finishes with
+  `submit_skeptic_verdict`. On fail, findings are handed back to the original
+  agent (max 2 retries). On pass, stop. Missing tool → nudges, then FAIL.
+  Do not surface extra critique to the user. Do not parse PASS/FAIL from prose.
 
 ## Wiring
 
@@ -62,20 +66,21 @@ for the accent. Support should **reuse these class names**, not invent a paralle
 User prompt
     │
     ▼
-Original agent  ──pending tool──►  gate.as_tool  ──YES/NO──►  elicit if dangerous
+Original agent  ──pending tool──►  gate.as_tool  ──submit_gate_verdict──►  elicit if dangerous
     │
     ▼
 output
     │
     ▼
 skeptic.as_tool(original prompt + output)
-    ├── YES → stop (do not nag)
-    └── NO  → findings → original agent (retry ≤ 2)
+    ├── submit_skeptic_verdict(pass) → stop (do not nag)
+    └── submit_skeptic_verdict(fail) → findings → original agent (retry ≤ 2)
 ```
 
 Code:
 
 * `swarm.core.agent_roles` — normalize, roster, CSS class names, API payload
+* `swarm.core.classifier_verdict` — verdict tools + continue nudges (REQ-108)
 * `swarm.core.tool_gate` — `approve_pending_tool_call` (fail-open when unwired)
 * `swarm.core.skeptic` — `run_with_skeptic` (bounded as-tool loop)
 * Team Creator select **Agent role** → generated `AGENT_SPECS[].role` + metadata

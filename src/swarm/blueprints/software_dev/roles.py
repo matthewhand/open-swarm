@@ -12,6 +12,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from swarm.core.classifier_verdict import SKEPTIC_CLOSE_LINE
+
 # --- Issue quote (Issue-first REQ) ----------------------------------------- #
 
 ISSUE_SECTIONS: tuple[str, ...] = ("Intent", "Success", "Constraints", "Owner")
@@ -279,9 +281,7 @@ When reviewing, run four checks PLUS test interrogation (not diff-only):
    .env contents, house-identifying stills, or precise personal coordinates.
    Placeholders only. This is a hard Success check, not a nit.
 
-""" + _HYGIENE_SKILL + """
-Reply with a text-only verdict: PASS or FAIL, then the checks.
-"""
+""" + _HYGIENE_SKILL + "\n" + SKEPTIC_CLOSE_LINE
 
 SKEPTIC_NO_WRITE = (
     "BLOCKED: skeptic does not write code (look-only until CoS unblocks)."

@@ -25,6 +25,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
 
+from swarm.core.classifier_verdict import (
+    GATE_VERDICT_TOOL,
+    attach_classifier_tools,
+    run_classifier_until_verdict,
+)
 from swarm.core.paths import get_user_data_dir_for_swarm
 
 logger = logging.getLogger(__name__)
@@ -71,7 +76,7 @@ ALWAYS_ALLOW_ENV = "SWARM_SAFETY_ALWAYS_ALLOW_PATH"
 ClassifyFn = Callable[[str, dict[str, Any]], bool]
 ElicitFn = Callable[[str, dict[str, Any]], Any]
 EmitFn = Callable[[dict[str, Any]], Any]
-InvokeFn = Callable[[Any, str], str]
+InvokeFn = Callable[[Any, str], Any]
 
 
 def uses_swarm_approval(channel: str | None) -> bool:
@@ -153,7 +158,11 @@ def safety_role_assigned(agents: Any = None, *, metadata: dict[str, Any] | None 
 
 
 def parse_safety_token(text: Any) -> bool:
-    """Parse a YES/NO reply as *concerned* (dangerous). Empty / ambiguous → False."""
+    """Parse a structured YES/NO as *concerned* (dangerous).
+
+    Kept for programmatic fixtures. The live Safety classifier (REQ-108) finishes
+    via ``submit_gate_verdict`` and never scrapes the last assistant message.
+    """
     if isinstance(text, bool):
         return text
     if isinstance(text, dict):
@@ -180,7 +189,9 @@ def _safety_prompt(tool_name: str, arguments: dict[str, Any] | None) -> str:
         "Is this pending tool call concerning?\n"
         f"Tool: {tool_name}\n"
         f"Arguments: {arguments or {}}\n"
-        "Reply YES or NO only."
+        f"When finished, call `{GATE_VERDICT_TOOL}` "
+        '(verdict="yes" if concerning/dangerous, verdict="no" if not). '
+        "Do not finish with prose."
     )
 
 
@@ -273,8 +284,13 @@ def classify_pending_tool_call(
             concerned = bool(classify_fn(tool_name, args))
             raw = "YES" if concerned else "NO"
         elif safety is not None:
-            raw = _invoke_safety_agent(safety, _safety_prompt(tool_name, args), invoke_fn=invoke_fn)
-            concerned = parse_safety_token(raw)
+            turn = _invoke_safety_agent(safety, _safety_prompt(tool_name, args), invoke_fn=invoke_fn)
+            payload = getattr(turn, "payload", None) or {}
+            concerned = bool(payload.get("dangerous", True))
+            raw = getattr(turn, "raw", None) or str(payload)
+            if getattr(turn, "failed_closed", False):
+                concerned = True
+                raw = getattr(turn, "error", None) or raw
         else:
             return SafetyVerdict(concerned=False, raw="UNWIRED", approved=True)
     except Exception as exc:
@@ -284,27 +300,14 @@ def classify_pending_tool_call(
     return SafetyVerdict(concerned=concerned, raw=str(raw), approved=not concerned)
 
 
-def _invoke_safety_agent(safety: Any, prompt: str, *, invoke_fn: InvokeFn | None = None) -> str:
-    if invoke_fn is not None:
-        return str(invoke_fn(safety, prompt))
-    for attr in ("classify", "respond"):
-        fn = getattr(safety, attr, None)
-        if callable(fn):
-            return str(fn(prompt))
-    as_tool = getattr(safety, "as_tool", None)
-    if callable(as_tool):
-        try:
-            tool = as_tool(
-                tool_name=getattr(safety, "name", None) or "safety",
-                tool_description="Classify a pending tool call as concerning or not.",
-            )
-            on_invoke = getattr(tool, "on_invoke_tool", None)
-            if callable(on_invoke):
-                result = on_invoke(None, prompt)
-                return str(result)
-        except Exception as exc:
-            logger.debug("safety as_tool invoke skipped: %s", exc)
-    raise RuntimeError("safety agent has no classify / as_tool invoke path")
+def _invoke_safety_agent(safety: Any, prompt: str, *, invoke_fn: InvokeFn | None = None) -> Any:
+    attach_classifier_tools(safety, "safety")
+    return run_classifier_until_verdict(
+        agent=safety,
+        prompt=prompt,
+        role="safety",
+        invoke_fn=invoke_fn,
+    )
 
 
 def approve_pending_tool_call(

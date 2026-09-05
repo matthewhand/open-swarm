@@ -78,7 +78,9 @@ describe('agentRoles', () => {
   it('fallback recipes show how each example role behaves', () => {
     expect(fallbackBlueprintSource('gate', 'gate')).toMatch(/YES/)
     expect(fallbackBlueprintSource('gate', 'gate')).toMatch(/NO/)
+    expect(fallbackBlueprintSource('gate', 'gate')).toMatch(/submit_gate_verdict/)
     expect(fallbackBlueprintSource('skeptic', 'skeptic')).toMatch(/SKEPTIC_MAX_RETRIES/)
+    expect(fallbackBlueprintSource('skeptic', 'skeptic')).toMatch(/submit_skeptic_verdict/)
     expect(fallbackBlueprintSource('support', 'support')).toMatch(/Socratic/)
   })
 })

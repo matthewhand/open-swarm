@@ -93,37 +93,40 @@ def ask_user(question: str, choices: list[str] | None = None) -> str:
         return f"MCQ: {question} | " + " / ".join(choices)
     return f"ASK: {question}"
 `,
-  gate: `# Blueprint recipe — Safety (YES/NO)
+  gate: `# Blueprint recipe — Safety (YES/NO via submit_gate_verdict)
 # Role = badge + wiring on a Team member. This file is the Python/API recipe.
 # Runtime module (when present): src/swarm/core/safety.py
 # Unwired Safety is fail-open: every tool call is approved and the user is never asked.
 
 GATE_INSTRUCTIONS = (
     "You are Safety. Classify the pending tool call as concerning or not. "
-    "Reply with a single token only: YES if the call is dangerous, NO if it is not. "
-    "No punctuation, no explanation."
+    "When done, you MUST call submit_gate_verdict with verdict=\\"yes\\" if the "
+    "call is dangerous or verdict=\\"no\\" if it is not. Optional reason. "
+    "Example: submit_gate_verdict(verdict=\\"yes\\", reason=\\"destructive rm -rf\\"). "
+    "Prose alone is not a verdict."
 )
 
-def classify_pending_tool_call(tool_name: str, arguments: dict) -> str:
-    """Return YES (dangerous → elicit) or NO (safe → proceed)."""
-    raise NotImplementedError("live classifier is swarm.core.tool_gate")
+def submit_gate_verdict(verdict: str, reason: str = "") -> str:
+    """Finish the gate determination (yes = dangerous → elicit; no = safe)."""
+    raise NotImplementedError("live classifier is swarm.core.classifier_verdict")
 `,
-  skeptic: `# Blueprint recipe — Skeptic (bounded retry)
+  skeptic: `# Blueprint recipe — Skeptic (bounded retry via submit_skeptic_verdict)
 # Role = badge + wiring on a Team member. This file is the Python/API recipe.
 # Runtime module (when present): src/swarm/core/skeptic.py
-# On YES (accomplished) stop. On NO, hand findings back (max 2 retries). Do not nag.
+# On pass stop. On fail, hand findings back (max 2 retries). Do not nag.
 
 SKEPTIC_MAX_RETRIES = 2
 SKEPTIC_INSTRUCTIONS = (
     "You are a skeptic. You see the original prompt plus the agent's output. "
-    "First line: YES if accomplished, NO if not. "
-    "If NO, follow with concise findings the original agent can use to retry. "
-    "If YES, stop. Do not nag."
+    "When done, you MUST call submit_skeptic_verdict with verdict=\\"pass\\" "
+    "if accomplished or verdict=\\"fail\\" if not. Optional reason. "
+    "Example: submit_skeptic_verdict(verdict=\\"fail\\", reason=\\"summary.md missing\\"). "
+    "Prose alone is not a verdict. Do not nag."
 )
 
-def run_with_skeptic(prompt: str, output: str) -> str:
-    """Review output; retry the original agent at most SKEPTIC_MAX_RETRIES times."""
-    raise NotImplementedError("live retry loop is swarm.core.skeptic")
+def submit_skeptic_verdict(verdict: str, reason: str = "") -> str:
+    """Finish the skeptic determination (pass/fail)."""
+    raise NotImplementedError("live retry loop is swarm.core.classifier_verdict")
 `,
 }
 

@@ -13,7 +13,9 @@ import {
 describe('definitionExplain', () => {
   it('returns human briefs for roles, teams, and blueprints without an LLM', () => {
     expect(staticExplanation('role', 'gate')).toMatch(/YES\/NO/)
+    expect(staticExplanation('role', 'gate')).toMatch(/submit_gate_verdict/)
     expect(staticExplanation('role', 'skeptic')).toMatch(/retry/)
+    expect(staticExplanation('role', 'skeptic')).toMatch(/submit_skeptic_verdict/)
     expect(staticExplanation('role', 'support')).toMatch(/Socratic/)
     expect(staticExplanation('role', 'cos')).toMatch(/talks to any team/i)
     expect(staticExplanation('role', 'suggestions')).toMatch(/quick-select/i)

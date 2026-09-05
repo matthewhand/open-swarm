@@ -4,8 +4,10 @@ Wiring is **default-open** (fail-open when unwired):
 
 * No gate agent on the team → every tool call is approved and the user is
   **never** elicited.
-* A ``gate`` / ``tool_gate`` role actually wired → the gate returns a
-  single-token YES/NO (dangerous or not). Dangerous calls elicit user approval.
+* A ``gate`` / ``tool_gate`` role actually wired → the agent investigates,
+  then **must** call ``submit_gate_verdict`` (REQ-108). Prose is never a
+  verdict. Missing tool → continue nudges, then fail closed (dangerous /
+  needs-human / block). Dangerous calls elicit user approval.
 
 This is openai-agents handoff / agent-as-tool — not an extra Grok/OMB/Rakazo
 seat. The Support agent (REQ-7) may *talk* about the gate; this module is the
@@ -24,36 +26,39 @@ from swarm.core.agent_roles import (
     find_role_agent,
     normalize_agent_role,
 )
-from swarm.core.async_utils import run_coro_sync
+from swarm.core.classifier_verdict import (
+    GATE_INSTRUCTIONS,
+    GATE_VERDICT_TOOL,
+    attach_classifier_tools,
+    run_classifier_until_verdict,
+)
 
 logger = logging.getLogger(__name__)
 
 GATE_ROLE = ROLE_GATE
-
-GATE_INSTRUCTIONS = (
-    "You are a tool-call gate. Classify the pending tool call as dangerous or not. "
-    "Reply with a single token only: YES if the call is dangerous (destructive, "
-    "irreversible, exfiltrating, privilege-escalating, or otherwise high-risk), "
-    "NO if it is not. No punctuation, no explanation."
-)
 
 _DANGEROUS_TOKENS = frozenset({"YES", "Y", "DANGEROUS", "TRUE", "1"})
 _SAFE_TOKENS = frozenset({"NO", "N", "SAFE", "FALSE", "0"})
 
 ClassifyFn = Callable[[str, dict[str, Any]], bool]
 ElicitFn = Callable[[str, dict[str, Any]], bool]
-InvokeFn = Callable[[Any, str], str]
+InvokeFn = Callable[[Any, str], Any]
 
 
 @dataclass
 class GateVerdict:
-    """Boolean danger classification plus the raw single-token reply."""
+    """Structured danger classification from ``submit_gate_verdict`` (or fail-closed)."""
 
     dangerous: bool
     raw: str = ""
     elicited: bool = False
     approved: bool = True
     prompted: bool = False
+    failed_closed: bool = False
+    needs_human: bool = False
+    nudges: int = 0
+    reason: str = ""
+    tool_name: str = GATE_VERDICT_TOOL
 
 
 @dataclass
@@ -93,7 +98,11 @@ class ToolGate:
 
 
 def parse_gate_token(text: Any) -> bool:
-    """Parse a single-token (or equivalent structured) yes/no as *dangerous*."""
+    """Parse a structured yes/no as *dangerous*.
+
+    Kept for programmatic ``classify_fn`` / fixture dicts. The live classifier
+    path (REQ-108) does **not** scrape the last assistant message.
+    """
     if isinstance(text, bool):
         return text
     if isinstance(text, dict):
@@ -121,7 +130,9 @@ def _gate_prompt(tool_name: str, arguments: dict[str, Any] | None) -> str:
         "Is this pending tool call dangerous?\n"
         f"Tool: {tool_name}\n"
         f"Arguments: {arguments or {}}\n"
-        "Reply YES or NO only."
+        f"When finished, call `{GATE_VERDICT_TOOL}` "
+        '(verdict="yes" if dangerous, verdict="no" if not). '
+        "Do not finish with prose."
     )
 
 
@@ -130,44 +141,14 @@ def _invoke_gate_agent(
     prompt: str,
     *,
     invoke_fn: InvokeFn | None = None,
-) -> str:
-    """Consult the gate via injected fn, ``classify``, ``as_tool``, or Runner."""
-    if invoke_fn is not None:
-        return str(invoke_fn(gate, prompt))
-    classify = getattr(gate, "classify", None)
-    if callable(classify):
-        return str(classify(prompt))
-    respond = getattr(gate, "respond", None)
-    if callable(respond):
-        return str(respond(prompt))
-    # openai-agents agent-as-tool: prefer a sync ``on_invoke_tool`` if present
-    # after ``as_tool()``; otherwise try Runner (may be unavailable offline).
-    as_tool = getattr(gate, "as_tool", None)
-    if callable(as_tool):
-        try:
-            tool = as_tool(
-                tool_name=getattr(gate, "name", None) or "gate",
-                tool_description="Classify a pending tool call as dangerous or not.",
-            )
-            on_invoke = getattr(tool, "on_invoke_tool", None)
-            if callable(on_invoke):
-                result = on_invoke(None, prompt)
-                if hasattr(result, "__await__"):
-                    result = run_coro_sync(result)
-                return str(result)
-        except Exception as exc:
-            logger.debug("gate as_tool invoke skipped: %s", exc)
-    try:
-        from agents import Runner
-
-        async def _run() -> str:
-            result = await Runner.run(gate, prompt, max_turns=1)
-            return str(getattr(result, "final_output", None) or result)
-
-        return run_coro_sync(_run())
-    except Exception as exc:
-        logger.info("gate Runner unavailable (%s); treating as unclassified", exc)
-        raise
+) -> Any:
+    """Consult the gate until ``submit_gate_verdict`` or fail closed."""
+    return run_classifier_until_verdict(
+        agent=gate,
+        prompt=prompt,
+        role="gate",
+        invoke_fn=invoke_fn,
+    )
 
 
 def classify_pending_tool_call(
@@ -187,24 +168,48 @@ def classify_pending_tool_call(
             trace.append({"tool": tool_name, "wired": False, "dangerous": False})
         return verdict
     raw = ""
+    failed_closed = False
+    needs_human = False
+    nudges = 0
+    reason = ""
     try:
         if classify_fn is not None:
             dangerous = bool(classify_fn(tool_name, args))
             raw = "YES" if dangerous else "NO"
         else:
-            raw = _invoke_gate_agent(gate, _gate_prompt(tool_name, args), invoke_fn=invoke_fn)
-            dangerous = parse_gate_token(raw)
+            turn = _invoke_gate_agent(gate, _gate_prompt(tool_name, args), invoke_fn=invoke_fn)
+            payload = getattr(turn, "payload", None) or {}
+            dangerous = bool(payload.get("dangerous", True))
+            raw = getattr(turn, "raw", None) or str(payload)
+            failed_closed = bool(getattr(turn, "failed_closed", False))
+            needs_human = bool(payload.get("needs_human") or failed_closed)
+            nudges = int(getattr(turn, "nudges", 0) or 0)
+            reason = str(payload.get("reason") or "")
+            if failed_closed:
+                # Fail closed: treat as dangerous / needs-human. Never parse prose.
+                dangerous = True
     except Exception as exc:
         logger.info("wired gate failed to classify %s (%s); treating as dangerous", tool_name, exc)
         dangerous = True
         raw = f"ERROR: {exc}"
-    verdict = GateVerdict(dangerous=dangerous, raw=str(raw))
+        failed_closed = True
+        needs_human = True
+    verdict = GateVerdict(
+        dangerous=dangerous,
+        raw=str(raw),
+        failed_closed=failed_closed,
+        needs_human=needs_human,
+        nudges=nudges,
+        reason=reason,
+    )
     if trace is not None:
         trace.append({
             "tool": tool_name,
             "wired": True,
             "dangerous": dangerous,
             "raw": verdict.raw,
+            "failed_closed": failed_closed,
+            "nudges": nudges,
         })
     return verdict
 
@@ -306,6 +311,7 @@ def attach_gate_as_tool(coordinator: Any, gate: Any) -> Any:
     if coordinator is None or gate is None:
         return coordinator
     attach_role(gate, ROLE_GATE)
+    attach_classifier_tools(gate, "gate")
     as_tool = getattr(gate, "as_tool", None)
     if not callable(as_tool):
         return coordinator
@@ -313,8 +319,8 @@ def attach_gate_as_tool(coordinator: Any, gate: Any) -> Any:
         tool = as_tool(
             tool_name=getattr(gate, "name", None) or "gate",
             tool_description=(
-                "Classify a pending tool call as dangerous (YES) or not (NO). "
-                "Single-token reply."
+                "Classify a pending tool call as dangerous or not. "
+                f"The gate finishes by calling {GATE_VERDICT_TOOL}."
             ),
         )
         tools = list(getattr(coordinator, "tools", None) or [])
