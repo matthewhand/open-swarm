@@ -344,6 +344,8 @@ const ChatPage = () => {
   )
   const [suggestionChips, setSuggestionChips] = useState<string[]>([])
   const [threadReady, setThreadReady] = useState(false)
+  /** Honest hydrate miss — not a blank new chat (REQ-171A-4 / #604). */
+  const [hydrateError, setHydrateError] = useState<string | null>(null)
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
@@ -411,6 +413,8 @@ const ChatPage = () => {
           : selectedBlueprint
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const threadsRef = useRef(threads)
+  threadsRef.current = threads
   const summaries = useMemo(
     () => summariesByThread[threadKey] ?? [],
     [summariesByThread, threadKey],
@@ -446,7 +450,7 @@ const ChatPage = () => {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intentionalCloseRef = useRef(false)
   const lastUserTextRef = useRef('')
-  /** Last hydrated agent or team thread; used to clear bubbles only on switch. */
+  /** Last hydrated agent or team thread; used to detect switch vs remount. */
   const lastHydratedAgentRef = useRef<string | null>(null)
   const previewSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -947,6 +951,24 @@ const ChatPage = () => {
     })
   }, [])
 
+  const noteHydrateFailure = useCallback((bucketKey: string, err: unknown) => {
+    const hadMessages = (threadsRef.current[bucketKey] ?? []).length > 0
+    const detail = err instanceof Error ? err.message.trim() : ''
+    const fallback = 'The transcript could not be fetched.'
+    addToast({
+      type: 'error',
+      title: 'Could not load chat',
+      message: hadMessages
+        ? 'The transcript could not be fetched. Existing messages were kept.'
+        : detail || fallback,
+    })
+    if (!hadMessages) {
+      setHydrateError(detail || fallback)
+      setRestoreNotice(null)
+    }
+    setThreadReady(true)
+  }, [addToast])
+
   // Per-agent thread: stable conversation id + hydrate from disk/DB.
   // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
@@ -957,6 +979,7 @@ const ChatPage = () => {
   useEffect(() => {
     if (!teamFromUrl) return
     setThreadReady(false)
+    setHydrateError(null)
     setSuggestionChips([])
     const key = teamThreadId(teamFromUrl)
     const switched =
@@ -967,39 +990,45 @@ const ChatPage = () => {
     setAgentKind('api')
     setMessagesEditable(false)
     userKeyCounterRef.current = 0
-    if (switched) {
-      setThreads((prev) => ({ ...prev, [key]: [] }))
-      setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
-    }
     let cancelled = false
     ;(async () => {
-      const thread = await fetchAgentThread(key, key)
-      if (cancelled) return
-      setSummariesByThread((prev) => ({
-        ...prev,
-        [key]: thread.summaries,
-      }))
-      if (thread.context_meta) setContextMeta(thread.context_meta)
-      if (thread.messages.length === 0) {
-        setRestoreNotice(null)
+      try {
+        const thread = await fetchAgentThread(key, key)
+        if (cancelled) return
+        setHydrateError(null)
+        setSummariesByThread((prev) => ({
+          ...prev,
+          [key]: thread.summaries,
+        }))
+        if (thread.context_meta) setContextMeta(thread.context_meta)
+        if (thread.messages.length === 0) {
+          setRestoreNotice(null)
+          if (switched) {
+            setThreads((prev) => ({ ...prev, [key]: [] }))
+          }
+          setThreadReady(true)
+          return
+        }
+        setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
+        setThreads((prev) => ({
+          ...prev,
+          [key]: thread.messages.map(chatMessageFromThreadRow),
+        }))
         setThreadReady(true)
-        return
+      } catch (err) {
+        if (cancelled) return
+        noteHydrateFailure(key, err)
       }
-      setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
-      setThreads((prev) => ({
-        ...prev,
-        [key]: thread.messages.map(chatMessageFromThreadRow),
-      }))
-      setThreadReady(true)
     })()
     return () => {
       cancelled = true
     }
-  }, [teamFromUrl])
+  }, [teamFromUrl, noteHydrateFailure])
 
   useEffect(() => {
     if (teamFromUrl) return
     setThreadReady(false)
+    setHydrateError(null)
     setSuggestionChips([])
     if (remoteFromUrl) {
       const key = `remote-${remoteFromUrl}${sessionFromUrl ? `-${sessionFromUrl}` : ''}`
@@ -1011,30 +1040,36 @@ const ChatPage = () => {
       setAgentKind('remote')
       setMessagesEditable(false)
       userKeyCounterRef.current = 0
-      if (switched) {
-        setThreads((prev) => ({ ...prev, [key]: [] }))
-        setSummariesByThread((prev) => ({ ...prev, [key]: [] }))
-      }
       let cancelled = false
       ;(async () => {
-        const thread = await fetchAgentThread(`remote:${remoteFromUrl}`, key)
-        if (cancelled) return
-        setSummariesByThread((prev) => ({
-          ...prev,
-          [key]: thread.summaries,
-        }))
-        if (thread.context_meta) setContextMeta(thread.context_meta)
-        if (thread.messages.length === 0) {
-          setRestoreNotice(null)
+        try {
+          // Same GET /chat/thread/ path as API/team — do not return early (REQ-171A-4 / #604).
+          const thread = await fetchAgentThread(`remote:${remoteFromUrl}`, key)
+          if (cancelled) return
+          setHydrateError(null)
+          setSummariesByThread((prev) => ({
+            ...prev,
+            [key]: thread.summaries,
+          }))
+          if (thread.context_meta) setContextMeta(thread.context_meta)
+          if (thread.messages.length === 0) {
+            setRestoreNotice(null)
+            if (switched) {
+              setThreads((prev) => ({ ...prev, [key]: [] }))
+            }
+            setThreadReady(true)
+            return
+          }
+          setRestoreNotice(restoredSessionNotice(thread.messages, 'remote'))
+          setThreads((prev) => ({
+            ...prev,
+            [key]: thread.messages.map(chatMessageFromThreadRow),
+          }))
           setThreadReady(true)
-          return
+        } catch (err) {
+          if (cancelled) return
+          noteHydrateFailure(key, err)
         }
-        setRestoreNotice(restoredSessionNotice(thread.messages, 'remote'))
-        setThreads((prev) => ({
-          ...prev,
-          [key]: thread.messages.map(chatMessageFromThreadRow),
-        }))
-        setThreadReady(true)
       })()
       return () => {
         cancelled = true
@@ -1065,60 +1100,67 @@ const ChatPage = () => {
     setAgentKind(classifyAgentKind(selectedBlueprint))
     setMessagesEditable(canEditAgentMessages(selectedBlueprint) && !selectedCli)
     userKeyCounterRef.current = 0
-    if (switched) {
-      setThreads((prev) => ({ ...prev, [threadKey]: [] }))
-      setSummariesByThread((prev) => ({ ...prev, [threadKey]: [] }))
-    }
     if (fresh) {
       // New empty session — do not restore a prior transcript.
       setRestoreNotice(null)
+      setHydrateError(null)
       setThreadReady(true)
       return
     }
     let cancelled = false
     ;(async () => {
-      const thread = await fetchAgentThread(agent, resolvedSession || undefined)
-      if (cancelled) return
-      setAgentKind(thread.kind ?? classifyAgentKind(selectedBlueprint))
-      setMessagesEditable(
-        !teamFromUrl &&
-          !remoteFromUrl &&
-          (thread.editable ?? canEditAgentMessages(selectedBlueprint, thread.kind)),
-      )
-      setSummariesByThread((prev) => ({
-        ...prev,
-        [threadKey]: thread.summaries,
-      }))
-      if (thread.context_meta) setContextMeta(thread.context_meta)
-      if (thread.session_missing) {
-        setRestoreNotice(missingSessionNotice(resolvedSession || nextId))
-        setThreads((prev) => ({ ...prev, [threadKey]: [] }))
-        setThreadReady(true)
-        return
-      }
-      if (switched && sessionFromUrl) {
-        setRestoreNotice(switchedSessionNotice(thread.session_title || thread.conversation_id))
-        if (thread.messages.length === 0) {
+      try {
+        const thread = await fetchAgentThread(agent, resolvedSession || undefined)
+        if (cancelled) return
+        setHydrateError(null)
+        setAgentKind(thread.kind ?? classifyAgentKind(selectedBlueprint))
+        setMessagesEditable(
+          !teamFromUrl &&
+            !remoteFromUrl &&
+            (thread.editable ?? canEditAgentMessages(selectedBlueprint, thread.kind)),
+        )
+        setSummariesByThread((prev) => ({
+          ...prev,
+          [threadKey]: thread.summaries,
+        }))
+        if (thread.context_meta) setContextMeta(thread.context_meta)
+        if (thread.session_missing) {
+          setRestoreNotice(missingSessionNotice(resolvedSession || nextId))
+          setThreads((prev) => ({ ...prev, [threadKey]: [] }))
           setThreadReady(true)
           return
         }
-      } else if (thread.messages.length === 0) {
-        setRestoreNotice(null)
+        if (switched && sessionFromUrl) {
+          setRestoreNotice(switchedSessionNotice(thread.session_title || thread.conversation_id))
+          if (thread.messages.length === 0) {
+            setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+            setThreadReady(true)
+            return
+          }
+        } else if (thread.messages.length === 0) {
+          setRestoreNotice(null)
+          if (switched) {
+            setThreads((prev) => ({ ...prev, [threadKey]: [] }))
+          }
+          setThreadReady(true)
+          return
+        } else {
+          setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
+        }
+        setThreads((prev) => ({
+          ...prev,
+          [threadKey]: thread.messages.map(chatMessageFromThreadRow),
+        }))
         setThreadReady(true)
-        return
-      } else {
-        setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
+      } catch (err) {
+        if (cancelled) return
+        noteHydrateFailure(threadKey, err)
       }
-      setThreads((prev) => ({
-        ...prev,
-        [threadKey]: thread.messages.map(chatMessageFromThreadRow),
-      }))
-      setThreadReady(true)
     })()
     return () => {
       cancelled = true
     }
-  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey, selectedCli])
+  }, [selectedBlueprint, sessionFromUrl, teamFromUrl, remoteFromUrl, newChatPerTask, threadKey, selectedCli, noteHydrateFailure])
 
   const attachToolToThread = useCallback(
     (tool: ToolCallState) => {
@@ -2612,7 +2654,16 @@ const ChatPage = () => {
             <span>{restoreNotice}</span>
           </p>
         ) : null}
-        {messages.length === 0 ? (
+        {messages.length === 0 && threadReady && hydrateError ? (
+          <div
+            className="flex h-full min-h-64 flex-col items-center justify-center gap-3 text-center text-base-content/70"
+            data-testid="chat-hydrate-error"
+            role="alert"
+          >
+            <p className="text-sm font-medium">Could not load this chat</p>
+            <p className="max-w-sm text-xs text-base-content/50">{hydrateError}</p>
+          </div>
+        ) : messages.length === 0 && threadReady ? (
           <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 text-center text-base-content/45">
             <p className="text-sm">Message {selectedAgentName}</p>
             {showSupportJourneyChips ? (
@@ -2628,7 +2679,7 @@ const ChatPage = () => {
               </>
             ) : null}
           </div>
-        ) : (
+        ) : messages.length === 0 ? null : (
           <>
           {displayItems.map((item, idx) => {
             if (item.kind === 'summary') {
