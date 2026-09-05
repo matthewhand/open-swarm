@@ -126,6 +126,9 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
         }),
       } as Response
     }
+    if (url.includes('api.github.com')) {
+      return { ok: false, status: 404, json: async () => ({}) } as Response
+    }
     if (url.includes('/v1/herdr-agents')) {
       return {
         ok: true,
@@ -409,6 +412,23 @@ describe('AgentSidebar Grok rail', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByTestId('remote-sessions-popup')).toBeNull()
+  })
+
+  it('places XOR update/info chrome immediately right of the system name (REQ-78)', async () => {
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    const server = screen.getByTestId('rail-server-icon')
+    const hostname = screen.getByLabelText('Hostname')
+    const chrome = screen.getByTestId('rail-update-chrome')
+    const row = hostname.closest('.os-rail-hostname-row')
+    expect(row).toBeTruthy()
+    expect(row?.contains(server)).toBe(true)
+    expect(row?.contains(chrome)).toBe(true)
+    expect(server.compareDocumentPosition(hostname) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(hostname.compareDocumentPosition(chrome) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(chrome).toHaveAttribute('data-kind', 'idle')
+    expect(chrome.querySelectorAll('svg')).toHaveLength(1)
+    expect(screen.queryAllByTestId('rail-update-chrome')).toHaveLength(1)
   })
 
   it('paints a red dot on rail-server-icon when local WS is disconnected (REQ-195)', async () => {

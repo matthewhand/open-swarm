@@ -1,8 +1,14 @@
 import '@testing-library/jest-dom';
 import { resetChatConnection } from './lib/chatConnection';
+import { resetExpectedSpaVersion } from './lib/spaHello';
+import { resetGithubReleaseCache } from './lib/githubRelease';
+import { setBakedSpaVersionForTests } from './lib/spaVersion';
 
 afterEach(() => {
     resetChatConnection();
+    resetExpectedSpaVersion();
+    resetGithubReleaseCache();
+    setBakedSpaVersionForTests(null);
 });
 
 if (!HTMLDialogElement.prototype.showModal) {

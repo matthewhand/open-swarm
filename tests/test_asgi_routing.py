@@ -38,6 +38,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 
 from swarm.asgi import application
+from swarm.consumers import SPA_HELLO_TYPE
 
 WS_PATH = "/ws/ai-demo/asgi-test-conv/"
 # The dev/test default ALLOWED_HOSTS is ['localhost', '127.0.0.1'] (see
@@ -209,6 +210,7 @@ class TestWebsocketRoundTrip:
         with patcher:
             connected, _ = await communicator.connect()
             assert connected
+            await expect_spa_hello(communicator)
 
             await communicator.send_to(text_data=json.dumps({"message": "Ping?"}))
 
@@ -265,6 +267,15 @@ def swarm_test_mode(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-test-mode")
 
 
+async def expect_spa_hello(communicator, timeout=1):
+    """REQ-78: authenticated connect advertises spa_version before chat frames."""
+    raw = await communicator.receive_from(timeout=timeout)
+    payload = json.loads(raw)
+    assert payload.get("type") == SPA_HELLO_TYPE
+    assert payload.get("spa_version")
+    return payload
+
+
 async def _drain_reply(communicator, prompt):
     """Send a prompt dict and collect (user_echo, placeholder, frames-until-final)."""
     await communicator.send_to(text_data=json.dumps(prompt))
@@ -297,6 +308,7 @@ class TestWebsocketBlueprintSelection:
         )
         connected, _ = await communicator.connect()
         assert connected
+        await expect_spa_hello(communicator)
 
         user_html, contents_div_id, frames = await _drain_reply(
             communicator, {"message": "ping", "blueprint": "jeeves"}
@@ -321,6 +333,7 @@ class TestWebsocketBlueprintSelection:
         )
         connected, _ = await communicator.connect()
         assert connected
+        await expect_spa_hello(communicator)
 
         _, _, frames = await _drain_reply(communicator, {"message": "ping"})
         assert JEEVES_CANNED_MARKER in frames[-1]
@@ -338,6 +351,7 @@ class TestWebsocketBlueprintSelection:
         )
         connected, _ = await communicator.connect()
         assert connected
+        await expect_spa_hello(communicator)
 
         _, _, frames = await _drain_reply(
             communicator, {"message": "hello", "blueprint": "no-such-blueprint"}
@@ -371,6 +385,7 @@ class TestWebsocketBlueprintSelection:
         with patcher:
             connected, _ = await communicator.connect()
             assert connected
+            await expect_spa_hello(communicator)
             _, _, frames = await _drain_reply(communicator, {"message": "ping"})
             assert "legacy path" in frames[-1]
             client.chat.completions.create.assert_awaited_once()

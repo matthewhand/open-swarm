@@ -84,6 +84,7 @@ import {
   type ToolCallState,
 } from '../lib/safety'
 import { notifyGenerationComplete } from '../lib/railOrder'
+import { publishExpectedSpaVersion } from '../lib/spaHello'
 import {
   ALL_MEMBERS_TARGET,
   MANAGE_TEAMS_HREF,
@@ -805,6 +806,10 @@ const ChatPage = () => {
     (event: ChatWsEvent) => {
       if (event.kind === 'unknown') {
         console.warn('Unrecognised chat websocket frame:', event.raw)
+        return
+      }
+      if (event.kind === 'spa_hello') {
+        publishExpectedSpaVersion(event.spaVersion)
         return
       }
       if (event.kind === 'tool_status') {

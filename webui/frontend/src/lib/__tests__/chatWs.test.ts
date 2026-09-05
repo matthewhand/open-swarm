@@ -145,6 +145,18 @@ describe('parseChatWsMessage', () => {
     expect(parseChatWsMessage(weird)).toEqual({ kind: 'unknown', raw: weird })
   })
 
+  it('parses spa_hello and ignores an empty version', () => {
+    expect(
+      parseChatWsMessage(JSON.stringify({ type: 'spa_hello', spa_version: '0.5.4' })),
+    ).toEqual({ kind: 'spa_hello', spaVersion: '0.5.4' })
+    expect(
+      parseChatWsMessage(JSON.stringify({ type: 'spa_hello', spa_version: '  ' })),
+    ).toEqual({
+      kind: 'unknown',
+      raw: JSON.stringify({ type: 'spa_hello', spa_version: '  ' }),
+    })
+  })
+
   it('parses JSON tool_status and tool_approval frames', () => {
     expect(
       parseChatWsMessage(

@@ -51,6 +51,7 @@ export type ChatWsEvent =
     }
   | { kind: 'status'; text: string }
   | { kind: 'pr_opened'; event: PrOpenedEvent }
+  | { kind: 'spa_hello'; spaVersion: string }
   | {
       kind: 'interbot_hop'
       id: string
@@ -153,6 +154,11 @@ function parseToolJsonFrame(raw: string): ChatWsEvent | null {
     if (type === 'pr_opened') {
       const event = parsePrOpened(payload)
       if (event) return { kind: 'pr_opened', event }
+    }
+    if (type === 'spa_hello') {
+      const spaVersion = String(payload.spa_version || '').trim()
+      if (!spaVersion) return { kind: 'unknown', raw }
+      return { kind: 'spa_hello', spaVersion }
     }
   } catch {
     return null
