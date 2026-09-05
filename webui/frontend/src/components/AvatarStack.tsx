@@ -1,4 +1,4 @@
-import { agentMarkColor, agentMarkIndex } from '../lib/hiddenAgents'
+import { agentMarkIndex } from '../lib/hiddenAgents'
 import AgentAvatar from './AgentAvatar'
 import {
   STACK_FACE_LIMIT,
@@ -78,7 +78,7 @@ export default function AvatarStack({
           data-role={face.role}
           title={face.name}
           style={{
-            backgroundColor: agentMarkColor(face.markId || face.id),
+            backgroundColor: 'transparent',
             overflow: 'hidden',
             ...(animate
               ? { animationDelay: `${stackAnimationDelayMs(face.startedAt, origin)}ms` }
@@ -91,6 +91,7 @@ export default function AvatarStack({
             alt={face.name || face.id}
             size="xs"
             className="w-full h-full flex items-center justify-center pointer-events-none"
+            style={{ background: 'transparent' }}
           />
         </span>
       ))}
