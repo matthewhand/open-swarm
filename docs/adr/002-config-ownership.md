@@ -168,6 +168,7 @@ an implement Issue; do not add a syncer.
 |---|---|---|
 | `agent_settings.json` | Per-agent `new_chat_per_task` / session ids (REQ-65) | `src/swarm/core/agent_settings.py` (API + SPA editor) |
 | `team_rosters.json` | REQ-28 composition (not `agent_team.members`) | `src/swarm/core/team_rosters.py` |
+| `agent_relationships.json` | REQ-153 peer-mailbox edges (team↔agent / team↔team) | `src/swarm/core/agent_relationships.py` |
 | `teams.json` | `/v1/teams/` LLM-profile **aliases** (not remotes) | `src/swarm/views/utils.py` |
 | `router_designs.json` | Designer drafts | `src/swarm/core/router_designs.py` |
 

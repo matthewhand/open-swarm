@@ -431,6 +431,18 @@ class ChatCompletionsView(APIView):
             logger.error(f"[ReqID: {request_id}] Blueprint '{model_name}' not found or failed to initialize (get_blueprint_instance returned None).")
             raise NotFound(f"The requested model (blueprint) '{model_name}' was not found or could not be initialized.")
 
+        try:
+            from swarm.core.agent_mailbox import install_mailbox_for_runtime
+
+            install_mailbox_for_runtime(
+                blueprint_instance,
+                caller_id=str(model_name or ""),
+                user=getattr(request, "user", None),
+                params=blueprint_params if isinstance(blueprint_params, dict) else {},
+            )
+        except Exception:
+            logger.exception("Failed to install peer mailbox tools")
+
         # Only after confirming existence, enforce permission check result
         if not access_granted:
             logger.warning(f"[ReqID: {request_id}] User '{request.user}' denied access to model '{model_name}'.")

@@ -14,7 +14,7 @@ secrets.
 **Constraints:** Docs + examples can ship before full UI. This pack does **not**
 touch ChatPage / rail / SearchPalette (Antigravity owns that UI wave). Peer
 mailbox tools (`list_agents` / `send_message`, #561) are a different surface
-from this **handoff graph**. GitHub then the engineer seeds `:8001`.
+from this **handoff graph** ([ADR-009](../../adr/009-peer-mailbox.md)). GitHub then the engineer seeds `:8001`.
 Kind-base templates Support should subclass:
 [ADR-005](../../adr/005-kind-bases.md) (REQ-159 / #570).
 
@@ -137,8 +137,8 @@ Roster: [`demo-bridge.json`](./demo-bridge.json). `wires.handoff` /
 the **edge list** that tests lock lives on the API blueprint graph, not on
 CLI/remote members.
 
-Not #561: a later peer-mailbox (`list_agents` / `send_message`) is tools, not
-this topology.
+Not #561: the peer mailbox (`list_agents` / `send_message`) is tools, not
+this topology. See [ADR-009](../../adr/009-peer-mailbox.md).
 
 ---
 

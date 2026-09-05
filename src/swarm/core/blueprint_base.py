@@ -825,6 +825,10 @@ class BlueprintBase(ABC):
         from swarm.core.agent_roles import attach_role, normalize_agent_role
 
         role = normalize_agent_role(kwargs.pop("role", None) or role)
+        mailbox_ctx = getattr(self, "_mailbox_context", None)
+        if mailbox_ctx is not None:
+            extra = mailbox_ctx.tool_objects()
+            tools = list(tools or []) + extra
         agent = Agent(
             name=name,
             model=model_instance,
