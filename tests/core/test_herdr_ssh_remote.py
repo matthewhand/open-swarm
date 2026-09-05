@@ -14,15 +14,16 @@ from swarm.herdr import (
     HERDR_HTTP_REMOTE_REFUSED,
     HOP_MODEL,
     HerdrClient,
-    SSHNotConfiguredError,
     remote_command_from_ssh_argv,
     stub_ssh_transport,
 )
+
+
 def _ok(argv, stdout):
     return subprocess.CompletedProcess(argv, 0, stdout, "")
 
 
-def _ssh_client(spec, **kwargs):
+def _ssh_client(_spec=None, **_kwargs):
     calls: list[list[str]] = []
 
     def handler(argv):
@@ -39,7 +40,10 @@ def _ssh_client(spec, **kwargs):
         return _ok(argv, "{}")
 
     transport = stub_ssh_transport(handler)
-    client = HerdrClient(transport=transport, runner=lambda *a, **k: (_ for _ in ()).throw(AssertionError("local runner")))
+    def _local_forbidden(*_a, **_k):
+        raise AssertionError("local runner")
+
+    client = HerdrClient(transport=transport, runner=_local_forbidden)
     client._test_calls = calls  # noqa: SLF001 — test spy
     return client
 
@@ -141,6 +145,7 @@ def test_local_herdr_health_list_send_without_ssh():
     calls: list[list[str]] = []
 
     def runner(argv, timeout=None):
+        del timeout
         calls.append(list(argv))
         if argv[-2:] == ["workspace", "list"]:
             return _ok(argv, '{"ok":true}')
@@ -154,7 +159,7 @@ def test_local_herdr_health_list_send_without_ssh():
             return _ok(argv, '{"result":{"state":"idle"}}')
         return _ok(argv, "{}")
 
-    def factory(spec, **kwargs):
+    def factory(_spec, **_kwargs):
         return HerdrClient(runner=runner)
 
     with patch("swarm.herdr.remote.herdr_client_from_spec", side_effect=factory):
@@ -188,7 +193,7 @@ def test_remote_herdr_health_list_send_interrogate_over_stub_ssh():
     }
     spies: list[HerdrClient] = []
 
-    def factory(spec, **kwargs):
+    def factory(spec, **_kwargs):
         client = _ssh_client(spec)
         spies.append(client)
         return client

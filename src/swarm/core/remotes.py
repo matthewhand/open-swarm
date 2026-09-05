@@ -858,7 +858,12 @@ def _apply_herdr_persist(
     ssh_agent: bool | str | None,
 ) -> None:
     """Persist local vs SSH Herdr fields. Never store a private key."""
-    from swarm.herdr.remote import HERDR_HTTP_REMOTE_REFUSED, HERDR_MODE_LOCAL, HERDR_MODE_SSH, is_localhost_base
+    from swarm.herdr.remote import (
+        HERDR_HTTP_REMOTE_REFUSED,
+        HERDR_MODE_LOCAL,
+        HERDR_MODE_SSH,
+        is_localhost_base,
+    )
     from swarm.herdr.ssh import looks_like_key_material
 
     if herdr_mode is not None:
@@ -900,20 +905,16 @@ def _apply_herdr_persist(
         if host or user:
             mode = HERDR_MODE_SSH
             entry["herdr_mode"] = mode
-        elif base and is_localhost_base(base):
-            mode = HERDR_MODE_LOCAL
-            entry["herdr_mode"] = mode
-        elif not base and not host and not user:
+        elif (base and is_localhost_base(base)) or (not base and not host and not user):
             mode = HERDR_MODE_LOCAL
             entry["herdr_mode"] = mode
 
-    if mode == HERDR_MODE_SSH:
-        if not host or not user:
-            raise RemoteError(
-                "Remote Herdr SSH needs ssh_host + ssh_user "
-                "(optional ssh_identity_env / ssh_agent). "
-                "This is not an HTTP remote. Refusing to guess a host."
-            )
+    if mode == HERDR_MODE_SSH and (not host or not user):
+        raise RemoteError(
+            "Remote Herdr SSH needs ssh_host + ssh_user "
+            "(optional ssh_identity_env / ssh_agent). "
+            "This is not an HTTP remote. Refusing to guess a host."
+        )
     if base and not is_localhost_base(base) and mode != HERDR_MODE_LOCAL and not (host and user):
         raise RemoteError(HERDR_HTTP_REMOTE_REFUSED)
 
@@ -1206,7 +1207,7 @@ def _extract_version(payload: Any) -> Any:
     return None
 
 
-def _herdr_cli_health(spec: RemoteSpec, timeout: float) -> HealthResult:
+def _herdr_cli_health(spec: RemoteSpec, timeout: float) -> HealthResult:  # noqa: ARG001
     """Health via local herdr or SSH hop (never a guessed host)."""
     from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
     from swarm.herdr.ssh import SSHNotConfiguredError
@@ -1827,7 +1828,7 @@ def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
     )
 
 
-def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:
+def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:  # noqa: ARG001
     from swarm.herdr.client import HerdrBlockedError, extract_prompt_type
     from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
     from swarm.herdr.ssh import SSHNotConfiguredError
@@ -1861,7 +1862,7 @@ def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> O
     )
 
 
-def _herdr_interrogate(spec: RemoteSpec, target: str, timeout: float) -> OperateResult:
+def _herdr_interrogate(spec: RemoteSpec, target: str, timeout: float) -> OperateResult:  # noqa: ARG001
     """Inspect one CLI/pane Herdr manages (agent get) over local or SSH hop."""
     from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
     from swarm.herdr.ssh import SSHNotConfiguredError

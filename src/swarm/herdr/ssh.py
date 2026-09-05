@@ -87,9 +87,7 @@ def looks_like_key_material(value: str) -> bool:
         return True
     if blob.startswith(("ssh-rsa ", "ssh-ed25519 ", "ssh-dss ", "ecdsa-sha2-")):
         return True
-    if "\n" in blob and "PRIVATE" in upper:
-        return True
-    return False
+    return bool("\n" in blob and "PRIVATE" in upper)
 
 
 def _as_env_name(value: str) -> str:
@@ -233,7 +231,8 @@ def stub_ssh_transport(
 ) -> SSHTransport:
     """Test helper: ``handler`` receives the full ssh argv."""
 
-    def runner(argv: list[str], *, timeout: int | None = None, **_kwargs: Any) -> subprocess.CompletedProcess:
+    def runner(argv: list[str], *, timeout: int | None = None, **_kwargs: Any) -> subprocess.CompletedProcess:  # noqa: ARG001
+        del timeout, _kwargs
         return handler(argv)
 
     dest = target or SSHTarget(host="herdr.example.test", user="herdr")

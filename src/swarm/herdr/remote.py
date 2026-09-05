@@ -23,7 +23,11 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlparse
 
-from swarm.herdr.client import HerdrClient, members_from_agent_list, members_from_workspace_list
+from swarm.herdr.client import (
+    HerdrClient,
+    members_from_agent_list,
+    members_from_workspace_list,
+)
 from swarm.herdr.ssh import (
     SSH_NOT_CONFIGURED,
     SSHNotConfiguredError,
