@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NOTIFY_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "agentNotifications.ts"
 SIDEBAR_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
+RAIL_MENU_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "railContextMenu.ts"
 CHAT_PAGE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
 RAIL_ORDER_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "railOrder.ts"
 
@@ -22,14 +23,15 @@ def test_notify_store_is_local_swarm_key_not_neon():
 
 
 def test_sidebar_menu_has_notifications_toggle():
-    content = SIDEBAR_TSX.read_text(encoding="utf-8")
-    assert "Notifications: On" in content
-    assert "Notifications: Off" in content
-    assert "maybeNotifyAgentTurn" in content
-    assert "enableAgentNotifications" in content
-    assert "notify-permission-hint" in content
-    assert "remoteDisplayName" in content
-    assert 'className="os-agent-edit"' not in content
+    sidebar = SIDEBAR_TSX.read_text(encoding="utf-8")
+    menu = RAIL_MENU_TS.read_text(encoding="utf-8")
+    assert "Notifications: On" in menu
+    assert "Notifications: Off" in menu
+    assert "maybeNotifyAgentTurn" in sidebar
+    assert "enableAgentNotifications" in sidebar
+    assert "notify-permission-hint" in sidebar
+    assert "remoteDisplayName" in sidebar
+    assert 'className="os-agent-edit"' not in sidebar
 
 
 def test_chat_page_notifies_on_assistant_final_and_failed_interrupt():
