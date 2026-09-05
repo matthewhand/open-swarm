@@ -7,9 +7,17 @@ import {
   fetchCliModels,
   fetchLlmProfiles,
   fetchModels,
+  fetchRemotes,
   type AgentRole,
   type Blueprint,
 } from '../lib/api'
+import { RemoteSelect } from './RemoteSelect'
+import { configuredRemotes } from '../lib/remotes'
+import {
+  loadAgentRemoteBinding,
+  remotesListForSelect,
+  saveAgentRemoteBinding,
+} from '../lib/agentRemote'
 import {
   assignedBlueprintId,
   loadAgentEdit,
@@ -73,6 +81,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [profileOverride, setProfileOverride] = useState('')
   const [newChatPerTask, setNewChatPerTask] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [boundRemoteId, setBoundRemoteId] = useState('')
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -136,6 +145,19 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     retry: 1,
   })
 
+  const remotesQuery = useQuery({
+    queryKey: ['remotes-list'],
+    queryFn: fetchRemotes,
+    enabled: Boolean(isOpen && agentKind === 'remote'),
+    retry: 1,
+  })
+  const remotesCatalog = remotesListForSelect(
+    remotesQuery.data,
+    null,
+    boundRemoteId ? loadAgentRemoteBinding(id) : null,
+  )
+  const configuredRemoteRows = configuredRemotes(remotesCatalog)
+
   const catalogAgentIds = useMemo(
     () => new Set(catalog.map((item) => item.id.toLowerCase())),
     [catalog],
@@ -166,6 +188,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setLlmOverride(edit.llmOverride || '')
     setCliOverride(edit.cliOverride || '')
     setProfileOverride(edit.profileOverride || '')
+    setBoundRemoteId(loadAgentRemoteBinding(id)?.id || '')
 
     let cancelled = false
     ;(async () => {
@@ -273,9 +296,45 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
 
         {/* LLM Override Picker by Kind (REQ-124) */}
         {agentKind === 'remote' && (
-          <div className="rounded-box border border-base-300 bg-base-200/40 p-3 opacity-60">
-            <span className="text-sm font-semibold text-base-content/70">LLM override</span>
-            <p className="text-xs text-base-content/60 mt-1">Remotes keep their own models</p>
+          <div className="space-y-3">
+            {configuredRemoteRows.length === 0 ? (
+              <div className="rounded-box border border-base-300 bg-base-200/40 p-3">
+                <span className="text-sm font-semibold">Remote</span>
+                <p className="text-xs text-base-content/60 mt-1">
+                  Add a remote before this agent is usable.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    onClose()
+                    openSettingsSheet({ section: 'remotes', addRemote: true })
+                  }}
+                >
+                  Add remote
+                </Button>
+              </div>
+            ) : (
+              <RemoteSelect
+                remotes={remotesCatalog}
+                value={boundRemoteId}
+                onChange={(nextId) => {
+                  setBoundRemoteId(nextId)
+                  const remote = configuredRemoteRows.find((row) => row.id === nextId)
+                  saveAgentRemoteBinding(
+                    id,
+                    remote ? { id: remote.id, kind: remote.kind || remote.id } : null,
+                  )
+                }}
+                label="Remote"
+              />
+            )}
+            <div className="rounded-box border border-base-300 bg-base-200/40 p-3 opacity-60">
+              <span className="text-sm font-semibold text-base-content/70">LLM override</span>
+              <p className="text-xs text-base-content/60 mt-1">Remotes keep their own models</p>
+            </div>
           </div>
         )}
 

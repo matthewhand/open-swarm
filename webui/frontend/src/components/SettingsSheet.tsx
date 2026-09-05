@@ -82,6 +82,8 @@ export interface OpenSettingsDetail {
   teamId?: string
   definitionKind?: DefinitionKind
   definitionId?: string
+  /** Open the Remotes pane already on the add form (zero-remotes bind path). */
+  addRemote?: boolean
 }
 
 export function openSettingsSheet(detail?: OpenSettingsDetail): void {
@@ -96,6 +98,7 @@ export interface SettingsSheetProps {
   initialSection?: SettingsSection | null
   definitionKind?: DefinitionKind | null
   definitionId?: string | null
+  initialAddRemote?: boolean
 }
 
 /**
@@ -114,6 +117,7 @@ export default function SettingsSheet({
   initialSection,
   definitionKind,
   definitionId,
+  initialAddRemote = false,
 }: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
@@ -283,7 +287,7 @@ export default function SettingsSheet({
               onSelect={setSelectedBlueprintId}
             />
           )}
-          {section === 'remotes' && <RemotesCatalogPane />}
+          {section === 'remotes' && <RemotesCatalogPane startAdding={initialAddRemote} />}
           {section === 'retention' && (
             <RetentionPane
               value={retention}
@@ -539,10 +543,10 @@ function ModuleLink({
   )
 }
 
-function RemotesCatalogPane() {
+function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) {
   const { success, error: toastError } = useToast()
   const queryClient = useQueryClient()
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(startAdding)
   const [kind, setKind] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKeyEnv, setApiKeyEnv] = useState('')
@@ -565,6 +569,10 @@ function RemotesCatalogPane() {
   useEffect(() => {
     if (!selectedId && configured[0]) setSelectedId(configured[0].id)
   }, [selectedId, configured])
+
+  useEffect(() => {
+    if (startAdding) setAdding(true)
+  }, [startAdding])
 
   const addMutation = useMutation({
     mutationFn: () =>

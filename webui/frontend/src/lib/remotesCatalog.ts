@@ -141,7 +141,11 @@ export function parseRemotes(payload: unknown): RemoteEntry[] {
   }
   const rec = asRecord(payload)
   if (!rec) return []
-  const list = Array.isArray(rec.data) ? rec.data : null
+  const list = Array.isArray(rec.data)
+    ? rec.data
+    : Array.isArray(rec.configured)
+      ? rec.configured
+      : null
   if (!list) return []
   return list.map(parseRemote).filter((row): row is RemoteEntry => row !== null)
 }

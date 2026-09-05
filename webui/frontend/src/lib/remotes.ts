@@ -50,12 +50,24 @@ export function remoteKinds(response?: RemotesListResponse | null): RemoteKind[]
 /**
  * Only remotes the user (or env) has added. Defaults / unused kinds stay out.
  */
-export function configuredRemotes(response?: RemotesListResponse | null): RemoteConnection[] {
+export function configuredRemotes(
+  response?: RemotesListResponse | RemoteConnection[] | null,
+): RemoteConnection[] {
   if (!response) return []
+  if (Array.isArray(response)) {
+    return response.filter((remote) => Boolean(remote?.id))
+  }
   if (Array.isArray(response.configured)) {
     return response.configured
   }
   return (response.data ?? []).filter((remote) => remote.source && remote.source !== 'default')
+}
+
+/** Empty catalog vs remotes-exist-but-unbound. Never "No remotes" while remotes exist. */
+export function remoteSelectPlaceholder(configuredCount: number, selectedId = ''): string {
+  if (configuredCount === 0) return 'No remotes'
+  if (!selectedId) return 'Pick a remote'
+  return 'Remote'
 }
 
 export function unusedRemoteKinds(

@@ -3,6 +3,7 @@ import {
   configuredRemotes,
   remoteKindLabel,
   remoteKinds,
+  remoteSelectPlaceholder,
   unusedRemoteKinds,
 } from '../remotes'
 
@@ -76,5 +77,23 @@ describe('remotes catalog (REQ-59)', () => {
       ],
     }
     expect(configuredRemotes(listed)).toEqual([])
+  })
+
+  it('treats a configured array payload as remotes, not an empty catalog', () => {
+    const rows = configuredRemotes([
+      {
+        id: 'omb',
+        kind: 'omb',
+        label: 'OpenMousBot',
+        title: 'OpenMousBot',
+        host_label: '',
+        base_url: 'http://127.0.0.1:8802',
+        source: 'config',
+      },
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe('omb')
+    expect(remoteSelectPlaceholder(rows.length, '')).toBe('Pick a remote')
+    expect(remoteSelectPlaceholder(0, '')).toBe('No remotes')
   })
 })

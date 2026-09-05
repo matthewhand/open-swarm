@@ -45,6 +45,16 @@ describe('RemoteSelect', () => {
     expect(within(select).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
     expect(within(select).queryByRole('option', { name: 'OMB' })).not.toBeInTheDocument()
     expect(select.textContent).not.toMatch(/\bOMB\b/)
+    expect(within(select).getByRole('option', { name: 'Pick a remote' })).toBeInTheDocument()
+    expect(within(select).queryByRole('option', { name: 'No remotes' })).not.toBeInTheDocument()
+  })
+
+  it('shows the bound remote name instead of No remotes', () => {
+    render(<RemoteSelect remotes={ONE} value="omb" onChange={vi.fn()} />)
+    const select = screen.getByRole('combobox', { name: 'Remote' })
+    expect(select).toHaveValue('omb')
+    expect(within(select).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(within(select).queryByRole('option', { name: 'No remotes' })).not.toBeInTheDocument()
   })
 
   it('Add remote opens Settings remotes', () => {

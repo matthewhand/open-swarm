@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AddAgentWizard from '../AddAgentWizard'
@@ -43,6 +43,12 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
       native_consensus: {},
       catalog: {},
       rail: [],
+    })
+    vi.spyOn(api, 'fetchRemotes').mockResolvedValue({
+      object: 'list',
+      kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+      configured: [],
+      data: [],
     })
   })
 
@@ -353,5 +359,46 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
       })
       expect(onClose).toHaveBeenCalled()
     })
+  })
+
+  it('requires picking a configured remote when remotes already exist', async () => {
+    vi.spyOn(api, 'fetchRemotes').mockResolvedValue({
+      object: 'list',
+      kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+      configured: [
+        {
+          id: 'omb',
+          kind: 'omb',
+          label: 'OpenMousBot',
+          title: 'OpenMousBot',
+          host_label: '',
+          base_url: 'http://127.0.0.1:8802',
+          source: 'config',
+        },
+      ],
+    })
+    const createRemoteSpy = vi.spyOn(api, 'createRemote')
+    const { onCreated, onClose } = renderWizard()
+
+    fireEvent.click(screen.getByTestId('kind-option-remote'))
+    const select = await screen.findByRole('combobox', { name: 'Remote' })
+    expect(within(select).getByRole('option', { name: 'Pick a remote' })).toBeInTheDocument()
+    expect(screen.queryByTestId('input-remote-url')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('submit-create-agent'))
+    expect(await screen.findByText(/Select a configured remote/i)).toBeInTheDocument()
+    expect(createRemoteSpy).not.toHaveBeenCalled()
+
+    fireEvent.change(select, { target: { value: 'omb' } })
+    fireEvent.click(screen.getByTestId('submit-create-agent'))
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledWith({
+        id: 'omb',
+        name: 'OpenMousBot',
+        kind: 'remote',
+      })
+      expect(onClose).toHaveBeenCalled()
+    })
+    expect(createRemoteSpy).not.toHaveBeenCalled()
   })
 })

@@ -87,6 +87,15 @@ import {
   teamThreadId,
 } from '../lib/teamRosters'
 import { fetchConfiguredRemotes, remoteHideId } from '../lib/remotesCatalog'
+import { configuredRemotes } from '../lib/remotes'
+import {
+  AGENT_REMOTE_BINDINGS_CHANGED_EVENT,
+  isRemoteKindAgent,
+  loadAgentRemoteBinding,
+  remotesListForSelect,
+  resolveBoundRemoteId,
+  saveAgentRemoteBinding,
+} from '../lib/agentRemote'
 import {
   publishChatConnection,
   type ChatConnectionStatus,
@@ -260,6 +269,7 @@ const ChatPage = () => {
   const summaryMap = useMemo(() => summariesById(summaries), [summaries])
 
   const wsRef = useRef<WebSocket | null>(null)
+  const emptyRemoteOpenedForRef = useRef('')
   const conversationIdRef = useRef(conversationId)
   conversationIdRef.current = conversationId
   const listEndRef = useRef<HTMLDivElement | null>(null)
@@ -367,6 +377,11 @@ const ChatPage = () => {
     queryFn: fetchConfiguredRemotes,
     retry: 1,
   })
+  const remotesListQuery = useQuery({
+    queryKey: ['remotes-list'],
+    queryFn: fetchRemotes,
+    retry: 1,
+  })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const cliAgents = cliQuery.data?.rail ?? []
   const teams = teamsQuery.data ?? []
@@ -405,16 +420,34 @@ const ChatPage = () => {
     ),
   )
 
-  const isRemoteAgent = Boolean(
-    remoteFromUrl ||
-      selectedRemote ||
-      agentKind === 'remote' ||
-      selectedAgent?.kind === 'remote' ||
-      (selectedAgent as { agent_type?: string })?.agent_type === 'remote' ||
-      Boolean((selectedAgent as { remote?: string })?.remote),
-  )
+  const isRemoteAgent = isRemoteKindAgent({
+    remoteFromUrl,
+    agentKind,
+    blueprintId: selectedBlueprint,
+    selectedKind: (selectedAgent as { kind?: string } | undefined)?.kind,
+    agentType: (selectedAgent as { agent_type?: string })?.agent_type,
+    remote: (selectedAgent as { remote?: string })?.remote,
+    tags: (selectedAgent as { tags?: string[] })?.tags,
+  }) || Boolean(selectedRemote)
 
   const showRemotesControl = isRemoteAgent || isRemoteBackedTeam
+  const bindingAgentId = remoteFromUrl || (showRemotesControl ? selectedBlueprint : '')
+  const persistedRemote = bindingAgentId ? loadAgentRemoteBinding(bindingAgentId) : null
+  const remotesCatalog = remotesListForSelect(
+    remotesListQuery.data,
+    remotes,
+    remoteFromUrl
+      ? {
+          id: remoteFromUrl,
+          kind: selectedRemote?.kind || persistedRemote?.kind || remoteFromUrl,
+          title: selectedRemote?.title,
+        }
+      : persistedRemote,
+  )
+  const configuredRemoteRows = configuredRemotes(remotesCatalog)
+  const remotesCatalogReady = !remotesListQuery.isPending && !remotesQuery.isPending
+  const showEmptyRemoteChrome =
+    showRemotesControl && remotesCatalogReady && configuredRemoteRows.length === 0
 
   const isCliAgent = Boolean(
     !teamFromUrl &&
@@ -513,8 +546,39 @@ const ChatPage = () => {
   useEffect(() => {
     const onEdits = () => setEditsTick((tick) => tick + 1)
     window.addEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
-    return () => window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+    window.addEventListener(AGENT_REMOTE_BINDINGS_CHANGED_EVENT, onEdits)
+    return () => {
+      window.removeEventListener(AGENT_EDITS_CHANGED_EVENT, onEdits)
+      window.removeEventListener(AGENT_REMOTE_BINDINGS_CHANGED_EVENT, onEdits)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!showRemotesControl) return
+    setSelectedRemoteId(
+      resolveBoundRemoteId({
+        remoteFromUrl,
+        persisted: persistedRemote,
+        agentRemoteId: (selectedAgent as { remote_id?: string })?.remote_id,
+        configuredIds: configuredRemoteRows.map((row) => row.id),
+      }),
+    )
+  }, [
+    showRemotesControl,
+    remoteFromUrl,
+    bindingAgentId,
+    persistedRemote,
+    selectedAgent,
+    remotesCatalog,
+  ])
+
+  useEffect(() => {
+    if (!showEmptyRemoteChrome) return
+    const key = bindingAgentId || selectedBlueprint
+    if (!key || emptyRemoteOpenedForRef.current === key) return
+    emptyRemoteOpenedForRef.current = key
+    openSettingsSheet({ section: 'remotes', addRemote: true })
+  }, [showEmptyRemoteChrome, bindingAgentId, selectedBlueprint])
 
   useEffect(() => {
     if (teamFromUrl) {
@@ -1506,11 +1570,38 @@ const ChatPage = () => {
             </div>
             <span className="tabular-nums whitespace-nowrap text-xs">{formatTokenCount(tokenCount)} tok</span>
           </button>
-          {showRemotesControl ? (
+          {showEmptyRemoteChrome ? (
+            <button
+              type="button"
+              className="btn btn-sm h-8 border border-base-300 bg-base-100"
+              onClick={() => openSettingsSheet({ section: 'remotes', addRemote: true })}
+            >
+              Add remote
+            </button>
+          ) : showRemotesControl ? (
             <RemoteSelect
-              remotes={remotesQuery.data}
+              remotes={remotesCatalog}
               value={selectedRemoteId}
-              onChange={setSelectedRemoteId}
+              onChange={(nextId) => {
+                setSelectedRemoteId(nextId)
+                const remote = configuredRemoteRows.find((row) => row.id === nextId)
+                if (bindingAgentId && remote) {
+                  saveAgentRemoteBinding(bindingAgentId, {
+                    id: remote.id,
+                    kind: remote.kind || remote.id,
+                  })
+                } else if (bindingAgentId && !nextId) {
+                  saveAgentRemoteBinding(bindingAgentId, null)
+                }
+                if (remoteFromUrl && nextId && nextId !== remoteFromUrl) {
+                  setSearchParams((prev) => {
+                    const params = new URLSearchParams(prev)
+                    params.set('remote', nextId)
+                    params.delete('session')
+                    return params
+                  })
+                }
+              }}
               size="sm"
               className="h-8 max-w-[10rem]"
             />
