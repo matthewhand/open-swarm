@@ -5,9 +5,10 @@ session picker) over the still-mounted chat. Each row is a discovered tool
 with a visible **On/Off** switch scoped to the **current conversation**.
 Enabled tools sort first; search keeps that order inside matches.
 
-**Manage servers** opens Settings → Plugins (#502 add/edit/remove + local/remote
-+ discover). Servers persist in `swarm_config.json` `mcpServers`. Auth is
-`${VAR}` only. See [plugins-mcp.md](./plugins-mcp.md).
+**Manage servers** opens Settings → Plugins (#502 / #750 add/edit/remove +
+Local MCP / Remote MCP / OpenAPI (mcp-openapi-proxy) + discover). Servers
+persist in `swarm_config.json` `mcpServers`. Auth is `${VAR}` only. See
+[plugins-mcp.md](./plugins-mcp.md).
 
 #### Discovery degrade
 

@@ -1,12 +1,13 @@
-"""REST surface for Plugins MCP manage (#502).
+"""REST surface for Plugins MCP manage (#502 / #750).
 
 GET    /v1/mcp-plugins/           redacted server list + discovered tools
-POST   /v1/mcp-plugins/           upsert one local/remote server
+POST   /v1/mcp-plugins/           upsert one local/remote/OpenAPI server
 DELETE /v1/mcp-plugins/<name>/    remove a server
 POST   /v1/mcp-plugins/discover/  connect and list_tools (honest error)
 
 Persists through ADR-002 ``mcpServers``. Secrets stay ``${VAR}``. Responses
 never include secret values. Distinct from ``ENABLE_MCP_SERVER`` / ``/mcp/``.
+OpenAPI servers use ``mcp-openapi-proxy`` (source=openapi).
 """
 
 from __future__ import annotations
@@ -65,15 +66,17 @@ class McpPluginsView(APIView):
 
     @extend_schema(
         operation_id="v1_mcp_plugins_post",
-        summary="Upsert one local or remote MCP plugin server",
+        summary="Upsert one local, remote, or OpenAPI MCP plugin server",
         request=inline_serializer(
             name="McpPluginUpsertRequest",
             fields={
                 "name": serializers.CharField(),
                 "kind": serializers.CharField(required=False),
+                "source": serializers.CharField(required=False, allow_blank=True),
                 "command": serializers.CharField(required=False, allow_blank=True),
                 "args": serializers.ListField(required=False, child=serializers.CharField()),
                 "url": serializers.CharField(required=False, allow_blank=True),
+                "openapi_spec_url": serializers.CharField(required=False, allow_blank=True),
                 "enabled": serializers.BooleanField(required=False),
                 "env": serializers.DictField(required=False),
                 "headers": serializers.DictField(required=False),
@@ -137,9 +140,11 @@ class McpPluginDiscoverView(APIView):
             fields={
                 "name": serializers.CharField(required=False, allow_blank=True),
                 "kind": serializers.CharField(required=False),
+                "source": serializers.CharField(required=False, allow_blank=True),
                 "command": serializers.CharField(required=False, allow_blank=True),
                 "args": serializers.ListField(required=False, child=serializers.CharField()),
                 "url": serializers.CharField(required=False, allow_blank=True),
+                "openapi_spec_url": serializers.CharField(required=False, allow_blank=True),
                 "env": serializers.DictField(required=False),
                 "headers": serializers.DictField(required=False),
             },
@@ -164,6 +169,7 @@ class McpPluginDiscoverView(APIView):
                 "object": "mcp_plugin_tools",
                 "name": spec.get("name") or name,
                 "kind": spec.get("kind"),
+                "source": spec.get("source"),
                 "tools": tools,
             }
         )

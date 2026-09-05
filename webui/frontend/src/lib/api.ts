@@ -1173,10 +1173,12 @@ export interface McpPluginServer {
   name: string
   label?: string
   kind: 'local' | 'remote'
+  source?: 'generic' | 'openapi'
   enabled: boolean
   command: string
   args: string[]
   url: string
+  openapi_spec_url?: string
   type?: string
   cwd?: string
   env: Record<string, string>
@@ -1196,6 +1198,7 @@ export interface McpPluginDiscoverPayload {
   object: 'mcp_plugin_tools'
   name: string
   kind: 'local' | 'remote'
+  source?: 'generic' | 'openapi'
   tools: McpPluginTool[]
 }
 

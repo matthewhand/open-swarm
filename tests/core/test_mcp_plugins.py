@@ -8,6 +8,9 @@ import pytest
 
 from swarm.core.mcp_plugins import (
     McpPluginError,
+    OPENAPI_PROXY_ARGS,
+    OPENAPI_PROXY_COMMAND,
+    OPENAPI_SPEC_ENV,
     apply_plugin_mcp_runtime,
     attach_plugin_mcp_tools,
     enabled_mcp_servers,
@@ -16,6 +19,39 @@ from swarm.core.mcp_plugins import (
     plugin_catalog_ids,
     public_server,
 )
+
+MOCK_OPENAPI = {
+    "openapi": "3.0.0",
+    "info": {"title": "Pets", "version": "1.0.0"},
+    "paths": {
+        "/pets": {
+            "get": {
+                "operationId": "list_pets",
+                "summary": "List pets",
+            }
+        },
+        "/pets/{id}": {
+            "get": {
+                "operationId": "get_pet",
+                "summary": "Get a pet",
+            }
+        },
+    },
+}
+
+
+def _tools_from_mock_openapi(doc):
+    """Fixture mapper: OpenAPI operations → MCP tool rows (no live proxy)."""
+    rows = []
+    for path, methods in (doc.get("paths") or {}).items():
+        if not isinstance(methods, dict):
+            continue
+        for method, op in methods.items():
+            if not isinstance(op, dict):
+                continue
+            name = str(op.get("operationId") or f"{method}_{path.strip('/').replace('/', '_')}")
+            rows.append({"name": name, "description": str(op.get("summary") or "")})
+    return rows
 
 
 def _fn(name: str):
@@ -138,6 +174,192 @@ def test_disable_removes_tools_from_agent():
     names = [getattr(fn, "name", "") for fn in agent.functions]
     assert "web_fetch" not in names
     assert "chat" in names
+
+
+def test_normalize_openapi_local_defaults_proxy_and_spec_env():
+    spec = normalize_plugin_spec(
+        {
+            "name": "Pets",
+            "source": "openapi",
+            "kind": "local",
+            "openapi_spec_url": "https://example.invalid/openapi.json",
+            "env": {"API_KEY": "${API_KEY}"},
+        },
+        name="Pets",
+    )
+    assert spec["source"] == "openapi"
+    assert spec["kind"] == "local"
+    assert spec["command"] == OPENAPI_PROXY_COMMAND
+    assert spec["args"] == list(OPENAPI_PROXY_ARGS)
+    assert spec["openapi_spec_url"] == "https://example.invalid/openapi.json"
+    assert spec["env"][OPENAPI_SPEC_ENV] == "https://example.invalid/openapi.json"
+    assert spec["env"]["API_KEY"] == "${API_KEY}"
+
+
+def test_normalize_openapi_local_file_path(tmp_path):
+    spec_file = tmp_path / "pets.json"
+    spec_file.write_text("{}", encoding="utf-8")
+    spec = normalize_plugin_spec(
+        {
+            "name": "local-pets",
+            "source": "openapi",
+            "kind": "local",
+            "openapi_spec_url": str(spec_file),
+        },
+        name="local-pets",
+    )
+    assert spec["openapi_spec_url"].startswith("file://")
+    assert spec["env"][OPENAPI_SPEC_ENV].startswith("file://")
+
+
+def test_normalize_openapi_remote_needs_proxy_url():
+    remote = normalize_plugin_spec(
+        {
+            "name": "pets-remote",
+            "source": "openapi",
+            "kind": "remote",
+            "url": "https://example.invalid/mcp",
+            "openapi_spec_url": "https://example.invalid/openapi.json",
+        },
+        name="pets-remote",
+    )
+    assert remote["kind"] == "remote"
+    assert remote["source"] == "openapi"
+    assert remote["url"] == "https://example.invalid/mcp"
+    assert remote["openapi_spec_url"] == "https://example.invalid/openapi.json"
+
+    with pytest.raises(McpPluginError) as missing_url:
+        normalize_plugin_spec(
+            {
+                "name": "pets-remote",
+                "source": "openapi",
+                "kind": "remote",
+                "openapi_spec_url": "https://example.invalid/openapi.json",
+            },
+            name="pets-remote",
+        )
+    assert missing_url.value.code == "bad_payload"
+    assert "proxy MCP URL" in str(missing_url.value)
+
+
+def test_normalize_openapi_local_requires_spec():
+    with pytest.raises(McpPluginError) as exc:
+        normalize_plugin_spec(
+            {"name": "pets", "source": "openapi", "kind": "local"},
+            name="pets",
+        )
+    assert exc.value.code == "bad_payload"
+    assert "spec" in str(exc.value).lower()
+
+
+def test_normalize_openapi_refuses_spec_userinfo():
+    with pytest.raises(McpPluginError) as exc:
+        normalize_plugin_spec(
+            {
+                "name": "pets",
+                "source": "openapi",
+                "kind": "local",
+                "openapi_spec_url": "https://user:token@example.invalid/openapi.json",
+            },
+            name="pets",
+        )
+    assert exc.value.code == "plaintext_secret"
+
+
+def test_list_tools_openapi_mock_from_spec_operations():
+    expected = _tools_from_mock_openapi(MOCK_OPENAPI)
+
+    def openapi_fn(spec):
+        assert spec["source"] == "openapi"
+        assert spec["env"][OPENAPI_SPEC_ENV] == "https://example.invalid/openapi.json"
+        return expected
+
+    tools = list_tools_for_spec(
+        {
+            "name": "pets",
+            "source": "openapi",
+            "kind": "local",
+            "openapi_spec_url": "https://example.invalid/openapi.json",
+        },
+        list_tools_fn=openapi_fn,
+    )
+    assert tools == [
+        {"name": "list_pets", "description": "List pets"},
+        {"name": "get_pet", "description": "Get a pet"},
+    ]
+
+
+def test_disable_openapi_server_removes_tools():
+    config = {
+        "mcpServers": {
+            "pets": {
+                "source": "openapi",
+                "kind": "local",
+                "command": "uvx",
+                "args": ["mcp-openapi-proxy"],
+                "openapi_spec_url": "https://example.invalid/openapi.json",
+                "discovered_tools": _tools_from_mock_openapi(MOCK_OPENAPI),
+            },
+            "pets-off": {
+                "source": "openapi",
+                "kind": "local",
+                "command": "uvx",
+                "args": ["mcp-openapi-proxy"],
+                "enabled": False,
+                "discovered_tools": [{"name": "hidden_op", "description": "Hidden"}],
+            },
+        }
+    }
+    agent = SimpleNamespace(functions=[_fn("chat")], tools=[], mcp_servers=[])
+    blueprint = SimpleNamespace(agents={"worker": agent}, starting_agent=agent)
+    attach_plugin_mcp_tools(blueprint, config)
+    names = [getattr(fn, "name", "") for fn in agent.functions]
+    assert "list_pets" in names
+    assert "get_pet" in names
+    assert "hidden_op" not in names
+    assert "pets-off" not in enabled_mcp_servers(config)
+
+    apply_plugin_mcp_runtime(blueprint, config, [])
+    names = [getattr(fn, "name", "") for fn in agent.functions]
+    assert "list_pets" not in names
+    assert "chat" in names
+
+
+def test_public_server_exposes_openapi_source_without_secrets():
+    row = public_server(
+        "pets",
+        {
+            "source": "openapi",
+            "command": "uvx",
+            "args": ["mcp-openapi-proxy"],
+            "openapi_spec_url": "https://example.invalid/openapi.json",
+            "env": {"API_KEY": "${API_KEY}", "OPENAPI_SPEC_URL": "https://example.invalid/openapi.json"},
+            "discovered_tools": [{"name": "list_pets", "description": "List pets"}],
+        },
+    )
+    assert row["source"] == "openapi"
+    assert row["openapi_spec_url"] == "https://example.invalid/openapi.json"
+    assert row["tools"][0]["name"] == "list_pets"
+    assert "sk-" not in str(row)
+    assert row["env"]["API_KEY"] == "${API_KEY}"
+
+
+def test_openapi_discover_honest_missing_proxy(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise FileNotFoundError("uvx")
+
+    monkeypatch.setattr("swarm.core.mcp_plugins._run_async", boom)
+    with pytest.raises(McpPluginError) as exc:
+        list_tools_for_spec(
+            {
+                "name": "pets",
+                "source": "openapi",
+                "kind": "local",
+                "openapi_spec_url": "https://example.invalid/openapi.json",
+            }
+        )
+    assert exc.value.code == "mcp_discover_failed"
+    assert "not installed" in str(exc.value)
 
 
 def test_plugin_catalog_ids_include_discovered():
