@@ -1005,7 +1005,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         Lookup is by conversation_id PK only (avoids IntegrityError when the
         row exists for another student); ownership is then validated.
         """
-        from swarm.core.transcript_roles import is_ui_only_role, split_store
+        from swarm.core.transcript_roles import is_ui_only_item, split_store
 
         cache_key = _conversation_cache_key(self.user, conversation_id)
         from swarm.core.agent_sessions import get_or_create_session, touch_session
@@ -1036,7 +1036,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 content=message["content"],
             )
             for message in turns
-            if not is_ui_only_role(message.get("role"))
+            if not is_ui_only_item(message)
         ]
         # Idempotent replace: delete then insert current transcript.
         ChatMessage.objects.filter(conversation=chat).delete()

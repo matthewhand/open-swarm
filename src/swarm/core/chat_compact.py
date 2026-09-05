@@ -294,7 +294,7 @@ def ensure_transcript(
     if not getattr(user, "is_authenticated", False):
         raise CompactError("Sign in required.", status=403)
 
-    from swarm.core.transcript_roles import is_ui_only_role, split_store
+    from swarm.core.transcript_roles import is_ui_only_item, split_store
 
     user_key = chat_store.user_key_for(user)
     record = chat_store.load(user_key, agent_id)
@@ -335,7 +335,7 @@ def ensure_transcript(
     raw = stored if stored else client
     if client and len(client) > len(raw):
         raw = client
-    raw = [item for item in raw if not is_ui_only_role(item.get("role"))]
+    raw = [item for item in raw if not is_ui_only_item(item)]
     if not raw:
         raise CompactError("Nothing to compact.")
 
@@ -349,7 +349,7 @@ def ensure_transcript(
                 [
                     ChatMessage(conversation=chat, sender=item["role"], content=item["content"])
                     for item in extras
-                    if not is_ui_only_role(item.get("role"))
+                    if not is_ui_only_item(item)
                 ]
             )
     else:
@@ -357,7 +357,7 @@ def ensure_transcript(
             [
                 ChatMessage(conversation=chat, sender=item["role"], content=item["content"])
                 for item in raw
-                if not is_ui_only_role(item.get("role"))
+                if not is_ui_only_item(item)
             ]
         )
     return chat, raw

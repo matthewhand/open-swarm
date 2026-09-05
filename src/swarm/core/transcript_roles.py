@@ -149,10 +149,10 @@ def is_chrome_message(item: Any) -> bool:
     """True when a row is UI chrome, not a model turn."""
     if not isinstance(item, dict):
         return False
+    if is_ui_only_item(item):
+        return True
     kind = item.get("kind")
     if isinstance(kind, str) and kind.strip().lower() in CHROME_KINDS:
-        return True
-    if is_ui_only_role(_role_of(item)):
         return True
     content = str(item.get("content") or item.get("text") or "")
     return content.startswith(HOP_PREFIXES)
