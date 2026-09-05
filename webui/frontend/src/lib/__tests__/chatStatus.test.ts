@@ -28,6 +28,7 @@ describe('formatDropdownStatus', () => {
     expect(formatDropdownStatus('cli', 'antigravity', 'grok')).toBe('CLI: antigravity → grok')
     expect(formatDropdownStatus('model', 'gpt-4', 'grok-4')).toBe('Model: gpt-4 → grok-4')
     expect(formatDropdownStatus('mode', 'Remote', 'CLI')).toBe('Mode: Remote → CLI')
+    expect(formatDropdownStatus('effort', 'medium', 'high')).toBe('Effort: medium → high')
   })
 })
 

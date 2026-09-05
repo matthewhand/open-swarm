@@ -1053,6 +1053,126 @@ button.os-agent-row {
   pointer-events: none;
 }
 
+/* REQ-200: one cascading navbar routing control (agent → model → effort). */
+.os-routing-picker {
+  position: relative;
+  max-width: min(28rem, 46vw);
+  min-width: 0;
+}
+.os-routing-face {
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--color-base-100);
+}
+.os-routing-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 9.5rem;
+  height: 2rem;
+  padding-inline: 0.55rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+.os-routing-pill + .os-routing-pill {
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-base-content) 12%, transparent);
+}
+.os-routing-pill__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.os-routing-pill__chevron {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.os-routing-pill:hover .os-routing-pill__chevron,
+.os-routing-pill:focus-visible .os-routing-pill__chevron,
+.os-routing-pill--hot .os-routing-pill__chevron,
+.os-routing-picker--narrow .os-routing-pill__chevron {
+  opacity: 0.7;
+}
+.os-routing-flyout,
+.os-routing-sheet {
+  position: absolute;
+  inset-block-start: calc(100% + 0.3rem);
+  inset-inline-start: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+.os-routing-sheet {
+  inset-inline-end: 0;
+  width: min(20rem, 92vw);
+  flex-direction: column;
+}
+.os-routing-menu {
+  min-width: 10.5rem;
+  max-width: 16rem;
+  max-height: min(20rem, 70vh);
+  overflow: auto;
+  padding: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+  border-radius: 0.65rem;
+  background: var(--color-base-100);
+  box-shadow: 0 10px 28px color-mix(in srgb, #000 16%, transparent);
+}
+.os-routing-menu--nested {
+  margin-inline-start: 0.25rem;
+}
+.os-routing-menu__heading {
+  padding: 0.25rem 0.5rem 0.35rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-base-content) 55%, transparent);
+}
+.os-routing-menu__back,
+.os-routing-menu__empty,
+.os-routing-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  font-size: 0.8125rem;
+}
+.os-routing-option:hover,
+.os-routing-option[data-active='true'],
+.os-routing-option--current {
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+}
+.os-routing-option__more {
+  opacity: 0.55;
+}
+.os-routing-menu__empty {
+  opacity: 0.6;
+}
+.os-routing-picker--narrow {
+  max-width: min(18rem, 58vw);
+}
+.os-routing-picker--narrow .os-routing-pill {
+  max-width: 6.5rem;
+}
+
 .os-runtime-banner-wrap {
   padding: 0.5rem 0.75rem 0;
 }

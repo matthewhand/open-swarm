@@ -159,9 +159,10 @@ test('CLI dropdown change is one bubble-less status line', async ({ page }, test
   })
 
   await page.goto('/chat?blueprint=cli_agent&mode=cli&cli=antigravity')
-  const cli = page.getByRole('combobox', { name: 'CLI' })
-  await expect(cli).toHaveValue('antigravity')
-  await cli.selectOption('grok')
+  const cli = page.getByTestId('routing-pill-agent')
+  await expect(cli).toHaveAttribute('data-value', 'antigravity')
+  await cli.click()
+  await page.getByRole('menuitem', { name: 'grok' }).click()
   const status = page.getByTestId('chat-status')
   await expect(status).toHaveCount(1)
   await expect(status).toHaveText('CLI: antigravity → grok')

@@ -1779,18 +1779,21 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
-    const select = await screen.findByRole('combobox', { name: 'Remote' })
-    const options = within(select)
-      .getAllByRole('option')
+    const pill = await screen.findByTestId('routing-pill-agent')
+    expect(screen.getByTestId('navbar-routing-picker')).toHaveAttribute('data-seat-kind', 'remote')
+    expect(pill).toHaveAttribute('data-value', 'omb')
+    fireEvent.click(pill)
+    const menu = await screen.findByTestId('routing-menu-agent')
+    const options = within(menu)
+      .getAllByRole('menuitem')
       .map((opt) => opt.textContent)
-    expect(select).toHaveValue('omb')
     expect(options).toContain('OpenMousBot')
     expect(options).toContain('Add remote')
     expect(options).not.toContain('Hermes')
     expect(options).not.toContain('Rakazo')
     expect(options).not.toContain('OMB')
     expect(options).not.toContain('No remotes')
-    expect(select.textContent).not.toMatch(/\bOMB\b/)
+    expect(screen.getByTestId('navbar-routing-picker').textContent).not.toMatch(/\bOMB\b/)
   })
 
   it('shows the bound remote name for a remote agent (Issue #745)', async () => {
@@ -1830,10 +1833,12 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
-    const select = await screen.findByRole('combobox', { name: 'Remote' })
-    expect(select).toHaveValue('omb')
-    expect(within(select).getByRole('option', { name: 'OpenMousBot' })).toBeInTheDocument()
-    expect(within(select).queryByRole('option', { name: 'No remotes' })).not.toBeInTheDocument()
+    const pill = await screen.findByTestId('routing-pill-agent')
+    expect(pill).toHaveAttribute('data-value', 'omb')
+    fireEvent.click(pill)
+    const menu = await screen.findByTestId('routing-menu-agent')
+    expect(within(menu).getByRole('menuitem', { name: 'OpenMousBot' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'No remotes' })).not.toBeInTheDocument()
   })
 
   it('opens Add remote instead of No remotes chrome when none are configured', async () => {
@@ -1916,12 +1921,13 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
-    const select = await screen.findByRole('combobox', { name: 'Remote' })
-    const options = within(select)
-      .getAllByRole('option')
+    const pill = await screen.findByTestId('routing-pill-agent')
+    expect(pill).toHaveTextContent('Pick a remote')
+    fireEvent.click(pill)
+    const menu = await screen.findByTestId('routing-menu-agent')
+    const options = within(menu)
+      .getAllByRole('menuitem')
       .map((opt) => opt.textContent)
-    expect(select).toHaveValue('')
-    expect(options).toContain('Pick a remote')
     expect(options).toContain('OpenMousBot')
     expect(options).not.toContain('No remotes')
   })
@@ -2016,7 +2022,10 @@ describe('ChatPage remotes dropdown (REQ-59)', () => {
     await act(async () => {
       MockWebSocket.instances[0]?.open()
     })
-    expect(await screen.findByRole('combobox', { name: 'Remote' })).toBeInTheDocument()
+    expect(await screen.findByTestId('navbar-routing-picker')).toHaveAttribute(
+      'data-seat-kind',
+      'remote',
+    )
   })
 })
 
@@ -3194,11 +3203,9 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    await screen.findByRole('option', { name: 'grok' })
-    const cliSelect = await screen.findByRole('combobox', { name: 'CLI' })
-    fireEvent.change(cliSelect, {
-      target: { value: 'grok' },
-    })
+    const cliPill = await screen.findByTestId('routing-pill-agent')
+    fireEvent.click(cliPill)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'grok' }))
 
     const status = await screen.findByTestId('chat-status')
     expect(status).toHaveTextContent('CLI: antigravity → grok')
@@ -3207,7 +3214,7 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
     expect(screen.getAllByTestId('chat-status')).toHaveLength(1)
   })
 
-  it('renders CLI and Model dropdowns on CLI agent and hides API and Remotes controls (REQ-133)', async () => {
+  it('renders one CLI routing picker and hides API and Remotes controls (REQ-133 / REQ-200)', async () => {
     const store = { messages: [] as { role: string; content: string }[] }
     stubWithThreadStore(store)
 
@@ -3216,8 +3223,11 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    expect(await screen.findByRole('combobox', { name: 'CLI' })).toBeInTheDocument()
-    expect(await screen.findByRole('combobox', { name: 'Model' })).toBeInTheDocument()
+    expect(await screen.findByTestId('navbar-routing-picker')).toBeInTheDocument()
+    expect(screen.getAllByTestId('navbar-routing-picker')).toHaveLength(1)
+    expect(screen.getByTestId('routing-pill-agent')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
   })
@@ -3305,13 +3315,14 @@ describe('ChatPage per-agent dropdown persist (REQ-180)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const cliSelect = await screen.findByRole('combobox', { name: 'CLI' })
-    fireEvent.change(cliSelect, { target: { value: 'antigravity' } })
-    await screen.findByRole('option', { name: 'grok-4' })
-    const modelSelect = await screen.findByRole('combobox', { name: 'Model' })
-    fireEvent.change(modelSelect, { target: { value: 'grok-4' } })
-    expect(cliSelect).toHaveValue('antigravity')
-    expect(modelSelect).toHaveValue('grok-4')
+    const cliPill = await screen.findByTestId('routing-pill-agent')
+    fireEvent.click(cliPill)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'antigravity' }))
+    const modelPill = await screen.findByTestId('routing-pill-model')
+    fireEvent.click(modelPill)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'grok-4' }))
+    expect(screen.getByTestId('routing-pill-agent')).toHaveAttribute('data-value', 'antigravity')
+    expect(screen.getByTestId('routing-pill-model')).toHaveAttribute('data-value', 'grok-4')
 
     first.unmount()
     renderChat('/chat?blueprint=cli_agent&mode=cli')
@@ -3319,11 +3330,11 @@ describe('ChatPage per-agent dropdown persist (REQ-180)', () => {
       MockWebSocket.instances[MockWebSocket.instances.length - 1]?.open()
     })
 
-    const restoredCli = await screen.findByRole('combobox', { name: 'CLI' })
-    const restoredModel = await screen.findByRole('combobox', { name: 'Model' })
+    const restoredCli = await screen.findByTestId('routing-pill-agent')
+    const restoredModel = await screen.findByTestId('routing-pill-model')
     await waitFor(() => {
-      expect(restoredCli).toHaveValue('antigravity')
-      expect(restoredModel).toHaveValue('grok-4')
+      expect(restoredCli).toHaveAttribute('data-value', 'antigravity')
+      expect(restoredModel).toHaveAttribute('data-value', 'grok-4')
     })
 
     const composer = screen.getByRole('textbox', { name: 'Chat message' })
@@ -3335,6 +3346,90 @@ describe('ChatPage per-agent dropdown persist (REQ-180)', () => {
       blueprint: 'cli_agent',
       params: { cli: 'antigravity', model: 'grok-4' },
     })
+  })
+})
+
+describe('ChatPage cascading navbar picker (REQ-200)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.localStorage.clear()
+    resetConversationThreads()
+  })
+
+  it('shows three pills and records an effort-only status line', async () => {
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    const store = { messages: [] as { role: string; content: string }[] }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          if (url.includes('?') === false && store.messages.length) {
+            /* keep */
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'cli_agent',
+              conversation_id: 'cli_agent',
+              messages: store.messages,
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents/') && url.includes('/models')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              cli: 'agy',
+              models: ['gemini-3.8-flash-high', 'gemini-3.8-flash-medium', 'claude-sonnet-4-6'],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ clis: ['agy', 'grok'], installed: ['agy', 'grok'] }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'cli_agent', name: 'CLI agent', description: 'CLI' }],
+            messages: [],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=cli_agent&mode=cli&cli=agy&model=gemini-3.8-flash-medium')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    expect(await screen.findByTestId('navbar-routing-picker')).toBeInTheDocument()
+    expect(screen.getAllByTestId('navbar-routing-picker')).toHaveLength(1)
+    expect(screen.getByTestId('routing-face')).toHaveAttribute(
+      'title',
+      'agy / gemini-3.8-flash / medium',
+    )
+    expect(screen.getByTestId('routing-pill-agent')).toHaveTextContent('agy')
+    expect(screen.getByTestId('routing-pill-model')).toHaveTextContent('gemini-3.8-flash')
+    expect(screen.getByTestId('routing-pill-effort')).toHaveTextContent('medium')
+
+    fireEvent.click(screen.getByTestId('routing-pill-effort'))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'high' }))
+    const status = await screen.findByTestId('chat-status')
+    expect(status).toHaveTextContent('Effort: medium → high')
+    expect(status.className).not.toMatch(/chat-start|chat-end/)
+    expect(screen.getByTestId('routing-pill-agent')).toHaveAttribute('data-value', 'agy')
+    expect(screen.getByTestId('routing-pill-model')).toHaveAttribute('data-value', 'gemini-3.8-flash')
+    expect(screen.getByTestId('routing-pill-effort')).toHaveAttribute('data-value', 'high')
   })
 })
 

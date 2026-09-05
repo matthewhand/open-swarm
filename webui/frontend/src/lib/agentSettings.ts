@@ -16,8 +16,8 @@ export const OPEN_AGENT_EDITOR_EVENT = 'swarm:open-agent-editor'
 const STORAGE_PREFIX = 'swarm_agent_settings:'
 export const AGENT_DROPDOWNS_STORAGE_KEY = 'swarm_agent_dropdowns'
 
-/** Header dropdown fields that persist per agent (REQ-180 / #636). */
-export const AGENT_DROPDOWN_FIELDS = ['cli', 'model', 'remote', 'blueprint', 'api'] as const
+/** Header dropdown fields that persist per agent (REQ-180 / #636, REQ-200 effort). */
+export const AGENT_DROPDOWN_FIELDS = ['cli', 'model', 'remote', 'blueprint', 'api', 'effort'] as const
 export type AgentDropdownField = (typeof AGENT_DROPDOWN_FIELDS)[number]
 export type AgentDropdownChoice = Partial<Record<AgentDropdownField, string>>
 export type AgentDropdowns = Record<string, AgentDropdownChoice>
