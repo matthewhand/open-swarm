@@ -9,7 +9,22 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Circle, Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
+import {
+  Circle,
+  Eye,
+  EyeOff,
+  History,
+  MessageSquarePlus,
+  Pencil,
+  Pin,
+  PinOff,
+  Plug,
+  Plus,
+  Search,
+  Server,
+  Users,
+  X,
+} from 'lucide-react'
 import AddAgentWizard, { type AgentKind } from './AddAgentWizard'
 import {
   UNREAD_CHANGED_EVENT,
@@ -114,6 +129,7 @@ import {
   loadLocalNewChatPerTask,
   openAgentEditor,
 } from '../lib/agentSettings'
+import { createAgentSession, loadPickerSessions } from '../lib/agentSessions'
 import { activeTaskSessionCount } from '../lib/agentChat'
 import { openSearchPalette } from './SearchPalette'
 import { isMacPlatform, searchShortcutLabel } from '../lib/keybindingTips'
@@ -709,6 +725,25 @@ export default function AgentSidebar({
     [navigate, onClose],
   )
 
+  const openAgentSessionPicker = useCallback(
+    async (agentId: string, agentName: string) => {
+      const sessions = await loadPickerSessions(agentId)
+      setSessionPicker({ agentId, agentName, sessions })
+    },
+    [],
+  )
+
+  const startNewAgentSession = useCallback(
+    async (agentId: string) => {
+      const created = await createAgentSession(agentId)
+      const nextId = created?.id
+      if (!nextId) return
+      navigate(sessionHref(agentId, nextId))
+      onClose?.()
+    },
+    [navigate, onClose],
+  )
+
   const persistVisibleOrder = useCallback((nextVisible: string[]) => {
     setRailOrder(saveRailOrder(nextVisible))
   }, [])
@@ -816,7 +851,7 @@ export default function AgentSidebar({
     event.preventDefault()
     const pad = 8
     const width = 200
-    const height = 120
+    const height = 220
     const x = Math.min(event.clientX, window.innerWidth - width - pad)
     const y = Math.min(event.clientY, window.innerHeight - height - pad)
     setMenu({
@@ -2090,6 +2125,10 @@ export default function AgentSidebar({
         agentName={sessionPicker?.agentName ?? ''}
         sessions={sessionPicker?.sessions ?? []}
         onClose={() => setSessionPicker(null)}
+        onNewSession={() => {
+          const agentId = sessionPicker?.agentId
+          if (agentId) void startNewAgentSession(agentId)
+        }}
         onSelect={(session) => {
           const agentId = sessionPicker?.agentId || session.agentId
           navigate(sessionHref(agentId, session.id))
@@ -2105,6 +2144,38 @@ export default function AgentSidebar({
           className="fixed z-50 min-w-[12.5rem] rounded-lg border border-base-300 bg-neutral py-1 text-sm shadow-xl"
           style={{ left: menu.x, top: menu.y }}
         >
+          {(!menu.kind || menu.kind === 'agent') && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="os-menu-select-session"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+                onClick={() => {
+                  const { agentId, agentName } = menu
+                  closeMenu()
+                  void openAgentSessionPicker(agentId, agentName)
+                }}
+              >
+                <History className="h-4 w-4" aria-hidden="true" />
+                Select session…
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="os-menu-new-session"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+                onClick={() => {
+                  const { agentId } = menu
+                  closeMenu()
+                  void startNewAgentSession(agentId)
+                }}
+              >
+                <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+                New session
+              </button>
+            </>
+          )}
           {menu.sessions && menu.sessions.length > 0 && (
             <button
               type="button"

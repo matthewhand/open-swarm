@@ -101,6 +101,7 @@ export interface AgentThreadMessage {
 export interface AgentThread {
   agent_id: string
   conversation_id: string
+  session_title?: string
   messages: AgentThreadMessage[]
   summaries: ConversationSummary[]
   kind?: AgentKind
@@ -155,6 +156,7 @@ export async function fetchAgentThread(
         typeof data?.conversation_id === 'string' && data.conversation_id
           ? data.conversation_id
           : conversationId,
+      session_title: typeof data?.session_title === 'string' ? data.session_title : '',
       messages,
       summaries: parseSummaries(data?.summaries),
       kind,
@@ -165,6 +167,7 @@ export async function fetchAgentThread(
     return {
       agent_id: agent,
       conversation_id: conversationId,
+      session_title: '',
       messages: [],
       summaries: [],
       kind,
