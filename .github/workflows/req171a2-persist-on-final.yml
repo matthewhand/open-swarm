@@ -1,0 +1,44 @@
+name: REQ-171A-2 persist on assistant final
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/consumers.py"
+      - "src/swarm/core/chat_store.py"
+      - "tests/test_consumers.py"
+      - "tests/unit/test_req171a2_persist_on_final.py"
+      - "docs/websocket_chat.md"
+      - ".github/workflows/req171a2-persist-on-final.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/consumers.py"
+      - "src/swarm/core/chat_store.py"
+      - "tests/test_consumers.py"
+      - "tests/unit/test_req171a2_persist_on_final.py"
+      - "docs/websocket_chat.md"
+      - ".github/workflows/req171a2-persist-on-final.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-171A-2 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/unit/test_req171a2_persist_on_final.py \
+            tests/test_consumers.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
