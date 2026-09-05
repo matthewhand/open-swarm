@@ -14,9 +14,12 @@ Design notes
   argument or on stdin, so there is no shell-injection surface.
 * **Lifecycle.** Every launch runs in its own OS process *group*
   (``start_new_session=True``) so a hung or runaway agent — and any children it
-  spawned — can be killed as a group on timeout, ``aclose``, or cancel. That
-  flag is not a CLI conversation session. CLI session ids (``--resume`` /
-  ``--session``) are tracked separately on the chat thread (REQ-52).
+  spawned — can be killed as a group on timeout, ``aclose``, cancel, or a rail
+  **Terminate** (REQ-114). Kill is SIGTERM, then SIGKILL after ``TERM_GRACE``.
+  That flag is not a CLI conversation session. CLI session ids (``--resume`` /
+  ``--session``) are tracked separately on the chat thread (REQ-52). Chat runs
+  register the child pid/pgid so Terminate only signals the swarm-spawned
+  group — never an unrelated host process.
 * **Config-driven.** Adapters are described as plain dicts (see
   :meth:`CliAdapter.from_config`) so adding a new CLI is a config edit, not code.
 """
@@ -200,6 +203,8 @@ class CliResult:
     error: str | None = None
     stderr: str = ""
     session_id: str | None = None
+    # True when the user stopped this run via rail Terminate (REQ-114).
+    terminated: bool = False
 
 
 @dataclass
@@ -407,6 +412,7 @@ class CliAdapter:
         workdir: str | None = None,
         extra_env: dict[str, str] | None = None,
         session_id: str | None = None,
+        run_owner: dict[str, str] | None = None,
     ) -> CliResult:
         """Launch the CLI, await its answer, and parse the result.
 
@@ -418,7 +424,11 @@ class CliAdapter:
         """
         result: CliResult | None = None
         async for chunk in self.stream_run(
-            prompt, workdir=workdir, extra_env=extra_env, session_id=session_id
+            prompt,
+            workdir=workdir,
+            extra_env=extra_env,
+            session_id=session_id,
+            run_owner=run_owner,
         ):
             if chunk.final:
                 result = chunk.result
@@ -432,6 +442,7 @@ class CliAdapter:
         workdir: str | None = None,
         extra_env: dict[str, str] | None = None,
         session_id: str | None = None,
+        run_owner: dict[str, str] | None = None,
     ) -> AsyncIterator[CliStreamChunk]:
         """Like :meth:`run`, but yield stdout incrementally as it arrives.
 
@@ -500,6 +511,22 @@ class CliAdapter:
                 ),
             )
             return
+
+        run_token = None
+        owner = run_owner
+        if owner is None:
+            from swarm.core.cli_run_registry import current_run_owner
+
+            owner = current_run_owner()
+        if owner:
+            from swarm.core.cli_run_registry import register_cli_run
+
+            run_token = register_cli_run(
+                user_key=str(owner.get("user_key") or "u0"),
+                agent_id=str(owner.get("agent_id") or "cli_agent"),
+                conversation_id=str(owner.get("conversation_id") or ""),
+                pid=proc.pid or 0,
+            )
 
         if stdin_bytes is not None and proc.stdin is not None:
             try:
@@ -589,6 +616,22 @@ class CliAdapter:
                 pass
             stderr = b"".join(stderr_buf).decode("utf-8", errors="replace")
 
+            from swarm.core.cli_run_registry import was_user_terminated
+
+            user_stopped = was_user_terminated(run_token)
+            if user_stopped:
+                yield CliStreamChunk(
+                    final=True,
+                    result=CliResult(
+                        name=cfg.name, ok=False, text=stdout.strip(), returncode=proc.returncode,
+                        duration=duration, stderr=stderr.strip(),
+                        error="terminated",
+                        session_id=captured_session,
+                        terminated=True,
+                    ),
+                )
+                return
+
             if proc.returncode != 0:
                 yield CliStreamChunk(
                     final=True,
@@ -613,6 +656,9 @@ class CliAdapter:
         finally:
             # SSE disconnect / aclose / CancelledError — same path as timeout.
             # shield so a cancel during cleanup still lets killpg + wait finish.
+            from swarm.core.cli_run_registry import unregister_cli_run
+
+            unregister_cli_run(run_token)
             try:
                 await asyncio.shield(self._terminate(proc))
             except asyncio.CancelledError:

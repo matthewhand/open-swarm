@@ -18,6 +18,7 @@ export { useFormValidation, ValidatedInput, ValidatedSelect, ValidatedTextarea, 
 export { 
   ToastProvider,
   useToast,
+  useOptionalToast,
   useSuccessToast,
   useErrorToast,
   useWarningToast,

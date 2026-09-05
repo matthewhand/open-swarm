@@ -95,6 +95,12 @@ import {
   type ToolCallState,
 } from '../lib/safety'
 import { notifyGenerationComplete } from '../lib/railOrder'
+import {
+  CLI_TERMINATED_EVENT,
+  CLI_TERMINATED_STATUS,
+  cliTerminatedFromEvent,
+  notifyCliRunState,
+} from '../lib/cliRunState'
 import { publishExpectedSpaVersion } from '../lib/spaHello'
 import { maybeNotifyAgentTurn } from '../lib/agentNotifications'
 import {
@@ -1046,6 +1052,13 @@ const ChatPage = () => {
             )
             break
           case 'status':
+            if (
+              event.text === CLI_TERMINATED_STATUS &&
+              current.some((row) => row.role === 'status' && row.text === CLI_TERMINATED_STATUS)
+            ) {
+              next = current.map((row) => (row.streaming ? { ...row, streaming: false } : row))
+              break
+            }
             next = insertCliSessionNotice(current, {
               key: `status-${current.length}-${Date.now()}`,
               role: 'status',
@@ -1600,7 +1613,10 @@ const ChatPage = () => {
         })
       }
     }
-  }, [streamingMessage, activeChatAgentId, messages, selectedAgentName])
+    if (isCliAgent && activeChatAgentId) {
+      notifyCliRunState(activeChatAgentId, Boolean(streamingMessage))
+    }
+  }, [streamingMessage, activeChatAgentId, messages, selectedAgentName, isCliAgent])
 
   useEffect(() => {
     if (generationIsInFlight(messages, awaitingAssistant) || status !== 'open') return
@@ -1615,6 +1631,34 @@ const ChatPage = () => {
       queued.restore(next)
     }
   }, [awaitingAssistant, messages, queued, queuedHoldIds, sendText, status])
+
+  useEffect(() => {
+    const onTerminated = (event: Event) => {
+      const detail = cliTerminatedFromEvent(event)
+      if (!detail) return
+      const matchesAgent = detail.agentId === activeChatAgentId
+      const matchesConversation =
+        Boolean(detail.conversationId) && detail.conversationId === conversationIdRef.current
+      if (!matchesAgent && !matchesConversation) return
+      const statusMsg: ChatMessage = {
+        key: `status-terminated-${Date.now()}`,
+        role: 'status',
+        text: CLI_TERMINATED_STATUS,
+        streaming: false,
+        ts: new Date().toISOString(),
+      }
+      setThreads((prev) => {
+        const current = prev[threadKey] ?? []
+        const stopped = current.map((row) => (row.streaming ? { ...row, streaming: false } : row))
+        if (stopped.some((row) => row.role === 'status' && row.text === CLI_TERMINATED_STATUS)) {
+          return { ...prev, [threadKey]: stopped }
+        }
+        return { ...prev, [threadKey]: [...stopped, statusMsg] }
+      })
+    }
+    window.addEventListener(CLI_TERMINATED_EVENT, onTerminated)
+    return () => window.removeEventListener(CLI_TERMINATED_EVENT, onTerminated)
+  }, [activeChatAgentId, threadKey])
 
   const handleCompact = useCallback(async () => {
     setPlusOpen(false)

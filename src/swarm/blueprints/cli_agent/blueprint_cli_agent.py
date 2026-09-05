@@ -168,6 +168,16 @@ class CliAgentBlueprint(BlueprintBase):
         # mutated by a concurrent request across await points.
         params = dict(self._params)
 
+        from swarm.core.cli_run_registry import bind_run_owner, reset_run_owner, run_owner_from_params
+
+        owner_token = bind_run_owner(run_owner_from_params(params))
+        try:
+            async for chunk in self._run_cli_turn(messages, params, **kwargs):
+                yield chunk
+        finally:
+            reset_run_owner(owner_token)
+
+    async def _run_cli_turn(self, messages: list[dict[str, Any]], params: dict[str, Any], **kwargs) -> Any:
         # A blueprint can declare desired inference traits in its metadata
         # ("inference_profile") instead of naming a CLI; honor it unless the
         # request explicitly set a cli or its own profile.
@@ -313,6 +323,9 @@ class CliAgentBlueprint(BlueprintBase):
                     self._remember_session(params, adapter.name, result.session_id)
                 elif resumed and stored:
                     self._remember_session(params, adapter.name, stored)
+                if result is not None and result.terminated:
+                    yield support.terminated_notice_chunk()
+                    return
                 if result is None or not result.ok:
                     err = (result.error if result else None) or "unknown error"
                     yield support.message_chunk(support.format_cli_error(adapter, err), final=True)
@@ -339,6 +352,9 @@ class CliAgentBlueprint(BlueprintBase):
             result, resumed = await self._invoke_cli(
                 adapter, messages, prompt, params, workdir
             )
+            if result.terminated:
+                yield support.terminated_notice_chunk()
+                return
             if not announce_new:
                 yield support.session_notice_chunk(adapter.name, resumed=resumed)
             if result.ok:
