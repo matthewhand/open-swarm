@@ -115,7 +115,9 @@ describe('SearchPalette', () => {
     expect(screen.getByRole('option', { name: /Toggle theme/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Blueprints/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Teams/ })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Settings/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /^Settings/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Rail settings/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /System settings/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Show LLM profiles/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Hermes/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Rakazo/ })).not.toBeInTheDocument()
@@ -236,6 +238,36 @@ describe('SearchPalette choose + actions (REQ-5c #322)', () => {
     window.removeEventListener('swarm:open-settings', onOpen)
     expect(onClose).toHaveBeenCalled()
     expect(opened).toEqual([{ section: 'llm-profiles' }])
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
+  })
+
+  it('Actions → Rail settings opens Settings on the rail pane (REQ-188C-1)', async () => {
+    const opened: Array<{ section?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent<{ section?: string }>).detail ?? {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    const { onClose } = renderRoutedPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Rail settings/i }))
+    window.removeEventListener('swarm:open-settings', onOpen)
+    expect(onClose).toHaveBeenCalled()
+    expect(opened).toEqual([{ section: 'rail' }])
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
+  })
+
+  it('Actions → System settings opens Settings on the system pane (REQ-188C-1)', async () => {
+    const opened: Array<{ section?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent<{ section?: string }>).detail ?? {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    const { onClose } = renderRoutedPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    fireEvent.click(await screen.findByRole('option', { name: /System settings/i }))
+    window.removeEventListener('swarm:open-settings', onOpen)
+    expect(onClose).toHaveBeenCalled()
+    expect(opened).toEqual([{ section: 'system' }])
     expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
   })
 
