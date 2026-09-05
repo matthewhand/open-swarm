@@ -99,6 +99,7 @@ import {
 } from '../lib/chatWs'
 import { ToolCallPopup } from '../components/ToolCallPopup'
 import { PrOpenedCard } from '../components/PrOpenedCard'
+import { TeammateTaskCard } from '../components/TeammateTaskCard'
 import { SuggestionChips } from '../components/SuggestionChips'
 import {
   openerChatSearch,
@@ -106,6 +107,7 @@ import {
   type PrOpenedEvent,
   type PrOpenedOpener,
 } from '../lib/prOpened'
+import { parseTeammateTask, type TeammateTaskEvent } from '../lib/teammateTask'
 import { TokenDiagnosticsModal } from '../components/TokenDiagnosticsModal'
 import {
   isToolAlwaysAllowed,
@@ -227,6 +229,8 @@ interface ChatMessage {
   edited?: boolean
   /** REQ-71 chrome — structured PR-opened tool result, not markdown. */
   prOpened?: PrOpenedEvent
+  /** REQ-84 chrome — team task whose worker is a configured remote. */
+  teammateTask?: TeammateTaskEvent
   /** REQ-104 — expandable archive of the previous swarm thread. */
   kind?: 'prior_history'
   /** Persist/reload timestamp (ISO). Status/info chrome shows this. */
@@ -238,14 +242,16 @@ function chatMessageFromThreadRow(
   index: number,
 ): ChatMessage {
   const prOpened = parsePrOpened(message.content) ?? undefined
+  const teammateTask = parseTeammateTask(message.content) ?? undefined
   const prior = message.kind === 'prior_history'
   return {
     key: `hist-${index}-${message.role}`,
     role: prior ? 'system' : asTranscriptRole(message.role),
-    text: prOpened ? '' : message.content,
+    text: prOpened || teammateTask ? '' : message.content,
     streaming: false,
     edited: message.edited === true,
     prOpened,
+    teammateTask,
     kind: prior ? 'prior_history' : undefined,
     ts: message.ts,
   }
@@ -1073,6 +1079,25 @@ const ChatPage = () => {
                 text: '',
                 streaming: false,
                 prOpened: event.event,
+              },
+            ],
+          }
+        })
+        return
+      }
+      if (event.kind === 'teammate_task') {
+        setThreads((prev) => {
+          const current = prev[threadKey] ?? []
+          return {
+            ...prev,
+            [threadKey]: [
+              ...current,
+              {
+                key: `teammate-task-${current.length}-${Date.now()}`,
+                role: 'status' as const,
+                text: '',
+                streaming: false,
+                teammateTask: event.event,
               },
             ],
           }
@@ -2282,6 +2307,21 @@ const ChatPage = () => {
             }
             const message = item.message
             const liveMessage = messages.find((row) => row.key === message.key)
+            const teammateTask = liveMessage?.teammateTask
+            if (teammateTask) {
+              return (
+                <div key={message.key} className="os-teammate-task-wrap my-2">
+                  <TeammateTaskCard
+                    event={teammateTask}
+                    context={{
+                      teamId: teamFromUrl,
+                      team: selectedTeam,
+                      remotes: configuredRemotes(remotesListQuery.data),
+                    }}
+                  />
+                </div>
+              )
+            }
             const prOpened = liveMessage?.prOpened
             if (prOpened) {
               const openerId = prOpened.opener?.agentId

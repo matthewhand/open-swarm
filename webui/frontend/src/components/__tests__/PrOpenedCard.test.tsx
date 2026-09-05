@@ -33,6 +33,8 @@ describe('PrOpenedCard', () => {
     expect(screen.queryByTestId('pr-opened-jump')).not.toBeInTheDocument()
     expect(container.textContent).not.toMatch(/Open in Cursor/i)
     expect(container.textContent).not.toMatch(/Cursor/)
+    expect(container.textContent).not.toMatch(/Open in Hermes/i)
+    expect(container.textContent).not.toMatch(/Open in OpenMousBot/i)
   })
 
   it('shows optional branch, status, and +N/-M only when supplied', () => {

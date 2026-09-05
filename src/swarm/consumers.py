@@ -442,12 +442,31 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         canned = f"[team:{team} target:{target}] {message_text}"
         await self.send(text_data=_oob_append_html(contents_div_id, canned))
         _record_turn(self, "assistant", canned)
+        await self._emit_teammate_task_cards(params, message_text)
         final_html = render_to_string(
             "websocket_partials/final_system_message.html",
             {"contents_div_id": contents_div_id, "message": canned},
         )
         await self.send(text_data=final_html)
         await self._emit_suggestions_if_enabled(None)
+
+    async def _emit_teammate_task_cards(self, params, message_text):
+        """REQ-84: Open-in-{remote} chrome when a team tasks a remote member."""
+        try:
+            from swarm.core.teammate_task import teammate_tasks_for_team_send
+
+            team = str((params or {}).get("team") or "")
+            target = str((params or {}).get("target") or "all")
+            op = str((params or {}).get("op") or "")
+            for payload in teammate_tasks_for_team_send(
+                team_id=team,
+                target=target,
+                title=str(message_text or ""),
+                op=op,
+            ):
+                await self.emit_tool_event(payload)
+        except Exception:
+            logger.debug("teammate_task emit skipped", exc_info=True)
 
     async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
@@ -730,9 +749,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             logger.debug("suggestions emit skipped", exc_info=True)
 
     async def emit_tool_event(self, payload: dict) -> None:
-        """JSON tool-status / approval / PR-opened / suggestions frames for the SPA."""
+        """JSON tool-status / approval / PR-opened / teammate-task / suggestions frames."""
         try:
             from swarm.core.pr_opened import persist_pr_opened_message
+            from swarm.core.teammate_task import persist_teammate_task_message
 
             if isinstance(payload, dict) and payload.get("type") == "pr_opened":
                 opener = payload.get("opener")
@@ -753,6 +773,10 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
                 if getattr(self, "ui_events", None) is None:
                     self.ui_events = []
                 persist_pr_opened_message(self.messages, payload, events=self.ui_events)
+            if isinstance(payload, dict) and payload.get("type") == "teammate_task":
+                if getattr(self, "ui_events", None) is None:
+                    self.ui_events = []
+                persist_teammate_task_message(self.messages, payload, events=self.ui_events)
             await self.send(text_data=json.dumps(payload))
         except Exception:
             logger.debug("tool event send failed", exc_info=True)

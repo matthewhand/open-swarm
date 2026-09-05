@@ -715,6 +715,66 @@ class TestBlueprintSelection:
         assert "target:hermes" in sent
 
     @pytest.mark.asyncio
+    async def test_team_stub_emits_open_in_hermes_task_card(self, consumer):
+        """REQ-84: team tasking a stub Hermes remote emits Open in Hermes chrome."""
+        payload = {
+            "type": "teammate_task",
+            "team_id": "harness-team",
+            "worker_id": "hermes",
+            "worker_kind": "hermes",
+            "title": "ping hermes",
+            "status": "Running",
+            "href": "http://127.0.0.1:9119/stub-hermes",
+            "open_in_label": "Open in Hermes",
+        }
+        consumer.messages = [{"role": "user", "content": "ping hermes"}]
+        consumer.ui_events = []
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                with patch(
+                    "swarm.core.teammate_task.teammate_tasks_for_team_send",
+                    return_value=[payload],
+                ):
+                    await consumer.respond_with_team_stub(
+                        {"team": "harness-team", "target": "hermes"},
+                        "ping hermes",
+                        "message-response-remote",
+                    )
+        sent = "".join(
+            call.kwargs.get("text_data") or call.args[0]
+            for call in mock_send.await_args_list
+        )
+        assert "teammate_task" in sent
+        assert "Open in Hermes" in sent
+        assert "http://127.0.0.1:9119/stub-hermes" in sent
+        assert "OMB" not in sent
+        assert consumer.ui_events
+        assert consumer.ui_events[0]["kind"] == "teammate_task"
+
+    @pytest.mark.asyncio
+    async def test_team_stub_without_remote_emits_no_open_in_card(self, consumer):
+        consumer.messages = [{"role": "user", "content": "ping"}]
+        consumer.ui_events = []
+        with patch("swarm.consumers.render_to_string", return_value="<div></div>"):
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                with patch(
+                    "swarm.core.teammate_task.teammate_tasks_for_team_send",
+                    return_value=[],
+                ):
+                    await consumer.respond_with_team_stub(
+                        {"team": "local-team", "target": "codey"},
+                        "ping",
+                        "message-response-local",
+                    )
+        sent = "".join(
+            call.kwargs.get("text_data") or call.args[0]
+            for call in mock_send.await_args_list
+        )
+        assert "teammate_task" not in sent
+        assert "Open in Hermes" not in sent
+        assert consumer.ui_events == []
+
+    @pytest.mark.asyncio
     async def test_unknown_blueprint_sends_error_partial(self, consumer):
         """Unknown blueprint -> error partial; no assistant message recorded."""
         consumer.messages = [{"role": "user", "content": "Hello"}]
