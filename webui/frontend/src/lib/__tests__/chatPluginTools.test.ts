@@ -44,14 +44,14 @@ describe('plugin tool sort and search', () => {
   it('keeps enabled-first order inside search matches', () => {
     const visible = visiblePluginTools(
       [zebra, apple, mid],
-      'a',
+      'e',
       ['zebra_tool'],
     )
-    expect(visible.map((tool) => tool.id)).toEqual(['zebra_tool', 'apple_tool'])
+    expect(visible.map((tool) => tool.id)).toEqual(['zebra_tool', 'apple_tool', 'mid_tool'])
   })
 
   it('filters by name, description, and server', () => {
-    expect(filterPluginTools(FIXTURE_PLUGIN_TOOLS, 'timezone').map((t) => t.id)).toEqual([
+    expect(filterPluginTools(FIXTURE_PLUGIN_TOOLS, 'convert').map((t) => t.id)).toEqual([
       'convert_timezone',
     ])
     expect(filterPluginTools(FIXTURE_PLUGIN_TOOLS, 'playwright').length).toBeGreaterThan(1)
