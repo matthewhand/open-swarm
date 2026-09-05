@@ -2432,12 +2432,22 @@ export default function AgentSidebar({
     )
   }
 
-  const renderTeamRow = (team: TeamRoster, nested = false, seen: string[] = [], spillSlot?: number) => {
+  const renderTeamRow = (
+    team: TeamRoster,
+    nested = false,
+    seen: string[] = [],
+    spillSlot?: number,
+    railIndex?: number,
+  ) => {
     const hidden = resolvedHiddenIds.includes(teamHideId(team.id))
     if (hidden && !nested) return null
     const childSlots = team.members.filter((m) => m.kind === 'team')
     return (
-      <li key={`team-${team.id}`}>
+      <li
+        key={`team-${team.id}`}
+        data-rail-id={nested ? undefined : teamHideId(team.id)}
+        data-rail-index={nested ? undefined : railIndex}
+      >
         {hidden ? null : renderTeamLink(team, false, nested, spillSlot)}
         {childSlots.length > 0 && !seen.includes(team.id) ? (
           <ul className="os-agent-team-nest">
@@ -2837,13 +2847,14 @@ export default function AgentSidebar({
                                   index >= 0 && index < 9 - visiblePins.length
                                     ? visiblePins.length + index + 1
                                     : undefined
+                                if (row.kind === 'team') {
+                                  return renderTeamRow(row.team, false, [], spillSlot, index)
+                                }
                                 return (
                                   <li key={row.id} data-rail-id={row.id} data-rail-index={index}>
-                                    {row.kind === 'team'
-                                      ? renderTeamRow(row.team, false, [], spillSlot)
-                                      : row.kind === 'remote'
-                                        ? renderRemoteRow(row.remote, false, spillSlot)
-                                        : renderAgentRow(row.agent, false, spillSlot)}
+                                    {row.kind === 'remote'
+                                      ? renderRemoteRow(row.remote, false, spillSlot)
+                                      : renderAgentRow(row.agent, false, spillSlot)}
                                   </li>
                                 )
                               })
