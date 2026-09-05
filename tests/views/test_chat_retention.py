@@ -134,6 +134,7 @@ def test_chat_thread_isolates_two_sessions_and_summaries(client, user):
             {"role": "user", "content": "alpha only"},
             {"role": "assistant", "content": "ok-a"},
         ],
+        summarizer=lambda items, **_kwargs: "LLM digest of the compacted range.",
     )
     alpha = client.get(
         f"/chat/thread/?agent=codey&conversation_id={first.conversation_id}"

@@ -118,7 +118,7 @@ def test_settings_patch_50_is_read_by_helper():
 
 
 @pytest.mark.django_db
-def test_unknown_max_skips_auto_manual_compact_still_writes():
+def test_unknown_max_skips_auto_manual_compact_still_writes(stub_compact_llm):
     user = get_user_model().objects.create_user("compress-unknown", password="pw")
     cid = "conv-unknown-max"
     messages = _turns(
@@ -155,7 +155,7 @@ def test_unknown_max_skips_auto_manual_compact_still_writes():
 
 
 @pytest.mark.django_db
-def test_auto_compacts_when_over_threshold_and_max_known():
+def test_auto_compacts_when_over_threshold_and_max_known(stub_compact_llm):
     user = get_user_model().objects.create_user("compress-auto", password="pw")
     UserPreference.objects.create(
         user=user,
@@ -194,7 +194,7 @@ def test_auto_compacts_when_over_threshold_and_max_known():
 
 
 @pytest.mark.django_db
-def test_hover_to_here_keeps_later_messages_raw():
+def test_hover_to_here_keeps_later_messages_raw(stub_compact_llm):
     user = get_user_model().objects.create_user("compress-here", password="pw")
     cid = "conv-to-here"
     messages = _turns(

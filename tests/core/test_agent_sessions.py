@@ -92,6 +92,7 @@ def test_compact_does_not_leak_across_sessions(db, tmp_path, monkeypatch):
         conversation_id=first.conversation_id,
         agent_id="jeeves",
         messages=messages,
+        summarizer=lambda items, **_kwargs: "LLM digest of the compacted range.",
     )
     assert ConversationSummary.objects.filter(conversation_id=first.conversation_id).exists()
     assert not ConversationSummary.objects.filter(conversation_id=second.conversation_id).exists()

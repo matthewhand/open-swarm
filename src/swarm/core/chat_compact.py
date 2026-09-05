@@ -1,17 +1,38 @@
-"""Nested conversation compact / summaries (REQ-37).
+"""Nested conversation compact / summaries (REQ-37 / #672).
 
 Raw transcripts stay on disk (JSON) and in ``ChatMessage``. Django/sqlite
 stores summary rows. Serving model context walks the summary tree — later
 compacts may summarise a mix of raw turns and earlier summaries.
+
+Compact **body** is an LLM-written digest (agent profile or Settings default),
+not a concatenated transcript dump. Auto-threshold (#444) should call
+:func:`compact_backlog` so it gets the same summariser when wired.
 """
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+import logging
+import os
+import re
+from typing import Any, Callable, Iterable
 
 from swarm.core.speaker_identity import apply_speaker_identity
 from swarm.core.transcript_roles import is_ui_only_item, messages_for_model
 from swarm.models import ChatConversation, ChatMessage, ConversationSummary
+
+logger = logging.getLogger(__name__)
+
+COMPACT_SYSTEM = (
+    "Write a concise conversation summary for later context. "
+    "Preserve names, decisions, and open tasks. "
+    "Do not answer the user or continue the task. "
+    "Do not invent secrets, tokens, or credentials. "
+    "Return only the summary text."
+)
+
+_SECRET_IN_TEXT = re.compile(
+    r"(?i)(?:sk-[A-Za-z0-9]+|Bearer\s+\S+|api[_-]?key\s*[:=]\s*\S+)"
+)
 
 
 class CompactError(ValueError):
@@ -81,9 +102,10 @@ def _clip(text: str, limit: int = 240) -> str:
 
 
 def summarize_items(items: list[dict[str, Any]]) -> str:
-    """Deterministic extractive compact. No LLM, no secrets, no network.
+    """Deterministic extractive dump of a span (prompt material / tests).
 
-    UI-only status/info rows are skipped so summaries never re-inject chrome.
+    Not the compact bubble. UI-only status/info rows are skipped so chrome
+    never re-enters the summary prompt. No secrets, no network.
     """
     lines: list[str] = []
     real: list[dict[str, Any]] = []
@@ -101,6 +123,146 @@ def summarize_items(items: list[dict[str, Any]]) -> str:
     count = len(real)
     noun = "item" if count == 1 else "items"
     return f"Summary of {count} {noun}:\n" + "\n".join(lines)
+
+
+def build_compact_prompt(items: list[dict[str, Any]]) -> str:
+    """Transcript the compact LLM sees. Chrome skipped; bodies clipped."""
+    lines: list[str] = []
+    for item in items:
+        if item.get("kind") == "summary":
+            lines.append(f"[summary]: {_clip(str(item.get('body') or ''), 800)}")
+            continue
+        if is_ui_only_item(item):
+            continue
+        role = item.get("role") or "user"
+        content = item.get("content") or item.get("text") or ""
+        lines.append(f"{role}: {_clip(str(content), 800)}")
+    return (
+        "Write a concise conversation summary for later context. "
+        "Preserve names, decisions, and open tasks. "
+        "Do not answer the user or continue the task.\n"
+        "Transcript:\n" + "\n".join(lines)
+    )
+
+
+def _public_llm_error(exc: BaseException) -> str:
+    raw = str(exc) or type(exc).__name__
+    cleaned = _SECRET_IN_TEXT.sub("[REDACTED]", raw)
+    try:
+        from swarm.utils.redact import redact_uri_credentials
+
+        cleaned = redact_uri_credentials(cleaned)
+    except Exception:
+        pass
+    cleaned = " ".join(cleaned.split())
+    if len(cleaned) > 200:
+        cleaned = cleaned[:199].rstrip() + "…"
+    return f"Compact summary failed: {cleaned}"
+
+
+def _blueprint_section_model(agent_id: str, config: dict[str, Any]) -> str | None:
+    """Model slug from ``blueprints.<agent>.llm_profile`` — names only, no secrets."""
+    agent = (agent_id or "").strip()
+    if not agent or agent.startswith("_"):
+        return None
+    blueprints = config.get("blueprints")
+    if not isinstance(blueprints, dict):
+        return None
+    bp = blueprints.get(agent)
+    if not isinstance(bp, dict):
+        return None
+    profile_name = (
+        bp.get("llm_profile") or bp.get("default_model") or bp.get("default_profile")
+    )
+    if not isinstance(profile_name, str) or not profile_name.strip():
+        return None
+    from swarm.core.llm_task_routing import model_id_for_profile
+
+    return model_id_for_profile(profile_name.strip(), config) or None
+
+
+def resolve_compact_model(agent_id: str = "") -> str:
+    """Agent LLM profile, else Settings / env default. Raises if none configured."""
+    env_model = (
+        (os.environ.get("LITELLM_MODEL") or "").strip()
+        or (os.environ.get("OPENAI_MODEL") or "").strip()
+        or (os.environ.get("DEFAULT_LLM") or "").strip()
+    )
+    config: dict[str, Any] | None = None
+    try:
+        from swarm.core.llm_task_routing import load_swarm_config
+
+        config = load_swarm_config()
+    except Exception:
+        logger.debug("compact model: swarm config unavailable")
+        config = None
+
+    if isinstance(config, dict):
+        agent_model = _blueprint_section_model(agent_id, config)
+        if agent_model:
+            return agent_model
+
+    if env_model:
+        return env_model
+
+    if isinstance(config, dict):
+        try:
+            from swarm.core.llm_task_routing import model_id_for_profile, resolve_chat_model
+
+            route = resolve_chat_model(config)
+            model = model_id_for_profile(route.profile, config)
+            if model:
+                return model
+        except Exception:
+            logger.debug("compact model: settings default unavailable")
+
+    raise CompactError(
+        "No default LLM is configured. Set a model in Settings → LLM profiles.",
+        status=400,
+    )
+
+
+def llm_summarize_items(items: list[dict[str, Any]], *, agent_id: str = "") -> str:
+    """Call the agent / Settings-default LLM. No secrets in logs. Fail closed."""
+    model = resolve_compact_model(agent_id)
+    prompt = build_compact_prompt(items)
+    logger.info("compact LLM summarise model=%s items=%s", model, len(items))
+    try:
+        from openai import OpenAI
+
+        from swarm.core.model_text import sanitize_model_text
+        from swarm.utils.env_utils import openai_client_kwargs
+
+        client = OpenAI(**openai_client_kwargs())
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": COMPACT_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=600,
+        )
+    except CompactError:
+        raise
+    except Exception as exc:
+        logger.warning("compact LLM failed: %s", type(exc).__name__)
+        raise CompactError(_public_llm_error(exc), status=502) from exc
+
+    content = ""
+    choices = getattr(resp, "choices", None) or []
+    if choices:
+        message = getattr(choices[0], "message", None)
+        content = getattr(message, "content", None) or ""
+        if isinstance(choices[0], dict):
+            content = ((choices[0].get("message") or {}).get("content")) or content
+    text = sanitize_model_text(str(content or "")).strip()
+    if not text:
+        raise CompactError(
+            "Compact summary failed: the model returned an empty summary.",
+            status=502,
+        )
+    return text
 
 
 def _message_item(message: dict[str, Any], offset: int) -> dict[str, Any]:
@@ -402,11 +564,16 @@ def compact_backlog(
     span_start: int | None = None,
     span_end: int | None = None,
     through_message_id: Any = None,
+    summarizer: Callable[..., str] | None = None,
 ) -> tuple[ConversationSummary, list[dict[str, str]]]:
     """Create a summary row covering ``span`` of the raw transcript.
 
     Does not delete JSON or ``ChatMessage`` rows. Nested compact sets
     ``parent_summary_id`` to the previous outermost summary inside the span.
+
+    The compact body is an LLM summary (``summarizer`` or
+    :func:`llm_summarize_items`). LLM failure raises :class:`CompactError`
+    and does not write a summary row.
     """
     chat, raw = ensure_transcript(user, conversation_id, agent_id, messages)
     if through_message_id is not None and through_message_id != "":
@@ -437,7 +604,27 @@ def compact_backlog(
     if not mix:
         raise CompactError("Nothing to compact in that span.")
 
-    body = summarize_items(mix)
+    summarize = summarizer or llm_summarize_items
+    try:
+        body = summarize(mix, agent_id=agent_id)
+    except CompactError:
+        raise
+    except TypeError:
+        # Test doubles that only accept items.
+        try:
+            body = summarize(mix)
+        except CompactError:
+            raise
+        except Exception as exc:
+            raise CompactError(_public_llm_error(exc), status=502) from exc
+    except Exception as exc:
+        raise CompactError(_public_llm_error(exc), status=502) from exc
+    body = (body or "").strip()
+    if not body:
+        raise CompactError(
+            "Compact summary failed: the model returned an empty summary.",
+            status=502,
+        )
     parent = choose_parent(existing, start, end)
     row = ConversationSummary.objects.create(
         conversation=chat,
