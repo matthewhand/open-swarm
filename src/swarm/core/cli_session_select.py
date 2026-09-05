@@ -346,14 +346,13 @@ def list_cli_sessions(
 
 
 def _visible_turns(messages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    from swarm.core.transcript_roles import is_chrome_message
+
     out: list[dict[str, Any]] = []
     for row in messages or []:
         if not isinstance(row, dict):
             continue
-        if row.get("kind") == PRIOR_HISTORY_KIND:
-            continue
-        role = row.get("role") or ""
-        if role == "status":
+        if is_chrome_message(row):
             continue
         content = str(row.get("content") or "").strip()
         if not content:
@@ -364,6 +363,8 @@ def _visible_turns(messages: list[dict[str, Any]] | None) -> list[dict[str, Any]
 
 def format_prior_history(messages: list[dict[str, Any]] | None) -> str:
     """Markdown archive for the expandable pill. Not sent as CLI turns."""
+    from swarm.core.transcript_roles import is_chrome_message
+
     lines: list[str] = []
     for row in messages or []:
         if not isinstance(row, dict):
@@ -374,9 +375,25 @@ def format_prior_history(messages: list[dict[str, Any]] | None) -> str:
         if row.get("kind") == PRIOR_HISTORY_KIND:
             lines.append(f"**{PRIOR_HISTORY_LABEL}**\n{content}")
             continue
+        if is_chrome_message(row):
+            continue
         role = str(row.get("role") or "user").capitalize()
         lines.append(f"**{role}:** {content}")
     return "\n\n".join(lines).strip()
+
+
+def _transcript_payload(
+    turns: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Reconstructed display plus the split store (REQ-70 / #789)."""
+    from swarm.core.transcript_roles import reconstruct_display
+
+    return {
+        "messages": reconstruct_display(turns, events),
+        "turns": turns,
+        "ui_events": events,
+    }
 
 
 def _same_bound_session(
@@ -429,6 +446,7 @@ def select_cli_session(
     if prior is None:
         prior = chat_store.load(user_key, agent, base_dir=base_dir)
     prior_messages = list((prior or {}).get("messages") or [])
+    prior_events = list((prior or {}).get("ui_events") or [])
     prior_visible = _visible_turns(prior_messages)
     stored = get_cli_session(user_key, agent, cli, base_dir=base_dir)
     prior_cid = (prior or {}).get("conversation_id") or from_conversation_id or ""
@@ -446,7 +464,7 @@ def select_cli_session(
             "cli": cli,
             "conversation_id": prior_cid,
             "cli_session_id": stored,
-            "messages": prior_messages,
+            **_transcript_payload(prior_messages, prior_events),
             "status": (
                 session_notice_text(cli, resumed=True)
                 if stored
@@ -457,47 +475,56 @@ def select_cli_session(
             "same_session": True,
         }
 
+    from swarm.core.transcript_roles import append_event, append_turn, is_chrome_message
+
     new_cid = mint_cli_conversation_id(agent)
-    messages: list[dict[str, Any]] = []
+    turns: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
     collapsed = False
     if prior_visible:
         archive = format_prior_history(prior_messages)
         if archive:
-            messages.append(
-                {
-                    "role": "system",
-                    "kind": PRIOR_HISTORY_KIND,
-                    "content": archive,
-                    "from_conversation_id": prior_cid,
-                }
+            append_event(
+                turns,
+                events,
+                "system",
+                archive,
+                kind=PRIOR_HISTORY_KIND,
+                from_conversation_id=prior_cid,
             )
             collapsed = True
 
     import_kind = "none"
     if imported_messages:
-        cleaned = []
+        imported_turns = False
         for row in imported_messages:
             if not isinstance(row, dict):
                 continue
-            role = row.get("role") or "assistant"
+            role = str(row.get("role") or "assistant")
             content = str(row.get("content") or "")
-            if role not in ("user", "assistant", "status") or not content.strip():
+            if not content.strip():
                 continue
-            cleaned.append({"role": role, "content": content})
-        if cleaned:
-            messages.extend(cleaned)
+            if is_chrome_message(row) or role in ("status", "info"):
+                append_event(turns, events, "status", content)
+                continue
+            if role not in ("user", "assistant"):
+                continue
+            append_turn(turns, events, role, content)
+            imported_turns = True
+        if imported_turns:
             import_kind = "full"
 
     notice = switch_notice_text(cli, sid, start_new=start_new)
-    messages.append({"role": "status", "content": notice})
+    append_event(turns, events, "status", notice)
 
     chat_store.save(
         user_key,
         agent,
-        messages,
+        turns,
         conversation_id=new_cid,
         session_id=new_cid,
         cli_sessions={cli: sid} if sid else {},
+        ui_events=events,
         base_dir=base_dir,
     )
     # REQ-52 resume reads the default agent file + settings — bind the id
@@ -528,7 +555,7 @@ def select_cli_session(
         )
 
     if user is not None:
-        _bind_django_conversation(user, new_cid, messages)
+        _bind_django_conversation(user, new_cid, turns)
 
     return {
         "object": "cli_session_select",
@@ -536,7 +563,7 @@ def select_cli_session(
         "cli": cli,
         "conversation_id": new_cid,
         "cli_session_id": sid,
-        "messages": messages,
+        **_transcript_payload(turns, events),
         "status": notice,
         "collapsed_prior": collapsed,
         "import": import_kind,
@@ -546,7 +573,11 @@ def select_cli_session(
 
 
 def _bind_django_conversation(user, conversation_id: str, messages: list[dict[str, Any]]) -> None:
-    """Create the new Django conversation. Never deletes the prior thread."""
+    """Create the new Django conversation. Never deletes the prior thread.
+
+    ``messages`` is the model-turn list only. Status/info chrome stays in
+    the file-store ``ui_events`` side channel.
+    """
     try:
         from swarm.models import ChatConversation, ChatMessage
     except Exception:
@@ -567,7 +598,7 @@ def _bind_django_conversation(user, conversation_id: str, messages: list[dict[st
             [
                 ChatMessage(
                     conversation=chat,
-                    sender=str(item.get("role") or "status"),
+                    sender=str(item.get("role") or "user"),
                     content=str(item.get("content") or ""),
                 )
                 for item in messages

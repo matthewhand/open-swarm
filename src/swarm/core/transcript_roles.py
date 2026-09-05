@@ -166,10 +166,16 @@ def _as_turn(item: dict[str, Any]) -> dict[str, Any]:
 
 def _as_event(item: dict[str, Any]) -> dict[str, Any]:
     row = stamp_ui_event(dict(item))
+    kind = event_kind(row)
+    row["kind"] = kind
+    if kind == "prior_history":
+        # Archive pill stays system+kind so the UI reconstructs the REQ-104 card.
+        if _role_of(row) != "system":
+            row["role"] = "system"
+        return row
     role = _role_of(row)
     if role not in UI_ONLY_ROLES:
         row["role"] = "status"
-    row["kind"] = event_kind(row)
     return row
 
 
@@ -271,8 +277,15 @@ def append_event(
     **extra: Any,
 ) -> dict[str, Any]:
     """Append UI chrome to the side channel (never the model-turn list)."""
+    kind = extra.get("kind")
+    if isinstance(kind, str) and kind.strip().lower() == "prior_history":
+        stored_role = "system"
+    elif is_ui_only_role(role):
+        stored_role = role
+    else:
+        stored_role = "status"
     row: dict[str, Any] = {
-        "role": role if is_ui_only_role(role) else "status",
+        "role": stored_role,
         "content": content,
         "seq": next_seq(turns, events),
     }

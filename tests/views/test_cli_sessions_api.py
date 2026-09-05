@@ -59,6 +59,9 @@ def test_select_paste_id_mints_conversation_and_stores_id(api_client, tmp_path):
     assert body["collapsed_prior"] is True
     assert get_cli_session("u0", "cli_agent", "echo") == "sid-pasted"
     assert any(m.get("kind") == "prior_history" for m in body["messages"])
+    assert not any(m.get("role") in ("status", "info") for m in body["turns"])
+    assert any(e.get("kind") == "prior_history" for e in body["ui_events"])
+    assert any(e.get("content") == body["status"] for e in body["ui_events"])
 
 
 def test_select_start_new(api_client):

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **REQ-70 reconstruction (#789):** Status/info/hop chrome is stored as side-channel `ui_events` (timestamp + `seq`). The UI reconstructs those lines; the JSON `messages` list and Django `ChatMessage` rows are real turns only. The landed #765 `messages_for_model` filter stays as a safety belt. Docs describe reconstruction / UI metadata, not filter-as-Success. Fixes #789.
+- **REQ-70 reconstruction (#789):** Status/info/hop chrome is stored as side-channel `ui_events` (timestamp + `seq`). The UI reconstructs those lines; the JSON `messages` list and Django `ChatMessage` rows are real turns only. The landed #765 `messages_for_model` filter stays as a safety belt. CLI session select and PR-opened persist write chrome via `append_event`, not mixed `messages.append({role:status})`. Docs describe reconstruction / UI metadata, not filter-as-Success. Fixes #789.
 - **REQ-90 queued sends while a generation is in flight:** Composer send or suggestion-chip click during an in-flight reply appends a labelled queued row instead of starting a second run. The queued pane sits below the in-flight assistant, caps at about one-third of the transcript, and scrolls. Rows are editable (held while focused) and removable; idle drain is oldest-first. Queued rows persist with the conversation (local store, not Neon). Fixes #447.
 
 ### Changed
