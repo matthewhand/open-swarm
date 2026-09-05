@@ -84,6 +84,18 @@ function stubFetch(opts: { useSuggestions?: boolean; cli?: boolean } = {}) {
               description: 'CLI seat',
               tags: ['cli'],
             },
+            {
+              id: 'api_agent',
+              name: 'API',
+              description: 'API seat',
+              tags: ['api'],
+            },
+            {
+              id: 'remote_harness',
+              name: 'Remote',
+              description: 'Remote seat',
+              tags: ['remote'],
+            },
           ],
         }),
       } as Response
@@ -212,6 +224,26 @@ describe('ChatPage REQ-85 suggestion chips', () => {
     )
     stubFetch({ cli: true })
     await openChat('/chat?blueprint=cli_agent')
+    expect(await screen.findByTestId('suggestion-chips')).toBeInTheDocument()
+  })
+
+  it('API agent with suggestions on still shows chips', async () => {
+    window.localStorage.setItem(
+      localSettingsKey('api_agent'),
+      JSON.stringify({ use_suggestions: true }),
+    )
+    stubFetch()
+    await openChat('/chat?blueprint=api_agent')
+    expect(await screen.findByTestId('suggestion-chips')).toBeInTheDocument()
+  })
+
+  it('remote agent with suggestions on still shows chips', async () => {
+    window.localStorage.setItem(
+      localSettingsKey('remote_harness'),
+      JSON.stringify({ use_suggestions: true }),
+    )
+    stubFetch()
+    await openChat('/chat?blueprint=remote_harness')
     expect(await screen.findByTestId('suggestion-chips')).toBeInTheDocument()
   })
 })
