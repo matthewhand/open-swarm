@@ -3,6 +3,7 @@ import {
   ALL_MEMBERS_TARGET,
   DEMO_TEAM_ROSTER,
   MANAGE_TEAMS_HREF,
+  applyTeamMemberSessionParam,
   fetchTeamRosters,
   memberOptionLabel,
   memberTargetLabel,
@@ -185,6 +186,21 @@ describe('labels and ids', () => {
   it('keeps All members / Manage Teams constants stable', () => {
     expect(ALL_MEMBERS_TARGET).toBe('all')
     expect(MANAGE_TEAMS_HREF).toBe('/teams/')
+  })
+
+  it('writes ?team=&session= for a member and clears session for All members', () => {
+    const member = applyTeamMemberSessionParam(
+      new URLSearchParams('team=demo-team'),
+      'demo-team',
+      'codey',
+    )
+    expect(member.get('team')).toBe('demo-team')
+    expect(member.get('session')).toBe('codey')
+
+    const all = applyTeamMemberSessionParam(member, 'demo-team', ALL_MEMBERS_TARGET)
+    expect(all.get('team')).toBe('demo-team')
+    expect(all.get('session')).toBeNull()
+    expect(all.toString()).toBe('team=demo-team')
   })
 })
 

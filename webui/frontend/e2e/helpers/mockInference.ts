@@ -27,6 +27,7 @@ export type MockInferenceState = {
   delayMs: number
   reply: string
   lastPrompt: string | null
+  lastParams: Record<string, unknown> | null
   delivered: number
 }
 
@@ -96,6 +97,7 @@ export async function installMockInference(
         delayMs: delay,
         reply: canned,
         lastPrompt: null as string | null,
+        lastParams: null as Record<string, unknown> | null,
         delivered: 0,
       }
       ;(window as unknown as { __MOCK_INFERENCE__: typeof state }).__MOCK_INFERENCE__ =
@@ -126,14 +128,20 @@ export async function installMockInference(
 
         send(data: string) {
           let prompt = ''
+          let params: Record<string, unknown> | null = null
           try {
-            const parsed = JSON.parse(data) as { message?: unknown }
+            const parsed = JSON.parse(data) as {
+              message?: unknown
+              params?: Record<string, unknown>
+            }
             prompt = typeof parsed.message === 'string' ? parsed.message : ''
+            params = parsed.params && typeof parsed.params === 'object' ? parsed.params : null
           } catch {
             return
           }
           if (!prompt.trim()) return
           state.lastPrompt = prompt
+          state.lastParams = params
           this.emit(userEchoFrame(prompt))
 
           const deliverAssistant = () => {

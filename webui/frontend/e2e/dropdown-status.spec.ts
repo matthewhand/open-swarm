@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { installMockInference, mockInferenceState } from './helpers/mockInference'
 
 const ROSTERS = {
   object: 'list',
@@ -39,9 +40,7 @@ function shotPath(testInfo: { outputDir: string }, name: string): string {
   return `${root}/${name}`
 }
 
-test('team dropdown change is a centred status line and survives reload', async ({
-  page,
-}, testInfo) => {
+async function stubTeamDropdownPage(page: import('@playwright/test').Page) {
   const stored: { role: string; content: string }[] = []
   await page.route('**/chat/thread**', async (route) => {
     if (route.request().method() === 'POST') {
@@ -100,6 +99,13 @@ test('team dropdown change is a centred status line and survives reload', async 
       }),
     })
   })
+}
+
+test('team dropdown change is a centred status line and survives reload', async ({
+  page,
+}, testInfo) => {
+  await installMockInference(page)
+  await stubTeamDropdownPage(page)
 
   await page.goto('/chat?team=demo-team')
   const teamSelect = page.getByRole('combobox', { name: 'Team members' })
@@ -110,6 +116,9 @@ test('team dropdown change is a centred status line and survives reload', async 
   })
 
   await teamSelect.selectOption('codey')
+  await expect(page).toHaveURL(/[?&]team=demo-team/)
+  await expect(page).toHaveURL(/[?&]session=codey/)
+  await expect(teamSelect).toHaveValue('codey')
   const status = page.getByTestId('chat-status')
   await expect(status).toHaveCount(1)
   await expect(status).toContainText('Team target: All members → Codey (agent/coder)')
@@ -122,11 +131,57 @@ test('team dropdown change is a centred status line and survives reload', async 
   })
 
   await page.reload()
+  const restoredSelect = page.getByRole('combobox', { name: 'Team members' })
+  await expect(restoredSelect).toHaveValue('codey')
+  await expect(page).toHaveURL(/[?&]session=codey/)
   await expect(page.getByTestId('chat-status')).toHaveCount(1)
   await expect(page.getByTestId('chat-status')).toContainText(
     'Team target: All members → Codey (agent/coder)',
   )
   await expect(page.getByTestId('chat-status')).not.toHaveClass(/chat-start|chat-end/)
+
+  const composer = page.getByRole('textbox', { name: 'Chat message' })
+  await expect(composer).toBeEnabled()
+  await composer.fill('after reload still codey')
+  await page.getByRole('button', { name: /^Send$/i }).click()
+  await expect.poll(async () => (await mockInferenceState(page)).lastPrompt).toBe(
+    'after reload still codey',
+  )
+  expect((await mockInferenceState(page)).lastParams).toMatchObject({
+    team: 'demo-team',
+    target: 'codey',
+  })
+})
+
+test('All members clears ?session= and the next send targets all after reload', async ({
+  page,
+}) => {
+  await installMockInference(page)
+  await stubTeamDropdownPage(page)
+
+  await page.goto('/chat?team=demo-team&session=codey')
+  const teamSelect = page.getByRole('combobox', { name: 'Team members' })
+  await expect(teamSelect).toHaveValue('codey')
+  await teamSelect.selectOption('all')
+  await expect(page).toHaveURL(/[?&]team=demo-team/)
+  await expect(page).not.toHaveURL(/[?&]session=/)
+  await expect(teamSelect).toHaveValue('all')
+
+  await page.reload()
+  await expect(page.getByRole('combobox', { name: 'Team members' })).toHaveValue('all')
+  await expect(page).not.toHaveURL(/[?&]session=/)
+
+  const composer = page.getByRole('textbox', { name: 'Chat message' })
+  await expect(composer).toBeEnabled()
+  await composer.fill('after reload all members')
+  await page.getByRole('button', { name: /^Send$/i }).click()
+  await expect.poll(async () => (await mockInferenceState(page)).lastPrompt).toBe(
+    'after reload all members',
+  )
+  expect((await mockInferenceState(page)).lastParams).toMatchObject({
+    team: 'demo-team',
+    target: 'all',
+  })
 })
 
 test('CLI dropdown change is a bubble-less status line plus carried context', async ({ page }, testInfo) => {
