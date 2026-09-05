@@ -921,6 +921,32 @@ class TestBlueprintSelection:
             assert consumer.messages[-1]["content"].startswith("[TEST-MODE]")
 
     @pytest.mark.asyncio
+    async def test_suggestions_chips_emit_after_test_mode_turn(self, consumer, monkeypatch, tmp_path):
+        """REQ-85: after a finished generation, emit chips — never into messages."""
+        monkeypatch.setenv("SWARM_TEST_MODE", "1")
+        monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+        from swarm.core import agent_settings as store
+
+        store.reset_agent_settings_cache()
+        store.update_settings("jeeves", {"use_suggestions": True})
+        consumer.messages = [{"role": "user", "content": "Hello"}]
+        consumer.active_agent = "jeeves"
+
+        with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+            await consumer.respond_with_blueprint("jeeves", "message-response-sug")
+            frames = [
+                call.kwargs.get("text_data") or call.args[0]
+                for call in mock_send.await_args_list
+            ]
+        json_frames = [frame for frame in frames if str(frame).startswith("{")]
+        assert json_frames, frames
+        payload = json.loads(json_frames[-1])
+        assert payload["type"] == "suggestions"
+        assert 2 <= len(payload["suggestions"]) <= 5
+        assert all(m.get("role") != "suggestions" for m in consumer.messages)
+        store.reset_agent_settings_cache()
+
+    @pytest.mark.asyncio
     async def test_blueprint_run_failure_sends_error_partial(self, consumer, monkeypatch):
         """Exceptions from blueprint.run() surface as an error partial."""
         monkeypatch.delenv("SWARM_TEST_MODE", raising=False)

@@ -106,6 +106,7 @@ from swarm.views.remotes_api import (
     RemotesListView,
 )
 from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
+from swarm.views.suggestions_api import AgentSuggestionsAPIView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
@@ -289,6 +290,8 @@ urlpatterns = [
     # REQ-65: agent-scoped settings (new chat per task). Not global Settings.
     path("v1/agents/<str:agent_id>/settings", AgentSettingsAPIView.as_view(), name="agent-settings-api-no-slash"),
     path("v1/agents/<str:agent_id>/settings/", AgentSettingsAPIView.as_view(), name="agent-settings-api"),
+    path("v1/agents/<str:agent_id>/suggestions", AgentSuggestionsAPIView.as_view(), name="agent-suggestions-api-no-slash"),
+    path("v1/agents/<str:agent_id>/suggestions/", AgentSuggestionsAPIView.as_view(), name="agent-suggestions-api"),
     path("v1/agents/<str:agent_id>/sessions", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api-no-slash"),
     path("v1/agents/<str:agent_id>/sessions/", AgentTaskSessionAPIView.as_view(), name="agent-task-session-api"),
     # Settings System section — local store facts (REQ-56). Read-only.

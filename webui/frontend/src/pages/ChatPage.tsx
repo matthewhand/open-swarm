@@ -19,7 +19,9 @@ import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
 import {
   AGENT_SETTINGS_CHANGED_EVENT,
+  fetchAgentSettings,
   loadLocalNewChatPerTask,
+  loadLocalUseSuggestions,
   openAgentEditor,
   type AgentSettingsChangedDetail,
 } from '../lib/agentSettings'
@@ -70,6 +72,7 @@ import {
 } from '../lib/chatWs'
 import { ToolCallPopup } from '../components/ToolCallPopup'
 import { PrOpenedCard } from '../components/PrOpenedCard'
+import { SuggestionChips } from '../components/SuggestionChips'
 import {
   openerChatSearch,
   parsePrOpened,
@@ -137,6 +140,7 @@ import {
   type DropdownKind,
 } from '../lib/chatStatus'
 import { insertCliSessionNotice } from '../lib/chatTranscript'
+import { fetchAgentSuggestions, shouldShowSuggestionChips } from '../lib/suggestions'
 import { restoreKindForAgent, restoredSessionNotice } from '../lib/sessionRestore'
 import {
   discoverChatClis,
@@ -231,6 +235,11 @@ const ChatPage = () => {
   const [newChatPerTask, setNewChatPerTask] = useState(() =>
     teamFromUrl || remoteFromUrl ? false : loadLocalNewChatPerTask(defaultBlueprintId(searchParams.get('blueprint'))),
   )
+  const [useSuggestions, setUseSuggestions] = useState(() =>
+    teamFromUrl ? false : loadLocalUseSuggestions(defaultBlueprintId(searchParams.get('blueprint'))),
+  )
+  const [suggestionChips, setSuggestionChips] = useState<string[]>([])
+  const [threadReady, setThreadReady] = useState(false)
 
   const [threads, setThreads] = useState<Record<string, ChatMessage[]>>({})
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
@@ -608,17 +617,28 @@ const ChatPage = () => {
   useEffect(() => {
     if (teamFromUrl) {
       setNewChatPerTask(false)
+      setUseSuggestions(false)
       return
     }
     const agent = agentIdFromBlueprint(selectedBlueprint)
     setNewChatPerTask(loadLocalNewChatPerTask(agent))
+    setUseSuggestions(loadLocalUseSuggestions(agent))
     const onChange = (event: Event) => {
       const detail = (event as CustomEvent<AgentSettingsChangedDetail>).detail
       if (detail?.agentId && detail.agentId === agent) {
-        setNewChatPerTask(detail.new_chat_per_task)
+        if (typeof detail.new_chat_per_task === 'boolean') {
+          setNewChatPerTask(detail.new_chat_per_task)
+        }
+        if (typeof detail.use_suggestions === 'boolean') {
+          setUseSuggestions(detail.use_suggestions)
+        }
       }
     }
     window.addEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
+    void fetchAgentSettings(agent).then((settings) => {
+      setNewChatPerTask(settings.new_chat_per_task)
+      setUseSuggestions(settings.use_suggestions)
+    })
     return () => window.removeEventListener(AGENT_SETTINGS_CHANGED_EVENT, onChange)
   }, [selectedBlueprint, teamFromUrl])
 
@@ -626,6 +646,8 @@ const ChatPage = () => {
   // Team threads use a stable team-* conversation id and do not use agent JSON.
   // No history chrome — messages just come back after reload / agent switch.
   useEffect(() => {
+    setThreadReady(false)
+    setSuggestionChips([])
     if (teamFromUrl) {
       const key = teamThreadId(teamFromUrl)
       const switched =
@@ -650,6 +672,7 @@ const ChatPage = () => {
         }))
         if (thread.messages.length === 0) {
           setRestoreNotice(null)
+          setThreadReady(true)
           return
         }
         setRestoreNotice(restoredSessionNotice(thread.messages, 'team'))
@@ -657,6 +680,7 @@ const ChatPage = () => {
           ...prev,
           [key]: thread.messages.map(chatMessageFromThreadRow),
         }))
+        setThreadReady(true)
       })()
       return () => {
         cancelled = true
@@ -686,6 +710,7 @@ const ChatPage = () => {
         }))
         if (thread.messages.length === 0) {
           setRestoreNotice(null)
+          setThreadReady(true)
           return
         }
         setRestoreNotice(restoredSessionNotice(thread.messages, 'remote'))
@@ -693,6 +718,7 @@ const ChatPage = () => {
           ...prev,
           [key]: thread.messages.map(chatMessageFromThreadRow),
         }))
+        setThreadReady(true)
       })()
       return () => {
         cancelled = true
@@ -725,6 +751,7 @@ const ChatPage = () => {
     if (fresh) {
       // New empty session — do not restore a prior transcript.
       setRestoreNotice(null)
+      setThreadReady(true)
       return
     }
     let cancelled = false
@@ -743,6 +770,7 @@ const ChatPage = () => {
       }))
       if (thread.messages.length === 0) {
         setRestoreNotice(null)
+        setThreadReady(true)
         return
       }
       setRestoreNotice(restoredSessionNotice(thread.messages, restoreKindForAgent(agent)))
@@ -750,6 +778,7 @@ const ChatPage = () => {
         ...prev,
         [threadKey]: thread.messages.map(chatMessageFromThreadRow),
       }))
+      setThreadReady(true)
     })()
     return () => {
       cancelled = true
@@ -815,6 +844,14 @@ const ChatPage = () => {
           agentId: event.agentId,
           needsApproval: false,
         })
+        return
+      }
+      if (event.kind === 'suggestions') {
+        if (!useSuggestions) {
+          setSuggestionChips([])
+          return
+        }
+        setSuggestionChips(event.suggestions)
         return
       }
       if (event.kind === 'pr_opened') {
@@ -907,7 +944,7 @@ const ChatPage = () => {
         }
       }
     },
-    [activeChatAgentId, attachToolToThread, sendToolDecision, threadKey],
+    [activeChatAgentId, attachToolToThread, sendToolDecision, threadKey, useSuggestions],
   )
 
   useEffect(() => {
@@ -1279,6 +1316,46 @@ const ChatPage = () => {
   }, [plusOpen])
 
   const streamingMessage = messages.find((message) => message.streaming)
+  const chipsDisabled = Boolean(streamingMessage) || status !== 'open'
+  const showSuggestionChips = shouldShowSuggestionChips({
+    enabled: useSuggestions,
+    chips: suggestionChips,
+  })
+
+  useEffect(() => {
+    if (!useSuggestions) {
+      setSuggestionChips([])
+      return
+    }
+    if (!threadReady || streamingMessage || teamFromUrl) return
+    const agent = agentIdFromBlueprint(selectedBlueprint)
+    if (!agent) return
+    let cancelled = false
+    const mode = messages.length === 0 ? 'kickstart' : 'continue'
+    void fetchAgentSuggestions(agent, mode).then((chips) => {
+      if (!cancelled && chips.length > 0) setSuggestionChips(chips)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    useSuggestions,
+    threadReady,
+    streamingMessage,
+    teamFromUrl,
+    selectedBlueprint,
+    messages.length,
+    threadKey,
+  ])
+
+  const chooseSuggestion = useCallback(
+    (text: string) => {
+      if (chipsDisabled) return
+      sendText(text)
+    },
+    [chipsDisabled, sendText],
+  )
+
   const wasStreamingRef = useRef(false)
   useEffect(() => {
     if (streamingMessage) {
@@ -1923,6 +2000,13 @@ const ChatPage = () => {
           className="os-chat-bottom-dock sticky bottom-0 z-20 -mx-2 sm:-mx-3 -mb-3 bg-base-100 border-t border-base-content/5"
           data-testid="chat-bottom-dock"
         >
+          {showSuggestionChips ? (
+            <SuggestionChips
+              chips={suggestionChips}
+              disabled={chipsDisabled}
+              onChoose={chooseSuggestion}
+            />
+          ) : null}
           {streamingMessage ? (
             <div
               className="os-composer-working"

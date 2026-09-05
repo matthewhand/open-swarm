@@ -158,6 +158,21 @@ describe('parseChatWsMessage', () => {
     ).toEqual({ kind: 'tool_approval', id: 't2', name: 'wipe', agentId: 'codey' })
   })
 
+  it('parses a suggestions frame (REQ-85)', () => {
+    expect(
+      parseChatWsMessage(
+        JSON.stringify({ type: 'suggestions', suggestions: ['Ask about setup', 'Try a demo'] }),
+      ),
+    ).toEqual({
+      kind: 'suggestions',
+      suggestions: ['Ask about setup', 'Try a demo'],
+    })
+    expect(parseChatWsMessage(JSON.stringify({ type: 'suggestions', suggestions: [] }))).toEqual({
+      kind: 'suggestions',
+      suggestions: [],
+    })
+  })
+
   it('parses a structured pr_opened frame (REQ-71)', () => {
     const url = 'https://github.com/matthewhand/open-swarm/pull/416'
     expect(
