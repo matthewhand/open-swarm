@@ -202,7 +202,7 @@ def test_remote_herdr_health_list_send_interrogate_over_stub_ssh():
     assert health.ok is True
     assert "ssh herdr@herdr.example.test" in health.detail
     assert listed.ok is True
-    assert [m["name"] for m in listed.data["members"]] == ["w3:p1"]
+    assert [m["name"] for m in listed.data["members"]] == ["w3:p1", "w3"]
     assert sent.ok is True
     assert "agent_prompted" in sent.detail
     assert probed.ok is True

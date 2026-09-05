@@ -73,6 +73,7 @@ describe('REQ-100 Herdr remotes are SSH-shaped', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/SSH-shaped/i)).toBeInTheDocument()
+      expect(screen.getByText('No remotes configured yet.')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByRole('button', { name: /Add remote/i }))
