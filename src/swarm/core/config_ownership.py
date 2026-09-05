@@ -46,6 +46,7 @@ WEBUI_SECTIONS: tuple[str, ...] = (
     "slashCommands",
     "blueprints",
     "memory",
+    "speech",
 )
 
 # Dedicated Settings pane. Others appear under System as "advanced".
@@ -56,6 +57,7 @@ SETTINGS_PANES: dict[str, str] = {
     "remotes": "remotes",
     "cli_agents": "cli-agents",
     "agent_team": "remotes",
+    "speech": "speech",
 }
 
 ADVANCED_SECTIONS: tuple[str, ...] = (
@@ -387,6 +389,23 @@ _INVENTORY: tuple[dict[str, Any], ...] = (
         "secret_fields": ["api_key"],
         "env_twins": {},
         "notes": "Experimental mem0 block. Advanced. Secrets in this block must be ${VAR}.",
+    },
+    {
+        "key": "speech",
+        "partition": "webui",
+        "sot": "swarm_config.json",
+        "write_api": "/v1/speech/",
+        "settings_section": "speech",
+        "ui": "pane",
+        "secret_fields": ["api_key"],
+        "env_twins": {
+            "stt.base_url": "SPEECH_STT_BASE_URL",
+            "tts.base_url": "SPEECH_TTS_BASE_URL",
+        },
+        "notes": (
+            "REQ-77 mic STT + read-aloud TTS. Default source is system/browser. "
+            "Custom OpenAI-compat audio endpoints are opt-in. api_key must be ${VAR}."
+        ),
     },
     {
         "key": "secrets.*",

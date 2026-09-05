@@ -8,6 +8,7 @@ import EnvOverrideBadge from './EnvOverrideBadge'
 import McpServersPane from './McpServersPane'
 import CliAgentsSettingsPane from './CliAgentsSettingsPane'
 import ImageGenPane from './ImageGenSettings'
+import SpeechPane from './SpeechSettings'
 import {
   EMPTY_LOCAL_STORE,
   createRemote,
@@ -87,6 +88,7 @@ export type SettingsSection =
   | 'cli-agents'
   | 'rail'
   | 'image-gen'
+  | 'speech'
   | 'system'
   | 'plugins'
 
@@ -323,6 +325,16 @@ export default function SettingsSheet({
             <li>
               <button
                 type="button"
+                className={section === 'speech' ? 'menu-active' : undefined}
+                aria-current={section === 'speech' ? 'page' : undefined}
+                onClick={() => setSection('speech')}
+              >
+                Speech
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
                 className={section === 'system' ? 'menu-active' : undefined}
                 aria-current={section === 'system' ? 'page' : undefined}
                 onClick={() => setSection('system')}
@@ -380,6 +392,7 @@ export default function SettingsSheet({
             />
           )}
           {section === 'image-gen' && <ImageGenPane />}
+          {section === 'speech' && <SpeechPane />}
           {section === 'system' && <SystemPane />}
           {section === 'plugins' && <PluginsServersPane />}
         </div>

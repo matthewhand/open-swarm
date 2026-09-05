@@ -899,6 +899,93 @@ export function generateAgentAvatar(
   )
 }
 
+/**
+ * GET/PATCH /v1/speech/ plus custom transcribe/speak (REQ-77 / #422).
+ * Auth is an env-var *name* only; never send a live token.
+ */
+export type SpeechSource = 'system' | 'custom'
+
+export interface SpeechEndpointSettings {
+  kind?: 'stt' | 'tts'
+  source: SpeechSource
+  configured: boolean
+  base_url: string
+  model: string
+  api_key_env: string
+  api_key_set?: boolean
+  status?: string
+  detail?: string
+}
+
+export interface SpeechSettings {
+  object?: 'speech'
+  stt: SpeechEndpointSettings
+  tts: SpeechEndpointSettings
+}
+
+export interface SpeechEndpointPatch {
+  source?: SpeechSource
+  base_url?: string
+  model?: string
+  api_key_env?: string
+}
+
+export interface SpeechPatchRequest {
+  stt?: SpeechEndpointPatch
+  tts?: SpeechEndpointPatch
+}
+
+export interface SpeechTranscription {
+  object?: 'transcription'
+  text: string
+  path: 'custom'
+}
+
+export const EMPTY_SPEECH_ENDPOINT: SpeechEndpointSettings = {
+  source: 'system',
+  configured: false,
+  base_url: '',
+  model: '',
+  api_key_env: '',
+  api_key_set: false,
+  status: 'system',
+  detail: 'Using the browser/OS implementation. No custom host is called.',
+}
+
+export const EMPTY_SPEECH: SpeechSettings = {
+  object: 'speech',
+  stt: { ...EMPTY_SPEECH_ENDPOINT, kind: 'stt' },
+  tts: { ...EMPTY_SPEECH_ENDPOINT, kind: 'tts' },
+}
+
+export function fetchSpeechSettings(probe = true): Promise<SpeechSettings> {
+  const q = probe ? '' : '?probe=0'
+  return apiGet<SpeechSettings>(`/v1/speech/${q}`)
+}
+
+export function patchSpeechSettings(body: SpeechPatchRequest): Promise<SpeechSettings> {
+  return apiPatch<SpeechSettings>('/v1/speech/', body)
+}
+
+export function transcribeSpeechAudio(file: Blob, filename = 'audio.webm'): Promise<SpeechTranscription> {
+  const form = new FormData()
+  form.append('file', file, filename)
+  return apiPostForm<SpeechTranscription>('/v1/speech/transcribe/', form)
+}
+
+export async function speakSpeechText(text: string, voice = ''): Promise<Blob> {
+  const response = await fetch('/v1/speech/speak/', {
+    method: 'POST',
+    headers: buildHeaders(true),
+    body: JSON.stringify({ text, ...(voice ? { voice } : {}) }),
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    await throwApiError('/v1/speech/speak/', response)
+  }
+  return response.blob()
+}
+
 /** GET /v1/blueprints/<id>/source — read-only blueprint source (file list + content). */
 export interface BlueprintSource {
   id: string

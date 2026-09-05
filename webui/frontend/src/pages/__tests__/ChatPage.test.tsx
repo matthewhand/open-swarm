@@ -2746,7 +2746,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
   })
 })
 
-describe('ChatPage voice input stub (PR #322)', () => {
+describe('ChatPage voice input stub (PR #322 / REQ-77)', () => {
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()
@@ -2773,6 +2773,34 @@ describe('ChatPage voice input stub (PR #322)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Voice input' }))
     expect(await screen.findByText(/Speech recognition is not available/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument()
+  })
+
+  it('system STT inserts transcript into the composer and does not auto-send', async () => {
+    class FakeRec {
+      onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null = null
+      onend: (() => void) | null = null
+      start() {
+        queueMicrotask(() => {
+          this.onresult?.({ results: [[{ transcript: 'hello from mic' }]] })
+          this.onend?.()
+        })
+      }
+      stop() {
+        this.onend?.()
+      }
+    }
+    vi.stubGlobal('SpeechRecognition', FakeRec)
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Voice input' }))
+    expect(await screen.findByDisplayValue('hello from mic')).toBeInTheDocument()
+    expect(await screen.findByTestId('stt-path')).toHaveTextContent(/system/i)
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument()
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).not.toHaveBeenCalled()
   })
 })
 

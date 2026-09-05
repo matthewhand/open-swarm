@@ -185,6 +185,13 @@ export default function SearchPalette({ open, onClose, options }: SearchPaletteP
         description: 'Edit cli_agents in Settings',
         action: () => openSettingsSheet({ section: 'cli-agents' }),
       },
+      {
+        id: 'action-speech-settings',
+        tab: 'Actions',
+        name: 'Speech settings',
+        description: 'Microphone STT and read-aloud TTS',
+        action: () => openSettingsSheet({ section: 'speech' }),
+      },
     ]
     return [...botRows, ...actionRows]
   }, [agents])

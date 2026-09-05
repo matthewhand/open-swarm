@@ -256,6 +256,21 @@ describe('SearchPalette choose + actions (REQ-5c #322)', () => {
     expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
   })
 
+  it('Actions → Speech settings opens Settings on the speech pane (REQ-77)', async () => {
+    const opened: Array<{ section?: string }> = []
+    const onOpen = (event: Event) => {
+      opened.push((event as CustomEvent<{ section?: string }>).detail ?? {})
+    }
+    window.addEventListener('swarm:open-settings', onOpen)
+    const { onClose } = renderRoutedPalette()
+    fireEvent.click(screen.getByRole('tab', { name: 'Actions' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Speech settings/i }))
+    window.removeEventListener('swarm:open-settings', onOpen)
+    expect(onClose).toHaveBeenCalled()
+    expect(opened).toEqual([{ section: 'speech' }])
+    expect(screen.getByTestId('palette-loc')).toHaveTextContent('/')
+  })
+
   it('Actions → System settings opens Settings on the system pane (REQ-188C-1)', async () => {
     const opened: Array<{ section?: string }> = []
     const onOpen = (event: Event) => {

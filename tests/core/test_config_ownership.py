@@ -44,6 +44,7 @@ def test_decision_is_full_and_inventory_has_no_silent_gaps():
         "slashCommands",
         "blueprints",
         "memory",
+        "speech",
         "secrets.*",
         "deploy.HOST",
         "deploy.PORT",

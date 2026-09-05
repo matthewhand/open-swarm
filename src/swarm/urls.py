@@ -111,6 +111,7 @@ from swarm.views.cli_runs_api import CliRunStatusAPIView, CliRunTerminateAPIView
 from swarm.views.cli_sessions_api import CliSessionListAPIView, CliSessionSelectAPIView
 from swarm.views.suggestions_api import AgentSuggestionsAPIView
 from swarm.views.image_gen_api import AgentAvatarGenerateView, ImageGenSettingsView
+from swarm.views.speech_api import SpeechSettingsView, SpeechSpeakView, SpeechTranscribeView
 from swarm.views.team_rosters_api import TeamRosterDetailAPIView, TeamRostersAPIView
 from swarm.views.teams_api import TeamDetailAPIView, TeamsAPIView
 from swarm.views.web_views import (
@@ -340,6 +341,12 @@ urlpatterns = [
     ),
     path("v1/image-gen", ImageGenSettingsView.as_view(), name="image-gen-settings-no-slash"),
     path("v1/image-gen/", ImageGenSettingsView.as_view(), name="image-gen-settings"),
+    path("v1/speech", SpeechSettingsView.as_view(), name="speech-settings-no-slash"),
+    path("v1/speech/", SpeechSettingsView.as_view(), name="speech-settings"),
+    path("v1/speech/transcribe", SpeechTranscribeView.as_view(), name="speech-transcribe-no-slash"),
+    path("v1/speech/transcribe/", SpeechTranscribeView.as_view(), name="speech-transcribe"),
+    path("v1/speech/speak", SpeechSpeakView.as_view(), name="speech-speak-no-slash"),
+    path("v1/speech/speak/", SpeechSpeakView.as_view(), name="speech-speak"),
     # Settings System section — local store facts (REQ-56). Read-only.
     path("v1/system", LocalStoreView.as_view(), name="system-local-store-no-slash"),
     path("v1/system/", LocalStoreView.as_view(), name="system-local-store"),

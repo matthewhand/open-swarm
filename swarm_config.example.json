@@ -79,5 +79,21 @@
   },
   "blueprints": {},
   "slashCommands": {},
-  "memory": {}
+  "memory": {},
+  "speech": {
+    "stt": {
+      "source": "system",
+      "base_url": "",
+      "model": "",
+      "api_key_env": "STT_API_KEY",
+      "api_key": "${STT_API_KEY}"
+    },
+    "tts": {
+      "source": "system",
+      "base_url": "",
+      "model": "",
+      "api_key_env": "TTS_API_KEY",
+      "api_key": "${TTS_API_KEY}"
+    }
+  }
 }
