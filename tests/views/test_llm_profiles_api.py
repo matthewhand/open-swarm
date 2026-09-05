@@ -89,3 +89,38 @@ class TestLlmProfilesPatch:
         assert raw["settings"]["override_per_task"] is True
         assert resp.json()["persisted_to"] == str(path)
         assert "sk-" not in path.read_text(encoding="utf-8")
+
+    def test_patch_default_refreshes_app_config_for_new_blueprints(self, api_client, tmp_path: Path):
+        """REQ-188B-4 / #666: PATCH default -> new BlueprintBase resolves new profile without restart."""
+        from django.apps import apps
+        from swarm.core.blueprint_base import BlueprintBase
+
+        class LiveBlueprint(BlueprintBase):
+            async def run(self, messages, **kwargs):
+                yield {"messages": []}
+
+        path = tmp_path / "swarm_config.json"
+        initial_cfg = _config()
+        path.write_text(json.dumps(initial_cfg), encoding="utf-8")
+
+        app = apps.get_app_config("swarm")
+        orig_config = getattr(app, "config", None)
+        try:
+            app.config = json.loads(json.dumps(initial_cfg))
+            bp_before = LiveBlueprint("bp_before")
+            assert bp_before._resolve_llm_profile() == "gpt-5.6-terra"
+
+            with patch("swarm.core.remotes.load_raw_config", return_value=(json.loads(json.dumps(initial_cfg)), path)):
+                resp = api_client.patch(
+                    "/v1/llm-profiles/",
+                    {"default_llm_profile": "o3"},
+                    format="json",
+                )
+            assert resp.status_code == 200
+
+            # Newly constructed blueprint sees updated default without process restart
+            bp_after = LiveBlueprint("bp_after")
+            assert bp_after._resolve_llm_profile() == "o3"
+        finally:
+            app.config = orig_config
+

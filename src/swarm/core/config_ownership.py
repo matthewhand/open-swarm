@@ -531,6 +531,13 @@ def refresh_app_config(cfg: dict[str, Any] | None = None) -> None:
         except Exception:
             logger.debug("AppConfig reload skipped", exc_info=True)
             return
+    else:
+        try:
+            from swarm.core.config_loader import _substitute_env_vars
+
+            cfg = _substitute_env_vars(cfg)
+        except Exception:
+            pass
     app.config = cfg
 
 
