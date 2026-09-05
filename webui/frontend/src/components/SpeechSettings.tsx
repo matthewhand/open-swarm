@@ -30,7 +30,7 @@ export default function SpeechPane() {
   const [ttsKeyEnv, setTtsKeyEnv] = useState('')
 
   const settingsQuery = useQuery({
-    queryKey: SPEECH_QUERY_KEY,
+    queryKey: [...SPEECH_QUERY_KEY, 'probe'],
     queryFn: () => fetchSpeechSettings(true),
     retry: 1,
   })
@@ -69,6 +69,7 @@ export default function SpeechPane() {
     onSuccess: (saved) => {
       const next = parseSpeechSettings(saved)
       queryClient.setQueryData(SPEECH_QUERY_KEY, saved)
+      queryClient.setQueryData([...SPEECH_QUERY_KEY, 'probe'], saved)
       setSttSource(next.stt.source)
       setSttBaseUrl(next.stt.base_url)
       setSttModel(next.stt.model)
