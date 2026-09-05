@@ -1390,18 +1390,9 @@ const ChatPage = () => {
       const text = suggestionChipText(event)
       if (text.trim()) submitUserText(text)
     }
-    const onClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null
-      const chip = target?.closest('[data-suggestion-chip]')
-      if (!chip) return
-      const text = chip.getAttribute('data-suggestion-chip') || chip.textContent || ''
-      if (text.trim()) submitUserText(text)
-    }
     window.addEventListener(SUGGESTION_CHIP_EVENT, onChip)
-    document.addEventListener('click', onClick)
     return () => {
       window.removeEventListener(SUGGESTION_CHIP_EVENT, onChip)
-      document.removeEventListener('click', onClick)
     }
   }, [submitUserText])
 
@@ -1548,7 +1539,7 @@ const ChatPage = () => {
   }, [plusOpen])
 
   const streamingMessage = messages.find((message) => message.streaming)
-  const chipsDisabled = Boolean(streamingMessage) || status !== 'open'
+  const chipsDisabled = status !== 'open'
   const showSuggestionChips = shouldShowSuggestionChips({
     enabled: useSuggestions,
     chips: suggestionChips,
@@ -1583,10 +1574,10 @@ const ChatPage = () => {
 
   const chooseSuggestion = useCallback(
     (text: string) => {
-      if (chipsDisabled) return
-      sendText(text)
+      if (status !== 'open') return
+      submitUserText(text)
     },
-    [chipsDisabled, sendText],
+    [status, submitUserText],
   )
 
   const wasStreamingRef = useRef(false)

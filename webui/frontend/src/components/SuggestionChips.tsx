@@ -26,6 +26,7 @@ export function SuggestionChips({
           className="btn btn-soft btn-sm os-suggestion-chip"
           disabled={disabled}
           data-testid="suggestion-chip"
+          data-suggestion-chip={chip}
           onClick={() => {
             if (disabled) return
             onChoose(chip)
