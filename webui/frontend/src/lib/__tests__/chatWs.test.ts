@@ -157,4 +157,28 @@ describe('parseChatWsMessage', () => {
       ),
     ).toEqual({ kind: 'tool_approval', id: 't2', name: 'wipe', agentId: 'codey' })
   })
+
+  it('parses a structured pr_opened frame (REQ-71)', () => {
+    const url = 'https://github.com/matthewhand/open-swarm/pull/416'
+    expect(
+      parseChatWsMessage(
+        JSON.stringify({
+          type: 'pr_opened',
+          url,
+          number: 416,
+          title: 'REQ-71',
+          opener: { agent_id: 'codey', name: 'Codey' },
+        }),
+      ),
+    ).toEqual({
+      kind: 'pr_opened',
+      event: {
+        type: 'pr_opened',
+        url,
+        number: 416,
+        title: 'REQ-71',
+        opener: { agentId: 'codey', name: 'Codey' },
+      },
+    })
+  })
 })
