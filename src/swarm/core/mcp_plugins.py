@@ -1,4 +1,4 @@
-"""Plugins manage path (#502): swarm as an MCP *client*.
+"""Plugins manage path (#502 / #750): swarm as an MCP *client*.
 
 Server topology is global (``swarm_config.json`` ``mcpServers``). Tool On/Off
 is per-chat (#805 ``params.enabled_tools``). Distinct from
@@ -6,7 +6,10 @@ is per-chat (#805 ``params.enabled_tools``). Distinct from
 
 Local servers use stdio (command + args + env ``${VAR}``). Remote servers use
 a URL plus optional headers whose values are env placeholders — never plaintext
-secrets. Live ``list_tools`` is injectable so CI uses fixture mocks, not hosts.
+secrets. OpenAPI-backed servers (#750) launch or attach
+``mcp-openapi-proxy`` (https://github.com/matthewhand/mcp-openapi-proxy)
+so OpenAPI operations become MCP tools. Live ``list_tools`` is injectable so
+CI uses fixture mocks, not hosts.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import os
 import re
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -33,8 +37,18 @@ logger = logging.getLogger(__name__)
 
 KIND_LOCAL = "local"
 KIND_REMOTE = "remote"
+SOURCE_GENERIC = "generic"
+SOURCE_OPENAPI = "openapi"
+OPENAPI_PROXY_COMMAND = "uvx"
+OPENAPI_PROXY_ARGS = ("mcp-openapi-proxy",)
+OPENAPI_SPEC_ENV = "OPENAPI_SPEC_URL"
+OPENAPI_PROXY_PACKAGE = "mcp-openapi-proxy"
+_OPENAPI_SOURCE_ALIASES = frozenset(
+    {"openapi", "mcp-openapi-proxy", "openapi-proxy", "openapi_proxy"}
+)
 _PLACEHOLDER_RE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 _SAFE_URL_SCHEMES = frozenset({"http", "https"})
+_FILE_SCHEMES = frozenset({"file"})
 
 ListToolsFn = Callable[[dict[str, Any]], list[dict[str, str]]]
 
@@ -100,11 +114,197 @@ def _kind_of(spec: Mapping[str, Any] | None) -> str:
     explicit = str(raw.get("kind") or raw.get("type") or raw.get("transport") or "").strip().lower()
     if explicit in {KIND_LOCAL, "stdio"}:
         return KIND_LOCAL
-    if explicit in {KIND_REMOTE, "http", "sse", "url"}:
+    if explicit in {KIND_REMOTE, "http", "sse", "url", "streamable-http", "streamable_http"}:
         return KIND_REMOTE
     if isinstance(raw.get("url"), str) and raw["url"].strip():
         return KIND_REMOTE
     return KIND_LOCAL
+
+
+def _args_mention_openapi_proxy(spec: Mapping[str, Any] | None) -> bool:
+    raw = spec or {}
+    haystack = " ".join(
+        [str(raw.get("command") or "")] + [str(item) for item in (raw.get("args") or [])]
+    )
+    return OPENAPI_PROXY_PACKAGE in haystack
+
+
+def _source_of(spec: Mapping[str, Any] | None) -> str:
+    raw = spec or {}
+    explicit = str(raw.get("source") or raw.get("adapter") or "").strip().lower()
+    if explicit in _OPENAPI_SOURCE_ALIASES:
+        return SOURCE_OPENAPI
+    if str(raw.get("openapi_spec_url") or raw.get("openapiSpecUrl") or raw.get("spec_url") or "").strip():
+        return SOURCE_OPENAPI
+    env = raw.get("env")
+    if isinstance(env, dict) and str(env.get(OPENAPI_SPEC_ENV) or "").strip():
+        return SOURCE_OPENAPI
+    if _args_mention_openapi_proxy(raw):
+        return SOURCE_OPENAPI
+    return SOURCE_GENERIC
+
+
+def _looks_like_local_path(value: str) -> bool:
+    trimmed = (value or "").strip()
+    if not trimmed:
+        return False
+    return trimmed.startswith(("/", "./", "../", "~/")) or (
+        len(trimmed) >= 2 and trimmed[1] == ":" and trimmed[0].isalpha()
+    )
+
+
+def _normalize_openapi_spec_source(value: Any, *, allow_file: bool) -> str:
+    """Accept http(s) spec URLs; local mode also accepts a file path / file://."""
+    trimmed = str(value or "").strip()
+    if not trimmed:
+        return ""
+    if trimmed.startswith("${") or looks_like_env_name(trimmed):
+        raise McpPluginError(
+            "OpenAPI spec source must be a URL or local file path, not an env name. "
+            f"The proxy reads {OPENAPI_SPEC_ENV} from the saved spec field.",
+            code="bad_payload",
+        )
+    if "://" not in trimmed and _looks_like_local_path(trimmed):
+        if not allow_file:
+            raise McpPluginError(
+                "Remote OpenAPI uses a running proxy MCP URL. "
+                "Local file specs are for Local (stdio mcp-openapi-proxy) only.",
+                code="bad_payload",
+            )
+        expanded = os.path.expanduser(trimmed)
+        path = Path(expanded).expanduser()
+        if path.exists() and path.is_file():
+            return path.resolve().as_uri()
+        if path.is_absolute() or trimmed.startswith(("/", "file:")):
+            return Path(expanded).absolute().as_uri()
+        return f"file://{expanded}"
+    parsed = urlparse(trimmed)
+    if parsed.scheme in _FILE_SCHEMES:
+        if not allow_file:
+            raise McpPluginError(
+                "Remote OpenAPI uses a running proxy MCP URL. "
+                "file:// specs are for Local (stdio mcp-openapi-proxy) only.",
+                code="bad_payload",
+            )
+        if parsed.username or parsed.password:
+            raise McpPluginError(
+                "Refusing credentials in the OpenAPI spec URL. Use a ${VAR} env for API_KEY.",
+                code="plaintext_secret",
+            )
+        return trimmed
+    if parsed.scheme in _SAFE_URL_SCHEMES and parsed.netloc:
+        if parsed.username or parsed.password:
+            raise McpPluginError(
+                "Refusing credentials in the OpenAPI spec URL. Use a ${VAR} env for API_KEY.",
+                code="plaintext_secret",
+            )
+        return trimmed
+    raise McpPluginError(
+        "OpenAPI spec source must be an http(s) URL"
+        + (" or a local file path." if allow_file else "."),
+        code="bad_payload",
+    )
+
+
+def _lift_openapi_spec_from_env(raw_env: Any) -> tuple[dict[str, Any], str]:
+    """Pull a literal OPENAPI_SPEC_URL out of env so it is not treated as a secret."""
+    if not isinstance(raw_env, dict):
+        return {}, ""
+    lifted = ""
+    rest: dict[str, Any] = {}
+    for raw_key, raw_val in raw_env.items():
+        key = str(raw_key).strip()
+        if (
+            key == OPENAPI_SPEC_ENV
+            and isinstance(raw_val, str)
+            and raw_val.strip()
+            and not is_placeholder(raw_val)
+            and not looks_like_env_name(raw_val)
+        ):
+            lifted = raw_val.strip()
+            continue
+        rest[key] = raw_val
+    return rest, lifted
+
+
+def _apply_openapi_defaults(entry: dict[str, Any], raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Fill mcp-openapi-proxy command/env for the OpenAPI add path (#750)."""
+    kind = entry["kind"]
+    allow_file = kind == KIND_LOCAL
+    raw_spec = (
+        raw.get("openapi_spec_url")
+        or raw.get("openapiSpecUrl")
+        or raw.get("spec_url")
+        or raw.get("spec")
+        or ""
+    )
+    spec_url = _normalize_openapi_spec_source(raw_spec, allow_file=allow_file) if raw_spec else ""
+    if not spec_url:
+        existing = str(entry.get("openapi_spec_url") or "").strip()
+        spec_url = _normalize_openapi_spec_source(existing, allow_file=allow_file) if existing else ""
+    env = dict(entry.get("env") or {})
+    env_spec = env.pop(OPENAPI_SPEC_ENV, "")
+    if not spec_url and env_spec:
+        spec_url = _normalize_openapi_spec_source(env_spec, allow_file=allow_file)
+    if spec_url:
+        entry["openapi_spec_url"] = spec_url
+    entry["source"] = SOURCE_OPENAPI
+    if kind == KIND_REMOTE:
+        if not str(entry.get("url") or "").strip():
+            raise McpPluginError(
+                "Remote OpenAPI needs the running proxy MCP URL (http/s). "
+                "Use Local to launch mcp-openapi-proxy with OPENAPI_SPEC_URL.",
+                code="bad_payload",
+            )
+        return entry
+    if not spec_url:
+        raise McpPluginError(
+            "Local OpenAPI (mcp-openapi-proxy) needs an OpenAPI spec URL or file path.",
+            code="bad_payload",
+        )
+    command = str(raw.get("command") or entry.get("command") or OPENAPI_PROXY_COMMAND).strip()
+    args = _str_list(raw.get("args") if raw.get("args") not in (None, "") else entry.get("args"))
+    if not command:
+        command = OPENAPI_PROXY_COMMAND
+    if not args:
+        args = list(OPENAPI_PROXY_ARGS)
+    entry["command"] = command
+    entry["args"] = args
+    env[OPENAPI_SPEC_ENV] = spec_url
+    entry["env"] = env
+    return entry
+
+
+def _with_openapi_runtime_env(spec: Mapping[str, Any]) -> dict[str, Any]:
+    """Ensure the stdio child sees OPENAPI_SPEC_URL (name only in docs; value is the spec)."""
+    out = dict(spec)
+    if _source_of(out) != SOURCE_OPENAPI:
+        return out
+    spec_url = str(out.get("openapi_spec_url") or "").strip()
+    env = dict(out.get("env") or {}) if isinstance(out.get("env"), dict) else {}
+    if spec_url:
+        env.setdefault(OPENAPI_SPEC_ENV, spec_url)
+    if env:
+        out["env"] = env
+    return out
+
+
+def _openapi_discover_hint(exc: Exception, spec: Mapping[str, Any]) -> str:
+    text = str(exc) or exc.__class__.__name__
+    lowered = text.lower()
+    if _source_of(spec) != SOURCE_OPENAPI and not _args_mention_openapi_proxy(spec):
+        return f"Could not list tools from the MCP server: {text}"
+    if isinstance(exc, FileNotFoundError) or "no such file" in lowered or "not found" in lowered:
+        return (
+            "mcp-openapi-proxy is not installed. "
+            "Install with: uvx mcp-openapi-proxy (PyPI) or pip install mcp-openapi-proxy."
+        )
+    if "timeout" in lowered or "timed out" in lowered:
+        return (
+            "Connect timeout talking to mcp-openapi-proxy. "
+            f"Check {OPENAPI_SPEC_ENV} and that the proxy can fetch the spec."
+        )
+    return f"Could not list tools from mcp-openapi-proxy: {text}"
 
 
 def _validate_remote_url(url: str) -> str:
@@ -136,16 +336,21 @@ def normalize_plugin_spec(raw: Any, *, name: str = "") -> dict[str, Any]:
     display = str(raw.get("label") or raw.get("name") or name).strip()
     key = _slug(str(raw.get("id") or raw.get("name") or name))
     kind = _kind_of(raw)
+    source = _source_of(raw)
     enabled = raw.get("enabled")
     entry: dict[str, Any] = {
         "name": key,
         "label": display or key,
         "kind": kind,
+        "source": source,
         "enabled": not (enabled is False or enabled == "false"),
         "provides": _str_list(raw.get("provides")),
         "note": str(raw.get("note") or "").strip(),
     }
-    env = _placeholder_map(raw.get("env"), field="env")
+    raw_env, lifted_spec = _lift_openapi_spec_from_env(raw.get("env"))
+    env = _placeholder_map(raw_env, field="env")
+    if lifted_spec:
+        entry["openapi_spec_url"] = lifted_spec
     if env:
         entry["env"] = env
     headers = _placeholder_map(raw.get("headers"), field="headers")
@@ -171,11 +376,20 @@ def normalize_plugin_spec(raw: Any, *, name: str = "") -> dict[str, Any]:
             if not entry["provides"]:
                 entry["provides"] = [row["name"] for row in tools]
     if kind == KIND_REMOTE:
-        entry["url"] = _validate_remote_url(str(raw.get("url") or ""))
+        url_value = str(raw.get("url") or "")
+        if source == SOURCE_OPENAPI and not url_value.strip():
+            raise McpPluginError(
+                "Remote OpenAPI needs the running proxy MCP URL (http/s). "
+                "Use Local to launch mcp-openapi-proxy with OPENAPI_SPEC_URL.",
+                code="bad_payload",
+            )
+        entry["url"] = _validate_remote_url(url_value)
         transport = str(raw.get("type") or raw.get("transport") or "sse").strip() or "sse"
         entry["type"] = transport
     else:
         command = str(raw.get("command") or "").strip()
+        if source == SOURCE_OPENAPI and not command:
+            command = OPENAPI_PROXY_COMMAND
         if not command:
             raise McpPluginError("Local MCP servers need a command (stdio).", code="bad_payload")
         entry["command"] = command
@@ -183,6 +397,8 @@ def normalize_plugin_spec(raw: Any, *, name: str = "") -> dict[str, Any]:
         cwd = str(raw.get("cwd") or "").strip()
         if cwd:
             entry["cwd"] = cwd
+    if source == SOURCE_OPENAPI:
+        _apply_openapi_defaults(entry, raw)
     return entry
 
 
@@ -220,10 +436,12 @@ def public_server(name: str, spec: Mapping[str, Any] | None) -> dict[str, Any]:
         "name": name,
         "label": str(raw.get("label") or name),
         "kind": kind,
+        "source": _source_of(raw),
         "enabled": raw.get("enabled") is not False,
         "command": str(redacted.get("command") or ""),
         "args": list(redacted.get("args") or []),
         "url": str(redacted.get("url") or ""),
+        "openapi_spec_url": str(raw.get("openapi_spec_url") or ""),
         "type": str(redacted.get("type") or redacted.get("transport") or ""),
         "cwd": str(redacted.get("cwd") or ""),
         "env": redacted.get("env") if isinstance(redacted.get("env"), dict) else {},
@@ -305,11 +523,12 @@ def _tool_rows(tools: Iterable[Any]) -> list[dict[str, str]]:
 async def _discover_local(spec: Mapping[str, Any], *, timeout: int) -> list[dict[str, str]]:
     from swarm.extensions.mcp.mcp_client import MCPClient
 
+    live = _with_openapi_runtime_env(spec)
     client = MCPClient(
         {
-            "command": spec.get("command"),
-            "args": list(spec.get("args") or []),
-            "env": spec.get("env") or {},
+            "command": live.get("command"),
+            "args": list(live.get("args") or []),
+            "env": live.get("env") or {},
         },
         timeout=timeout,
         debug=False,
@@ -363,7 +582,7 @@ def list_tools_for_spec(
     if normalized.get("enabled") is False:
         raise McpPluginError("Server is disabled. Enable it before discovering tools.", code="disabled")
     if list_tools_fn is not None:
-        return _tool_rows(list_tools_fn(normalized))
+        return _tool_rows(list_tools_fn(_with_openapi_runtime_env(normalized)))
     missing = _missing_env(normalized)
     if missing:
         names = ", ".join(sorted(set(missing)))
@@ -371,7 +590,7 @@ def list_tools_for_spec(
             f"Secret env {names} is not set. Export the variable; do not paste the value.",
             code="secret_unset",
         )
-    live = _expand_placeholders(normalized)
+    live = _with_openapi_runtime_env(_expand_placeholders(normalized))
     try:
         return _tool_rows(_run_async(_discover_live(live, timeout=timeout)))
     except McpPluginError:
@@ -379,7 +598,7 @@ def list_tools_for_spec(
     except Exception as exc:
         logger.warning("MCP list_tools failed for %s", normalized.get("name") or normalized.get("kind"))
         raise McpPluginError(
-            f"Could not list tools from the MCP server: {exc}",
+            _openapi_discover_hint(exc, normalized),
             code="mcp_discover_failed",
             status=502,
         ) from exc
@@ -431,7 +650,7 @@ def _make_tool_caller(tool_name: str, spec: Mapping[str, Any]) -> Callable[..., 
     body = dict(spec)
 
     async def _call(**kwargs: Any) -> Any:
-        live = _expand_placeholders(body)
+        live = _with_openapi_runtime_env(_expand_placeholders(body))
         if _kind_of(live) == KIND_REMOTE:
             from mcp import ClientSession
             from mcp.client.sse import sse_client

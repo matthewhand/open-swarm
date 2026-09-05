@@ -74,6 +74,8 @@ describe('PluginsServersPane', () => {
           command: body.command || '',
           args: body.args || [],
           url: body.url || '',
+          source: body.source || 'generic',
+          openapi_spec_url: body.openapi_spec_url || '',
           env: body.env || {},
           headers: body.headers || {},
           provides: body.provides || [],
@@ -98,8 +100,7 @@ describe('PluginsServersPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discover tools' }))
     expect(await screen.findByText(/Found 1 tool/i)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add server' }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Kind' }), { target: { value: 'remote' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add: Remote MCP' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'proxy' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'URL' }), {
       target: { value: 'https://example.invalid/mcp' },
@@ -167,5 +168,85 @@ describe('PluginsServersPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discover tools' }))
     expect(await screen.findByText('Could not list tools')).toBeInTheDocument()
     expect(screen.getByText(/refused connect/i)).toBeInTheDocument()
+  })
+
+  it('adds OpenAPI (mcp-openapi-proxy), discovers mock tools, and disables them', async () => {
+    const servers: Record<string, unknown>[] = []
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method || 'GET').toUpperCase()
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (url.includes('/v1/mcp-plugins/discover')) {
+        expect(body.source).toBe('openapi')
+        expect(body.openapi_spec_url).toBe('https://example.invalid/openapi.json')
+        return jsonResponse({
+          object: 'mcp_plugin_tools',
+          name: body.name,
+          kind: 'local',
+          source: 'openapi',
+          tools: [
+            { name: 'list_pets', description: 'List pets' },
+            { name: 'get_pet', description: 'Get a pet' },
+          ],
+        })
+      }
+      if (url.includes('/v1/mcp-plugins/') && method === 'POST') {
+        expect(JSON.stringify(body)).not.toMatch(/sk-|api[_-]?key|bearer /i)
+        expect(body.source).toBe('openapi')
+        expect(body.command).toBe('uvx')
+        expect(body.args).toEqual(['mcp-openapi-proxy'])
+        const row = {
+          name: 'pets',
+          label: body.name,
+          kind: 'local',
+          source: 'openapi',
+          enabled: body.enabled !== false,
+          command: body.command,
+          args: body.args,
+          url: '',
+          openapi_spec_url: body.openapi_spec_url,
+          env: body.env || {},
+          headers: {},
+          provides: ['list_pets', 'get_pet'],
+          note: body.note || '',
+          tools: [],
+        }
+        const existing = servers.findIndex((item) => item.name === row.name)
+        if (existing >= 0) servers[existing] = { ...servers[existing], ...row }
+        else servers.push(row)
+        return jsonResponse({ object: 'mcp_plugins', scope: 'global_servers_per_chat_tools', servers })
+      }
+      return jsonResponse({ object: 'mcp_plugins', scope: 'global_servers_per_chat_tools', servers })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPane()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add: OpenAPI (mcp-openapi-proxy)' }))
+    expect(screen.getByTestId('os-openapi-wizard-hint')).toHaveTextContent(/mcp-openapi-proxy/)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Pets' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save server' }))
+    expect(await screen.findByText(/OpenAPI spec required/i)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('textbox', { name: /OpenAPI spec source/i }), {
+      target: { value: 'https://example.invalid/openapi.json' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save server' }))
+    expect((await screen.findAllByText('MCP server saved')).length).toBeGreaterThan(0)
+    expect(screen.getByRole('list', { name: 'Configured MCP servers' })).toHaveTextContent('Pets')
+    expect(screen.getByRole('list', { name: 'Configured MCP servers' })).toHaveTextContent(
+      'https://example.invalid/openapi.json',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discover tools' }))
+    expect(await screen.findByText(/Found 2 tools/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: /Pets enabled/i }))
+    await waitFor(() => {
+      const bodies = fetchMock.mock.calls
+        .map((call) => call[1]?.body)
+        .filter(Boolean)
+        .map((raw) => JSON.parse(String(raw)))
+      expect(bodies.some((body) => body.enabled === false && body.source === 'openapi')).toBe(true)
+    })
   })
 })

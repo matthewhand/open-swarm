@@ -137,6 +137,7 @@ describe('catalog degrade', () => {
         {
           name: 'fetch',
           kind: 'local',
+          source: 'generic',
           enabled: true,
           command: 'uvx',
           args: ['mcp-server-fetch'],

@@ -121,3 +121,80 @@ def test_discover_local_and_remote_mocks(api_client, tmp_path: Path):
         assert failed.status_code == 502
         assert failed.json()["code"] == "mcp_discover_failed"
         assert "refused" in failed.json()["error"]
+
+
+def test_upsert_and_discover_openapi_mock(api_client, tmp_path: Path):
+    path = tmp_path / "swarm_config.json"
+    path.write_text(json.dumps({"llm": {}, "mcpServers": {}}), encoding="utf-8")
+
+    def fake_list(spec):
+        assert spec.get("source") == "openapi"
+        assert spec.get("openapi_spec_url") == "https://example.invalid/openapi.json"
+        return [
+            {"name": "list_pets", "description": "List pets"},
+            {"name": "get_pet", "description": "Get a pet"},
+        ]
+
+    cfg = {"llm": {}, "mcpServers": {}}
+    with (
+        patch("swarm.core.remotes.load_raw_config", return_value=(cfg, path)),
+        patch("swarm.core.mcp_plugins.swarm_config", return_value=cfg),
+    ):
+        created = api_client.post(
+            "/v1/mcp-plugins/",
+            {
+                "name": "pets",
+                "source": "openapi",
+                "kind": "local",
+                "openapi_spec_url": "https://example.invalid/openapi.json",
+                "env": {"API_KEY": "${API_KEY}"},
+            },
+            format="json",
+        )
+        assert created.status_code == 200
+        pets = next(row for row in created.json()["servers"] if row["name"] == "pets")
+        assert pets["source"] == "openapi"
+        assert pets["command"] == "uvx"
+        assert pets["args"] == ["mcp-openapi-proxy"]
+        assert pets["openapi_spec_url"] == "https://example.invalid/openapi.json"
+        assert "sk-" not in json.dumps(created.json())
+
+        missing = api_client.post(
+            "/v1/mcp-plugins/",
+            {"name": "no-spec", "source": "openapi", "kind": "local"},
+            format="json",
+        )
+        assert missing.status_code == 400
+        assert missing.json()["code"] == "bad_payload"
+
+    cfg = {
+        "llm": {},
+        "mcpServers": {
+            "pets": {
+                "source": "openapi",
+                "kind": "local",
+                "command": "uvx",
+                "args": ["mcp-openapi-proxy"],
+                "openapi_spec_url": "https://example.invalid/openapi.json",
+            }
+        },
+    }
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    with (
+        patch("swarm.core.remotes.load_raw_config", return_value=(cfg, path)),
+        patch("swarm.core.mcp_plugins.swarm_config", return_value=cfg),
+        patch("swarm.core.mcp_plugins.list_tools_for_spec", side_effect=lambda spec, **_k: fake_list(spec)),
+    ):
+        discovered = api_client.post(
+            "/v1/mcp-plugins/discover/",
+            {
+                "name": "pets",
+                "source": "openapi",
+                "kind": "local",
+                "openapi_spec_url": "https://example.invalid/openapi.json",
+            },
+            format="json",
+        )
+        assert discovered.status_code == 200
+        assert [row["name"] for row in discovered.json()["tools"]] == ["list_pets", "get_pet"]
+        assert discovered.json()["source"] == "openapi"

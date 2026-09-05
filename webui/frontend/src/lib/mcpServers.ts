@@ -1,17 +1,24 @@
 /**
- * MCP server entries for Settings → Plugins (#502 manage path).
+ * MCP server entries for Settings → Plugins (#502 / #750 manage path).
  *
  * Source of truth is ``swarm_config.json`` ``mcpServers`` via
  * ``/v1/mcp-plugins/``. localStorage is a write-through cache so the rail
  * Plugins popup can show configured tools when the API is mid-flight.
  *
  * Env / header values are ``${VAR}`` placeholders only — never keys or tokens.
+ * OpenAPI servers store the spec on ``openapi_spec_url`` (not a secret) and
+ * launch ``uvx mcp-openapi-proxy`` locally with ``OPENAPI_SPEC_URL``.
  */
 
 export const MCP_SERVERS_KEY = 'swarm_mcp_servers'
 export const MCP_SERVERS_EVENT = 'swarm:mcp-servers'
 
 export type McpServerKind = 'local' | 'remote'
+export type McpServerSource = 'generic' | 'openapi'
+
+export const OPENAPI_PROXY_COMMAND = 'uvx'
+export const OPENAPI_PROXY_ARGS = ['mcp-openapi-proxy'] as const
+export const OPENAPI_SPEC_ENV = 'OPENAPI_SPEC_URL'
 
 export interface McpDiscoveredTool {
   name: string
@@ -22,10 +29,12 @@ export interface McpServerEntry {
   id: string
   name: string
   kind: McpServerKind
+  source?: McpServerSource
   enabled: boolean
   command?: string
   args?: string[]
   url?: string
+  openapi_spec_url?: string
   cwd?: string
   env?: Record<string, string>
   headers?: Record<string, string>
@@ -39,6 +48,125 @@ const ENV_NAME_RE = /^[A-Z][A-Z0-9_]*$/
 
 function isKind(value: unknown): value is McpServerKind {
   return value === 'local' || value === 'remote'
+}
+
+function isSource(value: unknown): value is McpServerSource {
+  return value === 'generic' || value === 'openapi'
+}
+
+export function isOpenApiSource(entry: {
+  source?: string
+  openapi_spec_url?: string
+  args?: string[]
+  command?: string
+} | null | undefined): boolean {
+  if (!entry) return false
+  if (entry.source === 'openapi') return true
+  if (typeof entry.openapi_spec_url === 'string' && entry.openapi_spec_url.trim()) return true
+  const haystack = [entry.command, ...(entry.args || [])].filter(Boolean).join(' ')
+  return haystack.includes('mcp-openapi-proxy')
+}
+
+const LOCAL_PATH_RE = /^(?:\/|\.\/|\.\.\/|~\/|[A-Za-z]:[\\/])/
+
+function urlHasUserinfo(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return Boolean(parsed.username || parsed.password)
+  } catch {
+    return /:\/\/[^/]*@/.test(value)
+  }
+}
+
+export function normalizeOpenApiSpecSource(raw: string, kind: McpServerKind): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (/^file:\/\//i.test(trimmed)) return kind === 'local' ? trimmed : ''
+  if (kind === 'local' && LOCAL_PATH_RE.test(trimmed)) {
+    if (trimmed.startsWith('file:')) return trimmed
+    if (trimmed.startsWith('/')) return `file://${trimmed}`
+    return trimmed
+  }
+  return trimmed
+}
+
+export interface OpenApiWizardFields {
+  name: string
+  kind: McpServerKind
+  specSource: string
+  url: string
+}
+
+export interface OpenApiWizardOk {
+  ok: true
+  specSource: string
+  url: string
+}
+
+export interface OpenApiWizardErr {
+  ok: false
+  error: string
+  detail: string
+}
+
+/** Client-side #750 wizard checks. Server still refuses secrets / bad URLs. */
+export function validateOpenApiWizard(fields: OpenApiWizardFields): OpenApiWizardOk | OpenApiWizardErr {
+  const name = fields.name.trim()
+  if (!name) {
+    return { ok: false, error: 'Name required', detail: 'Give the OpenAPI MCP server a display name.' }
+  }
+  if (fields.kind === 'local') {
+    const specSource = normalizeOpenApiSpecSource(fields.specSource, 'local')
+    if (!specSource) {
+      return {
+        ok: false,
+        error: 'OpenAPI spec required',
+        detail: 'Local mcp-openapi-proxy needs an http(s) spec URL or a local file path.',
+      }
+    }
+    if (/^https?:\/\//i.test(specSource) && urlHasUserinfo(specSource)) {
+      return {
+        ok: false,
+        error: 'Refusing credentials in spec URL',
+        detail: 'Do not paste userinfo. Use ${API_KEY} if the API needs auth.',
+      }
+    }
+    return { ok: true, specSource, url: '' }
+  }
+  const url = fields.url.trim()
+  if (!url) {
+    return {
+      ok: false,
+      error: 'Proxy MCP URL required',
+      detail: 'Remote OpenAPI attaches to a running proxy MCP URL. Use Local to launch stdio.',
+    }
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    return {
+      ok: false,
+      error: 'URL required',
+      detail: 'Remote MCP URL must be http(s) with a host. Do not paste secrets in the URL.',
+    }
+  }
+  if (urlHasUserinfo(url)) {
+    return {
+      ok: false,
+      error: 'Refusing credentials in URL',
+      detail: 'Use a ${VAR} header instead of userinfo.',
+    }
+  }
+  const specSource = fields.specSource.trim()
+    ? normalizeOpenApiSpecSource(fields.specSource, 'remote')
+    : ''
+  if (fields.specSource.trim() && !specSource) {
+    return {
+      ok: false,
+      error: 'OpenAPI spec must be http(s)',
+      detail: 'Remote mode stores an optional spec URL for display. File paths are local-only.',
+    }
+  }
+  return { ok: true, specSource, url }
 }
 
 export function isEnvPlaceholder(value: string): boolean {
@@ -98,6 +226,13 @@ function parseEntry(value: unknown): McpServerEntry | null {
     : typeof row.url === 'string' && row.url.trim()
       ? 'remote'
       : 'local'
+  const source = isSource(row.source)
+    ? row.source
+    : typeof row.openapi_spec_url === 'string' && row.openapi_spec_url.trim()
+      ? 'openapi'
+      : Array.isArray(row.args) && row.args.some((item) => String(item).includes('mcp-openapi-proxy'))
+        ? 'openapi'
+        : 'generic'
   if (!id || !name) return null
   const provides = Array.isArray(row.provides)
     ? row.provides.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
@@ -110,10 +245,12 @@ function parseEntry(value: unknown): McpServerEntry | null {
     id,
     name,
     kind,
+    source,
     enabled: row.enabled !== false && row.enabled !== 'false',
     command: typeof row.command === 'string' ? row.command : '',
     args,
     url: typeof row.url === 'string' ? row.url : '',
+    openapi_spec_url: typeof row.openapi_spec_url === 'string' ? row.openapi_spec_url : '',
     cwd: typeof row.cwd === 'string' ? row.cwd : '',
     env: parsePlaceholderMap(row.env),
     headers: parsePlaceholderMap(row.headers),
@@ -174,9 +311,13 @@ export function entryToUpsertBody(entry: McpServerEntry): Record<string, unknown
   const body: Record<string, unknown> = {
     name: parsed.name || parsed.id,
     kind: parsed.kind,
+    source: parsed.source || 'generic',
     enabled: parsed.enabled,
     provides: parsed.provides,
     note: parsed.note || '',
+  }
+  if (parsed.openapi_spec_url) {
+    body.openapi_spec_url = parsed.openapi_spec_url
   }
   if (parsed.kind === 'remote') {
     body.url = parsed.url || ''
