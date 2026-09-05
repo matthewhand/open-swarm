@@ -925,6 +925,7 @@ describe('ChatPage markdown bubbles', () => {
 
     expect(screen.getByText('hello').tagName).toBe('STRONG')
     expect(screen.getByText('code').tagName).toBe('CODE')
+    expect(screen.getByRole('button', { name: 'Read aloud' })).toBeInTheDocument()
   })
 
   it('shows the default agent avatar in the header and on assistant bubbles', async () => {

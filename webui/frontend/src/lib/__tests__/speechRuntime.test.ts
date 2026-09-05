@@ -20,19 +20,24 @@ describe('speechRuntime (REQ-77)', () => {
   })
 
   it('prefers system STT, falls back to custom only when system is missing', () => {
-    const custom = settings({
+    const storedCustom = settings({
       stt: { source: 'system', base_url: 'http://127.0.0.1:9' },
       tts: { source: 'system', base_url: '' },
     })
-    expect(resolveSttPath(custom, window)).toBeNull()
-    expect(sttUnavailableMessage(custom)).toMatch(/not available/i)
+    expect(resolveSttPath(storedCustom, window)).toBe('custom')
+
+    const none = settings({
+      stt: { source: 'system', base_url: '' },
+    })
+    expect(resolveSttPath(none, window)).toBeNull()
+    expect(sttUnavailableMessage(none)).toMatch(/not available/i)
 
     class FakeRec {
       start() {}
       onresult = null
     }
     vi.stubGlobal('SpeechRecognition', FakeRec)
-    expect(resolveSttPath(custom, window)).toBe('system')
+    expect(resolveSttPath(storedCustom, window)).toBe('system')
 
     const opted = settings({
       stt: { source: 'custom', base_url: 'http://127.0.0.1:9' },
