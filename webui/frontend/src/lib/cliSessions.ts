@@ -11,6 +11,7 @@ import {
   conversationIdForAgent,
   setConversationIdForAgent,
 } from './agentChat'
+import { messagesFromThreadPayload } from './transcriptReconstruct'
 
 export { setConversationIdForAgent } from './agentChat'
 
@@ -65,6 +66,8 @@ export interface CliSessionSelectResult {
     kind?: string
     from_conversation_id?: string
   }>
+  turns?: Array<{ role: string; content: string; kind?: string }>
+  ui_events?: Array<{ role: string; content: string; kind?: string; ts?: string }>
   status: string
   collapsed_prior: boolean
   import: 'none' | 'full' | 'partial'
@@ -100,7 +103,10 @@ export async function selectCliSession(opts: {
   if (data.conversation_id) {
     setConversationIdForAgent(opts.agentId, data.conversation_id)
   }
-  return data
+  return {
+    ...data,
+    messages: messagesFromThreadPayload(data),
+  }
 }
 
 export function dispatchCliSessionSwitched(detail: {

@@ -142,6 +142,9 @@ def test_select_updates_stored_id_and_mints_new_conversation(tmp_path, monkeypat
     assert "old question" in pill["content"]
     assert "old answer" in pill["content"]
     assert any(m.get("content") == "from cli" for m in first["messages"])
+    assert not any(m.get("role") in ("status", "info") for m in first["turns"])
+    assert any(e.get("content") == first["status"] for e in first["ui_events"])
+    assert any(e.get("kind") == PRIOR_HISTORY_KIND for e in first["ui_events"])
 
     old = chat_store.load("u1", "cli_agent", conversation_id="agt-1-cli_agent", base_dir=tmp_path)
     assert old is not None
@@ -156,6 +159,9 @@ def test_select_updates_stored_id_and_mints_new_conversation(tmp_path, monkeypat
     )
     assert new is not None
     assert new["conversation_id"] == first["conversation_id"]
+    assert not any(m.get("role") in ("status", "info") for m in new["messages"])
+    assert any(e.get("content") == first["status"] for e in new["ui_events"])
+    assert any(e.get("kind") == PRIOR_HISTORY_KIND for e in new["ui_events"])
 
 
 def test_select_same_session_does_not_double_collapse(tmp_path, monkeypatch):
@@ -210,6 +216,8 @@ def test_start_new_clears_id_and_collapses_prior(tmp_path, monkeypatch):
     assert get_cli_session("u1", "cli_agent", "echo", base_dir=tmp_path) is None
     assert settings_store.stored_cli_session_id("cli_agent") is None
     assert any(m.get("kind") == PRIOR_HISTORY_KIND for m in result["messages"])
+    assert not any(m.get("role") in ("status", "info") for m in result["turns"])
+    assert any(e.get("content") == result["status"] for e in result["ui_events"])
 
 
 def test_old_compressions_are_not_copied(tmp_path, monkeypatch):
@@ -272,3 +280,4 @@ def test_format_prior_history_skips_empty():
     )
     assert "**User:** q" in text
     assert "**Assistant:** a" in text
+    assert "Started a new echo session." not in text

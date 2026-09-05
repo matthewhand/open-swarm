@@ -62,9 +62,18 @@ def test_parse_rejects_markdown_and_lone_links():
 
 def test_persist_status_row_is_idempotent():
     messages: list[dict] = []
+    events: list[dict] = []
     payload = {"type": "pr_opened", "url": GH, "number": 416}
-    persist_pr_opened_message(messages, payload)
-    persist_pr_opened_message(messages, payload)
-    assert len(messages) == 1
-    assert messages[0]["role"] == "status"
-    assert '"type":"pr_opened"' in messages[0]["content"]
+    persist_pr_opened_message(messages, payload, events=events)
+    persist_pr_opened_message(messages, payload, events=events)
+    assert messages == []
+    assert len(events) == 1
+    assert events[0]["role"] == "status"
+    assert events[0]["kind"] == "pr_opened"
+    assert '"type":"pr_opened"' in events[0]["content"]
+
+
+def test_persist_without_events_does_not_mix_into_turns():
+    messages: list[dict] = [{"role": "user", "content": "hi"}]
+    persist_pr_opened_message(messages, {"type": "pr_opened", "url": GH, "number": 416})
+    assert messages == [{"role": "user", "content": "hi"}]

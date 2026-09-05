@@ -181,3 +181,24 @@ def test_thread_post_status_lands_in_ui_events():
     assert all(row["role"] != "status" for row in loaded["messages"])
     assert loaded["ui_events"][-1]["content"] == STATUS_CLI
     assert loaded["ui_events"][-1]["ts"]
+
+
+def test_prior_history_stays_system_chrome_not_a_turn():
+    turns, events = split_store(
+        [
+            {
+                "role": "system",
+                "kind": "prior_history",
+                "content": "**User:** old",
+            },
+            {"role": "user", "content": "next"},
+        ]
+    )
+    assert [row["role"] for row in turns] == ["user"]
+    assert events[0]["kind"] == "prior_history"
+    assert events[0]["role"] == "system"
+    payload = build_model_context_from_store(turns, events)
+    assert payload == [{"role": "user", "content": "next"}]
+    display = reconstruct_display(turns, events)
+    assert display[0]["kind"] == "prior_history"
+    assert display[0]["role"] == "system"

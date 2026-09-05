@@ -80,8 +80,10 @@ that line as **UI metadata** (`ui_events`) and does **not** invoke a blueprint
 or LLM.
 
 REQ-70 reconstruction: status/info/hop chrome lives in `ui_events` (side
-channel). The UI reconstructs those lines into transcript chrome. Model
-context is built from real user/assistant/tool turns only. Exclude helpers
+channel). CLI session select and PR-opened persist append those events via
+`append_event`; they do not write `role=status` onto the model-turn list.
+The UI reconstructs those lines into transcript chrome. Model context is
+built from real user/assistant/tool turns only. Exclude helpers
 (`messages_for_model`) remain a safety belt if mixed rows still exist
 temporarily — they are not the Success architecture. Compact-fallback and
 CLI `render_prompt` use the same turns-only payload.

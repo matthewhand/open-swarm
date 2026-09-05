@@ -194,15 +194,18 @@ def persist_pr_opened_message(
     *,
     events: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Record a PR-opened chrome event (UI metadata, not model context)."""
+    """Record a PR-opened chrome event on the UI side channel.
+
+    Never writes ``role=status`` onto the model-turn list. Callers must
+    pass ``events`` (the ``ui_events`` store). Omitting it is a no-op so
+    leftover mixed-store writes cannot come back through this helper.
+    """
+    if events is None:
+        return
     content = json.dumps(payload, separators=(",", ":"))
-    target = events if events is not None else messages
-    for row in target:
+    for row in events:
         if row.get("role") == "status" and row.get("content") == content:
             return
-    if events is not None:
-        from swarm.core.transcript_roles import append_event
+    from swarm.core.transcript_roles import append_event
 
-        append_event(messages, events, "status", content, kind="pr_opened")
-        return
-    messages.append({"role": "status", "content": content, "kind": "pr_opened"})
+    append_event(messages, events, "status", content, kind="pr_opened")
