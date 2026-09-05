@@ -112,6 +112,29 @@ export default function DefinitionPane({
     }
   }
 
+  if (!definitionId || !definitionId.trim()) {
+    return (
+      <section
+        id="os-definition-pane"
+        aria-labelledby={headingId}
+        className="space-y-4"
+        data-testid="definition-empty"
+      >
+        <div>
+          <h4 id={headingId} className="text-lg font-semibold">
+            Definition
+          </h4>
+          <p className="mt-1 text-sm text-base-content/70">
+            Select an agent, role, or team from the sidebar to inspect its definition and injected context.
+          </p>
+        </div>
+        <Alert type="info" icon={<AlertCircle className="h-5 w-5" />}>
+          <span className="text-sm">No definition selected.</span>
+        </Alert>
+      </section>
+    )
+  }
+
   return (
     <section
       id="os-definition-pane"
