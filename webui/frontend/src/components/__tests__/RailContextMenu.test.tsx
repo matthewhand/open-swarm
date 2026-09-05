@@ -21,11 +21,13 @@ describe('RailContextMenu (REQ-82)', () => {
     const menuitems = within(menu).getAllByRole('menuitem')
     expect(menuitems.map((el) => el.textContent)).toEqual([
       'Unpin',
+      'Move to',
       'Mark as unread',
       'Edit Profile',
       'Duplicate',
       'Copy conversation ID',
       'Hide from sidebar',
+      'Notifications: Off',
       'Delete',
     ])
     for (const item of menuitems) {

@@ -7,6 +7,13 @@
 
 import { conversationIdForAgent, peekConversationIdForAgent } from './agentChat'
 import { loadAgentChatSessions } from './agentChatSessions'
+import {
+  NEW_SECTION_PLACEHOLDER,
+  NEW_SECTION_TARGET,
+  UNASSIGNED_SECTION_ID,
+  UNASSIGNED_SECTION_NAME,
+  type RailSection,
+} from './railSections'
 import { teamThreadId } from './teamRosters'
 
 export const RAIL_LONG_PRESS_MS = 500
@@ -19,6 +26,7 @@ export type RailMenuItemId =
   | 'new-session'
   | 'unpin'
   | 'pin'
+  | 'move-to'
   | 'unread'
   | 'edit'
   | 'duplicate'
@@ -28,6 +36,16 @@ export type RailMenuItemId =
   | 'unhide'
   | 'notify'
   | 'delete'
+  | 'section-rename'
+  | 'section-move-up'
+  | 'section-move-down'
+  | 'section-delete'
+
+export interface RailMenuSubItemSpec {
+  id: string
+  label: string
+  checked?: boolean
+}
 
 export interface RailMenuItemSpec {
   id: RailMenuItemId
@@ -36,6 +54,12 @@ export interface RailMenuItemSpec {
   reason?: string
   danger?: boolean
   group: number
+  children?: RailMenuSubItemSpec[]
+}
+
+export interface RailMenuMoveTo {
+  sections?: Array<Pick<RailSection, 'id' | 'name'>>
+  currentSectionId?: string | null
 }
 
 export interface RailMenuOptions {
@@ -50,6 +74,8 @@ export interface RailMenuOptions {
   notifyEnabled?: boolean
   /** True when a CLI subprocess is running for this rail row (REQ-114). */
   cliRunning?: boolean
+  /** REQ-209: existing sections for the Move to submenu. */
+  moveTo?: RailMenuMoveTo
 }
 
 const CLI_NO_PROFILE = 'CLI agents have no swarm-owned profile'
@@ -77,6 +103,7 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
   } else {
     items.push({ id: 'pin', label: 'Pin', group: 1 })
   }
+  items.push(moveToMenuItem(opts.moveTo))
   items.push({
     id: 'unread',
     label: opts.unread ? 'Mark as read' : 'Mark as unread',
@@ -138,6 +165,54 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
   })
 
   return items
+}
+
+export function moveToMenuItem(moveTo?: RailMenuMoveTo): RailMenuItemSpec {
+  const current = moveTo?.currentSectionId ?? UNASSIGNED_SECTION_ID
+  const children: RailMenuSubItemSpec[] = (moveTo?.sections ?? []).map((section) => ({
+    id: section.id,
+    label: section.name.trim() || NEW_SECTION_PLACEHOLDER,
+    checked: section.id === current,
+  }))
+  children.push({
+    id: UNASSIGNED_SECTION_ID,
+    label: UNASSIGNED_SECTION_NAME,
+    checked: current === UNASSIGNED_SECTION_ID,
+  })
+  children.push({
+    id: NEW_SECTION_TARGET,
+    label: NEW_SECTION_PLACEHOLDER,
+  })
+  return {
+    id: 'move-to',
+    label: 'Move to',
+    group: 1,
+    children,
+  }
+}
+
+export function sectionMenuItems(opts: {
+  canMoveUp: boolean
+  canMoveDown: boolean
+}): RailMenuItemSpec[] {
+  return [
+    { id: 'section-rename', label: 'Rename', group: 0 },
+    {
+      id: 'section-move-up',
+      label: 'Move up',
+      group: 1,
+      disabled: !opts.canMoveUp,
+      reason: opts.canMoveUp ? undefined : 'Already at the top',
+    },
+    {
+      id: 'section-move-down',
+      label: 'Move down',
+      group: 1,
+      disabled: !opts.canMoveDown,
+      reason: opts.canMoveDown ? undefined : 'Already at the bottom',
+    },
+    { id: 'section-delete', label: 'Delete', group: 2, danger: true },
+  ]
 }
 
 /** CLI-only reasons exported for tests / disabled titles if a caller shows them. */

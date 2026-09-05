@@ -1091,6 +1091,85 @@ button.os-agent-row {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* REQ-209: Sidepane agent sections */
+.os-rail-sections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.os-rail-section {
+  border-radius: 0.45rem;
+}
+.os-rail-section--drop {
+  outline: 1.5px dashed color-mix(in srgb, var(--color-base-content) 35%, transparent);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
+}
+.os-rail-section-header {
+  margin-top: 0.15rem;
+}
+.os-rail-section-header__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.os-rail-section-header__btn:hover,
+.os-rail-section-header--drop .os-rail-section-header__btn {
+  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
+  color: color-mix(in srgb, var(--color-base-content) 72%, transparent);
+}
+.os-rail-section-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.os-rail-section-tail {
+  display: inline-flex;
+  align-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+}
+.os-rail-section-rename {
+  width: 100%;
+  margin: 0 0.15rem;
+  padding: 0.2rem 0.4rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-base-content) 28%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 78%, transparent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  outline: none;
+}
+.os-rail-section-empty {
+  padding: 0.3rem 0.7rem 0.45rem;
+  color: color-mix(in srgb, var(--color-base-content) 38%, transparent);
+  font-size: 0.75rem;
+}
+.os-rail-section-empty--drop {
+  color: color-mix(in srgb, var(--color-base-content) 58%, transparent);
+}
+.os-agent-sidebar--avatar-only .os-rail-section-header,
+.os-agent-sidebar--avatar-only .os-rail-section-empty {
+  display: none;
+}
+.os-rail-menu-submenu {
+  margin-left: 0.5rem;
+  padding-left: 0.25rem;
+}
+
 /* REQ-149: Scrollable capped lists in dense forms/fields (~8-10 rows / 288px) */
 .os-scrollable-picker-list,
 .os-capped-list {

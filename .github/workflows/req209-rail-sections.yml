@@ -1,0 +1,71 @@
+name: REQ-209 rail sections
+
+on:
+  pull_request:
+    paths:
+      - "webui/frontend/src/lib/railSections.ts"
+      - "webui/frontend/src/lib/__tests__/railSections.test.ts"
+      - "webui/frontend/src/lib/railContextMenu.ts"
+      - "webui/frontend/src/lib/__tests__/railContextMenu.test.ts"
+      - "webui/frontend/src/components/RailContextMenu.tsx"
+      - "webui/frontend/src/components/RailSectionHeader.tsx"
+      - "webui/frontend/src/components/AgentSidebar.tsx"
+      - "webui/frontend/src/components/__tests__/RailContextMenu.test.tsx"
+      - "webui/frontend/src/components/__tests__/RailSections.test.tsx"
+      - "webui/frontend/src/index.css"
+      - "tests/unit/test_req209_rail_sections.py"
+      - ".github/workflows/req209-rail-sections.yml"
+  push:
+    branches: [main]
+    paths:
+      - "webui/frontend/src/lib/railSections.ts"
+      - "webui/frontend/src/lib/__tests__/railSections.test.ts"
+      - "webui/frontend/src/lib/railContextMenu.ts"
+      - "webui/frontend/src/lib/__tests__/railContextMenu.test.ts"
+      - "webui/frontend/src/components/RailContextMenu.tsx"
+      - "webui/frontend/src/components/RailSectionHeader.tsx"
+      - "webui/frontend/src/components/AgentSidebar.tsx"
+      - "webui/frontend/src/components/__tests__/RailContextMenu.test.tsx"
+      - "webui/frontend/src/components/__tests__/RailSections.test.tsx"
+      - "webui/frontend/src/index.css"
+      - "tests/unit/test_req209_rail_sections.py"
+      - ".github/workflows/req209-rail-sections.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-209 source lock
+        run: uv run pytest tests/unit/test_req209_rail_sections.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-209 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/railSections.test.ts \
+            src/lib/__tests__/railContextMenu.test.ts \
+            src/components/__tests__/RailContextMenu.test.tsx \
+            src/components/__tests__/RailSections.test.tsx
