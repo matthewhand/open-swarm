@@ -16,16 +16,37 @@ def blueprint():
 
 
 @pytest.mark.django_db
-def test_llm_profiles_lists_named_providers(client):
+def test_llm_profiles_lists_named_providers(client, tmp_path, monkeypatch):
+    # After #775/#786 the live file is not committed. Point at a fixture SoT
+    # (placeholders only — no secrets) via the shared SWARM_CONFIG_PATH loader.
+    fixture = {
+        "llm": {
+            "default": {
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+                "api_key": "${OPENAI_API_KEY}",
+            },
+            "litellm": {
+                "provider": "litellm",
+                "model": "${LITELLM_MODEL}",
+                "api_key": "${LITELLM_API_KEY}",
+            },
+        },
+        "settings": {"default_llm_profile": "default"},
+    }
+    path = tmp_path / "swarm_config.json"
+    path.write_text(json.dumps(fixture), encoding="utf-8")
+    monkeypatch.setenv("SWARM_CONFIG_PATH", str(path))
     resp = client.get("/v1/agents/llm-profiles/")
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "success"
     names = [p["name"] for p in body["profiles"]]
-    # auxiliary is a task class, not a profile name in swarm_config.json
+    # auxiliary is a task class, not a profile name
     assert "default" in names
     assert "litellm" in names or "litellm-fast" in names
     assert all("api_key" not in p for p in body["profiles"])
+    assert "sk-" not in json.dumps(body)
 
 
 @pytest.mark.django_db

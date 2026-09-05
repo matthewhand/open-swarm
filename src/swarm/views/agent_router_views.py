@@ -652,51 +652,38 @@ def launch_remote_framework(request):
 
 @require_http_methods(["GET"])
 def list_llm_profiles(request):
-    """Named LLM profiles (provider + model) agents can use or override."""
-    from pathlib import Path
-
-    from swarm.core.paths import get_user_config_dir_for_swarm
-    from swarm.settings import BASE_DIR, ENABLE_API_AUTH
+    """Named LLM profiles from the #776 swarm_config SoT (never secrets)."""
+    from swarm.core.remotes import load_raw_config
+    from swarm.settings import ENABLE_API_AUTH
     from swarm.utils.env_utils import get_default_llm
 
     profiles = []
     seen = set()
     default_name = get_default_llm() or ""
     try:
-        paths = [
-            get_user_config_dir_for_swarm() / "swarm_config.json",
-            Path(BASE_DIR).parent / "swarm_config.json",
-            Path(BASE_DIR) / "swarm_config.json",
-        ]
-        for path in paths:
-            if not path.is_file():
+        cfg, _path = load_raw_config()
+        llm = cfg.get("llm") if isinstance(cfg, dict) else {}
+        if not isinstance(llm, dict):
+            llm = {}
+        settings = cfg.get("settings") if isinstance(cfg.get("settings"), dict) else {}
+        if not default_name:
+            default_name = str(settings.get("default_llm_profile") or "")
+        iterable = llm.get("profiles") if isinstance(llm.get("profiles"), dict) else llm
+        if not isinstance(iterable, dict):
+            iterable = {}
+        for name, data in iterable.items():
+            if name in seen or name == "profiles" or not isinstance(data, dict):
                 continue
-            try:
-                cfg = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+            if not data.get("provider") and not data.get("model"):
                 continue
-            llm = cfg.get("llm") if isinstance(cfg, dict) else {}
-            if not isinstance(llm, dict):
-                continue
-            settings = cfg.get("settings") if isinstance(cfg.get("settings"), dict) else {}
-            if not default_name:
-                default_name = str(settings.get("default_llm_profile") or "")
-            iterable = llm.get("profiles") if isinstance(llm.get("profiles"), dict) else llm
-            if not isinstance(iterable, dict):
-                continue
-            for name, data in iterable.items():
-                if name in seen or name == "profiles" or not isinstance(data, dict):
-                    continue
-                if not data.get("provider") and not data.get("model"):
-                    continue
-                seen.add(name)
-                profiles.append({
-                    "name": name,
-                    "provider": data.get("provider") or "litellm",
-                    "model": data.get("model") or name,
-                    "base_url": data.get("base_url") or "",
-                    "description": data.get("description") or "",
-                })
+            seen.add(name)
+            profiles.append({
+                "name": name,
+                "provider": data.get("provider") or "litellm",
+                "model": data.get("model") or name,
+                "base_url": data.get("base_url") or "",
+                "description": data.get("description") or "",
+            })
     except Exception:
         profiles = []
     if not default_name and profiles:
