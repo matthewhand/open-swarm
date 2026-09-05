@@ -310,16 +310,44 @@ describe('fetchAgentThread', () => {
     expect(thread.conversation_id).toBe('sess-gone')
   })
 
-  it('returns an empty thread when fetch fails', async () => {
+  it('surfaces failure when fetch is offline (REQ-171A-4 / #604)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockRejectedValue(new Error('offline')),
     )
-    const thread = await fetchAgentThread('jeeves')
-    expect(thread.messages).toEqual([])
-    expect(thread.agent_id).toBe('jeeves')
-    expect(thread.conversation_id).toBeTruthy()
-    expect(thread.summaries).toEqual([])
+    await expect(fetchAgentThread('jeeves')).rejects.toThrow('offline')
+  })
+
+  it('surfaces failure when the thread endpoint returns 500', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'thread store unavailable' }),
+      } as Response),
+    )
+    await expect(fetchAgentThread('jeeves')).rejects.toThrow('thread store unavailable')
+  })
+
+  it('calls the thread endpoint for a remote agent id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        agent_id: 'remote:omb',
+        conversation_id: 'remote-omb',
+        kind: 'remote',
+        editable: false,
+        messages: [{ role: 'user', content: 'seeded remote' }],
+      }),
+    } as Response)
+    vi.stubGlobal('fetch', fetchMock)
+    const thread = await fetchAgentThread('remote:omb', 'remote-omb')
+    expect(thread.messages).toEqual([{ role: 'user', content: 'seeded remote' }])
+    expect(thread.editable).toBe(false)
+    expect(String(fetchMock.mock.calls[0][0])).toContain('agent=remote%3Aomb')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('conversation_id=remote-omb')
   })
 })
 

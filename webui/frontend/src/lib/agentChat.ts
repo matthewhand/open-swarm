@@ -219,7 +219,7 @@ function parseSummaries(value: unknown): ConversationSummary[] {
   return Array.isArray(value) ? value.filter(isConversationSummary) : []
 }
 
-/** GET /chat/thread/?agent= — empty on auth/network failure (chat still works). */
+/** GET /chat/thread/?agent= — throws on auth/network/HTTP failure (REQ-171A-4 / #604). */
 export async function fetchAgentThread(
   agentId: string,
   conversationIdOverride?: string,
@@ -227,40 +227,27 @@ export async function fetchAgentThread(
   const agent = agentIdFromBlueprint(agentId)
   const conversationId =
     (conversationIdOverride || '').trim() || conversationIdForAgent(agent)
-  try {
-    const data = await apiGet<AgentThread>(
-      `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
-    )
-    const reconstructed = messagesFromThreadPayload(data || {})
-    const messages = reconstructed
-      .map(parseThreadMessage)
-      .filter((row): row is AgentThreadMessage => row != null)
-    const kind = classifyAgentKind(agent, data?.kind)
-    return {
-      agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
-      conversation_id:
-        typeof data?.conversation_id === 'string' && data.conversation_id
-          ? data.conversation_id
-          : conversationId,
-      session_title: typeof data?.session_title === 'string' ? data.session_title : '',
-      messages,
-      summaries: parseSummaries(data?.summaries),
-      context_meta: parseContextMeta(data?.context_meta),
-      kind,
-      editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
-      session_missing: data?.session_missing === true,
-    }
-  } catch {
-    const kind = classifyAgentKind(agent)
-    return {
-      agent_id: agent,
-      conversation_id: conversationId,
-      session_title: '',
-      messages: [],
-      summaries: [],
-      kind,
-      editable: kind === 'api',
-    }
+  const data = await apiGet<AgentThread>(
+    `/chat/thread/?agent=${encodeURIComponent(agent)}&conversation_id=${encodeURIComponent(conversationId)}`,
+  )
+  const reconstructed = messagesFromThreadPayload(data || {})
+  const messages = reconstructed
+    .map(parseThreadMessage)
+    .filter((row): row is AgentThreadMessage => row != null)
+  const kind = classifyAgentKind(agent, data?.kind)
+  return {
+    agent_id: typeof data?.agent_id === 'string' ? data.agent_id : agent,
+    conversation_id:
+      typeof data?.conversation_id === 'string' && data.conversation_id
+        ? data.conversation_id
+        : conversationId,
+    session_title: typeof data?.session_title === 'string' ? data.session_title : '',
+    messages,
+    summaries: parseSummaries(data?.summaries),
+    context_meta: parseContextMeta(data?.context_meta),
+    kind,
+    editable: data?.editable === true || (data?.editable !== false && kind === 'api'),
+    session_missing: data?.session_missing === true,
   }
 }
 
