@@ -1,5 +1,6 @@
 """REQ-200: one cascading navbar picker (Fixes #676)."""
 
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +48,7 @@ def test_no_live_host_or_secrets_in_req200_surface():
     for path in (CHAT_PAGE, PICKER, PATH_LIB):
         text = path.read_text(encoding="utf-8")
         assert ":8001" not in text
-        assert "sk-" not in text
+        # OpenAI-style secret prefix, not the `sk-` substring inside `task-`.
+        assert re.search(r"(?<![A-Za-z])sk-[A-Za-z0-9]", text) is None
         assert "OPENAI_API_KEY" not in text
         assert "localhost:8001" not in text

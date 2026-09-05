@@ -16,6 +16,18 @@ def api_client():
     return APIClient()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_custom_blueprint_registry():
+    """POST /v1/blueprints/custom/ also fills the process-wide fallback list."""
+    from swarm.views import api_views
+
+    snapshot = list(api_views._custom_blueprints_registry)
+    api_views._custom_blueprints_registry.clear()
+    yield
+    api_views._custom_blueprints_registry.clear()
+    api_views._custom_blueprints_registry.extend(snapshot)
+
+
 def test_personas_urls_accept_trailing_slash():
     assert resolve("/v1/blueprints/software_dev/personas").url_name == "blueprint-personas"
     assert resolve("/v1/blueprints/software_dev/personas/").url_name == "blueprint-personas-slash"
