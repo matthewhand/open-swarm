@@ -23,6 +23,10 @@ from swarm.core.agent_roles import (
     normalize_agent_role,
 )
 from swarm.core.async_utils import run_coro_sync
+from swarm.core.support_journey import (
+    is_support_consumer,
+    support_kickstart,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +122,10 @@ def parse_suggestions(raw: Any) -> list[str]:
     return out if len(out) >= MIN_SUGGESTIONS else []
 
 
-def canned_kickstart() -> list[str]:
+def canned_kickstart(consumer_id: str | None = None) -> list[str]:
+    """Generic kickstart, or Support journey chips for the first-run seat."""
+    if is_support_consumer(consumer_id):
+        return support_kickstart()
     return list(KICKSTART_CANNED)
 
 
@@ -190,8 +197,20 @@ def _invoke_suggestions(
         return []
 
 
-def _mode_prompt(mode: str, messages: list[dict[str, Any]] | None) -> str:
+def _mode_prompt(
+    mode: str,
+    messages: list[dict[str, Any]] | None,
+    consumer_id: str | None = None,
+) -> str:
     if mode == "kickstart":
+        if is_support_consumer(consumer_id):
+            return (
+                "The thread is empty on Support, the first-run onboarder. "
+                "Suggest 2-5 short first messages that start the open-swarm "
+                "journey — create a team, add a remote, wire a CLI, or how "
+                "CLI / API / remotes differ. No Settings maze. "
+                "Return JSON {\"suggestions\": [...]}."
+            )
         return (
             "The thread is empty. Suggest 2-5 short first messages the operator "
             "might send to start usefully. Return JSON {\"suggestions\": [...]}."
@@ -359,19 +378,28 @@ def run_suggestions(
     messages: list[dict[str, Any]] | None = None,
     agents: Any = None,
     suggest_fn: SuggestFn | None = None,
+    consumer_id: str | None = None,
 ) -> list[str]:
     """Return chips for kickstart or continue. Empty list on any failure."""
     kind = "kickstart" if str(mode).strip().lower() != "continue" else "continue"
     try:
         if suggest_fn is not None:
             agent = find_role_agent(agents, ROLE_SUGGESTIONS)
-            return _invoke_suggestions(agent, _mode_prompt(kind, messages), suggest_fn=suggest_fn)
+            return _invoke_suggestions(
+                agent,
+                _mode_prompt(kind, messages, consumer_id),
+                suggest_fn=suggest_fn,
+            )
         if os.environ.get("SWARM_TEST_MODE"):
-            return canned_kickstart() if kind == "kickstart" else canned_continue(messages)
+            return (
+                canned_kickstart(consumer_id)
+                if kind == "kickstart"
+                else canned_continue(messages)
+            )
         agent = find_role_agent(agents, ROLE_SUGGESTIONS)
         if agent is None:
             return []
-        return _invoke_suggestions(agent, _mode_prompt(kind, messages))
+        return _invoke_suggestions(agent, _mode_prompt(kind, messages, consumer_id))
     except Exception:
         logger.debug("suggestions run omitted", exc_info=True)
         return []
@@ -405,6 +433,7 @@ def suggestions_payload_for_turn(
         mode="continue" if has_assistant else "kickstart",
         messages=messages,
         agents=roster,
+        consumer_id=agent_id,
     )
     if not chips:
         return None

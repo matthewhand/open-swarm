@@ -1,0 +1,108 @@
+name: REQ-137 Support journey onboard
+
+on:
+  pull_request:
+    paths:
+      - "skills/support-session-ownership/SKILL.md"
+      - "src/swarm/core/support_journey.py"
+      - "src/swarm/core/support_agent.py"
+      - "src/swarm/core/suggestions.py"
+      - "src/swarm/views/suggestions_api.py"
+      - "src/swarm/blueprints/support/blueprint_support.py"
+      - "src/swarm/blueprints/common/support_blueprint.py"
+      - "tests/blueprints/test_support.py"
+      - "tests/core/test_support_agent.py"
+      - "tests/core/test_support_journey.py"
+      - "tests/core/test_suggestions.py"
+      - "tests/views/test_suggestions_api.py"
+      - "tests/unit/test_req137_support_onboard.py"
+      - "webui/frontend/src/lib/supportJourney.ts"
+      - "webui/frontend/src/lib/support-briefing.ts"
+      - "webui/frontend/src/lib/supportAgent.ts"
+      - "webui/frontend/src/lib/starter-agents.ts"
+      - "webui/frontend/src/lib/__tests__/supportJourney.test.ts"
+      - "webui/frontend/src/lib/__tests__/support-briefing.test.ts"
+      - "webui/frontend/src/lib/__tests__/supportAgent.test.ts"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/AgentRouterPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.supportOnboard.test.tsx"
+      - "webui/frontend/src/pages/__tests__/AgentRouterPage.test.tsx"
+      - ".github/workflows/req137-support-onboard.yml"
+  push:
+    branches: [main]
+    paths:
+      - "skills/support-session-ownership/SKILL.md"
+      - "src/swarm/core/support_journey.py"
+      - "src/swarm/core/support_agent.py"
+      - "src/swarm/core/suggestions.py"
+      - "src/swarm/views/suggestions_api.py"
+      - "src/swarm/blueprints/support/blueprint_support.py"
+      - "src/swarm/blueprints/common/support_blueprint.py"
+      - "tests/blueprints/test_support.py"
+      - "tests/core/test_support_agent.py"
+      - "tests/core/test_support_journey.py"
+      - "tests/core/test_suggestions.py"
+      - "tests/views/test_suggestions_api.py"
+      - "tests/unit/test_req137_support_onboard.py"
+      - "webui/frontend/src/lib/supportJourney.ts"
+      - "webui/frontend/src/lib/support-briefing.ts"
+      - "webui/frontend/src/lib/supportAgent.ts"
+      - "webui/frontend/src/lib/starter-agents.ts"
+      - "webui/frontend/src/lib/__tests__/supportJourney.test.ts"
+      - "webui/frontend/src/lib/__tests__/support-briefing.test.ts"
+      - "webui/frontend/src/lib/__tests__/supportAgent.test.ts"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/AgentRouterPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.supportOnboard.test.tsx"
+      - "webui/frontend/src/pages/__tests__/AgentRouterPage.test.tsx"
+      - ".github/workflows/req137-support-onboard.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-137 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/unit/test_req137_support_onboard.py \
+            tests/blueprints/test_support.py \
+            tests/core/test_support_agent.py \
+            tests/core/test_support_journey.py \
+            tests/core/test_suggestions.py \
+            tests/views/test_suggestions_api.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-137 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/supportJourney.test.ts \
+            src/lib/__tests__/support-briefing.test.ts \
+            src/lib/__tests__/supportAgent.test.ts \
+            src/pages/__tests__/ChatPage.supportOnboard.test.tsx
+          npx vitest run src/pages/__tests__/AgentRouterPage.test.tsx \
+            -t "quickstart pills start the journey"

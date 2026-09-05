@@ -32,7 +32,7 @@ export function starterAgents(): Agent[] {
     {
       agent_id: STARTER_SUPPORT_ID,
       name: 'Support',
-      specialty: 'Product help, first team, blueprints',
+      specialty: 'Journey onboarder — team, remote, CLI',
       color: '#f5c542',
       icon: '🛟',
       type: 'specialist',
@@ -41,7 +41,7 @@ export function starterAgents(): Agent[] {
       agent_type: 'api',
       role: 'support',
       description:
-        'Onboarding agent. Explains Open Swarm, helps configure inference, and walks you through creating agents, teams, and BlueprintBase Python.',
+        'First-run onboarder. Create a team, add a remote, wire a CLI, and bridge CLI ↔ API ↔ remotes. Kind-base Python.',
     },
     {
       agent_id: STARTER_CLI_ID,

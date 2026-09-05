@@ -10,11 +10,13 @@ import logging
 from typing import Any
 
 from swarm.blueprints.common import cli_fusion_support as fusion
+from swarm.core.support_journey import SUPPORT_JOURNEY_FIXTURE
 
 logger = logging.getLogger(__name__)
 
 SUPPORT_SKILL_NAME = "support-session-ownership"
 SUPPORT_SKILL_FIXTURE = "SESSION_OWNERSHIP_API_CLI_REMOTE"
+SUPPORT_JOURNEY_SKILL_FIXTURE = SUPPORT_JOURNEY_FIXTURE
 CLICK_BUBBLE_TO_EDIT = "click the bubble to edit"
 
 SESSION_KINDS = ("api", "cli", "remote")

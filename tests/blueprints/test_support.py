@@ -12,7 +12,10 @@ from swarm.blueprints.common.support_blueprint import (
     support_turn_context,
     support_turn_reply,
 )
-from swarm.blueprints.support.blueprint_support import SupportBlueprint
+from swarm.blueprints.support.blueprint_support import (
+    SUPPORT_INSTRUCTIONS,
+    SupportBlueprint,
+)
 from swarm.core import skills
 from swarm.core.blueprint_base import BlueprintBase
 
@@ -66,6 +69,38 @@ async def test_empty_run_is_action_chips_not_config_dump():
     assert "Welcome —" not in text
 
 
+def test_support_instructions_cover_the_journey():
+    text = SUPPORT_INSTRUCTIONS
+    lowered = text.lower()
+    assert "ONBOARD_JOURNEY_CLI_API_REMOTE" in text
+    assert "create a team" in lowered
+    assert "add a remote" in lowered
+    assert "wire a cli" in lowered
+    assert "chief of staff" in lowered
+    assert "hermes" in lowered
+    assert "openmousbot" in lowered
+    assert "herdr" in lowered
+    assert "one-pane" in lowered or "one pane" in lowered
+    assert ":8001" not in text
+
+
+async def test_journey_prompts_include_honest_hints():
+    bp = SupportBlueprint(blueprint_id="support")
+    team = await _collect(bp.run([{"role": "user", "content": "Create a team"}]))
+    team_text = _final_content(team)
+    assert "Chief of Staff" in team_text
+    assert "```python" in team_text
+    remote = await _collect(bp.run([{"role": "user", "content": "Add a remote"}]))
+    remote_text = _final_content(remote)
+    assert "Hermes" in remote_text
+    assert "OpenMousBot" in remote_text
+    assert "Herdr" in remote_text
+    cli = await _collect(bp.run([{"role": "user", "content": "Wire a CLI"}]))
+    cli_text = _final_content(cli)
+    assert "list models" in cli_text.lower()
+    assert "click-to-edit" in cli_text.lower() or "click the bubble" not in cli_text.lower()
+
+
 async def test_blueprint_ask_includes_python_fence():
     bp = SupportBlueprint(blueprint_id="support")
     chunks = await _collect(bp.run([{"role": "user", "content": "write a blueprint"}]))
@@ -81,6 +116,15 @@ def test_skill_is_discoverable_and_carries_fixture():
     assert SUPPORT_SKILL_NAME in found
     skill = found[SUPPORT_SKILL_NAME]
     assert SUPPORT_SKILL_FIXTURE in skill.instructions
+    assert "ONBOARD_JOURNEY_CLI_API_REMOTE" in skill.instructions
+    assert "create a team" in skill.instructions.lower()
+    assert "add a remote" in skill.instructions.lower()
+    assert "wire a cli" in skill.instructions.lower()
+    assert "hermes" in skill.instructions.lower()
+    assert "openmousbot" in skill.instructions.lower()
+    assert "herdr" in skill.instructions.lower()
+    assert "chief of staff" in skill.instructions.lower()
+    assert ":8001" not in skill.instructions
     assert "use when" in skill.description.lower()
 
 

@@ -676,6 +676,19 @@ describe('AgentRouterPage integration', () => {
     expect(mode).toHaveTextContent('Default')
   })
 
+  it('Support quickstart pills start the journey', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Hide all' }))
+    fireEvent.click(within(screen.getByLabelText('Agent sidebar')).getAllByText('Support')[0])
+    const pill = await screen.findByRole('button', { name: /Create a team/i })
+    fireEvent.click(pill)
+    expect(getChatInput()).toHaveValue(
+      'Create a team: walk me through a local roster of personas, optional Chief of Staff, then Save as team. Chat stays the main view.',
+    )
+    expect(screen.getByRole('button', { name: /Add a remote/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Wire a CLI/i })).toBeInTheDocument()
+  })
+
   it('populates input from quick prompt starter pill', async () => {
     renderPage()
 
