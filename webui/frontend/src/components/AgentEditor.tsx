@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Input, Modal, Select } from './DaisyUI'
+import InferenceOrderList, { type InferenceCatalogOption } from './InferenceOrderList'
 import {
   fetchBlueprints,
   fetchCliAgents,
@@ -21,8 +22,11 @@ import {
 import {
   assignedBlueprintId,
   loadAgentEdit,
+  loadInferenceList,
   saveAgentEdit,
+  saveInferenceList,
 } from '../lib/agentEdits'
+import type { InferenceSeat } from '../lib/inferenceList'
 import {
   NEW_CHAT_PER_TASK_LABEL,
   NEW_CHAT_PER_TASK_TOOLTIP,
@@ -82,6 +86,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [newChatPerTask, setNewChatPerTask] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [boundRemoteId, setBoundRemoteId] = useState('')
+  const [inferenceSeats, setInferenceSeats] = useState<InferenceSeat[]>([])
 
   const blueprintsQuery = useQuery({
     queryKey: ['blueprints'],
@@ -118,7 +123,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const cliQuery = useQuery({
     queryKey: ['cli-agents'],
     queryFn: fetchCliAgents,
-    enabled: Boolean(isOpen && agentKind === 'cli'),
+    enabled: isOpen,
     retry: 1,
   })
 
@@ -134,7 +139,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const llmProfilesQuery = useQuery({
     queryKey: ['llm-profiles'],
     queryFn: fetchLlmProfiles,
-    enabled: Boolean(isOpen && agentKind === 'api'),
+    enabled: isOpen,
     retry: 1,
   })
 
@@ -148,7 +153,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const remotesQuery = useQuery({
     queryKey: ['remotes-list'],
     queryFn: fetchRemotes,
-    enabled: Boolean(isOpen && agentKind === 'remote'),
+    enabled: isOpen,
     retry: 1,
   })
   const remotesCatalog = remotesListForSelect(
@@ -189,6 +194,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setCliOverride(edit.cliOverride || '')
     setProfileOverride(edit.profileOverride || '')
     setBoundRemoteId(loadAgentRemoteBinding(id)?.id || '')
+    setInferenceSeats(loadInferenceList(id))
 
     let cancelled = false
     ;(async () => {
@@ -225,6 +231,39 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setRole(next)
     saveAgentEdit(id, { role: next })
   }
+
+  const persistInference = (next: InferenceSeat[]) => {
+    setInferenceSeats(next)
+    saveInferenceList(id, next)
+  }
+
+  const inferenceCatalog = useMemo<InferenceCatalogOption[]>(() => {
+    const rows: InferenceCatalogOption[] = []
+    const profiles = llmProfilesQuery.data?.profiles ?? []
+    if (profiles.length) {
+      for (const p of profiles) {
+        rows.push({ id: p.id, kind: 'llm', label: p.name || p.id })
+      }
+    } else {
+      for (const id of ['orchestration', 'auxiliary', 'delegation']) {
+        rows.push({ id, kind: 'llm', label: id })
+      }
+    }
+    for (const cli of cliQuery.data?.clis ?? []) {
+      rows.push({ id: cli, kind: 'cli', label: cli })
+    }
+    for (const remote of configuredRemoteRows) {
+      rows.push({
+        id: remote.id,
+        kind: 'remote',
+        label: remote.label || remote.id,
+      })
+    }
+    return rows
+  }, [llmProfilesQuery.data, cliQuery.data, configuredRemoteRows])
+
+  const defaultInferenceLabel =
+    llmProfilesQuery.data?.default_llm_profile || 'orchestration'
 
   const openBlueprintInSettings = () => {
     const assigned = assignedBlueprintId(id) || blueprintId || id
@@ -293,6 +332,13 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
             </option>
           ))}
         </Select>
+
+        <InferenceOrderList
+          seats={inferenceSeats}
+          catalog={inferenceCatalog}
+          defaultLabel={defaultInferenceLabel}
+          onChange={persistInference}
+        />
 
         {/* LLM Override Picker by Kind (REQ-124) */}
         {agentKind === 'remote' && (
