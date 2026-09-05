@@ -35,7 +35,7 @@ def test_editor_and_team_can_assign_suggestions():
 def test_codegen_wires_suggestions_as_tool():
     src = CODEGEN.read_text(encoding="utf-8")
     assert "attach_suggestions_as_tool" in src
-    assert 'find_role_agent(self._agents, "suggestions")' in src
+    assert 'find_role_agent(self._agents, \\"suggestions\\")' in src
 
 
 def test_chips_are_controls_not_bubbles():
