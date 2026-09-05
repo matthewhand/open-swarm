@@ -86,7 +86,7 @@ describe('SettingsSheet', () => {
     expect(localStorage.getItem(BUMP_COMPLETED_KEY)).toBe('0')
   })
 
-  it('shows remotes empty state and join radios for retention', async () => {
+  it('shows remotes empty state and honest server link for retention', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -122,12 +122,10 @@ describe('SettingsSheet', () => {
     expect(screen.getByText(/do not add this instance as its own remote/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
-    const group = screen.getByRole('radiogroup', { name: 'Retention mode' })
-    expect(group).toHaveClass('join')
-    expect(screen.getByRole('radio', { name: 'Count' })).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Disk' })).toHaveClass('join-item')
-    expect(screen.getByRole('radio', { name: 'Archive' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Trash' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Retention' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save retention' })).not.toBeInTheDocument()
+    const link = screen.getByRole('link', { name: /Server retention dashboard/i })
+    expect(link).toHaveAttribute('href', '/settings/#chat-retention-title')
   })
 
   it('LLM profiles shows the empty-models copy when /v1/llm-profiles/ returns none', async () => {
@@ -315,12 +313,14 @@ describe('SettingsSheet', () => {
     expect(screen.queryByText(/\bOMB\b/)).not.toBeInTheDocument()
   })
 
-  it('persists retention via join radios and shows a save toast', async () => {
+  it('shows honest retention pane linking to server dashboard without placebo save button (REQ-188B-1)', async () => {
     renderSheet()
-    fireEvent.click(screen.getByRole('radio', { name: 'Archive' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save retention' }))
-    expect(localStorage.getItem(RETENTION_MODE_KEY)).toBe('archive')
-    expect(await screen.findByText('Retention saved')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retention' }))
+    expect(screen.getByRole('heading', { name: 'Retention' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save retention' })).not.toBeInTheDocument()
+    const link = screen.getByRole('link', { name: /Server retention dashboard/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/settings/#chat-retention-title')
   })
 
   it('persists a hostname override and toasts on save', async () => {
