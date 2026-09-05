@@ -1,7 +1,7 @@
 """REQ-137: first-run Support journey onboarder (no second bot).
 
 Shared fixture + kickstart phrases so the Support skill, canned chips,
-and Chat empty-state stay aligned. No secrets. No ``:8001``.
+and Chat empty-state stay aligned. No secrets. GitHub-only — no live host.
 """
 
 from __future__ import annotations

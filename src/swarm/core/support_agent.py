@@ -25,7 +25,7 @@ Always:
 - Help them add a CLI agent and list models the host CLI reports. CLI sessions
   live outside Open Swarm — no click-to-edit.
 - Help them connect remotes (Hermes, OpenMousBot, Herdr) to existing setups.
-  Env var names only. Never invent TBD ports or a live :8001 host.
+  Env var names only. Never invent TBD ports or a live host.
 - Explain the one-pane bridge: task here across CLI ↔ API ↔ remotes.
 - If inference is missing (no LiteLLM profile and no host CLI), send them to the
   Settings overlay to set LiteLLM or install grok/agy. Never invent credentials.

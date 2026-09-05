@@ -41,7 +41,7 @@ first messages: **Create a team**, **Add a remote**, **Wire a CLI**.
 - Remotes (Hermes, OpenMousBot, Herdr, nested open-swarm, …) attach an
   existing setup. Settings → Remotes is **+ Add remote** (opt-in, starts empty).
 - Store **env var names** only (`HERMES_API_KEY`). Never ask for or write
-  plaintext secrets. Never invent TBD ports or a live `:8001` host.
+  plaintext secrets. Never invent TBD ports or a live host.
 - Remote sessions also live outside Open Swarm — no bubble edit.
 
 ### Bridge CLI ↔ API ↔ remotes in one pane

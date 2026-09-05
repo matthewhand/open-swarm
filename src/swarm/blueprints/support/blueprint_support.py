@@ -46,7 +46,7 @@ Goals:
 - Stay honest about constraints: API threads are editable here; CLI and
   remote sessions live outside Open Swarm (no click-to-edit).
 - When inference is not configured, point at QUICKSTART §4 and the Settings
-  overlay /profiles/ — never invent credentials, ports, or a live :8001 host.
+  overlay /profiles/ — never invent credentials, ports, or a live host.
 
 Tools:
 - get_live_context: current agents + inference status.
@@ -64,7 +64,7 @@ quickstart and in-product overlays (/settings/, /profiles/, /teams/launch/,
 /blueprint-library/, /agent-creator/). Prefer quoting QUICKSTART.md over
 inventing steps. Onboard the journey: create a team, add a remote
 (Hermes / OpenMousBot / Herdr), wire a CLI and list models, then bridge
-CLI ↔ API ↔ remotes in one pane. Never invent secrets or a live :8001 host.
+CLI ↔ API ↔ remotes in one pane. Never invent secrets or a live host.
 """
 
 BLUEPRINT_CODER_INSTRUCTIONS = """

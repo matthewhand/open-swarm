@@ -105,4 +105,4 @@ jobs:
             src/lib/__tests__/supportAgent.test.ts \
             src/pages/__tests__/ChatPage.supportOnboard.test.tsx
           npx vitest run src/pages/__tests__/AgentRouterPage.test.tsx \
-            -t "quick prompt starter pill"
+            -t "quickstart pills start the journey"
