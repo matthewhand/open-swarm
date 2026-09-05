@@ -156,6 +156,15 @@ import {
   switchedSessionNotice,
 } from '../lib/sessionRestore'
 import {
+  SUGGESTION_CHIP_EVENT,
+  generationIsInFlight,
+  nextDrainableQueuedSend,
+  queuedPaneMaxHeightPx,
+  suggestionChipText,
+  useQueuedSends,
+} from '../lib/chatQueue'
+import { QueuedSendPane } from '../components/QueuedSendPane'
+import {
   discoverChatClis,
   isCliAgentContext,
   isCliBlueprintId,
@@ -334,6 +343,11 @@ const ChatPage = () => {
   const plusRef = useRef<HTMLDivElement | null>(null)
   const composerWrapRef = useRef<HTMLDivElement | null>(null)
   const [composerInsetPx, setComposerInsetPx] = useState(0)
+  const [transcriptHeightPx, setTranscriptHeightPx] = useState(0)
+  const [queuedHoldIds, setQueuedHoldIds] = useState<string[]>([])
+  const [awaitingAssistant, setAwaitingAssistant] = useState(false)
+  const drainLockRef = useRef(false)
+  const queued = useQueuedSends(conversationId)
   /** Monotonic counter for collision-free user-echo keys. */
   const userKeyCounterRef = useRef(0)
   const prevStatusRef = useRef<ConnectionStatus>('connecting')
@@ -1140,6 +1154,17 @@ const ChatPage = () => {
     return () => observer.disconnect()
   }, [applyComposerInset])
 
+  useLayoutEffect(() => {
+    const box = scrollBoxRef.current
+    if (!box) return undefined
+    const apply = () => setTranscriptHeightPx(box.clientHeight)
+    apply()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(apply)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     if (pinnedToBottomRef.current) {
       scrollTranscriptToBottom(scrollBoxRef.current, listEndRef.current)
@@ -1204,10 +1229,10 @@ const ChatPage = () => {
   const canSend = status === 'open' && hasSendableDraft
 
   const sendText = useCallback(
-    (text: string) => {
+    (text: string): boolean => {
       const ws = wsRef.current
       const trimmed = text.trim()
-      if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return
+      if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return false
       lastUserTextRef.current = trimmed
       // Team compose adds params { team, target: "all" | memberId }.
       if (teamFromUrl) {
@@ -1217,7 +1242,7 @@ const ChatPage = () => {
             target: memberTarget || ALL_MEMBERS_TARGET,
           }),
         )
-        return
+        return true
       }
       const supportParams = isSupportAgent({
         id: runtimeBlueprint || selectedBlueprint || SUPPORT_AGENT_ID,
@@ -1270,6 +1295,7 @@ const ChatPage = () => {
             : undefined,
         ),
       )
+      return true
     },
     [
       runtimeBlueprint,
@@ -1288,6 +1314,40 @@ const ChatPage = () => {
       messages.length,
     ],
   )
+
+  const submitUserText = useCallback(
+    (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed || status !== 'open') return
+      if (generationIsInFlight(messages, awaitingAssistant)) {
+        queued.enqueue(trimmed)
+        return
+      }
+      setAwaitingAssistant(true)
+      if (!sendText(trimmed)) setAwaitingAssistant(false)
+    },
+    [awaitingAssistant, messages, queued, sendText, status],
+  )
+
+  useEffect(() => {
+    const onChip = (event: Event) => {
+      const text = suggestionChipText(event)
+      if (text.trim()) submitUserText(text)
+    }
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      const chip = target?.closest('[data-suggestion-chip]')
+      if (!chip) return
+      const text = chip.getAttribute('data-suggestion-chip') || chip.textContent || ''
+      if (text.trim()) submitUserText(text)
+    }
+    window.addEventListener(SUGGESTION_CHIP_EVENT, onChip)
+    document.addEventListener('click', onClick)
+    return () => {
+      window.removeEventListener(SUGGESTION_CHIP_EVENT, onChip)
+      document.removeEventListener('click', onClick)
+    }
+  }, [submitUserText])
 
   const saveEditedMessage = useCallback(
     async (index: number, nextText: string) => {
@@ -1332,7 +1392,7 @@ const ChatPage = () => {
     const textToSend = replyTarget
       ? `${quotePrefix}${replyTarget.text.replace(/\r\n/g, '\n').split('\n').join('\n> ')}\n\n${input}`
       : input
-    sendText(textToSend)
+    submitUserText(textToSend)
     setInput('')
     setReplyTarget(null)
   }
@@ -1477,6 +1537,8 @@ const ChatPage = () => {
   useEffect(() => {
     if (streamingMessage) {
       wasStreamingRef.current = true
+      setAwaitingAssistant(false)
+      drainLockRef.current = false
     } else if (wasStreamingRef.current) {
       wasStreamingRef.current = false
       if (activeChatAgentId) {
@@ -1496,6 +1558,20 @@ const ChatPage = () => {
       }
     }
   }, [streamingMessage, activeChatAgentId, messages, selectedAgentName])
+
+  useEffect(() => {
+    if (generationIsInFlight(messages, awaitingAssistant) || status !== 'open') return
+    const next = nextDrainableQueuedSend(queued.rows, queuedHoldIds)
+    if (!next || drainLockRef.current) return
+    drainLockRef.current = true
+    setAwaitingAssistant(true)
+    queued.remove(next.id)
+    if (!sendText(next.text)) {
+      drainLockRef.current = false
+      setAwaitingAssistant(false)
+      queued.restore(next)
+    }
+  }, [awaitingAssistant, messages, queued, queuedHoldIds, sendText, status])
 
   const handleCompact = useCallback(async () => {
     setPlusOpen(false)
@@ -1601,7 +1677,7 @@ const ChatPage = () => {
         const textToSend = replyTarget
           ? `${quotePrefix}${replyTarget.text.replace(/\r\n/g, '\n').split('\n').join('\n> ')}\n\n${input}`
           : input
-        sendText(textToSend)
+        submitUserText(textToSend)
         setInput('')
         setReplyTarget(null)
       }
@@ -2145,6 +2221,14 @@ const ChatPage = () => {
         )}
         <div ref={listEndRef} />
         </div>
+
+        <QueuedSendPane
+          rows={queued.rows}
+          maxHeightPx={queuedPaneMaxHeightPx(transcriptHeightPx)}
+          onChangeText={queued.update}
+          onDelete={queued.remove}
+          onHoldIdsChange={setQueuedHoldIds}
+        />
 
         <div
           ref={bottomDockRef}
