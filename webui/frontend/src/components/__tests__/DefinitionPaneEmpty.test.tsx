@@ -69,6 +69,8 @@ describe('REQ-188A-1: Settings Definition — empty untitled pane needs identity
     renderPane('gate', 'role')
 
     expect(screen.queryByTestId('definition-empty')).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /edit code/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Gate' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit code/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('definition-readonly')).toBeInTheDocument()
   })
 })

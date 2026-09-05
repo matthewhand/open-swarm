@@ -152,15 +152,38 @@ describe('DefinitionPane', () => {
             summary: `Summarised source: ${body.source || ''}`,
           })
         }
-        if (url.includes('/blueprints/custom/')) {
-          return jsonResponse({ id: 'support', code: 'edited' }, 200)
+        if (url.includes('/source')) {
+          const method = String(init?.method || 'GET')
+          if (method === 'PUT') {
+            const body = JSON.parse(String(init?.body || '{}')) as { content?: string }
+            return jsonResponse({
+              id: 'my_custom_agent',
+              files: [{ name: 'blueprint_my_custom_agent.py', path: 'blueprint_my_custom_agent.py' }],
+              primary: 'blueprint_my_custom_agent.py',
+              selected: 'blueprint_my_custom_agent.py',
+              content: body.content || 'UPDATED_SOURCE_AFTER_EDIT',
+              editable: true,
+              origin: 'custom',
+              readonly_reason: null,
+            })
+          }
+          return jsonResponse({
+            id: 'my_custom_agent',
+            files: [{ name: 'blueprint_my_custom_agent.py', path: 'blueprint_my_custom_agent.py' }],
+            primary: 'blueprint_my_custom_agent.py',
+            selected: 'blueprint_my_custom_agent.py',
+            content: 'ORIGINAL_SOURCE_TEXT',
+            editable: true,
+            origin: 'custom',
+            readonly_reason: null,
+          })
         }
         return jsonResponse({
-          kind: 'role',
-          id: 'support',
-          title: 'Support',
-          role: 'support',
-          explanation: 'Support is Socratic.',
+          kind: 'blueprint',
+          id: 'my_custom_agent',
+          title: 'My Custom',
+          role: 'default',
+          explanation: 'Custom recipe.',
           source: 'ORIGINAL_SOURCE_TEXT',
           injected: {
             system_prompt: 'Socratic',
@@ -173,7 +196,7 @@ describe('DefinitionPane', () => {
         })
       }),
     )
-    renderPane('role', 'support')
+    renderPane('blueprint', 'my_custom_agent')
     await waitFor(() => {
       expect(screen.getByTestId('definition-summary').textContent).toContain(
         'ORIGINAL_SOURCE_TEXT',

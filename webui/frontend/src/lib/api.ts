@@ -1056,7 +1056,7 @@ export async function speakSpeechText(text: string, voice = ''): Promise<Blob> {
   return response.blob()
 }
 
-/** GET /v1/blueprints/<id>/source — read-only blueprint source (file list + content). */
+/** GET/PUT /v1/blueprints/<id>/source — blueprint source (file list + content). */
 export interface BlueprintSource {
   id: string
   files: { name: string; path: string }[]
@@ -1065,11 +1065,26 @@ export interface BlueprintSource {
   content: string
   persona_count?: number
   personas?: Array<{ name: string }>
+  /** REQ-211: user-dir / custom-library rows are writable; bundled / marketplace are not. */
+  editable?: boolean
+  origin?: 'user' | 'custom' | 'bundled' | 'marketplace' | string | null
+  readonly_reason?: string | null
 }
 
 export function fetchBlueprintSource(id: string, file?: string): Promise<BlueprintSource> {
   const q = file ? `?file=${encodeURIComponent(file)}` : ''
   return apiGet<BlueprintSource>(`/v1/blueprints/${encodeURIComponent(id)}/source${q}`)
+}
+
+export function updateBlueprintSource(
+  id: string,
+  body: { content: string; file?: string },
+): Promise<BlueprintSource> {
+  const q = body.file ? `?file=${encodeURIComponent(body.file)}` : ''
+  return apiPut<BlueprintSource>(`/v1/blueprints/${encodeURIComponent(id)}/source${q}`, {
+    content: body.content,
+    ...(body.file ? { file: body.file } : {}),
+  })
 }
 
 /** GET /v1/blueprints/<id>/personas — declared openai-agents roster (REQ-81). */

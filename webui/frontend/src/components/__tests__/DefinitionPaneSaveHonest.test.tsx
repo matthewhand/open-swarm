@@ -25,23 +25,27 @@ function jsonResponse(body: unknown, status = 200) {
   } as Response
 }
 
-describe('REQ-188A-2: Definition Save must not swallow 404 as draft stored', () => {
+describe('REQ-211 / REQ-188A-2: Definition Save is honest', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('fails honestly on 404 when saving blueprint/role without claiming draft stored', async () => {
+  it('does not offer Edit/Save for a bundled role recipe', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (input: RequestInfo) => {
         const url = String(input)
-        if (url.includes('/blueprints/custom/')) {
-          return {
-            ok: false,
-            status: 404,
-            statusText: 'Not Found',
-            json: async () => ({ error: 'Custom blueprint not found' }),
-          } as Response
+        if (url.includes('/source')) {
+          return jsonResponse({
+            id: 'support',
+            files: [{ name: 'blueprint_support.py', path: 'blueprint_support.py' }],
+            primary: 'blueprint_support.py',
+            selected: 'blueprint_support.py',
+            content: 'ORIGINAL_IMMUTABLE_SOURCE',
+            editable: false,
+            origin: 'bundled',
+            readonly_reason: 'Bundled checkout recipe — not writable from Settings or the library.',
+          })
         }
         return jsonResponse({
           kind: 'role',
@@ -65,35 +69,41 @@ describe('REQ-188A-2: Definition Save must not swallow 404 as draft stored', () 
     renderPane('role', 'support')
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /edit code/i })).toBeInTheDocument()
+      expect(screen.getByTestId('definition-readonly')).toBeInTheDocument()
     })
-
-    fireEvent.click(screen.getByRole('button', { name: /edit code/i }))
-    const editor = screen.getByLabelText('Definition source')
-    fireEvent.change(editor, { target: { value: 'TRYING_TO_OVERWRITE_ROLE' } })
-
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
-
-    // Verify it does NOT claim draft stored
-    await waitFor(() => {
-      expect(screen.queryByText(/Draft stored/i)).not.toBeInTheDocument()
-    })
-
-    // Verify honest failure message is shown
-    expect(screen.getByText(/Failed to save definition/i)).toBeInTheDocument()
-    expect(screen.getByText(/Custom blueprint not found/i)).toBeInTheDocument()
-
-    // Verify "Source changed" notice is NOT shown
-    expect(screen.queryByText(/Source changed/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/Bundled checkout recipe/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit code/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Save$/ })).not.toBeInTheDocument()
   })
 
-  it('persists and shows success when PATCH succeeds with 200', async () => {
+  it('persists and shows success when PUT source succeeds', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(async (input: RequestInfo) => {
+      vi.fn().mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
         const url = String(input)
-        if (url.includes('/blueprints/custom/')) {
-          return jsonResponse({ id: 'my-custom', code: 'NEW_CODE' }, 200)
+        if (url.includes('/source')) {
+          if (String(init?.method || 'GET') === 'PUT') {
+            return jsonResponse({
+              id: 'my-custom',
+              files: [{ name: 'blueprint_my-custom.py', path: 'blueprint_my-custom.py' }],
+              primary: 'blueprint_my-custom.py',
+              selected: 'blueprint_my-custom.py',
+              content: 'NEW_CODE',
+              editable: true,
+              origin: 'custom',
+              readonly_reason: null,
+            })
+          }
+          return jsonResponse({
+            id: 'my-custom',
+            files: [{ name: 'blueprint_my-custom.py', path: 'blueprint_my-custom.py' }],
+            primary: 'blueprint_my-custom.py',
+            selected: 'blueprint_my-custom.py',
+            content: 'INITIAL_SOURCE',
+            editable: true,
+            origin: 'custom',
+            readonly_reason: null,
+          })
         }
         return jsonResponse({
           kind: 'blueprint',
@@ -127,7 +137,7 @@ describe('REQ-188A-2: Definition Save must not swallow 404 as draft stored', () 
     fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
 
     await waitFor(() => {
-      expect(screen.getByText(/Saved\. Re-summarise to refresh/i)).toBeInTheDocument()
+      expect(screen.getByText(/Saved\. Reloaded as the updated blueprint/i)).toBeInTheDocument()
     })
     expect(screen.getByText(/Source changed/i)).toBeInTheDocument()
   })
