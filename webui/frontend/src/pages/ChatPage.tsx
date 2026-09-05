@@ -1431,6 +1431,28 @@ const ChatPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs h-auto p-1 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case shrink-0"
+            aria-label="Session token usage"
+            data-testid="token-meter-button"
+            onClick={() => setTokenDiagOpen(true)}
+          >
+            <div
+              className="h-1 w-14 overflow-hidden rounded-full bg-base-300"
+              role="meter"
+              aria-label="Tokens in context"
+              aria-valuemin={0}
+              aria-valuemax={CONTEXT_METER_TOKENS}
+              aria-valuenow={tokenCount}
+            >
+              <div
+                className="h-full rounded-full bg-base-content/45"
+                style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+              />
+            </div>
+            <span className="tabular-nums whitespace-nowrap text-xs">{formatTokenCount(tokenCount)} tok</span>
+          </button>
           {showRemotesControl ? (
             <RemoteSelect
               remotes={remotesQuery.data}
@@ -1811,28 +1833,6 @@ const ChatPage = () => {
           </form>
 
           <footer className="os-chat-footer" aria-live="polite">
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs h-auto p-0.5 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case"
-              aria-label="Session token usage"
-              data-testid="token-meter-button"
-              onClick={() => setTokenDiagOpen(true)}
-            >
-              <div
-                className="h-1 w-16 overflow-hidden rounded-full bg-base-300"
-                role="meter"
-                aria-label="Tokens in context"
-                aria-valuemin={0}
-                aria-valuemax={CONTEXT_METER_TOKENS}
-                aria-valuenow={tokenCount}
-              >
-                <div
-                  className="h-full rounded-full bg-base-content/45"
-                  style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
-                />
-              </div>
-              <span className="tabular-nums whitespace-nowrap">{formatTokenCount(tokenCount)} tok</span>
-            </button>
             {streamingMessage ? (
               <span className="flex items-center gap-1.5 min-w-0 truncate" data-testid="composer-working-indicator">
                 <AgentAvatar
