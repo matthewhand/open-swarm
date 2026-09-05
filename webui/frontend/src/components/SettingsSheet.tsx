@@ -40,15 +40,10 @@ import { roleDisplayName } from '../lib/safety'
 import type { DefinitionKind } from '../lib/definitionExplain'
 import { PYTHON_CODE_CLASS, highlightPython } from '../lib/highlightPython'
 import {
-  RETENTION_MODES,
-  RETENTION_MODE_LABELS,
   detectedHostname,
   loadBumpCompleted,
   loadHostnameOverride,
-  loadRetentionMode,
   saveBumpCompleted,
-  saveRetentionMode,
-  type RetentionMode,
 } from '../lib/settingsPrefs'
 import { agentLabel, catalogLabel } from '../lib/supportAgent'
 import { applyHostnameOverride, fetchUserPrefs, saveUserPrefs } from '../lib/userPrefs'
@@ -122,7 +117,6 @@ export default function SettingsSheet({
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
   const [hostname, setHostname] = useState(() => loadHostnameOverride())
-  const [retention, setRetention] = useState<RetentionMode>(() => loadRetentionMode())
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(blueprintId || '')
   const [bumpCompleted, setBumpCompleted] = useState(() => loadBumpCompleted())
   const resolvedDefinitionId = definitionId || teamId || blueprintId || ''
@@ -139,7 +133,6 @@ export default function SettingsSheet({
       }
       setHostname(loadHostnameOverride())
     })
-    setRetention(loadRetentionMode())
     setBumpCompleted(loadBumpCompleted())
     if (initialSection) {
       setSection(initialSection)
@@ -159,12 +152,6 @@ export default function SettingsSheet({
     setHostname(next)
     void saveUserPrefs({ hostname_override: next })
     success('Hostname saved', 'Override stored for this account.')
-  }
-
-  const handleSaveRetention = (event: FormEvent) => {
-    event.preventDefault()
-    saveRetentionMode(retention)
-    success('Retention saved', `${RETENTION_MODE_LABELS[retention]} mode stored in this browser.`)
   }
 
   return (
@@ -288,13 +275,7 @@ export default function SettingsSheet({
             />
           )}
           {section === 'remotes' && <RemotesCatalogPane startAdding={initialAddRemote} />}
-          {section === 'retention' && (
-            <RetentionPane
-              value={retention}
-              onChange={setRetention}
-              onSave={handleSaveRetention}
-            />
-          )}
+          {section === 'retention' && <RetentionPane />}
           {section === 'hostname' && (
             <HostnamePane
               value={hostname}
@@ -781,44 +762,29 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
   )
 }
 
-function RetentionPane({
-  value,
-  onChange,
-  onSave,
-}: {
-  value: RetentionMode
-  onChange: (mode: RetentionMode) => void
-  onSave: (event: FormEvent) => void
-}) {
+function RetentionPane() {
   return (
-    <form className="space-y-4" onSubmit={onSave}>
+    <div className="space-y-4" data-testid="settings-retention-pane">
       <div>
         <h4 className="text-lg font-semibold">Retention</h4>
         <p className="mt-1 text-sm text-base-content/70">
-          How this browser keeps chat leftovers. Saved locally until a storage
-          API is wired.
+          Chat retention, archiving, and trash pruning are managed by the server storage engine.
         </p>
       </div>
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Mode</legend>
-        <div className="join" role="radiogroup" aria-label="Retention mode">
-          {RETENTION_MODES.map((mode) => (
-            <input
-              key={mode}
-              className="join-item btn"
-              type="radio"
-              name="retention-mode"
-              aria-label={RETENTION_MODE_LABELS[mode]}
-              checked={value === mode}
-              onChange={() => onChange(mode)}
-            />
-          ))}
+      <div className="rounded-box border border-base-300 bg-base-200/50 p-4 space-y-3">
+        <p className="text-sm text-base-content/80">
+          To inspect chat disk usage, archive old sessions, or empty trash, open the server retention dashboard.
+        </p>
+        <div>
+          <a
+            href="/settings/#chat-retention-title"
+            className="btn btn-sm btn-outline gap-2"
+          >
+            Server retention dashboard
+          </a>
         </div>
-      </fieldset>
-      <Button type="submit" variant="primary" size="sm">
-        Save retention
-      </Button>
-    </form>
+      </div>
+    </div>
   )
 }
 
