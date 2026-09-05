@@ -222,7 +222,7 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
 ## Docker Deployment Details
 
 *   **`Dockerfile`:** Builds the API service image. Installs dependencies via `pip install .`. Runs migrations and starts Django server via `CMD`.
-*   **`docker-compose.yml`:** Defines the `swarm` service. Builds `open-swarm:local`, publishes `:8000`, and bind-mounts XDG config (`${HOME}/.config/swarm`) plus writable state (`${HOME}/.local/share/swarm`).
+*   **`docker-compose.yml`:** Defines `postgres` (official Postgres 16, named volume, healthcheck) and `swarm`. Builds `open-swarm:local`, publishes `:8000`, wires `DATABASE_URL` to the local Postgres service, and bind-mounts XDG config (`${HOME}/.config/swarm`) plus writable state (`${HOME}/.local/share/swarm`). Cloud operators override `DATABASE_URL`. Neon is not a default. See [docs/DATABASE.md](docs/DATABASE.md).
 *   **`docker-compose.override.example.yml`:** Example override for user customization (additional volumes, local build, env vars); copy to `docker-compose.override.yml` locally.
 
 ---

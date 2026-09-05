@@ -197,10 +197,13 @@ Django Settings HTML is an inspector, not a writer.
 It is **not** live `mcpServers` in `swarm_config.json`. Do not treat it as a
 second MCP SoT.
 
-**DB location:** `src/swarm/settings.py` — `DATABASE_URL` → Postgres; else
-`DJANGO_DB_NAME` / `SQLITE_DB_PATH` (compose: `~/.local/share/swarm/db.sqlite3`).
-Default without env is `/tmp/db.sqlite3` (ephemeral). #508 is the Postgres
-happy-path; this ADR does not move topology into SQL.
+**DB location:** `src/swarm/settings.py` via `swarm.core.database_config` —
+`DATABASE_URL` (or `POSTGRES_HOST` + `POSTGRES_*`) → Postgres; else
+`DJANGO_DB_NAME` / `SQLITE_DB_PATH`. Compose happy path is the local
+`postgres` service (`postgres://swarm:swarm@postgres:5432/swarm`). Native
+pytest / desktop without those env vars still use SQLite (`/tmp/db.sqlite3`
+unless a path is set). Neon is test-only — see [DATABASE.md](../DATABASE.md)
+and #508. This ADR does not move topology into SQL.
 
 **Per-user UI prefs today:** **not** Django. SPA uses `localStorage`
 (`webui/frontend/src/lib/pinnedAgents.ts`, `hiddenAgents.ts`, `theme.ts`,

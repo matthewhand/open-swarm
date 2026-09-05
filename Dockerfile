@@ -13,7 +13,8 @@ FROM python:3.11-slim
 ARG PORT=8000
 ENV PORT=${PORT}
 
-# Install system-level build dependencies, including sqlite3
+# Build deps plus sqlite3 (native/pytest/tiny-demo fallback only; compose
+# durable default is Postgres — REQ-123 / #508).
 RUN apt-get update && apt-get install -y \
     git \
     gcc \
@@ -53,25 +54,31 @@ CMD if [ -n "$SWAPFILE_PATH" ]; then \
       mkswap "$SWAPFILE_PATH" && \
       swapon "$SWAPFILE_PATH"; \
     fi && \
-    : "${DJANGO_DB_NAME:=${SQLITE_DB_PATH:-/app/db.sqlite3}}" && \
-    export DJANGO_DB_NAME SQLITE_DB_PATH="${DJANGO_DB_NAME}" && \
-    mkdir -p "$(dirname "$DJANGO_DB_NAME")" && \
-    if [ "$FACTORY_RESET_DATABASE" = "True" ]; then \
-      echo "FACTORY_RESET_DATABASE is True; deleting database file if it exists" && \
-      rm -f "$DJANGO_DB_NAME"; \
-    fi && \
-    if [ -f "$DJANGO_DB_NAME" ]; then \
-      TABLE_COUNT=$(sqlite3 "$DJANGO_DB_NAME" "SELECT count(*) FROM sqlite_master WHERE type='table';") && \
-      if [ "$TABLE_COUNT" -gt 0 ]; then \
-        echo "Database exists with tables; applying migrations with --fake-initial if needed" && \
-        python manage.py migrate --fake-initial; \
+    python -c "from swarm.core.database_config import check_database_or_exit; check_database_or_exit()" && \
+    if [ -n "${DATABASE_URL}" ] || [ -n "${POSTGRES_HOST}" ]; then \
+      echo "Postgres configured (DATABASE_URL / POSTGRES_*); applying migrations" && \
+      python manage.py migrate --fake-initial; \
+    else \
+      : "${DJANGO_DB_NAME:=${SQLITE_DB_PATH:-/app/db.sqlite3}}" && \
+      export DJANGO_DB_NAME SQLITE_DB_PATH="${DJANGO_DB_NAME}" && \
+      mkdir -p "$(dirname "$DJANGO_DB_NAME")" && \
+      if [ "$FACTORY_RESET_DATABASE" = "True" ]; then \
+        echo "FACTORY_RESET_DATABASE is True; deleting database file if it exists" && \
+        rm -f "$DJANGO_DB_NAME"; \
+      fi && \
+      if [ -f "$DJANGO_DB_NAME" ]; then \
+        TABLE_COUNT=$(sqlite3 "$DJANGO_DB_NAME" "SELECT count(*) FROM sqlite_master WHERE type='table';") && \
+        if [ "$TABLE_COUNT" -gt 0 ]; then \
+          echo "Database exists with tables; applying migrations with --fake-initial if needed" && \
+          python manage.py migrate --fake-initial; \
+        else \
+          echo "Database exists but is empty; applying migrations normally" && \
+          python manage.py migrate; \
+        fi; \
       else \
-        echo "Database exists but is empty; applying migrations normally" && \
+        echo "No database found; creating and applying migrations" && \
         python manage.py migrate; \
       fi; \
-    else \
-      echo "No database found; creating and applying migrations" && \
-      python manage.py migrate; \
     fi && \
     echo "--- Starting Open Swarm ASGI (uvicorn) ---" && \
     exec uvicorn swarm.asgi:application --host 0.0.0.0 --port "$PORT" --workers "${SWARM_UVICORN_WORKERS:-1}"

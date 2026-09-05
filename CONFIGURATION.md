@@ -288,7 +288,7 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_RESPONSES_SYNC_TIMEOUT` | Default seconds a `/v1/responses` request waits inline before auto-escalating to a queued handle (per-request override: `max_wait_seconds`). Unset = fully-blocking sync. | unset |
 | `SWARM_RESPONSES_MAX_AGE_DAYS` | Optional retention for `swarm.core.responses_store.prune_expired()` (terminal records only; skips `queued`/`in_progress`). **Not applied automatically** — call the helper or cron it. Unset / ≤0 = prune no-op when age omitted. | unset |
 | `SWARM_CHAT_DIR` | Per-agent SPA chat JSON store (`active/<user>/<agent>.json` + `trash/`). Used to restore Chat after reload / agent switch. Retention UI is Settings-only. | `$SWARM_USER_DATA_DIR/chats` (platformdirs if unset) |
-| `SWARM_ATTACHMENTS_DIR` | Composer file-attach bytes (REQ-38). Metadata is Django sqlite `ChatAttachment`; paths are `{user_key}/{uuid}` only. | `$SWARM_USER_DATA_DIR/attachments` |
+| `SWARM_ATTACHMENTS_DIR` | Composer file-attach bytes (REQ-38). Metadata is Django `ChatAttachment`; paths are `{user_key}/{uuid}` only. | `$SWARM_USER_DATA_DIR/attachments` |
 | `SWARM_CHAT_MAX_AGE_DAYS` | Auto-**move to trash** (never hard-delete) inactive agent chats older than this many days when Settings loads. `0` disables. Empty trash is a manual Settings action. | `90` |
 | `SWARM_RUNTIME_MODE` | Where **this app** is running (SPA runtime banner). `bare-metal` (dedicated harness, no container), `sandbox-home` (compose with `$HOME` / `SWARM_SANDBOX_ROOT` mapped), `sandbox-isolated` (compose without that tree). Missing / unrecognized → **unknown** (never fake a green sandbox). This is **not** the browser-control or computer-control provider ([ADR-007](docs/adr/007-local-computer-control.md)). Compose: `docker-compose.yml` defaults `sandbox-home`; `docker-compose.dev.yml` also defaults sandbox-home. | unset → unknown |
 | `SWARM_CHROME_CDP` | Optional Chrome DevTools URL for Playwright **attach** (`Browser (this machine)`). Launch is used when unset. | unset |
@@ -320,6 +320,25 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | `SWARM_ENFORCE_SINGLE_WORKER` | When true (default), refuse `SWARM_UVICORN_WORKERS` &gt; 1 at app startup. | `true` |
 | `SWARM_ALLOW_USER_BLUEPRINT_DISCOVERY` | When true, scan user blueprint dirs (exec_module). Default off so creator saves are write-only. | `false` |
 | `SWARM_USER_BLUEPRINT_SANDBOX` | AST safety gate before `exec_module` for user/community blueprint roots (and creator save validation). Set `false` only to opt out. | `true` |
+
+### Database (REQ-123 / #508)
+
+Durable default is **local Postgres in docker compose**. Cloud operators
+point at any Postgres with `DATABASE_URL`. **Neon is test/CI/experiments
+only** (free-tier always-on ~day 17). Short guide:
+[docs/DATABASE.md](docs/DATABASE.md).
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `DATABASE_URL` | Wins. Postgres DSN (`postgres://` / `postgresql://`). Compose sets `postgres://swarm:swarm@postgres:5432/swarm` (local placeholder, not a secret). | compose: local `postgres` service; else unset → SQLite |
+| `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Discrete knobs when `DATABASE_URL` is empty. | compose: `postgres` / `5432` / `swarm` / `swarm` / `swarm` |
+| `DJANGO_DATABASE` | If `postgres` / `postgresql` without URL/host, startup **fails fast** (exit 78). `sqlite` is documentary. | unset |
+| `DJANGO_DB_NAME` / `SQLITE_DB_PATH` | SQLite file when Postgres is not configured (pytest, desktop, tiny native demos). | `/tmp/db.sqlite3` |
+| `SWARM_SKIP_DB_HEALTH` | Skip the startup Postgres connect check. Emergency only. | unset (check on) |
+
+Unreachable Postgres or a Neon quota/compute error **exits 78** with a
+clear, redacted message — see
+[docs/RUNBOOK_NEON_QUOTA_CRASH_LOOP.md](docs/RUNBOOK_NEON_QUOTA_CRASH_LOOP.md).
 
 ### Feature flags
 
@@ -376,8 +395,9 @@ Model/provider keys and service endpoints — `OPENAI_API_KEY`, `OPENAI_BASE_URL
 
 ## 10. Herdr members (REQ-21)
 
-Persisted Herdr connections (`kind=herdr`) live in the Django SQLite database
-(default; do **not** set `DATABASE_URL` / Neon for this). Empty `remote` means
+Persisted Herdr connections (`kind=herdr`) live in the Django database
+(Compose Postgres, or SQLite when `DATABASE_URL` is unset). Do **not**
+point this feature at Neon. Empty `remote` means
 localhost — `herdr` with no `--remote` (unix sockets under `~/.config/herdr/`).
 When `remote` is set, every call is `herdr --remote <value> …`.
 

@@ -67,6 +67,10 @@ def test_support_skill_says_herdr_is_ssh_shaped():
 
 def test_sqlite_default_unchanged_no_neon_url():
     src = SETTINGS_PY.read_text(encoding="utf-8")
-    assert "django.db.backends.sqlite3" in src
-    # Feature must not hard-code Neon / DATABASE_URL.
+    helper = (REPO / "src" / "swarm" / "core" / "database_config.py").read_text(
+        encoding="utf-8"
+    )
+    assert "django.db.backends.sqlite3" in src or "django.db.backends.sqlite3" in helper
+    # Feature must not hard-code Neon as a default host.
     assert "neon.tech" not in src.lower()
+    assert "neon.tech" not in helper.lower()

@@ -229,12 +229,21 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Feature | Status | Evidence |
 |---|---|---|
 | `herdr` CLI wrapper | ✅ | `src/swarm/herdr/client.py` — workspace/agent list, agent read, `agent prompt TARGET TEXT` (one argv), wait-until idle\|working\|blocked\|done. Empty remote omits `--remote`. Tests mock the binary: `tests/herdr/test_herdr_client.py` (includes spaces in TEXT + proven `w3:p1` / `HERDR_PING_OK` → `agent_prompted`) |
-| Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. SQLite default (no DATABASE_URL / Neon) |
+| Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. Django DB (Compose Postgres or SQLite); no Neon |
 | Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
 | Remotes kind + CLI `--remote` (REQ-64) | ✅ | `remotes.herdr` persist; Settings + Add; `HerdrClient.from_remote_config()`; stub HTTP health/list in `tests/core/test_herdr_remote.py` |
 | SSH-shaped remote Herdr (REQ-100) | ✅ | `SSHTransport` stub; `herdr_mode` local\|ssh; persist `ssh_host` / `ssh_user` / `ssh_identity_env`; operate list/send/interrogate. Tests: `tests/herdr/test_herdr_ssh.py`, `tests/core/test_herdr_ssh_remote.py` |
 
-## 14. Desktop package (REQ-151) — 📋 planned
+## 14. Durable database (REQ-123) — ✅
+
+| Feature | Status | Evidence |
+|---|---|---|
+| Compose local Postgres | ✅ | `docker-compose.yml` `postgres` service (official `postgres:16`, `swarm_pgdata`, healthcheck). `swarm` `depends_on` healthy + `DATABASE_URL=postgres://swarm:swarm@postgres:5432/swarm`. Neon is not a default hostname. |
+| Cloud override | ✅ | `DATABASE_URL` wins; `POSTGRES_*` when URL empty. [docs/DATABASE.md](docs/DATABASE.md), `.env.example`. |
+| Fail-fast | ✅ | `swarm.core.database_config.check_database_or_exit` → exit 78; compose `restart: on-failure:5`. |
+| CI | ✅ | pytest remains SQLite; `postgres-migrate` job uses Actions Postgres. No live Neon. Fixes #508. |
+
+## 15. Desktop package (REQ-151) — 📋 planned
 
 | Feature | Status | Evidence |
 |---|---|---|

@@ -283,7 +283,8 @@ class TestComposeAuthDefault:
         # Must not hard-set SWARM_ALLOW_NO_AUTH: "true" as the default prod path
         assert 'SWARM_ALLOW_NO_AUTH: "true"' not in text
         assert "healthcheck:" in text
-        assert "DJANGO_DB_NAME" in text
+        assert "DATABASE_URL" in text
+        assert "postgres:" in text
         assert "/health" in text
 
     def test_dockerfile_uses_uvicorn(self):

@@ -92,6 +92,12 @@ After the proxy reloads the spec, the generated tools expose `params`, `name`,
 etc. (every write endpoint's body is documented).
 
 ## Notes
+- **Database:** this unit defaults to **SQLite** via `DJANGO_DB_NAME` (see
+  `deploy/oracle/open-swarm-oracle.service`). That is intentional and is
+  **not** Neon. To use any Postgres, set `DATABASE_URL` (or `POSTGRES_*`)
+  on the unit — compose’s happy path is local Postgres
+  ([DATABASE.md](./DATABASE.md)). Do **not** point oracle or Fly at Neon
+  as the primary path (test/CI only; free-tier ~day 17).
 - Keep `DJANGO_DEBUG=true` only if you accept verbose error pages on the LAN side;
   for stricter prod, set `DJANGO_DEBUG=false` and also set `DJANGO_SECRET_KEY` +
   `DJANGO_ALLOWED_HOSTS` (the server refuses to boot without them in prod), and

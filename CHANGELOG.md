@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **REQ-123 local Compose Postgres:** `docker compose` starts official Postgres 16 (volume + healthcheck) and wires `swarm` to it via `DATABASE_URL`. Cloud operators override `DATABASE_URL` / `POSTGRES_*`. Neon is documented as test/CI/experiments only (free-tier ~day 17). Unreachable / quota Postgres **exits 78** with a clear redacted message. pytest stays on SQLite; CI adds a local Postgres `migrate` smoke job. Docs: `docs/DATABASE.md`. Fixes #508.
+
 ### Added
 - **REQ-100 Herdr SSH-shaped remotes:** Local Herdr talks to Herdr on this host (no SSH). Remote Herdr captures SSH host / user / identity-env (path name only) / agent — then health, list, send, and interrogate go over SSH to that Herdr host and its CLIs. Distinct from HTTP remotes (OpenMousBot / Hermes / Rakazo). Settings + Support skill copy say so. Tests stub SSH; missing SSH config is a clear error. Fixes #463.
 - **REQ-107 optional Chief of Staff on the team designer:** After adding members, pick one API or CLI roster seat as CoS (or none). A generic starter brief plus helper examples tell that CoS how to use the rest of the roster. Saved on the team (`team_rosters.json` / `/v1/team-rosters/`); runtime injects the brief for that team's CoS only. Same agent on two teams keeps two briefs. Remotes stay off the picker until they can receive a system/developer message. Fixes #475.
