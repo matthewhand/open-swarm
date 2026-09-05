@@ -179,7 +179,7 @@ describe('ChatPage REQ-85 suggestion chips', () => {
         }),
       )
     })
-    expect(screen.getByTestId('suggestion-chip')).toBeDisabled()
+    expect(screen.getAllByTestId('suggestion-chip').every((el) => (el as HTMLButtonElement).disabled)).toBe(true)
     await act(async () => {
       ws.onmessage?.(
         new MessageEvent('message', {
