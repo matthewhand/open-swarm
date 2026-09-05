@@ -188,7 +188,8 @@ describe('TeamComposer first-launch overlay', () => {
     expect(screen.getByText(/add agents first/i)).toBeInTheDocument()
     expect(screen.getByTestId('team-cos-instructions')).toBeDisabled()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[0])
+    const available = await screen.findByRole('list', { name: /available agents list/i })
+    fireEvent.click(within(available).getAllByRole('button', { name: 'Add' })[0])
     const enabled = screen.getByTestId('team-cos-select')
     expect(enabled).not.toBeDisabled()
     expect(enabled).toHaveValue('')

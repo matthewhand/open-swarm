@@ -16,13 +16,15 @@ def test_designer_has_optional_cos_control_and_instructions():
     src = COMPOSER.read_text(encoding="utf-8")
     assert 'aria-label="Chief of Staff"' in src
     assert "No Chief of Staff" in src
-    assert "Add agents first" in src
+    assert "COS_EMPTY_ROSTER_HINT" in src
     assert "team-cos-instructions" in src
     assert "How to use this team" in src
-    assert "same agent can sit on multiple teams" in src
+    assert "COS_INSTRUCTIONS_HELPER" in src
     assert "Do not auto-assign" in src
     assert "type=\"radio\"" in src
     assert "name=\"team-chief-of-staff\"" in src
+    helpers = TEAM_ROSTER.read_text(encoding="utf-8")
+    assert "same agent can sit on multiple teams" in helpers
 
 
 def test_chat_stays_mounted_under_team_composer():
