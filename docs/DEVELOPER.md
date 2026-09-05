@@ -94,9 +94,11 @@ uv run ruff check src tests            # clean on files you touch
 
 - Tests run keyless via `SWARM_TEST_MODE`.
 - **CI goal is green `main`.** `Python Tests` on 3.10 / 3.11 / 3.12 must
-  collect and pass.
+  collect and pass. Sibling `vitest` job: `npm ci` then `npm test`
+  (REQ-171C-7 / [#616](https://github.com/matthewhand/open-swarm/issues/616)).
 - Intentional HOLD: `golden-journey` in `visual-regression.yml` (`if: false`,
   REQ-89 [#446](https://github.com/matthewhand/open-swarm/issues/446)).
+  Do not re-enable that job to recover Vitest.
 - Conventional commits: `feat(webui):`, `docs:`, `test:`, …
 
 Full PR rules: [CONTRIBUTING.md](../CONTRIBUTING.md).

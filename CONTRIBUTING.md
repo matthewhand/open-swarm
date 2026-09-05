@@ -39,6 +39,7 @@ bake `dist/` in a multi-stage Node build (see `Dockerfile`).
 uv run pytest                 # full suite
 uv run pytest tests/unit      # a subdirectory
 uv run pytest -k spinner      # by keyword
+cd webui/frontend && npm ci && npm test   # Vitest SPA contracts (PR gate)
 ```
 
 Pytest is configured in `pyproject.toml` (Django settings, asyncio mode,
@@ -46,11 +47,13 @@ test paths). Some suites are skipped without API keys or optional services;
 that is expected.
 
 **CI goal is green `main`.** The `Python Tests` workflow (3.10 / 3.11 /
-3.12) must collect and pass on tip of `main`. Own-diff triage is still
-the first question when a PR is red (did *this* change break it?), but
-that is not permission to live with a permanent pytest collection or
-matrix red. Do not skip or weaken unrelated tests to paper over a
-product/export mismatch.
+3.12) must collect and pass on tip of `main`. The sibling `vitest` job
+runs `npm ci` then `npm test` in `webui/frontend` (REQ-171C-7 / #616).
+Own-diff triage is still the first question when a PR is red (did *this*
+change break it?), but that is not permission to live with a permanent
+pytest collection, Vitest, or matrix red. Do not skip or weaken unrelated
+tests to paper over a product/export mismatch. Do not treat `test_req*`
+source greps as SPA coverage.
 
 **Intentional HOLDs** (skipped on purpose; not unexplained red):
 
@@ -58,6 +61,7 @@ product/export mismatch.
   — REQ-89 [#446](https://github.com/matthewhand/open-swarm/issues/446).
   Screenshot / tour lock is stale. Do not delete the workflow; do not
   treat the skip as a pytest waiver. Re-enable only after recapture.
+  Vitest is gated by `python-pytest.yml`, not this HOLD.
 
 ## Linting
 
