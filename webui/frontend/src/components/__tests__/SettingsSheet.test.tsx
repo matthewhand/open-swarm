@@ -8,6 +8,7 @@ import {
   HOSTNAME_OVERRIDE_KEY,
   RETENTION_MODE_KEY,
 } from '../../lib/settingsPrefs'
+import { HOSTNAME_CHANGED_EVENT } from '../../lib/hostname'
 
 function renderSheet({
   isOpen = true,
@@ -323,7 +324,13 @@ describe('SettingsSheet', () => {
     expect(link).toHaveAttribute('href', '/settings/#chat-retention-title')
   })
 
-  it('persists a hostname override and toasts on save', async () => {
+  it('persists a hostname override, toasts on save, and dispatches HOSTNAME_CHANGED_EVENT (REQ-188B-2)', async () => {
+    let dispatchedHost = ''
+    const onHostChanged = (event: Event) => {
+      dispatchedHost = (event as CustomEvent<{ hostname: string }>).detail?.hostname ?? ''
+    }
+    window.addEventListener(HOSTNAME_CHANGED_EVENT, onHostChanged)
+
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'Hostname' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Hostname override' }), {
@@ -332,6 +339,9 @@ describe('SettingsSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save hostname' }))
     expect(localStorage.getItem(HOSTNAME_OVERRIDE_KEY)).toBe('swarm.example.com')
     expect(await screen.findByText('Hostname saved')).toBeInTheDocument()
+    expect(dispatchedHost).toBe('swarm.example.com')
+
+    window.removeEventListener(HOSTNAME_CHANGED_EVENT, onHostChanged)
   })
 
   it('lists configured profiles and persists the Default picker', async () => {

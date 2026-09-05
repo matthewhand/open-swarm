@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { HOSTNAME_STORAGE_KEY, defaultHostname, loadHostname, saveHostname } from '../hostname'
+import {
+  HOSTNAME_STORAGE_KEY,
+  defaultHostname,
+  loadHostname,
+  saveHostname,
+  HOSTNAME_CHANGED_EVENT,
+  dispatchHostnameChanged,
+} from '../hostname'
 import {
   HOSTNAME_OVERRIDE_KEY,
   loadHostnameOverride,
@@ -33,5 +40,16 @@ describe('hostname override', () => {
 
     saveHostname('   ')
     expect(loadHostnameOverride()).toBe('settings.example.com')
+  })
+
+  it('dispatches and notifies listeners on HOSTNAME_CHANGED_EVENT (REQ-188B-2)', () => {
+    let notified = ''
+    const listener = (event: Event) => {
+      notified = (event as CustomEvent<{ hostname: string }>).detail?.hostname ?? ''
+    }
+    window.addEventListener(HOSTNAME_CHANGED_EVENT, listener)
+    dispatchHostnameChanged('new-host.example.com')
+    expect(notified).toBe('new-host.example.com')
+    window.removeEventListener(HOSTNAME_CHANGED_EVENT, listener)
   })
 })
