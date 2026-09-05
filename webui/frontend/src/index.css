@@ -1332,6 +1332,61 @@ html:not([data-theme="light"]) .os-composer__send,
 .os-chat-bottom-dock {
   margin-top: calc(-1 * var(--os-chat-composer-inset, 0px));
 }
+
+/* REQ-90: queued sends sit below in-flight assistant, cap ~1/3 of transcript. */
+.os-queued-pane {
+  max-height: 33.333%;
+  overflow-y: auto;
+  flex-shrink: 0;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px dashed color-mix(in srgb, var(--color-base-content) 18%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-base-200) 72%, transparent);
+}
+.os-queued-pane__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.os-queued-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+.os-queued-row__badge {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+.os-queued-row__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--color-base-content) 82%, transparent);
+  background: transparent;
+  border: 0;
+  padding: 0.15rem 0;
+  cursor: text;
+}
+.os-queued-row__editor {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.os-queued-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+.os-queued-row__remove {
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
 @media (min-width: 640px) {
   .os-chat-transcript {
     padding-left: 0.75rem;
