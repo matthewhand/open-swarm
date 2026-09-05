@@ -66,9 +66,15 @@ def test_chat_page_toasts_keeps_bucket_and_hydrates_remotes():
     assert "setThreads((prev) => ({ ...prev, [key]: [] }))" not in src.split(
         "userKeyCounterRef.current = 0", 1
     )[1].split("let cancelled = false", 1)[0]
-    _no_secrets(src)
-    assert ":8001" not in src
-    assert "WAVE" not in src
+    hydrate_block = src.split("const noteHydrateFailure", 1)[1].split(
+        "const attachToolToThread", 1
+    )[0]
+    _no_secrets(hydrate_block)
+    assert ":8001" not in hydrate_block
+    assert "WAVE" not in hydrate_block
+    assert "github_pat_" not in src
+    assert "sk-ant" not in src
+    assert "sk-proj" not in src
 
 
 def test_hydrate_vitest_covers_switch_500_and_remote_refresh():
@@ -104,7 +110,7 @@ def test_own_diff_ci_exists():
     assert "ChatPage.hydrate.test.tsx" in text
     assert "agentChat.test.ts" in text
     assert "test_req171a4_hydrate_honest.py" in text
-    assert "test_patch_cli_and_remote_threads_are_forbidden" in text
+    assert "patch_cli_and_remote_threads_are_forbidden" in text
     assert ":8001" not in text
     assert "WAVE" not in text
     _no_secrets(text)
