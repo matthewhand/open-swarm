@@ -34,4 +34,26 @@ describe('renderSafeMarkdown', () => {
     expect(view).toContain('language-python')
     expect(source).toContain('\n')
   })
+
+  it('renders tables, blockquotes, hr, and links for themed chat-md chrome', () => {
+    const view = renderSafeMarkdown(
+      [
+        '> quoted',
+        '',
+        '| Col | Val |',
+        '| --- | --- |',
+        '| a | 1 |',
+        '',
+        'See [docs](https://example.com/path)',
+        '',
+        '---',
+      ].join('\n'),
+    )
+    expect(view).toContain('<blockquote>')
+    expect(view).toContain('<table>')
+    expect(view).toContain('<th>')
+    expect(view).toContain('<td>')
+    expect(view).toContain('<hr>')
+    expect(view).toContain('href="https://example.com/path"')
+  })
 })
