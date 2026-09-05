@@ -74,7 +74,8 @@ def test_public_payload_defaults_are_compress_80_cull_90_50():
 
 
 def test_choose_cull_start_keeps_recent_suffix():
-    assert choose_cull_start(2) is None
+    assert choose_cull_start(1) is None
+    assert choose_cull_start(2, fraction_pct=50) == 1
     assert choose_cull_start(10, current_start=0, fraction_pct=50) == 5
     assert choose_cull_start(10, current_start=5, fraction_pct=50) == 7
     # Recent offsets 7,8,9 stay the same after a second cull.
