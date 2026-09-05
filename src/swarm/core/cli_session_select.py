@@ -1,18 +1,21 @@
-"""REQ-104 — list and switch CLI-provider sessions (design A).
+"""REQ-104 / #795 — list and switch CLI-provider sessions (design A).
 
 Selecting a provider session **mints a new Django/chat-store conversation**
 bound to that CLI id. The previous swarm thread is not deleted (orphan +
 optional prior-history pill). Compressions stay on the old conversation.
 
-Listing prefers the CLI's own ``list_argv`` when configured. Catalog CLIs
-have no verified non-interactive list — they degrade to paste-id + swarm-touch
-recents. Never invent rows. Ids are scrubbed like REQ-52 (no secrets).
+Listing prefers each CLI's own list argv or session store (Grok / agy /
+OpenCode first). Django Select/New is not the SoT for CLI resume. CLIs
+without a verified list degrade to paste-id + swarm-touch recents. Never
+invent rows. Ids are scrubbed like REQ-52 (no secrets).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import subprocess
 import uuid
 from datetime import datetime, timezone
@@ -20,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from swarm.core import chat_store, cli_catalog
+from swarm.core.cli_session_stores import list_store_sessions
 from swarm.core.cli_sessions import (
     get_cli_session,
     put_cli_session,
@@ -160,7 +164,14 @@ def swarm_recent_sessions(
     return out
 
 
-def _default_run_list(argv: list[str], timeout: float) -> tuple[int | None, str, str]:
+def _default_run_list(
+    argv: list[str],
+    timeout: float,
+    *,
+    cwd: str | None = None,
+) -> tuple[int | None, str, str]:
+    env = os.environ.copy()
+    env["PATH"] = cli_catalog.host_cli_path()
     try:
         proc = subprocess.run(
             argv,
@@ -168,11 +179,15 @@ def _default_run_list(argv: list[str], timeout: float) -> tuple[int | None, str,
             text=True,
             timeout=timeout,
             check=False,
+            cwd=cwd or None,
+            env=env,
         )
     except FileNotFoundError as exc:
         return 127, "", str(exc)
     except subprocess.TimeoutExpired:
         return None, "", "timed out"
+    except OSError as exc:
+        return 127, "", str(exc)
     return proc.returncode, proc.stdout or "", proc.stderr or ""
 
 
@@ -195,6 +210,40 @@ def _iter_json_blobs(stdout: str):
             continue
 
 
+def _stamp_from_unix(value: Any) -> str:
+    """Unix seconds or milliseconds → UTC ISO, or empty."""
+    if isinstance(value, bool):
+        return ""
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+        if seconds > 1e12:  # milliseconds
+            seconds /= 1000.0
+        if seconds <= 0:
+            return ""
+        try:
+            return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+        except (OSError, OverflowError, ValueError):
+            return ""
+    return ""
+
+
+def _normalize_updated_at(raw: Any) -> str:
+    if raw is None or isinstance(raw, bool):
+        return ""
+    if isinstance(raw, (int, float)):
+        return _stamp_from_unix(raw)
+    text = str(raw).strip()
+    if not text:
+        return ""
+    if text.isdigit():
+        return _stamp_from_unix(int(text))
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return f"{text}T00:00:00Z"
+    return text[:64]
+
+
 def _row_from_blob(blob: Any) -> dict[str, Any] | None:
     if isinstance(blob, str):
         sid = sanitize_cli_session_id(blob)
@@ -209,17 +258,25 @@ def _row_from_blob(blob: Any) -> dict[str, Any] | None:
         or blob.get("sessionId")
         or blob.get("thread_id")
         or blob.get("conversation_id")
+        or blob.get("conversationId")
     )
     if not sid:
         return None
     title = str(blob.get("title") or blob.get("name") or sid)[:200]
-    snippet = str(blob.get("snippet") or blob.get("preview") or blob.get("summary") or "")[:240]
-    updated = str(
+    snippet = str(
+        blob.get("snippet")
+        or blob.get("preview")
+        or blob.get("summary")
+        or blob.get("first_prompt")
+        or ""
+    )[:240]
+    updated = _normalize_updated_at(
         blob.get("updated_at")
         or blob.get("updatedAt")
+        or blob.get("updated")
         or blob.get("mtime")
         or blob.get("last_activity")
-        or ""
+        or blob.get("last_active")
     )
     return {
         "id": sid,
@@ -230,7 +287,48 @@ def _row_from_blob(blob: Any) -> dict[str, Any] | None:
     }
 
 
-def parse_provider_sessions(stdout: str) -> list[dict[str, Any]]:
+# grok sessions list: "{id} {created:10} {updated:10} {status} {summary}"
+_GROK_ROW_RE = re.compile(
+    r"^(?P<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\s+"
+    r"(?P<created>\S+)\s+(?P<updated>\S+)\s+(?P<status>\S+)\s+(?P<summary>.*)$"
+)
+_GROK_SKIP_PREFIXES = ("session id", "label:", "(no label)", "no sessions found")
+
+
+def parse_grok_sessions_table(stdout: str) -> list[dict[str, Any]]:
+    """Parse ``grok sessions list`` grouped text table. No fake rows."""
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in (stdout or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.lower().startswith(_GROK_SKIP_PREFIXES):
+            continue
+        match = _GROK_ROW_RE.match(line)
+        if not match:
+            continue
+        sid = sanitize_cli_session_id(match.group("id"))
+        if not sid or sid in seen:
+            continue
+        seen.add(sid)
+        summary = (match.group("summary") or "").strip()
+        if summary in {"(no summary)", "(untitled)"}:
+            summary = ""
+        rows.append(
+            {
+                "id": sid,
+                "title": (summary or sid)[:200],
+                "snippet": summary[:240],
+                "updated_at": _normalize_updated_at(match.group("updated")),
+                "source": "provider",
+            }
+        )
+    return rows
+
+
+def parse_provider_sessions(stdout: str, *, cli_name: str = "") -> list[dict[str, Any]]:
     """Parse a CLI list command's stdout into sanitized session rows."""
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -252,7 +350,32 @@ def parse_provider_sessions(stdout: str) -> list[dict[str, Any]]:
                 continue
             seen.add(row["id"])
             rows.append(row)
-    return rows
+    if rows:
+        return rows
+    # Grok's official list is a text table (no --json on `sessions list`).
+    if not cli_name or cli_name == "grok":
+        return parse_grok_sessions_table(stdout)
+    return []
+
+
+def _list_cwd(cli_name: str, config: dict[str, Any] | None) -> str | None:
+    entry = (config or {}).get("cli_agents") or {}
+    if isinstance(entry, dict):
+        block = entry.get(cli_name)
+        if isinstance(block, dict):
+            raw = block.get("list_cwd") or block.get("workdir")
+            if isinstance(raw, str) and raw.strip():
+                return os.path.expanduser(raw.strip())
+    return None
+
+
+def _parse_warning(stdout: str, rows: list[dict[str, Any]]) -> str | None:
+    text = (stdout or "").strip()
+    if rows or not text:
+        return None
+    if "no sessions found" in text.lower():
+        return None
+    return "Session list had no parseable ids"
 
 
 def list_provider_sessions(
@@ -262,23 +385,39 @@ def list_provider_sessions(
     run_list: RunList | None = None,
     timeout: float | None = None,
 ) -> tuple[bool, list[dict[str, Any]], str | None]:
-    """Run the CLI list command if configured.
+    """Run the CLI list command or enumerate the provider store.
 
     Returns ``(can_list, rows, warning)``. ``can_list`` is False when there is
-    no argv — callers must not invent provider rows.
+    no argv and no store — callers must not invent provider rows.
     """
     argv = cli_catalog.list_sessions_argv(cli_name, config)
-    if not argv:
+    if argv:
+        resolved_exe = cli_catalog.which_cli(argv[0])
+        if resolved_exe is None and run_list is None:
+            return True, [], f"{cli_name}: CLI not installed (no {argv[0]!r} on PATH)"
+        resolved = [resolved_exe or argv[0], *argv[1:]]
+        runner = run_list or (
+            lambda command, limit: _default_run_list(
+                command, limit, cwd=_list_cwd(cli_name, config)
+            )
+        )
+        code, stdout, stderr = runner(list(resolved), float(timeout or LIST_TIMEOUT))
+        if code is None:
+            return True, [], "Session list timed out"
+        if code != 0:
+            if code == 127:
+                return True, [], f"{cli_name}: CLI not installed (no {argv[0]!r} on PATH)"
+            detail = (stderr or stdout or "list failed").strip().splitlines()
+            warning = detail[0][:200] if detail else "list failed"
+            return True, [], warning
+        rows = parse_provider_sessions(stdout, cli_name=cli_name)
+        return True, rows, _parse_warning(stdout, rows)
+
+    store = cli_catalog.list_sessions_store(cli_name, config)
+    if not store:
         return False, [], "This CLI can't list sessions"
-    runner = run_list or _default_run_list
-    code, stdout, stderr = runner(list(argv), float(timeout or LIST_TIMEOUT))
-    if code is None:
-        return True, [], "Session list timed out"
-    if code != 0:
-        detail = (stderr or stdout or "list failed").strip().splitlines()
-        warning = detail[0][:200] if detail else "list failed"
-        return True, [], warning
-    return True, parse_provider_sessions(stdout), None
+    store_dir = cli_catalog.list_sessions_store_dir(cli_name, config)
+    return True, list_store_sessions(store, store_dir), None
 
 
 def merge_session_rows(
@@ -337,6 +476,7 @@ def list_cli_sessions(
         "agent_id": chat_store.normalize_agent_id(agent_id),
         "cli": chat_store.normalize_agent_id(cli_name),
         "can_list": can_list,
+        "list_capability": cli_catalog.list_capability(cli_name, config),
         "sessions": sessions,
         "recent": recents[:RECENT_LIMIT],
         "empty_reason": empty_reason,

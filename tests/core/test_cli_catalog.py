@@ -19,10 +19,11 @@ def test_every_catalog_cli_documents_session_resume():
         assert policy.get("resume_argv"), f"{name} has no resume_argv"
         assert "{session_id}" in " ".join(policy["resume_argv"])
         assert policy.get("notes")
-        assert "No non-interactive session list" in policy["notes"]
+        assert policy.get("list_capability") in cli_catalog.LIST_CAPABILITIES
     assert cli_catalog.session_policy("antigravity") is None
     grok = cli_catalog.session_policy("grok")
     assert grok["resume_argv"] == ["--resume", "{session_id}"]
+    assert grok["list_argv"] == ["grok", "sessions", "list", "--limit", "50"]
     claude = cli_catalog.session_policy("claude")
     assert ".session_id" in claude["session_id_paths"]
     codex = cli_catalog.session_policy("codex")
@@ -30,6 +31,35 @@ def test_every_catalog_cli_documents_session_resume():
     assert codex["resume_insert"] == 2
     opencode = cli_catalog.session_policy("opencode")
     assert opencode["resume_argv"] == ["--session", "{session_id}"]
+    assert opencode["list_argv"] == ["opencode", "session", "list", "--format", "json"]
+    agy = cli_catalog.session_policy("agy")
+    assert agy["list_store"] == cli_catalog.AGY_CONVERSATIONS_STORE
+
+
+def test_catalog_list_capability_table():
+    assert cli_catalog.can_list_sessions("grok") is True
+    assert cli_catalog.can_list_sessions("agy") is True
+    assert cli_catalog.can_list_sessions("opencode") is True
+    for name in ("claude", "gemini", "codex", "pi"):
+        assert cli_catalog.can_list_sessions(name) is False
+        assert cli_catalog.list_capability(name) == cli_catalog.LIST_CAPABILITY_PASTE_ONLY
+        assert cli_catalog.list_sessions_argv(name) is None
+        assert cli_catalog.list_sessions_store(name) is None
+    assert cli_catalog.list_capability("grok") == cli_catalog.LIST_CAPABILITY_WORKS
+    assert cli_catalog.list_capability("agy") == cli_catalog.LIST_CAPABILITY_WORKS
+    assert cli_catalog.list_capability("opencode") == cli_catalog.LIST_CAPABILITY_WORKS
+    table = cli_catalog.list_sessions_catalog()
+    assert set(table) == set(cli_catalog.catalog_names())
+    assert table["grok"]["list_argv"][0] == "grok"
+    assert table["agy"]["list_store"] == cli_catalog.AGY_CONVERSATIONS_STORE
+    assert table["claude"]["capability"] == "paste-only"
+
+
+def test_config_can_disable_catalog_list_argv():
+    cfg = {"cli_agents": {"grok": {"list_argv": []}}}
+    assert cli_catalog.list_sessions_argv("grok", cfg) is None
+    assert cli_catalog.can_list_sessions("grok", cfg) is False
+    assert cli_catalog.list_capability("grok", cfg) == cli_catalog.LIST_CAPABILITY_PASTE_ONLY
 
 
 def test_every_catalog_entry_is_a_valid_adapter_config():

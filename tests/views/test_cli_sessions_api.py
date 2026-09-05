@@ -19,19 +19,35 @@ def api_client():
 def _isolate(tmp_path, monkeypatch):
     monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
     monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    monkeypatch.setenv("SWARM_AGY_CONVERSATIONS_DIR", str(tmp_path / "agy-conversations"))
     store.reset_agent_settings_cache()
     yield
     store.reset_agent_settings_cache()
 
 
 def test_list_non_listable_is_honest(api_client):
-    response = api_client.get("/v1/cli-sessions/?agent=cli_agent&cli=grok")
+    response = api_client.get("/v1/cli-sessions/?agent=cli_agent&cli=claude")
     assert response.status_code == 200
     body = response.json()
     assert body["object"] == "cli_session_list"
     assert body["can_list"] is False
+    assert body["list_capability"] == "paste-only"
     assert body["sessions"] == []
     assert body["empty_reason"] == "This CLI can't list sessions"
+
+
+def test_list_grok_without_binary_does_not_invent_rows(api_client, monkeypatch):
+    from swarm.core import cli_catalog
+
+    monkeypatch.setattr(cli_catalog, "which_cli", lambda exe: None)
+    response = api_client.get("/v1/cli-sessions/?agent=cli_agent&cli=grok")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["can_list"] is True
+    assert body["list_capability"] == "works"
+    assert body["sessions"] == []
+    assert body["activity_sot"] == "provider"
+    assert "not installed" in (body.get("warning") or "").lower()
 
 
 def test_select_paste_id_mints_conversation_and_stores_id(api_client, tmp_path):

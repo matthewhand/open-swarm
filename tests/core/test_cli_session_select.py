@@ -7,11 +7,13 @@ import sys
 
 from swarm.core import agent_settings as settings_store
 from swarm.core import chat_store
-from swarm.core.cli_catalog import can_list_sessions, list_sessions_argv
+from swarm.core.cli_adapter import CliAdapter
+from swarm.core.cli_catalog import can_list_sessions, catalog_entry, list_sessions_argv
 from swarm.core.cli_session_select import (
     PRIOR_HISTORY_KIND,
     format_prior_history,
     list_cli_sessions,
+    parse_grok_sessions_table,
     parse_provider_sessions,
     remember_recent_session,
     select_cli_session,
@@ -33,8 +35,13 @@ def _list_config(script: str) -> dict:
     }
 
 
-def test_catalog_clis_cannot_list_by_default():
-    for name in ("grok", "claude", "gemini", "codex", "opencode", "agy", "pi"):
+def test_catalog_list_defaults_match_capability():
+    assert can_list_sessions("grok") is True
+    assert list_sessions_argv("grok") == ["grok", "sessions", "list", "--limit", "50"]
+    assert can_list_sessions("agy") is True
+    assert list_sessions_argv("agy") is None
+    assert can_list_sessions("opencode") is True
+    for name in ("claude", "gemini", "codex", "pi"):
         assert can_list_sessions(name) is False
         assert list_sessions_argv(name) is None
 
@@ -79,20 +86,21 @@ def test_list_fixture_cli_returns_n_sessions(tmp_path):
 
 
 def test_non_listable_cli_degrades_honestly(tmp_path):
-    payload = list_cli_sessions("u1", "cli_agent", "grok", config={}, base_dir=tmp_path)
+    payload = list_cli_sessions("u1", "cli_agent", "claude", config={}, base_dir=tmp_path)
     assert payload["can_list"] is False
+    assert payload["list_capability"] == "paste-only"
     assert payload["sessions"] == []
     assert payload["empty_reason"] == "This CLI can't list sessions"
     remember_recent_session(
         "u1",
         "cli_agent",
-        "grok",
+        "claude",
         "sid-recent",
         title="Touched",
         snippet="last send",
         base_dir=tmp_path,
     )
-    again = list_cli_sessions("u1", "cli_agent", "grok", config={}, base_dir=tmp_path)
+    again = list_cli_sessions("u1", "cli_agent", "claude", config={}, base_dir=tmp_path)
     assert again["can_list"] is False
     assert [row["id"] for row in again["sessions"]] == ["sid-recent"]
     assert again["activity_sot"] == "swarm"
@@ -281,3 +289,159 @@ def test_format_prior_history_skips_empty():
     assert "**User:** q" in text
     assert "**Assistant:** a" in text
     assert "Started a new echo session." not in text
+
+
+
+GROK_TABLE = """
+Label: main
+SESSION ID                            CREATED    UPDATED    STATUS     SUMMARY
+aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee 2026-09-01 2026-09-05 local      External grok chat
+bbbbbbbb-cccc-4ddd-8eee-ffffffffffff 2026-08-20 2026-08-22 remote     Older sibling
+sk-secret-key-should-never-appear    2026-09-01 2026-09-05 local      nope
+"""
+
+
+def test_parse_grok_sessions_table_ids_and_metadata_only():
+    rows = parse_grok_sessions_table(GROK_TABLE)
+    assert [r["id"] for r in rows] == [
+        "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff",
+    ]
+    assert rows[0]["title"] == "External grok chat"
+    assert rows[0]["source"] == "provider"
+    assert rows[0]["updated_at"] == "2026-09-05T00:00:00Z"
+    assert parse_grok_sessions_table("No sessions found.") == []
+
+
+def test_grok_list_then_select_resumes_external_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+
+    def run_list(argv, timeout):
+        assert "sessions" in argv and "list" in argv
+        return 0, GROK_TABLE, ""
+
+    payload = list_cli_sessions(
+        "u1",
+        "cli_agent",
+        "grok",
+        config={},
+        run_list=run_list,
+        base_dir=tmp_path,
+    )
+    assert payload["can_list"] is True
+    assert payload["list_capability"] == "works"
+    assert payload["activity_sot"] == "provider"
+    sid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    assert [row["id"] for row in payload["sessions"]][0] == sid
+
+    selected = select_cli_session(
+        "u1",
+        "cli_agent",
+        "grok",
+        session_id=sid,
+        title="External grok chat",
+        base_dir=tmp_path,
+    )
+    assert selected["cli_session_id"] == sid
+    assert get_cli_session("u1", "cli_agent", "grok", base_dir=tmp_path) == sid
+
+    adapter = CliAdapter.from_config("grok", catalog_entry("grok"))
+    argv, _ = adapter._build_invocation("continue please", "/tmp", session_id=sid)
+    assert argv[0] == "grok"
+    assert "--resume" in argv
+    assert argv[argv.index("--resume") + 1] == sid
+
+
+def test_grok_list_does_not_invent_rows_on_garbage(tmp_path):
+    def run_list(argv, timeout):
+        return 0, "not a session table and not json", ""
+
+    payload = list_cli_sessions(
+        "u1", "cli_agent", "grok", run_list=run_list, base_dir=tmp_path
+    )
+    assert payload["can_list"] is True
+    assert payload["sessions"] == []
+    assert payload["warning"] == "Session list had no parseable ids"
+    assert payload["empty_reason"] == "No sessions found"
+
+
+def test_opencode_json_list_normalizes_unix_ms(tmp_path):
+    raw = json.dumps(
+        [
+            {
+                "id": "ses_external1",
+                "title": "Outside OpenCode",
+                "updated": 1_725_552_000_000,
+                "directory": "/tmp/proj",
+            }
+        ]
+    )
+
+    def run_list(argv, timeout):
+        assert argv[-2:] == ["--format", "json"] or "--format" in argv
+        return 0, raw, ""
+
+    payload = list_cli_sessions(
+        "u1", "cli_agent", "opencode", run_list=run_list, base_dir=tmp_path
+    )
+    assert payload["can_list"] is True
+    assert payload["sessions"][0]["id"] == "ses_external1"
+    assert payload["sessions"][0]["title"] == "Outside OpenCode"
+    assert payload["sessions"][0]["updated_at"].endswith("Z")
+    assert payload["sessions"][0]["source"] == "provider"
+
+    adapter = CliAdapter.from_config("opencode", catalog_entry("opencode"))
+    argv, _ = adapter._build_invocation("hi", "/tmp", session_id="ses_external1")
+    assert "--session" in argv
+    assert argv[argv.index("--session") + 1] == "ses_external1"
+
+
+def test_agy_store_lists_external_conversation_ids(tmp_path, monkeypatch):
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+    conv = tmp_path / "conversations"
+    conv.mkdir()
+    sid = "3b4a1d20-3968-4ed2-90b3-00eea3060b02"
+    (conv / f"{sid}.db").write_bytes(b"SQLite format 3")
+    (conv / "sk-secret-key.db").write_bytes(b"nope")
+    (conv / "notes.txt").write_text("ignore")
+    config = {"cli_agents": {"agy": {"list_store_dir": str(conv)}}}
+    payload = list_cli_sessions(
+        "u1", "cli_agent", "agy", config=config, base_dir=tmp_path
+    )
+    assert payload["can_list"] is True
+    assert payload["list_capability"] == "works"
+    assert payload["activity_sot"] == "provider"
+    assert [row["id"] for row in payload["sessions"]] == [sid]
+    assert payload["sessions"][0]["source"] == "provider"
+
+    selected = select_cli_session(
+        "u1", "cli_agent", "agy", session_id=sid, base_dir=tmp_path
+    )
+    assert selected["cli_session_id"] == sid
+    adapter = CliAdapter.from_config("agy", catalog_entry("agy"))
+    argv, _ = adapter._build_invocation("next", "/tmp", session_id=sid)
+    assert "--conversation" in argv
+    assert argv[argv.index("--conversation") + 1] == sid
+
+
+def test_agy_missing_store_dir_is_empty_not_fake(tmp_path):
+    config = {"cli_agents": {"agy": {"list_store_dir": str(tmp_path / "missing")}}}
+    payload = list_cli_sessions(
+        "u1", "cli_agent", "agy", config=config, base_dir=tmp_path
+    )
+    assert payload["can_list"] is True
+    assert payload["sessions"] == []
+    assert payload["empty_reason"] == "No sessions found"
+
+
+def test_parse_provider_sessions_accepts_conversation_id():
+    raw = json.dumps(
+        [{"conversationId": "3b4a1d20-3968-4ed2-90b3-00eea3060b02", "name": "Cloud Run"}]
+    )
+    rows = parse_provider_sessions(raw, cli_name="agy")
+    assert rows[0]["id"] == "3b4a1d20-3968-4ed2-90b3-00eea3060b02"
+    assert rows[0]["title"] == "Cloud Run"
