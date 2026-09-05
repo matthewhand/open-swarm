@@ -545,7 +545,6 @@ function RemotesCatalogPane() {
   const [adding, setAdding] = useState(false)
   const [kind, setKind] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
   const [apiKeyEnv, setApiKeyEnv] = useState('')
   const [selectedId, setSelectedId] = useState('')
 
@@ -573,7 +572,6 @@ function RemotesCatalogPane() {
         kind,
         ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
         ...(apiKeyEnv.trim() ? { api_key_env: apiKeyEnv.trim() } : {}),
-        ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
       }),
     onSuccess: (created) => {
       queryClient.setQueryData(['settings-remotes'], (prev: Awaited<ReturnType<typeof fetchRemotes>> | undefined) => ({
@@ -586,7 +584,6 @@ function RemotesCatalogPane() {
       void queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
       setAdding(false)
       setBaseUrl('')
-      setApiKey('')
       setApiKeyEnv('')
       setKind('')
       setSelectedId(created.id)
@@ -743,16 +740,6 @@ function RemotesCatalogPane() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <Input
-                label="API key"
-                name="remote-api-key"
-                type="password"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="${API_KEY}"
-                autoComplete="off"
-                spellCheck={false}
-              />
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="submit"
@@ -768,7 +755,6 @@ function RemotesCatalogPane() {
                   size="sm"
                   onClick={() => {
                     setAdding(false)
-                    setApiKey('')
                   }}
                 >
                   Cancel
