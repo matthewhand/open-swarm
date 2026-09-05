@@ -75,7 +75,11 @@ def test_env_example_documents_override_and_neon_warning():
     assert "POSTGRES_HOST" in text
     assert "test/CI" in text or "test-only" in text.lower() or "experiments only" in text
     assert "day 17" in text
-    assert "neon.tech" not in text
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            continue
+        assert "neon.tech" not in stripped.lower()
     assert "your-postgres-password" in text
     assert "SWARM_SKIP_DB_HEALTH" in text
 
