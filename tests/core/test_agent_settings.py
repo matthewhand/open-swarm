@@ -46,3 +46,4 @@ def test_folder_persists_on_agent_record(tmp_path, monkeypatch):
     store.reset_agent_settings_cache()
     assert store.get_settings("cli_agent")["folder"] == "/tmp/ws"
     assert store.get_settings("other")["folder"] is None
+    store.reset_agent_settings_cache()

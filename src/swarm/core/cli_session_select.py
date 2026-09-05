@@ -373,15 +373,13 @@ def _session_list_cwd(
     cli_name: str,
     config: dict[str, Any] | None,
     *,
-    agent_id: str | None = None,
     folder: str | None = None,
 ) -> str | None:
-    """REQ-167: agent Folder wins; otherwise the existing catalog list cwd."""
-    from swarm.core.agent_folder import resolve_session_cwd
+    """REQ-167: explicit Folder wins; otherwise the existing catalog list cwd."""
+    from swarm.core.agent_folder import resolve_agent_folder
 
-    folder_cwd = resolve_session_cwd(agent_id=agent_id, raw=folder)
-    if folder_cwd:
-        return folder_cwd
+    if folder is not None and str(folder).strip():
+        return resolve_agent_folder(folder)
     return _list_cwd(cli_name, config)
 
 
@@ -414,9 +412,7 @@ def list_provider_sessions(
         if resolved_exe is None and run_list is None:
             return True, [], f"{cli_name}: CLI not installed (no {argv[0]!r} on PATH)"
         resolved = [resolved_exe or argv[0], *argv[1:]]
-        list_cwd = _session_list_cwd(
-            cli_name, config, agent_id=agent_id, folder=folder
-        )
+        list_cwd = _session_list_cwd(cli_name, config, folder=folder)
         runner = run_list or (
             lambda command, limit: _default_run_list(
                 command, limit, cwd=list_cwd
@@ -482,10 +478,12 @@ def list_cli_sessions(
     folder: str | None = None,
 ) -> dict[str, Any]:
     """Picker payload: provider list (if any) + recent swarm-touch rows."""
-    from swarm.core.agent_folder import resolve_session_cwd
+    from swarm.core.agent_folder import resolve_agent_folder
 
-    # Validate Folder before listing so a bad path never silently uses another cwd.
-    resolve_session_cwd(agent_id=agent_id, raw=folder)
+    # Validate an explicit Folder before listing so a bad path never
+    # silently uses another cwd. Unset keeps the existing list default.
+    if folder is not None and str(folder).strip():
+        resolve_agent_folder(folder)
     can_list, provider, warning = list_provider_sessions(
         cli_name,
         config=config,
@@ -603,11 +601,12 @@ def select_cli_session(
     Old thread is left on disk. Differing prior content becomes a prior-history
     pill on the new conversation. Old compressions are not copied.
     """
-    from swarm.core.agent_folder import resolve_session_cwd
+    from swarm.core.agent_folder import resolve_agent_folder
 
     agent = chat_store.normalize_agent_id(agent_id)
     # Fail before minting a conversation when Folder is set but unusable.
-    resolve_session_cwd(agent_id=agent, raw=folder)
+    if folder is not None and str(folder).strip():
+        resolve_agent_folder(folder)
     cli = chat_store.normalize_agent_id(cli_name)
     sid = None if start_new else sanitize_cli_session_id(session_id)
     if not start_new and session_id and sid is None:

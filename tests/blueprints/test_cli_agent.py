@@ -676,7 +676,7 @@ async def test_folder_param_used_as_cwd(tmp_path):
     folder.mkdir()
     cfg = {
         "cli_agents": {
-            "echo": {"cmd": [PY, str(script)], "parse": "text"},
+            "echo": {"cmd": [PY, str(script), "{prompt}"], "parse": "text"},
         },
         "cli_fusion": {"default_cli": "echo"},
     }
