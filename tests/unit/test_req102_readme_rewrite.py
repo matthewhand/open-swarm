@@ -78,3 +78,16 @@ def test_developer_doc_holds_moved_internals():
     for needle in ("sk-", "github_pat_", "ghp_"):
         assert needle not in lowered
     assert "10.0.0." not in text
+
+
+def test_vision_points_at_current_readme_not_stale_466():
+    """#782 skeptic nit: VISION must not list README #466 as remaining work."""
+    text = (repo_root() / "docs" / "VISION.md").read_text(encoding="utf-8")
+    remains = text.split("## What remains", 1)[-1].split("## How the pieces fit", 1)[0]
+    assert "#466" not in remains
+    assert "sibling rewrite" not in remains.lower()
+    assert "[README](../README.md)" in text or "[README.md](../README.md)" in text
+    assert "#791" in text
+    lowered = text.lower()
+    for needle in ("sk-", "github_pat_", "ghp_"):
+        assert needle not in lowered

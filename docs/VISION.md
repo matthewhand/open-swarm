@@ -8,7 +8,10 @@
 > `/v1/chat/completions`.
 
 This document is the front door. It states where we are going, then gives an
-**honest** account of what is true on `main` now. For pattern mechanics with
+**honest** account of what is true on `main` now. The root
+[README](../README.md) **sells** this lock (WebUI-first, four kinds, Team =
+Blueprint subtype — [#791](https://github.com/matthewhand/open-swarm/issues/791)
+shape). For pattern mechanics with
 sequence diagrams, see [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md).
 For per-feature evidence see [FEATURE_STATUS.md](../FEATURE_STATUS.md); for the
 nested checklist see [ROADMAP.md](../ROADMAP.md). Vocabulary:
@@ -187,10 +190,6 @@ network.
   docs PR.
 - **#680** — Remote stays one kind; Hermes / OpenMousBot / Rakazo / Herdr
   implement an abstract harness. Herdr is not a fifth kind.
-- **README** — sells this lock ([#791](https://github.com/matthewhand/open-swarm/issues/791);
-  parent [#466](https://github.com/matthewhand/open-swarm/issues/466) closed by
-  [#785](https://github.com/matthewhand/open-swarm/pull/785)). This file leads
-  direction ([#782](https://github.com/matthewhand/open-swarm/pull/782)).
 - **SPA depth** — virtualized history ([ADR-004](./adr/004-virtualized-chat-history.md))
   planned; computer-control chrome is a stub ([ADR-007](./adr/007-local-computer-control.md));
   golden-journey screenshots on HOLD.
@@ -258,6 +257,7 @@ stays Blueprint. Adding a CLI or a remote does not invent a new kind.
 
 ## See also
 
+- [README.md](../README.md) — sells this lock (WebUI-first / #791 shape). This file leads.
 - [GLOSSARY.md](./GLOSSARY.md) — kinds, Team vs Profiles, roles
 - [ORCHESTRATION_PATTERNS.md](./ORCHESTRATION_PATTERNS.md) — sequence diagrams
 - [CLI_FUSION.md](./CLI_FUSION.md) — CLI adapters and fusion examples
