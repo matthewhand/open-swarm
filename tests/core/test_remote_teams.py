@@ -279,3 +279,92 @@ def test_chat_remote_parses_openai_payload():
     with patch("swarm.core.remote_teams.urllib.request.build_opener", return_value=_Opener()):
         text = chat_remote("http://127.0.0.1:9/v1", [{"role": "user", "content": "hi"}])
     assert text == "hello from hermes"
+
+
+def test_remote_auth_never_leaks_api_auth_token_or_api_server_key(monkeypatch):
+    """REQ-171C-2 / C-H3: chat_remote / _http_get_json never leak API_AUTH_TOKEN or API_SERVER_KEY."""
+    from swarm.core.remote_teams import _http_get_json, chat_remote
+
+    monkeypatch.setenv("API_AUTH_TOKEN", "super-secret-local-token")
+    monkeypatch.setenv("API_SERVER_KEY", "super-secret-server-key")
+    monkeypatch.delenv("REMOTE_TEAM_API_KEY", raising=False)
+    monkeypatch.delenv("HERMES_API_KEY", raising=False)
+    monkeypatch.delenv("OMB_API_KEY", raising=False)
+
+    captured_reqs = []
+
+    class _Resp:
+        def read(self):
+            return b'{"choices": [{"message": {"content": "ok"}}]}'
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    class _Opener:
+        def open(self, req, timeout=0):
+            captured_reqs.append(req)
+            return _Resp()
+
+    with patch("swarm.core.remote_teams.urllib.request.build_opener", return_value=_Opener()):
+        chat_remote("http://127.0.0.1:9/v1", [{"role": "user", "content": "hi"}])
+        assert len(captured_reqs) == 1
+        assert not captured_reqs[0].has_header("Authorization")
+
+        captured_reqs.clear()
+        _http_get_json("http://127.0.0.1:9/v1/models")
+        assert len(captured_reqs) == 1
+        assert not captured_reqs[0].has_header("Authorization")
+
+
+def test_remote_auth_uses_per_remote_key_and_remote_team_api_key(monkeypatch):
+    """REQ-171C-2 / C-H3: chat_remote / _http_get_json use per-remote or REMOTE_TEAM_API_KEY only."""
+    from swarm.core.remote_teams import _http_get_json, chat_remote, discover_http_members
+
+    monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("API_SERVER_KEY", raising=False)
+    monkeypatch.delenv("REMOTE_TEAM_API_KEY", raising=False)
+    monkeypatch.setenv("HERMES_API_KEY", "hermes-secret-key")
+
+    captured_reqs = []
+
+    class _Resp:
+        def read(self):
+            return b'{"choices": [{"message": {"content": "ok"}}], "data": []}'
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    class _Opener:
+        def open(self, req, timeout=0):
+            captured_reqs.append(req)
+            return _Resp()
+
+    with patch("swarm.core.remote_teams.urllib.request.build_opener", return_value=_Opener()):
+        # 1. Per-remote key via framework resolution
+        chat_remote("http://127.0.0.1:9/v1", [{"role": "user", "content": "hi"}], framework="hermes")
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer hermes-secret-key"
+
+        _http_get_json("http://127.0.0.1:9/v1/models", framework="hermes")
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer hermes-secret-key"
+
+        discover_http_members("http://127.0.0.1:9/v1", "hermes")
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer hermes-secret-key"
+
+        # 2. Explicit api_key parameter overrides framework/env
+        chat_remote("http://127.0.0.1:9/v1", [{"role": "user", "content": "hi"}], api_key="explicit-key")
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer explicit-key"
+
+        _http_get_json("http://127.0.0.1:9/v1/models", api_key="explicit-json-key")
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer explicit-json-key"
+
+        # 3. REMOTE_TEAM_API_KEY fallback when no per-remote key
+        monkeypatch.delenv("HERMES_API_KEY", raising=False)
+        monkeypatch.setenv("REMOTE_TEAM_API_KEY", "generic-team-key")
+        chat_remote("http://127.0.0.1:9/v1", [{"role": "user", "content": "hi"}])
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer generic-team-key"
+
+        _http_get_json("http://127.0.0.1:9/v1/models")
+        assert captured_reqs[-1].get_header("Authorization") == "Bearer generic-team-key"
+
