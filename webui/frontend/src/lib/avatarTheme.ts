@@ -1,7 +1,8 @@
 /**
- * Avatar theme preference (REQ-155).
+ * Avatar theme preference (REQ-155 / #801).
  * Default is an approved interesting pack (Blobs with eyes).
  * Bland static circular fallback is opt-in via Settings.
+ * Bee geometric brand marks are a third optional choice — never auto-applied.
  * Persist is best-effort localStorage, same contract as the rail hostname override.
  */
 
