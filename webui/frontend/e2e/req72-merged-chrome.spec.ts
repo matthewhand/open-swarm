@@ -296,7 +296,7 @@ test('REQ-24 #342: dragging a team row onto Hidden stores team:<id>', async ({ p
     .toContain('team:demo-team')
 })
 
-test('REQ-5c #322: / canonicalizes onto Support; Plugins dialog is empty', async ({ page }) => {
+test('REQ-5c #322 / #805: / canonicalizes onto Support; Plugins popup searches tools', async ({ page }) => {
   await stubChromeApis(page)
   await page.goto('/')
   await expect(page).toHaveURL(/blueprint=support/)
@@ -305,7 +305,8 @@ test('REQ-5c #322: / canonicalizes onto Support; Plugins dialog is empty', async
   await page.getByRole('button', { name: /Plugins/i }).click()
   const plugins = page.getByRole('dialog', { name: 'Plugins' })
   await expect(plugins).toBeVisible()
-  await expect(plugins.getByText('No plugins installed.')).toBeVisible()
+  await expect(plugins.getByRole('combobox', { name: 'Filter tools' })).toBeVisible()
+  await expect(plugins.getByRole('switch', { name: /Web Search Off/i })).toBeVisible()
   await plugins.getByRole('button', { name: 'Close plugins' }).click()
   await expect(plugins).toHaveCount(0)
 })

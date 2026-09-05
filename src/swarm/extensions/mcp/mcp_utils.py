@@ -141,6 +141,11 @@ async def discover_and_merge_agent_tools(agent: Agent, config: dict[str, Any], d
         logger.debug(f"[DEBUG] Agent '{agent_name}' - Final combined functions: {combined_names}")
 
     logger.debug(f"Agent '{agent_name}' total functions/tools after merge: {len(final_functions)} (Static: {len(static_functions)}, Discovered: {len(all_discovered_tools)})")
+    enabled_tools = config.get("enabled_tools") if isinstance(config, dict) else None
+    if isinstance(enabled_tools, list):
+        from swarm.core.chat_plugin_tools import filter_plugin_tools_for_chat
+
+        final_functions = filter_plugin_tools_for_chat(final_functions, enabled_tools)
     return final_functions
 
 

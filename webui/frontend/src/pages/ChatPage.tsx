@@ -120,6 +120,8 @@ import {
   remoteOptionLabel,
   remoteSelectPlaceholder,
 } from '../lib/remotes'
+import { enabledToolsParam } from '../lib/chatPluginTools'
+import { publishCurrentChatScope } from '../lib/chatScope'
 import {
   AGENT_REMOTE_BINDINGS_CHANGED_EVENT,
   isRemoteKindAgent,
@@ -414,6 +416,10 @@ const ChatPage = () => {
       }
     }
   }, [activeChatAgentId, conversationId, threadKey, threads])
+
+  useEffect(() => {
+    publishCurrentChatScope(conversationId)
+  }, [conversationId])
 
   useEffect(() => {
     setReplyTarget(null)
@@ -1339,11 +1345,13 @@ const ChatPage = () => {
       if (!trimmed || !ws || ws.readyState !== WebSocket.OPEN) return false
       lastUserTextRef.current = trimmed
       // Team compose adds params { team, target: "all" | memberId }.
+      const pluginParams = enabledToolsParam(conversationIdRef.current)
       if (teamFromUrl) {
         ws.send(
           buildChatWsFrame(trimmed, undefined, {
             team: teamFromUrl,
             target: memberTarget || ALL_MEMBERS_TARGET,
+            ...pluginParams,
           }),
         )
         return true
@@ -1394,8 +1402,8 @@ const ChatPage = () => {
         buildChatWsFrame(
           trimmed,
           runtimeBlueprint || selectedBlueprint || undefined,
-          supportParams || cliParams || inferenceParams
-            ? { ...cliParams, ...inferenceParams, ...supportParams }
+          supportParams || cliParams || inferenceParams || pluginParams
+            ? { ...cliParams, ...inferenceParams, ...supportParams, ...pluginParams }
             : undefined,
         ),
       )

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   OPEN_LLM_PROFILES_EVENT,
+  OPEN_PLUGINS_EVENT,
   OPEN_SETTINGS_EVENT,
   OPEN_TEAMS_EVENT,
   OVERLAY_CLOSED_EVENT,
@@ -17,18 +18,23 @@ describe('chromeOverlay', () => {
     const settings = vi.fn()
     const teams = vi.fn()
     const profiles = vi.fn()
+    const plugins = vi.fn()
     window.addEventListener(OPEN_SETTINGS_EVENT, settings)
     window.addEventListener(OPEN_TEAMS_EVENT, teams)
     window.addEventListener(OPEN_LLM_PROFILES_EVENT, profiles)
+    window.addEventListener(OPEN_PLUGINS_EVENT, plugins)
     openChromeOverlay('settings')
     openChromeOverlay('teams')
     openChromeOverlay('llm-profiles')
+    openChromeOverlay('plugins')
     expect(settings).toHaveBeenCalledTimes(1)
     expect(teams).toHaveBeenCalledTimes(1)
     expect(profiles).toHaveBeenCalledTimes(1)
+    expect(plugins).toHaveBeenCalledTimes(1)
     window.removeEventListener(OPEN_SETTINGS_EVENT, settings)
     window.removeEventListener(OPEN_TEAMS_EVENT, teams)
     window.removeEventListener(OPEN_LLM_PROFILES_EVENT, profiles)
+    window.removeEventListener(OPEN_PLUGINS_EVENT, plugins)
   })
 
   it('notifies Chat when an overlay closes', () => {

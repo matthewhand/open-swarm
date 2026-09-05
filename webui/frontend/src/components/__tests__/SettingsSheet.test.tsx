@@ -51,6 +51,7 @@ describe('SettingsSheet', () => {
     localStorage.removeItem(BUMP_COMPLETED_KEY)
     localStorage.removeItem('swarm_theme')
     localStorage.removeItem('swarm_theme_navbar')
+    localStorage.removeItem('swarm_mcp_servers')
     vi.unstubAllGlobals()
   })
 
@@ -78,6 +79,7 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('button', { name: 'Rail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Image generation' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Plugins' })).toBeInTheDocument()
   })
 
   it('defaults the rail bump toggle on and persists off', () => {
@@ -88,6 +90,15 @@ describe('SettingsSheet', () => {
     fireEvent.click(toggle)
     expect(toggle).not.toBeChecked()
     expect(localStorage.getItem(BUMP_COMPLETED_KEY)).toBe('0')
+  })
+
+  it('adds a local MCP server from Plugins without storing secrets', () => {
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
+    expect(screen.getByTestId('os-plugins-settings')).toHaveTextContent(/No keys or tokens/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch' }))
+    expect(screen.getByRole('list', { name: 'Configured MCP servers' })).toHaveTextContent('Fetch')
+    expect(localStorage.getItem('swarm_mcp_servers') || '').not.toMatch(/api[_-]?key|token|secret/i)
   })
 
   it('shows remotes empty state and honest server link for retention', async () => {

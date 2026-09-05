@@ -184,7 +184,9 @@ import {
   selectCliSession,
   type CliProviderSession,
 } from '../lib/cliSessions'
+import PluginsPopup from './PluginsPopup'
 import { openSettingsSheet } from './SettingsSheet'
+import { OPEN_PLUGINS_EVENT } from '../lib/chromeOverlay'
 import { ConfirmModal } from './DaisyUI'
 import RailContextMenu from './RailContextMenu'
 import AvatarStack from './AvatarStack'
@@ -384,6 +386,12 @@ export default function AgentSidebar({
     }
     window.addEventListener(HOSTNAME_CHANGED_EVENT, onHostnameChanged)
     return () => window.removeEventListener(HOSTNAME_CHANGED_EVENT, onHostnameChanged)
+  }, [])
+
+  useEffect(() => {
+    const onOpenPlugins = () => setPluginsOpen(true)
+    window.addEventListener(OPEN_PLUGINS_EVENT, onOpenPlugins)
+    return () => window.removeEventListener(OPEN_PLUGINS_EVENT, onOpenPlugins)
   }, [])
 
   const localWsDown = localWsStatus === 'closed' || localWsStatus === 'failed'
@@ -2696,37 +2704,7 @@ export default function AgentSidebar({
         </div>
       </aside>
 
-      {pluginsOpen && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-50 bg-black/45"
-            aria-label="Close plugins"
-            onClick={() => setPluginsOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="os-plugins-title"
-            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 id="os-plugins-title" className="text-sm font-semibold">
-                Plugins
-              </h2>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle"
-                aria-label="Close plugins"
-                onClick={() => setPluginsOpen(false)}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            <p className="text-sm text-base-content/60">No plugins installed.</p>
-          </div>
-        </>
-      )}
+      <PluginsPopup open={pluginsOpen} onClose={() => setPluginsOpen(false)} />
 
       <SessionPicker
         open={Boolean(picker)}

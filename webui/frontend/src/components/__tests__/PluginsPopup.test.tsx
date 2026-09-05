@@ -1,0 +1,101 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import PluginsPopup from '../PluginsPopup'
+import { OPEN_SETTINGS_EVENT } from '../SettingsSheet'
+import { CHAT_PLUGIN_TOOLS_KEY } from '../../lib/chatPluginTools'
+import { CURRENT_CHAT_SCOPE_KEY, publishCurrentChatScope } from '../../lib/chatScope'
+import { MCP_SERVERS_KEY } from '../../lib/mcpServers'
+
+function renderPopup(open = true) {
+  const onClose = vi.fn()
+  const view = render(
+    <MemoryRouter initialEntries={['/chat?blueprint=codey']}>
+      <PluginsPopup open={open} onClose={onClose} />
+    </MemoryRouter>,
+  )
+  return { ...view, onClose }
+}
+
+describe('PluginsPopup', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    publishCurrentChatScope('chat-codey')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('offline catalog — use fixture')),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    localStorage.removeItem(CHAT_PLUGIN_TOOLS_KEY)
+    localStorage.removeItem(CURRENT_CHAT_SCOPE_KEY)
+    localStorage.removeItem(MCP_SERVERS_KEY)
+  })
+
+  it('lists fixture tools with visible Off toggles and fixture degrade copy', async () => {
+    renderPopup()
+    const dialog = screen.getByRole('dialog', { name: 'Plugins' })
+    expect(dialog).toHaveClass('os-search-palette')
+    expect(screen.getByRole('combobox', { name: 'Filter tools' })).toBeInTheDocument()
+    expect(screen.getByTestId('os-plugins-source')).toHaveTextContent(/shipped catalog/i)
+    const write = await screen.findByRole('switch', { name: /Write File Off/i })
+    expect(write).toHaveAttribute('aria-checked', 'false')
+    expect(within(dialog).getAllByText('Off').length).toBeGreaterThan(0)
+  })
+
+  it('filters the catalog by search without dropping enabled-first sort', async () => {
+    renderPopup()
+    await screen.findByRole('switch', { name: /Write File Off/i })
+    fireEvent.click(screen.getByRole('switch', { name: /Write File Off/i }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter tools' }), {
+      target: { value: 'file' },
+    })
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveAttribute('data-tool-id', 'write_file')
+    expect(options.map((row) => row.getAttribute('data-tool-id'))).toEqual(
+      expect.arrayContaining(['write_file', 'read_file']),
+    )
+    expect(options[0].getAttribute('data-enabled')).toBe('true')
+  })
+
+  it('persists a toggle across remount of the same chat', async () => {
+    const first = renderPopup()
+    const toggle = await screen.findByRole('switch', { name: /Web Search Off/i })
+    fireEvent.click(toggle)
+    expect(screen.getByRole('switch', { name: /Web Search On/i })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    first.unmount()
+
+    renderPopup()
+    const restored = await screen.findByRole('switch', { name: /Web Search On/i })
+    expect(restored).toHaveAttribute('aria-checked', 'true')
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveAttribute('data-tool-id', 'web_search')
+  })
+
+  it('opens Manage servers into Settings plugins without leaving chat chrome', async () => {
+    const opened = vi.fn()
+    window.addEventListener(OPEN_SETTINGS_EVENT, opened)
+    const { onClose } = renderPopup()
+    await screen.findByRole('switch', { name: /Web Search Off/i })
+    fireEvent.click(screen.getByRole('button', { name: /Manage servers/i }))
+    expect(onClose).toHaveBeenCalled()
+    expect(opened).toHaveBeenCalled()
+    const detail = opened.mock.calls[0][0] as CustomEvent
+    expect(detail.detail).toEqual({ section: 'plugins' })
+    window.removeEventListener(OPEN_SETTINGS_EVENT, opened)
+  })
+
+  it('shows an honest empty search state', async () => {
+    renderPopup()
+    await screen.findByRole('switch', { name: /Web Search Off/i })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter tools' }), {
+      target: { value: 'zzzz-no-such-tool' },
+    })
+    expect(screen.getByText(/No matches for “zzzz-no-such-tool”/)).toBeInTheDocument()
+  })
+})
