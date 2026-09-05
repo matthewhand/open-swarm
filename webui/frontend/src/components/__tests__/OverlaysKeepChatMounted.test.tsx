@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
@@ -98,7 +98,8 @@ describe('overlays keep chat mounted (REQ-72 / #364 / #322 / #320)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Plugins/i }))
     const plugins = screen.getByRole('dialog', { name: 'Plugins' })
-    expect(plugins).toHaveTextContent(/No plugins installed/i)
+    expect(plugins).toHaveClass('os-search-palette')
+    expect(within(plugins).getByRole('combobox', { name: 'Filter tools' })).toBeInTheDocument()
 
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBe(composer)
     expect(window.location.pathname).toBe('/chat')

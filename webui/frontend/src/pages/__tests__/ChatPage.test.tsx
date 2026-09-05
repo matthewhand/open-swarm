@@ -9,6 +9,7 @@ import { resetConversationThreads } from '../../lib/chatMeter'
 import { clearAllQueuedSends } from '../../lib/chatQueue'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
 import { OPEN_AGENT_EDITOR_EVENT } from '../../lib/agentSettings'
+import { saveEnabledPluginToolIds } from '../../lib/chatPluginTools'
 
 type WsHandler = ((ev?: Event) => void) | null
 
@@ -513,6 +514,8 @@ describe('ChatPage Send path with mock inference', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     localStorage.removeItem('swarm_notify_agents')
+    window.localStorage.removeItem('swarm_agent_chat:support')
+    window.localStorage.removeItem('swarm_chat_plugin_tools')
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
   })
 
@@ -531,7 +534,7 @@ describe('ChatPage Send path with mock inference', () => {
     expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({
       message: 'ping the mock',
       blueprint: 'support',
-      params: { skill: 'support-session-ownership' },
+      params: { skill: 'support-session-ownership', enabled_tools: [] },
     })
 
     await act(async () => {
@@ -543,6 +546,29 @@ describe('ChatPage Send path with mock inference', () => {
       target: { value: 'follow-up' },
     })
     expect(screen.getByRole('button', { name: /^Send$/i })).toBeEnabled()
+  })
+
+  it('sends the per-chat enabled_tools allowlist on Send (#805)', async () => {
+    window.localStorage.setItem('swarm_agent_chat:support', 'conv-support-805')
+    saveEnabledPluginToolIds('conv-support-805', ['web_search', 'web_fetch'])
+    renderChat()
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'use search' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({
+      message: 'use search',
+      blueprint: 'support',
+      params: {
+        skill: 'support-session-ownership',
+        enabled_tools: ['web_search', 'web_fetch'],
+      },
+    })
   })
 })
 
@@ -2079,7 +2105,7 @@ describe('ChatPage team member dropdown', () => {
     })
     expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
       message: 'hello team',
-      params: { team: 'demo-team', target: 'all' },
+      params: { team: 'demo-team', target: 'all', enabled_tools: [] },
     })
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Team members' }), {
@@ -2095,7 +2121,7 @@ describe('ChatPage team member dropdown', () => {
       expect(userFrames).toHaveLength(2)
       expect(userFrames[1]).toEqual({
         message: 'just codey',
-        params: { team: 'demo-team', target: 'codey' },
+        params: { team: 'demo-team', target: 'codey', enabled_tools: [] },
       })
     })
   })
@@ -2699,7 +2725,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
     })
     expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toEqual({
       message: 'ping hermes',
-      params: { team: 'harness-team', target: 'hermes' },
+      params: { team: 'harness-team', target: 'hermes', enabled_tools: [] },
     })
   })
 })
@@ -2989,7 +3015,11 @@ describe('ChatPage REQ-49 message edit (API vs CLI/remote)', () => {
     fireEvent.change(composer, { target: { value: 'follow up' } })
     fireEvent.submit(composer.closest('form')!)
     expect(ws.send).toHaveBeenCalledWith(
-      JSON.stringify({ message: 'follow up', blueprint: 'jeeves' }),
+      JSON.stringify({
+        message: 'follow up',
+        blueprint: 'jeeves',
+        params: { enabled_tools: [] },
+      }),
     )
   })
 

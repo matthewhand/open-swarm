@@ -135,7 +135,7 @@ test('settings / search / plugins overlays keep chat mounted (REQ-72 / #364 / #3
   await page.getByRole('button', { name: /Plugins/i }).click()
   const plugins = page.getByRole('dialog', { name: 'Plugins' })
   await expect(plugins).toBeVisible()
-  await expect(plugins).toContainText(/No plugins installed/i)
+  await expect(plugins.getByRole('combobox', { name: 'Filter tools' })).toBeVisible()
   await expect(composer).toBeVisible()
   await expect(page).toHaveURL(/\/chat\/?/)
 

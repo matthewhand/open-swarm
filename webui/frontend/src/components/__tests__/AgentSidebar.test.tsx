@@ -1113,13 +1113,14 @@ describe('AgentSidebar Grok rail', () => {
     expect(office).toHaveAttribute('href', '/chat?team=office')
   })
 
-  it('Plugins overlay is an empty honest dialog over the rail (PR #322)', async () => {
+  it('Plugins overlay is a search palette over the rail (#805)', async () => {
     renderSidebar()
     await screen.findByRole('navigation', { name: 'Agent list' })
     fireEvent.click(screen.getByRole('button', { name: /Plugins/i }))
     const dialog = screen.getByRole('dialog', { name: 'Plugins' })
-    expect(dialog).toHaveTextContent(/No plugins installed/i)
-    expect(within(dialog).queryByRole('link')).not.toBeInTheDocument()
+    expect(dialog).toHaveClass('os-search-palette')
+    expect(within(dialog).getByRole('combobox', { name: 'Filter tools' })).toBeInTheDocument()
+    expect(await within(dialog).findByRole('switch', { name: /Web Search Off/i })).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close plugins' }))
     expect(screen.queryByRole('dialog', { name: 'Plugins' })).not.toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Agent list' })).toBeInTheDocument()
@@ -1596,12 +1597,12 @@ describe('AgentSidebar pin unpin + plugins (REQ-5c #322)', () => {
     expect(JSON.parse(localStorage.getItem(PINNED_AGENTS_STORAGE_KEY) || '[]')).toEqual([])
   })
 
-  it('opens the Plugins dialog with the shipped empty copy and closes it', async () => {
+  it('opens the Plugins search popup and closes it', async () => {
     renderSidebar()
     await screen.findByRole('navigation', { name: 'Agent list' })
     fireEvent.click(screen.getByRole('button', { name: /Plugins/i }))
     const dialog = await screen.findByRole('dialog', { name: 'Plugins' })
-    expect(within(dialog).getByText('No plugins installed.')).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Filter tools' })).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close plugins' }))
     expect(screen.queryByRole('dialog', { name: 'Plugins' })).not.toBeInTheDocument()
   })

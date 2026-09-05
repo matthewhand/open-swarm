@@ -1840,6 +1840,15 @@ html:not([data-theme="light"]) .os-composer__send,
   align-items: center;
   gap: 0.3rem;
 }
+.os-plugin-row {
+  cursor: default;
+}
+.os-plugin-toggle {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
 
 .os-swipe-hint {
   position: fixed;
