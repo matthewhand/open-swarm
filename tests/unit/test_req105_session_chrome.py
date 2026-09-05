@@ -21,7 +21,8 @@ def test_rail_menu_has_select_and_new_session_for_agents():
     assert "createAgentSession" in src
     assert "openAgentSessionPicker" in src
     # Teams/remotes keep Select Agent; do not pretend we own remote stores.
-    assert "Select Agent" in src
+    assert "Select Agent" in menu
+    assert "hasSelectAgent" in src
     assert "menu.kind === 'api'" in src
     # CLI Select stays on the REQ-104 picker; New posts start_new (fresh id).
     assert "openCliSessionPicker" in src
