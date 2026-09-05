@@ -866,11 +866,19 @@ button.os-agent-row {
     background-color 0.15s ease,
     color 0.15s ease;
 }
+/* REQ-187: Highlight Hidden Bots drop target while dragging */
+.os-hidden-bots[data-drag-over],
+.os-hidden-bots.os-hidden-bots--active {
+  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  outline: 1.5px dashed color-mix(in srgb, var(--color-base-content) 35%, transparent);
+  outline-offset: -1px;
+}
 .os-hidden-bots__action:hover,
 .os-hidden-bots__action:focus-visible,
 .os-hidden-bots--active .os-hidden-bots__action,
-.os-hidden-bots[data-drag-over] .os-hidden-bots__action {
-  background: color-mix(in srgb, var(--color-base-content) 6%, transparent);
+.os-hidden-bots[data-drag-over] .os-hidden-bots__action,
+.os-hidden-bots--active .os-hidden-bots-row,
+.os-hidden-bots[data-drag-over] .os-hidden-bots-row {
   color: var(--color-base-content);
 }
 .os-hidden-bots__label,
