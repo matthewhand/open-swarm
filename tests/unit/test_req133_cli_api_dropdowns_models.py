@@ -20,18 +20,18 @@ def test_chat_page_renders_cli_and_api_dropdowns_with_models():
     assert "isApiAgent" in tsx
     assert "showRemotesControl" in tsx
 
-    # CLI controls
+    # CLI controls (legitimate host-CLI + model override; keep these)
     assert 'data-testid="cli-select"' in tsx
     assert 'aria-label="CLI"' in tsx
     assert 'data-testid="cli-model-select"' in tsx
 
-    # API controls
-    assert 'data-testid="api-select"' in tsx
-    assert 'aria-label="API"' in tsx
+    # API identity/profile navbar dropdown was a mystery You/Default control
+    # (REQ-186 / #642 / #744). LLM profiles live in Settings / Agent Editor.
+    assert 'data-testid="api-select"' not in tsx
+    assert 'data-testid="api-model-select"' not in tsx
 
     # Status tracking on change
     assert "recordDropdownChange('cli'" in tsx
-    assert "recordDropdownChange('api'" in tsx
     assert "recordDropdownChange('model'" in tsx
 
 

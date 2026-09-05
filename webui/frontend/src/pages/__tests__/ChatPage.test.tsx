@@ -2591,6 +2591,7 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
 
     expect(await screen.findByRole('combobox', { name: 'CLI' })).toBeInTheDocument()
     expect(await screen.findByRole('combobox', { name: 'Model' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'grok' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
   })
@@ -2604,10 +2605,123 @@ describe('ChatPage dropdown status lines (REQ-46)', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    expect(screen.queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+    const header = screen.getByRole('banner')
+    expect(within(header).queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('combobox', { name: 'Remote' })).not.toBeInTheDocument()
+    expect(within(header).queryByTestId('api-select')).not.toBeInTheDocument()
+    expect(within(header).queryByRole('option', { name: 'You' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('option', { name: 'Default' })).not.toBeInTheDocument()
+  })
+
+  it('does not render You/Default profile dropdown on api_agent even when the CLI rail lists it (REQ-186 / #744)', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    MockWebSocket.instances = []
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo) => {
+        const url = String(input)
+        if (url.includes('/chat/thread/')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              agent_id: 'api_agent',
+              conversation_id: 'api_agent',
+              messages: store.messages,
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/cli-agents')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              clis: ['grok', 'agy'],
+              rail: [
+                {
+                  id: 'cli_agent',
+                  object: 'cli.agent',
+                  name: 'cli_agent',
+                  cli: 'grok',
+                  kind: 'cli',
+                  description: 'Host CLI',
+                  installed: true,
+                },
+                {
+                  id: 'api_agent',
+                  object: 'cli.agent',
+                  name: 'api_agent',
+                  cli: '',
+                  kind: 'api',
+                  description: 'LiteLLM',
+                  installed: true,
+                },
+              ],
+            }),
+          } as Response
+        }
+        if (url.includes('/v1/llm-profiles')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              object: 'llm_profiles',
+              profiles: [
+                { id: 'You', object: 'llm_profile', source: 'config', owned_by: 'user' },
+                { id: 'Default', object: 'llm_profile', source: 'config', owned_by: 'openai' },
+              ],
+              default_llm_profile: 'Default',
+            }),
+          } as Response
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [{ id: 'api_agent', name: 'API agent', description: 'LiteLLM' }],
+          }),
+        } as Response
+      }),
+    )
+
+    renderChat('/chat?blueprint=api_agent')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const header = screen.getByRole('banner')
+    expect(within(header).queryByRole('combobox', { name: 'API' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('combobox', { name: 'CLI' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument()
+    expect(within(header).queryByTestId('api-select')).not.toBeInTheDocument()
+    expect(within(header).queryByRole('option', { name: 'You' })).not.toBeInTheDocument()
+    expect(within(header).queryByRole('option', { name: 'Default' })).not.toBeInTheDocument()
+  })
+
+  it('still forwards ?model= on API agent send without a navbar profile picker', async () => {
+    const store = { messages: [] as { role: string; content: string }[] }
+    stubWithThreadStore(store)
+
+    renderChat('/chat?blueprint=codey&model=gpt-4')
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+    })
+
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    fireEvent.change(composer, { target: { value: 'use override' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Send$/i }))
+
+    const ws = MockWebSocket.instances[0]!
+    expect(ws.send).toHaveBeenCalled()
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toMatchObject({
+      message: 'use override',
+      blueprint: 'codey',
+      params: { model: 'gpt-4' },
+    })
   })
 })
 

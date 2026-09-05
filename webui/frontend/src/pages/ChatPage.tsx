@@ -34,8 +34,7 @@ import {
   getRecentSlashIds,
   recordRecentSlashId,
 } from '../lib/slashMenu'
-import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchLlmProfiles, fetchRemotes } from '../lib/api'
-import { profileIds } from '../lib/llmProfiles'
+import { fetchConfigOptions, fetchBlueprints, fetchCliAgents, fetchCliModels, fetchRemotes } from '../lib/api'
 import {
   agentIdFromBlueprint,
   appendAgentMessage,
@@ -366,7 +365,9 @@ const ChatPage = () => {
   const selectedRemote = remotes.find((remote) => remote.id === remoteFromUrl) ?? null
   const selectedRemoteSession = selectedRemote?.agents.find((agent) => agent.id === sessionFromUrl)
   const selectedTeamSession = selectedTeam?.members.find((member) => member.id === sessionFromUrl)
-  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint)
+  // api_agent is also listed on the CLI rail (kind=api). Do not treat it as a
+  // host-CLI seat — that reintroduced CLI chrome beside the mystery API picker.
+  const selectedCli = cliAgents.find((row) => row.id === selectedBlueprint && row.kind === 'cli')
   const selectedAgent = blueprints.find((bp) => bp.id === selectedBlueprint)
   const runtimeBlueprint = teamFromUrl ? '' : assignedBlueprintId(selectedBlueprint)
   const fallbackAgentName =
@@ -407,8 +408,10 @@ const ChatPage = () => {
 
   const showRemotesControl = isRemoteAgent || isRemoteBackedTeam
 
+  const isNamedApiAgent = selectedBlueprint === 'api_agent'
   const isCliAgent = Boolean(
-    !teamFromUrl &&
+    !isNamedApiAgent &&
+      !teamFromUrl &&
       !remoteFromUrl &&
       !isRemoteBackedTeam &&
       !isRemoteAgent &&
@@ -421,7 +424,6 @@ const ChatPage = () => {
         })),
   )
 
-  const isNamedApiAgent = selectedBlueprint === 'api_agent'
   const isApiAgent = Boolean(
     !teamFromUrl &&
       !remoteFromUrl &&
@@ -429,13 +431,6 @@ const ChatPage = () => {
       !isRemoteAgent &&
       !isCliAgent,
   )
-
-  const llmProfilesQuery = useQuery({
-    queryKey: ['llm-profiles'],
-    queryFn: fetchLlmProfiles,
-    enabled: Boolean(isNamedApiAgent || isApiAgent),
-    retry: 1,
-  })
 
   const discoveredClis = useMemo(
     () => discoverChatClis(cliQuery.data, searchParams.get('cli') || selectedCli?.cli),
@@ -465,21 +460,6 @@ const ChatPage = () => {
     return availableCliModels[0] || 'default'
   }, [searchParams, availableCliModels])
 
-  const availableApiModels = useMemo(() => {
-    if (isNamedApiAgent) {
-      const ids = profileIds(llmProfilesQuery.data)
-      const fallback = llmProfilesQuery.data?.default_llm_profile
-      const list = ids.length ? ids : fallback ? [fallback] : []
-      return list.length ? list : ['default']
-    }
-    return ['default']
-  }, [isNamedApiAgent, llmProfilesQuery.data])
-
-  const currentApiModel = useMemo(() => {
-    const fromParam = (searchParams.get('model') ?? '').trim()
-    if (fromParam && availableApiModels.includes(fromParam)) return fromParam
-    return availableApiModels[0] || 'default'
-  }, [searchParams, availableApiModels])
   const recordDropdownChange = useCallback(
     (kind: DropdownKind, fromLabel: string, toLabel: string) => {
       if (!shouldRecordDropdownChange(fromLabel, toLabel)) return
@@ -1607,33 +1587,6 @@ const ChatPage = () => {
                 ))}
               </select>
             </>
-          ) : null}
-          {isNamedApiAgent ? (
-            <select
-              className="select select-sm h-8 max-w-[10rem] border border-base-300 bg-base-100"
-              value={currentApiModel}
-              aria-label="API"
-              data-testid="api-select"
-              onChange={(e) => {
-                const nextModel = e.target.value
-                const prev = currentApiModel
-                setSearchParams(
-                  (prevParams) => {
-                    const nextParams = new URLSearchParams(prevParams)
-                    nextParams.set('model', nextModel)
-                    return nextParams
-                  },
-                  { replace: true },
-                )
-                recordDropdownChange('api', prev, nextModel)
-              }}
-            >
-              {availableApiModels.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
           ) : null}
           <div
             className="flex items-center gap-2"
