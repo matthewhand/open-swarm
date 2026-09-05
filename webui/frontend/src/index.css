@@ -350,21 +350,25 @@ html[data-theme="light"] #root {
 .os-rail-search__input::placeholder {
   color: color-mix(in srgb, var(--color-base-content) 40%, transparent);
 }
-.os-rail-search__kbd {
+.os-rail-search__kbd,
+.os-rail-search__kbd.kbd {
   font-size: 0.65rem;
   padding: 0.1rem 0.35rem;
   border-radius: 0.3rem;
-  background: color-mix(in srgb, var(--color-base-content) 8%, transparent);
-  color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
-  border-color: color-mix(in srgb, var(--color-base-content) 12%, transparent);
+  background-color: transparent !important;
+  background: color-mix(in srgb, var(--color-base-content) 10%, transparent) !important;
+  color: color-mix(in srgb, var(--color-base-content) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 15%, transparent);
+  box-shadow: none;
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s ease-in-out;
+  opacity: 0.75;
+  transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out;
   pointer-events: none;
 }
 .os-rail-search:hover .os-rail-search__kbd,
 .os-rail-search:focus-within .os-rail-search__kbd {
   opacity: 1;
+  background: color-mix(in srgb, var(--color-base-content) 16%, transparent) !important;
 }
 
 .os-search-add-btn {
@@ -1311,15 +1315,18 @@ html[data-theme="light"] .os-code--collapsible.os-code--collapsed::after {
   font-size: 0.875rem;
   color: color-mix(in srgb, currentColor 50%, transparent);
 }
-.os-search-palette__kbd {
+.os-search-palette__kbd,
+.os-search-palette__kbd.kbd {
   font-size: 0.7rem;
   padding: 0.15rem 0.4rem;
   border-radius: 0.35rem;
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  background-color: transparent !important;
+  background: color-mix(in srgb, currentColor 8%, transparent) !important;
   color: color-mix(in srgb, currentColor 60%, transparent);
-  border-color: color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  box-shadow: none;
   flex-shrink: 0;
-  opacity: 0;
+  opacity: 0.75;
   transition: opacity 0.15s ease-in-out;
   pointer-events: none;
 }
