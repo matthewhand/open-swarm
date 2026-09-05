@@ -232,6 +232,36 @@ describe('AgentMessageBubble', () => {
     fireEvent.click(thumbsUpBadge)
     expect(onAddReaction).toHaveBeenCalledWith('r-msg', '👍')
   })
+
+  it('renders system preload message as a compact "Message from System" pill without assistant avatar (REQ-207)', () => {
+    const systemMsg: ChatMessage = {
+      key: 'sys-preload-1',
+      role: 'system',
+      kind: 'system',
+      isSystemPreload: true,
+      text: '**Agents**\n- Support · support\n\n**Inference** ready.',
+      timestamp: new Date(),
+    }
+
+    renderBubble(<AgentMessageBubble message={systemMsg} />)
+
+    // Verify pill is rendered
+    const pill = screen.getByRole('button', { name: /Message from System/i })
+    expect(pill).toBeInTheDocument()
+    expect(pill).toHaveAttribute('aria-expanded', 'false')
+
+    // Verify no assistant avatar / speech bubble chrome
+    expect(screen.queryByTestId('agent-avatar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('message-actions')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('system-preload-content')).not.toBeInTheDocument()
+
+    // Expanding reveals the preload text
+    fireEvent.click(pill)
+    expect(pill).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('system-preload-content')).toBeInTheDocument()
+    expect(screen.getByTestId('system-preload-content')).toHaveTextContent('Support · support')
+  })
 })
+
 
 

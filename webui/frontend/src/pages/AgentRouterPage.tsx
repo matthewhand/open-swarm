@@ -318,14 +318,16 @@ export default function AgentRouterPage() {
     setMessages([
       {
         key: `support-briefing-${key}`,
-        role: 'assistant',
+        role: 'system',
+        kind: 'system',
+        isSystemPreload: true,
         text: buildSupportBriefing({
           agents,
           llmProfiles,
           defaultLlm: resolvedDefaultLlm,
           clis,
         }),
-        agent: selectedAgent.customName || selectedAgent.name,
+        agent: 'System',
         agent_id: selectedAgent.agent_id,
         timestamp: new Date(),
       },

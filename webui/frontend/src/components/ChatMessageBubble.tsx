@@ -11,9 +11,10 @@ import { Pencil } from 'lucide-react'
 import { Textarea, LoadingDots } from './DaisyUI'
 import { renderSafeMarkdown } from '../lib/markdown'
 import { setupCodeFenceControls } from '../lib/codeFences'
+import { SystemPreloadPill } from './SystemPreloadPill'
 
 export interface ChatMessageBubbleProps {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system' | 'status'
   agentName: string
   text: string
   streaming: boolean
@@ -24,6 +25,7 @@ export interface ChatMessageBubbleProps {
   onCancelEdit: () => void
   onSaveEdit: (text: string) => void
   children?: ReactNode
+  isSystemPreload?: boolean
 }
 
 function selectionIsActive(): boolean {
@@ -89,6 +91,7 @@ export function ChatMessageBubble({
   onCancelEdit,
   onSaveEdit,
   children,
+  isSystemPreload,
 }: ChatMessageBubbleProps) {
   const [draft, setDraft] = useState(text)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -101,6 +104,14 @@ export function ChatMessageBubble({
     }
     return undefined
   }, [editing, text])
+
+  if (role === 'system' || isSystemPreload) {
+    return (
+      <div className="flex justify-start w-full my-1" data-testid="chat-system-preload">
+        <SystemPreloadPill text={text} />
+      </div>
+    )
+  }
 
   const handleBubbleClick = (event: MouseEvent<HTMLDivElement>) => {
     if (!canEdit || streaming || editing) return
