@@ -961,7 +961,7 @@ export default function AgentSidebar({
       ? activeTaskSessionCount(agent.id)
       : 0
     const dataRole = role !== 'default' ? role : undefined
-    const className = `os-agent-row ${active ? 'os-agent-row--active' : ''} ${
+    const className = `os-agent-row group/row ${active ? 'os-agent-row--active' : ''} ${
       dragging ? 'os-agent-row--dragging' : ''
     } ${dropping ? 'os-agent-row--drop' : ''}`
     const { snippet, timestamp } = getRowLastMessage(agent.id, sessions, agent as any)
@@ -1023,10 +1023,10 @@ export default function AgentSidebar({
         <span className="os-agent-row__label-col min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            <span className="flex items-center gap-1 shrink-0">
+            <span className="flex items-center gap-1 shrink-0 relative">
               {spillSlot ? (
                 <span
-                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70"
+                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70 group-hover/row:inline-block hidden"
                   aria-label={`Shortcut ${isMac ? '⌥' : 'Alt+'}${spillSlot}`}
                   data-testid="spill-hotkey"
                 >
@@ -1035,7 +1035,9 @@ export default function AgentSidebar({
               ) : null}
               {timestampLabel ? (
                 <span
-                  className="os-rail-timestamp text-xs text-base-content/40 tabular-nums"
+                  className={`os-rail-timestamp text-xs text-base-content/40 tabular-nums ${
+                    spillSlot ? 'group-hover/row:hidden' : ''
+                  }`}
                   data-testid="rail-row-timestamp"
                 >
                   {timestampLabel}
@@ -1158,7 +1160,7 @@ export default function AgentSidebar({
     return (
       <Link
         to={`/chat?team=${encodeURIComponent(team.id)}`}
-        className={`os-team-item os-agent-row os-agent-row--team ${
+        className={`os-team-item os-agent-row group/row os-agent-row--team ${
           active ? 'os-agent-row--active' : ''
         } ${nested ? 'os-agent-row--nested' : ''} ${dragging ? 'os-agent-row--dragging' : ''} ${
           dropping ? 'os-agent-row--drop' : ''
@@ -1248,10 +1250,10 @@ export default function AgentSidebar({
         <span className="os-agent-row__label-col min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            <span className="flex items-center gap-1 shrink-0">
+            <span className="flex items-center gap-1 shrink-0 relative">
               {spillSlot ? (
                 <span
-                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70"
+                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70 group-hover/row:inline-block hidden"
                   aria-label={`Shortcut ${isMac ? '⌥' : 'Alt+'}${spillSlot}`}
                   data-testid="spill-hotkey"
                 >
@@ -1260,7 +1262,9 @@ export default function AgentSidebar({
               ) : null}
               {teamTimestampLabel ? (
                 <span
-                  className="os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums"
+                  className={`os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums ${
+                    spillSlot ? 'group-hover/row:hidden' : ''
+                  }`}
                   data-testid="rail-row-timestamp"
                 >
                   {teamTimestampLabel}
@@ -1297,7 +1301,7 @@ export default function AgentSidebar({
     return (
       <Link
         to={`/chat?remote=${encodeURIComponent(remote.id)}`}
-        className={`os-remote-item os-agent-row os-agent-row--remote ${
+        className={`os-remote-item os-agent-row group/row os-agent-row--remote ${
           active ? 'os-agent-row--active' : ''
         } ${dragging ? 'os-agent-row--dragging' : ''}`}
         aria-current={active ? 'page' : undefined}
@@ -1381,10 +1385,10 @@ export default function AgentSidebar({
         <span className="os-agent-row__label-col min-w-0 flex-1">
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span className="block truncate text-sm font-semibold leading-5">{name}</span>
-            <span className="flex items-center gap-1 shrink-0">
+            <span className="flex items-center gap-1 shrink-0 relative">
               {spillSlot ? (
                 <span
-                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70"
+                  className="os-rail-shortcut text-[10px] font-mono text-base-content/40 opacity-70 group-hover/row:inline-block hidden"
                   aria-label={`Shortcut ${isMac ? '⌥' : 'Alt+'}${spillSlot}`}
                   data-testid="spill-hotkey"
                 >
@@ -1393,7 +1397,9 @@ export default function AgentSidebar({
               ) : null}
               {remoteTimestampLabel ? (
                 <span
-                  className="os-rail-timestamp text-xs text-base-content/40 tabular-nums"
+                  className={`os-rail-timestamp text-xs text-base-content/40 tabular-nums ${
+                    spillSlot ? 'group-hover/row:hidden' : ''
+                  }`}
                   data-testid="rail-row-timestamp"
                 >
                   {remoteTimestampLabel}
