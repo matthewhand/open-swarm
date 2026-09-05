@@ -11,6 +11,11 @@
  */
 
 import type { AgentRole } from './api'
+import {
+  normalizeInferenceList,
+  serializeInferenceList,
+  type InferenceSeat,
+} from './inferenceList'
 
 export const AGENT_EDITS_KEY = 'swarm_agent_edits'
 export const AGENT_EDITS_CHANGED_EVENT = 'swarm:agent-edits-changed'
@@ -30,6 +35,8 @@ export interface AgentEdit {
   command?: string
   cliOverride?: string
   profileOverride?: string
+  /** REQ-69 ordered inference seats (`llm:…` / `cli:…` / `remote:…`). Empty = Settings default. */
+  inferenceList?: string[]
 }
 
 export type AgentEditMap = Record<string, AgentEdit>
@@ -119,11 +126,41 @@ export function saveAgentEdit(agentId: string, patch: AgentEdit): AgentEdit {
     if (profile) next.profileOverride = profile
     else delete next.profileOverride
   }
+  if (patch.inferenceList !== undefined) {
+    const seats = serializeInferenceList(patch.inferenceList)
+    if (seats.length) next.inferenceList = seats
+    else delete next.inferenceList
+  }
 
   if (Object.keys(next).length === 0) delete map[agentId]
   else map[agentId] = next
   writeMap(map)
   emitChange(agentId)
+  return next
+}
+
+/** REQ-69 ordered inference seats for this agent. Empty = Settings default. */
+export function loadInferenceList(agentId: string): InferenceSeat[] {
+  if (!agentId) return []
+  const edit = loadAgentEdit(agentId)
+  const fromList = normalizeInferenceList(edit.inferenceList)
+  if (fromList.length) return fromList
+  // One-item fallback from the older single override fields.
+  if (edit.cliOverride?.trim()) {
+    return [{ id: edit.cliOverride.trim(), kind: 'cli', label: edit.cliOverride.trim() }]
+  }
+  if (edit.profileOverride?.trim()) {
+    return [{ id: edit.profileOverride.trim(), kind: 'llm', label: edit.profileOverride.trim() }]
+  }
+  if (edit.llmOverride?.trim()) {
+    return [{ id: edit.llmOverride.trim(), kind: 'llm', label: edit.llmOverride.trim() }]
+  }
+  return []
+}
+
+export function saveInferenceList(agentId: string, seats: InferenceSeat[]): InferenceSeat[] {
+  const next = normalizeInferenceList(seats)
+  saveAgentEdit(agentId, { inferenceList: serializeInferenceList(next) })
   return next
 }
 
