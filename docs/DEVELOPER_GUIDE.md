@@ -2,6 +2,8 @@
 
 Welcome to the Open Swarm developer documentation! This guide is your starting point for building, extending, and maintaining blueprints, agents, and the Swarm framework itself.
 
+**Hub:** [DEVELOPER.md](./DEVELOPER.md) (architecture, kinds, layout, CI). User-facing pitch: [README](../README.md).
+
 ---
 
 ## Table of Contents

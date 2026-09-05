@@ -2,6 +2,8 @@
 
 Thanks for your interest. Issues and PRs are welcome — this is an alpha-stage
 project under active cleanup, so small, focused contributions land fastest.
+Developer map (architecture, kinds, CI): [docs/DEVELOPER.md](docs/DEVELOPER.md).
+The root [README](README.md) is the user-facing front door.
 Check [ROADMAP.md](ROADMAP.md) first: it lists what is broken, what is
 half-finished, and where help is most useful.
 

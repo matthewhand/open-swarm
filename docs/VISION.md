@@ -187,8 +187,10 @@ network.
   docs PR.
 - **#680** — Remote stays one kind; Hermes / OpenMousBot / Rakazo / Herdr
   implement an abstract harness. Herdr is not a fifth kind.
-- **README** — sibling rewrite [#466](https://github.com/matthewhand/open-swarm/issues/466).
-  This file leads direction; README sells.
+- **README** — sells this lock ([#791](https://github.com/matthewhand/open-swarm/issues/791);
+  parent [#466](https://github.com/matthewhand/open-swarm/issues/466) closed by
+  [#785](https://github.com/matthewhand/open-swarm/pull/785)). This file leads
+  direction ([#782](https://github.com/matthewhand/open-swarm/pull/782)).
 - **SPA depth** — virtualized history ([ADR-004](./adr/004-virtualized-chat-history.md))
   planned; computer-control chrome is a stub ([ADR-007](./adr/007-local-computer-control.md));
   golden-journey screenshots on HOLD.

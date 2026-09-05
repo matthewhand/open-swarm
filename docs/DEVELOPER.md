@@ -1,12 +1,103 @@
 # Developer notes
 
 Operator / contributor internals that used to live on the README. Product
-pitch and kinds stay in [README.md](../README.md) and [VISION.md](./VISION.md).
+pitch and kinds stay in [README.md](../README.md) and [VISION.md](./VISION.md)
+([#782](https://github.com/matthewhand/open-swarm/pull/782) leads; README sells).
 
 - Setup, tests, PR checklist: [CONTRIBUTING.md](../CONTRIBUTING.md)
-- Tech stack and package layout: [DEVELOPMENT.md](../DEVELOPMENT.md)
+- Tech stack: [DEVELOPMENT.md](../DEVELOPMENT.md)
 - Blueprint authoring: [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)
 - Async `/v1/responses`: [ASYNC_RESPONSES.md](./ASYNC_RESPONSES.md)
+
+No secrets. No LAN inventory.
+
+---
+
+## Why openai-agents (and four kinds)
+
+openai-agents lets us **define any workflow** with handoff / as-tool edges.
+LLM-only freestyle cannot reliably enforce topology.
+
+- **Forced sequence** — BA → Engineer → Tester because each agent has
+  **only one handoff** to the next. BA cannot skip to Tester.
+- **Circular / punt-back** — the last Skeptic can hand off back to Engineer.
+
+**Limit:** that graph runs **inside Blueprint seats only**. We cannot inject
+openai-agents into **CLI** or **Remote** harnesses — those stay native.
+**API** (true inference) is chat-completions, not a graph.
+
+```mermaid
+flowchart LR
+  BA[BA] --> Eng[Engineer]
+  Eng --> Test[Tester]
+```
+
+```mermaid
+flowchart LR
+  BA[BA] --> Eng[Engineer]
+  Eng --> Test[Tester]
+  Test --> Sk[Skeptic]
+  Sk --> Eng
+```
+
+```mermaid
+flowchart TB
+  User[User task] --> OS[Open Swarm]
+  OS --> CLI[CLI]
+  OS --> API[API inference]
+  OS --> BP[Blueprint]
+  OS --> Remote[Remote]
+  BP --> Graph[openai-agents graph]
+  Graph --> Team[Team — Blueprint subtype]
+  CLI --> NativeCLI[native grok or agy session]
+  Remote --> NativeRemote[native Hermes or OpenMousBot]
+```
+
+Worked configs, Mode A/B demo names, tests that lock the edges, and
+`:8001` seed steps (no secrets):
+[docs/examples/openai-agents-handoff-graphs/](./examples/openai-agents-handoff-graphs/README.md)
+(REQ-156 / [#564](https://github.com/matthewhand/open-swarm/issues/564)).
+
+---
+
+## Package layout
+
+```
+.
+├── src/swarm/                 # Django app + framework core
+│   ├── core/                  # CLI, API launcher, discovery, kind bases
+│   ├── views/                 # /v1/* and operator pages
+│   └── blueprints/            # Bundled Blueprint recipes
+├── webui/frontend/            # React SPA (rail + chat). dist/ is gitignored
+├── tests/                     # pytest (keyless via SWARM_TEST_MODE)
+├── docs/                      # Guides, ADRs, proofs
+├── docker-compose.yml         # API + baked SPA
+└── pyproject.toml             # Package metadata (open-swarm 0.5.4)
+```
+
+XDG: config `~/.config/swarm/swarm_config.json`. Env vars:
+[CONFIGURATION.md](../CONFIGURATION.md).
+
+---
+
+## Dev setup, tests, CI
+
+```bash
+uv sync --all-extras
+make frontend                          # Node >= 22; optional for backend-only work
+uv run pytest -q --timeout=120
+uv run python manage.py check
+uv run ruff check src tests            # clean on files you touch
+```
+
+- Tests run keyless via `SWARM_TEST_MODE`.
+- **CI goal is green `main`.** `Python Tests` on 3.10 / 3.11 / 3.12 must
+  collect and pass.
+- Intentional HOLD: `golden-journey` in `visual-regression.yml` (`if: false`,
+  REQ-89 [#446](https://github.com/matthewhand/open-swarm/issues/446)).
+- Conventional commits: `feat(webui):`, `docs:`, `test:`, …
+
+Full PR rules: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ---
 
@@ -123,7 +214,7 @@ gantt
 | 2026-06-19 | v0.5.4 | tag `v0.5.4` — last published PyPI / GitHub Release |
 | 2026-07-22 | Worker gates | commit `ff014180` — `main` only |
 | 2026-08-18 | ADR-001 | commit `3d870d62` — `main` only |
-| 2026-09 | Four-kind lock + WebUI-first README | [ADR-006](./adr/006-api-vs-blueprint-kinds.md), [#466](https://github.com/matthewhand/open-swarm/issues/466) |
+| 2026-09 | Four-kind lock + WebUI-first README | [ADR-006](./adr/006-api-vs-blueprint-kinds.md), [#785](https://github.com/matthewhand/open-swarm/pull/785) / [#791](https://github.com/matthewhand/open-swarm/issues/791) |
 
 ---
 
@@ -151,3 +242,5 @@ User-facing kinds are **CLI | API | Blueprint | Remote**
 `ApiKindBase` slot: that template hosts programmatic graphs (target name
 `BlueprintKindBase`); a true API seat is inference-only and is not a
 `BlueprintBase`. Until Phase 1/2, classifiers still say `api` for recipes.
+Today vs target + diagram: [ADR-005](./adr/005-kind-bases.md)
+(REQ-159 / [#570](https://github.com/matthewhand/open-swarm/issues/570)).
