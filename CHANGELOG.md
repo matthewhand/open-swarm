@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **REQ-72 plugins chrome contracts after #805:** Source-string tests lock the Plugins search overlay (`PluginsPopup`, honest “No tools.” / Manage empty copy) instead of the retired “No plugins installed.” dialog. Unblocks Python Tests on main after #816.
 - **Inline chat markdown follows light/dark theme:** Code fences, inline code, tables, blockquotes, links, and other in-bubble chrome (status/history pills, suggestion chips, support cards) use DaisyUI / #464 Grok tokens instead of a stuck dark palette. Fixes #804.
 
 ### Added
