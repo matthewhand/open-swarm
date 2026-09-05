@@ -1,5 +1,8 @@
 # Open Swarm: Development Documentation
 
+Start at **[docs/DEVELOPER.md](docs/DEVELOPER.md)** (architecture dumps, kinds,
+package layout, CI). The root [README](README.md) is the user-facing front door.
+
 This document provides an in-depth look at the **Open Swarm** framework’s internal architecture, component interactions, and development practices. It is intended for developers and contributors who wish to modify or extend the framework.
 
 ---

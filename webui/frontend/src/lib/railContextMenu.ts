@@ -16,7 +16,6 @@ export type RailMenuKind = 'api' | 'cli' | 'team' | 'remote'
 export type RailMenuItemId =
   | 'select-agent'
   | 'select-session'
-  | 'select-agent-session'
   | 'new-session'
   | 'unpin'
   | 'pin'
@@ -26,6 +25,7 @@ export type RailMenuItemId =
   | 'copy-id'
   | 'hide'
   | 'unhide'
+  | 'notify'
   | 'delete'
 
 export interface RailMenuItemSpec {
@@ -44,8 +44,9 @@ export interface RailMenuOptions {
   unread: boolean
   hasSelectAgent?: boolean
   hasSelectSession?: boolean
-  hasAgentSessions?: boolean
+  hasNewSession?: boolean
   canCopyId?: boolean
+  notifyEnabled?: boolean
 }
 
 const CLI_NO_PROFILE = 'CLI agents have no swarm-owned profile'
@@ -64,8 +65,7 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
   if (opts.hasSelectSession) {
     items.push({ id: 'select-session', label: 'Select session', group: 0 })
   }
-  if (opts.hasAgentSessions) {
-    items.push({ id: 'select-agent-session', label: 'Select session…', group: 0 })
+  if (opts.hasNewSession) {
     items.push({ id: 'new-session', label: 'New session', group: 0 })
   }
   if (opts.pinned) {
@@ -108,6 +108,12 @@ export function railMenuItems(opts: RailMenuOptions): RailMenuItemSpec[] {
   } else {
     items.push({ id: 'hide', label: 'Hide from sidebar', group: 4 })
   }
+
+  items.push({
+    id: 'notify',
+    label: opts.notifyEnabled ? 'Notifications: On' : 'Notifications: Off',
+    group: 4,
+  })
 
   items.push({
     id: 'delete',

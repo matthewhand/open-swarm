@@ -58,6 +58,22 @@ def test_messages_for_model_keeps_pair_and_tool_drops_chrome():
     _assert_no_chrome(payload)
 
 
+def test_messages_for_model_drops_prior_history_keeps_system_prompt():
+    payload = messages_for_model(
+        [
+            {"role": "system", "kind": "prior_history", "content": "old thread"},
+            {"role": "system", "content": "be terse"},
+            {"role": "status", "content": STATUS_CLI},
+            {"role": "user", "content": "next"},
+        ]
+    )
+    assert [(m["role"], m["content"]) for m in payload] == [
+        ("system", "be terse"),
+        ("user", "next"),
+    ]
+    assert "old thread" not in context_blob(payload)
+
+
 def test_build_model_context_excludes_status_info():
     payload = build_model_context(_thread(), [])
     assert [(m["role"], m["content"]) for m in payload] == [
@@ -67,6 +83,22 @@ def test_build_model_context_excludes_status_info():
     ]
     assert payload[1].get("name") == "jeeves"
     _assert_no_chrome(payload)
+
+
+def test_build_model_context_excludes_prior_history():
+    payload = build_model_context(
+        [
+            {"role": "system", "kind": "prior_history", "content": "old thread"},
+            {"role": "system", "content": "be terse"},
+            {"role": "user", "content": "next"},
+        ],
+        [],
+    )
+    assert [(m["role"], m["content"]) for m in payload] == [
+        ("system", "be terse"),
+        ("user", "next"),
+    ]
+    assert "old thread" not in context_blob(payload)
 
 
 def test_context_for_conversation_no_cid_filters_chrome():
@@ -81,6 +113,12 @@ def test_summarize_items_skips_status_info():
         [
             {"kind": "message", "role": "status", "content": STATUS_CLI},
             {"kind": "message", "role": "info", "content": INFO_CONNECTING},
+            {
+                "kind": "message",
+                "source_kind": "prior_history",
+                "role": "system",
+                "content": "old thread",
+            },
             {"kind": "message", "role": "user", "content": "alpha question"},
             {"kind": "message", "role": "assistant", "content": "alpha answer"},
         ]
@@ -89,6 +127,7 @@ def test_summarize_items_skips_status_info():
     assert "alpha answer" in body
     assert STATUS_CLI not in body
     assert INFO_CONNECTING not in body
+    assert "old thread" not in body
     assert "status" not in body
     assert "Summary of 2 items" in body
 

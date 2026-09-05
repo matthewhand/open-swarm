@@ -1,4 +1,4 @@
-"""REQ-159: ADR-005 + README cross-link from the openai-agents section."""
+"""REQ-159: ADR-005 + developer-doc cross-link from the openai-agents section."""
 
 from swarm.core.handoff_graph import repo_root
 
@@ -19,8 +19,8 @@ def test_adr005_has_today_vs_target_and_diagram():
         assert needle not in lowered
 
 
-def test_readme_openai_agents_section_links_kind_bases():
-    text = (repo_root() / "README.md").read_text(encoding="utf-8")
-    assert "docs/adr/005-kind-bases.md" in text
+def test_developer_doc_openai_agents_section_links_kind_bases():
+    text = (repo_root() / "docs" / "DEVELOPER.md").read_text(encoding="utf-8")
+    assert "005-kind-bases.md" in text
     assert "ApiKindBase" in text
     assert "#570" in text or "REQ-159" in text

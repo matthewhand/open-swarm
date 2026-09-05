@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  GENERATION_COMPLETE_EVENT,
   RAIL_ORDER_STORAGE_KEY,
   applyRailOrder,
   bumpRailIdToTop,
+  generationCompleteDetail,
   loadRailOrder,
   mergeRailOrder,
   moveRailId,
+  notifyGenerationComplete,
   saveRailOrder,
 } from '../railOrder'
 
@@ -80,5 +83,19 @@ describe('railOrder persistence', () => {
     // Subsequent generation completion moves the completed agent back to index 0
     const afterAlpha = bumpRailIdToTop(reordered, 'alpha')
     expect(afterAlpha).toEqual(['alpha', 'delta', 'beta', 'gamma'])
+  })
+
+  it('notifies generation complete with optional snippet and failed flag', () => {
+    const seen: unknown[] = []
+    const onComplete = (event: Event) => {
+      seen.push(generationCompleteDetail(event))
+    }
+    window.addEventListener(GENERATION_COMPLETE_EVENT, onComplete)
+    notifyGenerationComplete('')
+    notifyGenerationComplete('codey', { snippet: 'done', agentName: 'Codey', failed: true })
+    window.removeEventListener(GENERATION_COMPLETE_EVENT, onComplete)
+    expect(seen).toEqual([
+      { agentId: 'codey', snippet: 'done', agentName: 'Codey', failed: true },
+    ])
   })
 })

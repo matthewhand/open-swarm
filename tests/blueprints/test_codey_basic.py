@@ -173,8 +173,27 @@ class TestCodeyConfiguration:
         assert config is not None
         assert isinstance(config, dict)
 
-    def test_llm_profile_access(self, codey_blueprint):
-        """Test that LLM profiles can be accessed"""
-        assert hasattr(codey_blueprint, 'llm_profile')
+    def test_llm_profile_access(self, tmp_path, monkeypatch):
+        """LLM profile comes from a fixture SoT — not a committed live file."""
+        import json
+
+        cfg = {
+            "llm": {
+                "default": {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",
+                    "api_key": "${OPENAI_API_KEY}",
+                }
+            },
+            "settings": {"default_llm_profile": "default"},
+        }
+        path = tmp_path / "swarm_config.json"
+        path.write_text(json.dumps(cfg), encoding="utf-8")
+        monkeypatch.setenv("SWARM_CONFIG_PATH", str(path))
+        # Codey maps its config_path positional onto BlueprintBase.config —
+        # discover via SWARM_CONFIG_PATH instead.
+        codey_blueprint = CodeyBlueprint(blueprint_id="test_codey_config")
+        assert hasattr(codey_blueprint, "llm_profile")
         profile = codey_blueprint.llm_profile
         assert profile is not None
+        assert profile.get("model") == "gpt-4o-mini"

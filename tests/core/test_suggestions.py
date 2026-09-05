@@ -79,6 +79,53 @@ def test_attach_suggestions_as_tool_unwired_is_noop():
     assert attach_suggestions_as_tool(Coord(), None).tools == []
 
 
+def test_prod_run_without_agents_is_empty(monkeypatch):
+    monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+    assert run_suggestions(mode="kickstart", agents=None) == []
+    assert run_suggestions(mode="continue", agents=[]) == []
+
+
+def test_prod_run_invokes_wired_suggestions_agent(monkeypatch):
+    monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+
+    class Stub:
+        role = "suggestions"
+        name = "suggester"
+
+        def suggest(self, prompt):
+            assert "follow-up" in prompt or "empty" in prompt or "Suggest" in prompt
+            return ["From specialist", "Second chip"]
+
+    chips = run_suggestions(mode="kickstart", agents=[Stub()])
+    assert chips == ["From specialist", "Second chip"]
+
+
+def test_resolve_includes_specialist_for_cli_api_remote():
+    from swarm.core.agent_roles import ROLE_SUGGESTIONS, find_role_agent
+    from swarm.core.suggestions import resolve_suggestions_agents
+
+    for consumer in ("cli_agent", "api_agent", "remote_harness"):
+        roster = resolve_suggestions_agents(consumer)
+        assert find_role_agent(roster, ROLE_SUGGESTIONS) is not None
+
+
+def test_resolve_prefers_consumer_roster_specialist():
+    from swarm.core.agent_roles import ROLE_SUGGESTIONS, find_role_agent
+    from swarm.core.suggestions import resolve_suggestions_agents
+
+    class TeamSuggest:
+        role = "suggestions"
+        name = "team-suggester"
+
+    class Blueprint:
+        _agents = {"worker": object(), "suggester": TeamSuggest()}
+
+    roster = resolve_suggestions_agents("cli_agent", blueprint=Blueprint())
+    found = find_role_agent(roster, ROLE_SUGGESTIONS)
+    assert found is not None
+    assert getattr(found, "name", "") == "team-suggester"
+
+
 def test_suggestions_payload_respects_toggle(tmp_path, monkeypatch):
     monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
     monkeypatch.setenv("SWARM_TEST_MODE", "1")

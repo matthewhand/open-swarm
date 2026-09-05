@@ -16,7 +16,11 @@ from rest_framework.views import APIView
 
 from swarm.core.agent_settings import is_use_suggestions
 from swarm.core.chat_store import normalize_agent_id
-from swarm.core.suggestions import run_suggestions
+from swarm.core.suggestions import (
+    load_continue_messages,
+    resolve_suggestions_agents,
+    run_suggestions,
+)
 from swarm.views.agent_settings_api import SETTINGS_API_PERMISSIONS
 
 logger = logging.getLogger(__name__)
@@ -41,8 +45,15 @@ class AgentSuggestionsAPIView(APIView):
             )
         raw_mode = str(request.query_params.get("mode") or "kickstart").strip().lower()
         mode = "continue" if raw_mode == "continue" else "kickstart"
+        conversation_id = str(request.query_params.get("conversation_id") or "").strip()
+        messages = (
+            load_continue_messages(request.user, agent, conversation_id)
+            if mode == "continue"
+            else []
+        )
+        agents = resolve_suggestions_agents(agent)
         try:
-            chips = run_suggestions(mode=mode)
+            chips = run_suggestions(mode=mode, messages=messages, agents=agents)
         except Exception:
             logger.debug("suggestions API omitted for %s", agent, exc_info=True)
             chips = []

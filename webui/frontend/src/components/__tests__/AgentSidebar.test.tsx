@@ -113,6 +113,23 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
       } as Response
     }
     if (url.includes('/v1/cli-sessions')) {
+      if (method === 'POST' || url.includes('/select')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'cli_session_select',
+            agent_id: 'cli_agent',
+            cli: 'grok',
+            conversation_id: 'cli-fresh-1',
+            cli_session_id: null,
+            messages: [],
+            status: 'Started a new grok session.',
+            collapsed_prior: false,
+            import: 'none',
+          }),
+        } as Response
+      }
       return {
         ok: true,
         status: 200,
@@ -142,6 +159,9 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
           ],
         }),
       } as Response
+    }
+    if (url.includes('api.github.com')) {
+      return { ok: false, status: 404, json: async () => ({}) } as Response
     }
     if (url.includes('/sessions')) {
       if (method === 'POST') {
@@ -197,9 +217,6 @@ function mockFetch(extraBlueprints = blueprints, extraRosters = rosters) {
           ],
         }),
       } as Response
-    }
-    if (url.includes('api.github.com')) {
-      return { ok: false, status: 404, json: async () => ({}) } as Response
     }
     if (url.includes('/v1/herdr-agents')) {
       return {
@@ -335,14 +352,16 @@ describe('AgentSidebar Grok rail', () => {
     ])
   })
 
-  it('offers Select session on a CLI rail row and omits it for Codey', async () => {
+  it('offers Select session on a CLI rail row and on Codey (Django)', async () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /cli_agent/ }))
     expect(await screen.findByRole('menuitem', { name: 'Select session' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /^New session$/i })).toBeInTheDocument()
 
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /Codey/ }))
-    expect(screen.queryByRole('menuitem', { name: 'Select session' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Select session' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /^New session$/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Hide from sidebar/i })).toBeInTheDocument()
   })
 
@@ -358,6 +377,24 @@ describe('AgentSidebar Grok rail', () => {
     )
     expect(within(picker).getByTestId('cli-session-start-new')).toBeInTheDocument()
     expect(list).toBeInTheDocument()
+  })
+
+  it('CLI New session posts start_new so the next send uses a fresh id', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    fireEvent.contextMenu(await within(list).findByRole('link', { name: /cli_agent/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^New session$/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId('os-test-search')).toHaveTextContent('session=cli-fresh-1')
+    })
+    const posted = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([input, init]: [RequestInfo, RequestInit | undefined]) => {
+        const url = String(input)
+        const body = typeof init?.body === 'string' ? init.body : ''
+        return url.includes('/v1/cli-sessions/select') && body.includes('"start_new":true')
+      },
+    )
+    expect(posted).toBe(true)
   })
 
   it('keeps cli_agent and api_agent listed even if they were previously hidden', async () => {
@@ -454,6 +491,15 @@ describe('AgentSidebar Grok rail', () => {
     window.removeEventListener('swarm:open-agent-editor', onOpen)
   })
 
+  it('REQ-98: context menu lists Notifications Off by default', async () => {
+    renderSidebar()
+    const list = await screen.findByRole('navigation', { name: 'Agent list' })
+    const codey = await within(list).findByRole('link', { name: /Codey/ })
+    fireEvent.contextMenu(codey)
+    expect(await screen.findByRole('menuitem', { name: /Notifications: Off/i })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Notifications: On/i })).not.toBeInTheDocument()
+  })
+
   it('pins from the context menu onto the unlabeled favourite grid', async () => {
     renderSidebar()
 
@@ -489,7 +535,7 @@ describe('AgentSidebar Grok rail', () => {
 
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /Office \(team\)/ }))
     expect(screen.queryByRole('menuitem', { name: /Select session/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Select Agent' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /^New session$/i })).not.toBeInTheDocument()
   })
 
   it('creates an empty Django session from New session and keeps chat mounted', async () => {

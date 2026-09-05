@@ -1,6 +1,7 @@
 import { Fragment, type Ref } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Bell,
   Circle,
   ClipboardCopy,
   CopyPlus,
@@ -19,7 +20,6 @@ import type { RailMenuItemId, RailMenuItemSpec } from '../lib/railContextMenu'
 const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'select-agent': Users,
   'select-session': History,
-  'select-agent-session': History,
   'new-session': MessageSquarePlus,
   unpin: PinOff,
   pin: Pin,
@@ -29,6 +29,7 @@ const ICONS: Record<RailMenuItemId, LucideIcon> = {
   'copy-id': ClipboardCopy,
   hide: EyeOff,
   unhide: Eye,
+  notify: Bell,
   delete: Trash2,
 }
 

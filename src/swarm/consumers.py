@@ -552,6 +552,8 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
+        self._blueprint_instance = blueprint_instance
+
         thread_params = {
             "conversation_id": getattr(self, "conversation_id", ""),
             "agent": blueprint_id,
@@ -696,19 +698,28 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             },
         )
         await self.send(text_data=final_message_html)
-        await self._emit_suggestions_if_enabled(blueprint_id)
+        await self._emit_suggestions_if_enabled(blueprint_id, blueprint=blueprint_instance)
 
-    async def _emit_suggestions_if_enabled(self, agent_id):
+    async def _emit_suggestions_if_enabled(self, agent_id, blueprint=None):
         """REQ-85: JSON chips after a finished turn (never mid-token, never in LLM context)."""
         try:
-            from swarm.core.suggestions import suggestions_payload_for_turn
+            from swarm.core.suggestions import (
+                resolve_suggestions_agents,
+                suggestions_payload_for_turn,
+            )
 
             target = (
                 agent_id
                 or getattr(self, "active_agent", None)
                 or getattr(self, "default_blueprint", None)
             )
-            payload = suggestions_payload_for_turn(target, getattr(self, "messages", None))
+            instance = blueprint if blueprint is not None else getattr(self, "_blueprint_instance", None)
+            agents = resolve_suggestions_agents(target, blueprint=instance)
+            payload = suggestions_payload_for_turn(
+                target,
+                getattr(self, "messages", None),
+                agents=agents,
+            )
             if payload:
                 await self.emit_tool_event(payload)
         except Exception:

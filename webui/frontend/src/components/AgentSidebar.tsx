@@ -64,12 +64,23 @@ import {
   bumpRailIdToTop,
   endRailDrag,
   generationCompleteAgentId,
+  generationCompleteDetail,
   loadRailOrder,
   mergeRailOrder,
   moveRailId,
   peekRailDrag,
   saveRailOrder,
 } from '../lib/railOrder'
+import {
+  FOCUS_AGENT_EVENT,
+  NOTIFY_CHANGED_EVENT,
+  chatHrefForRowId,
+  disableAgentNotify,
+  enableAgentNotifications,
+  isAgentNotifyEnabled,
+  loadNotifyAgentIds,
+  maybeNotifyAgentTurn,
+} from '../lib/agentNotifications'
 import {
   BUMP_COMPLETED_EVENT,
   loadBumpCompleted,
@@ -99,7 +110,7 @@ import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAg
 import { AGENT_CHAT_SESSIONS_EVENT } from '../lib/agentChatSessions'
 import { formatRailTimestamp, getRowLastMessage } from '../lib/chatTime'
 import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
-import { fetchConfiguredRemotes, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
+import { fetchConfiguredRemotes, remoteDisplayName, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
 import { configuredRemotes } from '../lib/remotes'
 import RemoteSessionsPopup from './RemoteSessionsPopup'
 import UpdateChrome from './UpdateChrome'
@@ -373,8 +384,35 @@ export default function AgentSidebar({
   const [addWizardOpen, setAddWizardOpen] = useState(false)
   const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
   const [unreadIds, setUnreadIds] = useState<string[]>(() => loadUnreadAgentIds())
+  const [notifyIds, setNotifyIds] = useState<string[]>(() => loadNotifyAgentIds())
+  const [notifyDeniedHint, setNotifyDeniedHint] = useState(false)
   const currentTargetId = selectedTeamId || selectedRemoteId || selectedId
   const prevTargetRef = useRef(currentTargetId)
+
+  useEffect(() => {
+    const onNotifyChange = () => {
+      setNotifyIds(loadNotifyAgentIds())
+    }
+    window.addEventListener(NOTIFY_CHANGED_EVENT, onNotifyChange)
+    return () => window.removeEventListener(NOTIFY_CHANGED_EVENT, onNotifyChange)
+  }, [])
+
+  useEffect(() => {
+    if (!notifyDeniedHint) return
+    const timer = window.setTimeout(() => setNotifyDeniedHint(false), 6000)
+    return () => window.clearTimeout(timer)
+  }, [notifyDeniedHint])
+
+  useEffect(() => {
+    const onFocusAgent = (event: Event) => {
+      const agentId = (event as CustomEvent<{ agentId?: string }>).detail?.agentId
+      if (!agentId) return
+      navigate(chatHrefForRowId(agentId))
+      onClose?.()
+    }
+    window.addEventListener(FOCUS_AGENT_EVENT, onFocusAgent)
+    return () => window.removeEventListener(FOCUS_AGENT_EVENT, onFocusAgent)
+  }, [navigate, onClose])
 
   useEffect(() => {
     const onUnreadChange = () => {
@@ -786,6 +824,27 @@ export default function AgentSidebar({
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
+  const toggleNotify = useCallback(
+    async (agentId: string) => {
+      if (!agentId) {
+        closeMenu()
+        return
+      }
+      if (isAgentNotifyEnabled(agentId, notifyIds)) {
+        setNotifyIds(disableAgentNotify(agentId, notifyIds))
+        closeMenu()
+        return
+      }
+      const result = await enableAgentNotifications(agentId)
+      setNotifyIds(result.ids)
+      closeMenu()
+      if (result.permission !== 'granted') {
+        setNotifyDeniedHint(true)
+      }
+    },
+    [closeMenu, notifyIds],
+  )
+
   const openPalette = useCallback(() => {
     onOpenSearch?.()
     openSearchPalette()
@@ -941,9 +1000,39 @@ export default function AgentSidebar({
     return () => window.removeEventListener(BUMP_COMPLETED_EVENT, onBump)
   }, [])
 
+  const rowDisplayName = useCallback(
+    (id: string, fallback?: string) => {
+      if (!id) return fallback || ''
+      const pin = pins.find((item) => item.id === id)
+      if (pin?.name) return pin.name
+      const agent = agents.find((item) => item.id === id)
+      if (agent?.name) return agent.name
+      if (id.startsWith('team:')) {
+        const team = teams.find((item) => teamHideId(item.id) === id)
+        if (team?.name) return team.name
+      }
+      if (id.startsWith('remote:')) {
+        const remote = remotes.find((item) => remoteHideId(item.id) === id)
+        if (remote) return remoteDisplayName(remote)
+      }
+      return fallback || id
+    },
+    [agents, pins, remotes, teams],
+  )
+
   useEffect(() => {
     const onComplete = (event: Event) => {
-      const agentId = generationCompleteAgentId(event)
+      const detail = generationCompleteDetail(event)
+      const agentId = detail?.agentId ?? generationCompleteAgentId(event)
+      if (detail) {
+        maybeNotifyAgentTurn({
+          agentId: detail.agentId,
+          agentName: detail.agentName || rowDisplayName(detail.agentId),
+          snippet: detail.snippet,
+          failed: detail.failed,
+          selectedAgentId: currentTargetId,
+        })
+      }
       if (agentId && agentId !== currentTargetId) {
         setUnreadIds(markAgentUnread(agentId))
       }
@@ -954,7 +1043,14 @@ export default function AgentSidebar({
     }
     window.addEventListener(GENERATION_COMPLETE_EVENT, onComplete)
     return () => window.removeEventListener(GENERATION_COMPLETE_EVENT, onComplete)
-  }, [bumpCompleted, visibleRowIds, railOrder, persistVisibleOrder, currentTargetId])
+  }, [
+    bumpCompleted,
+    visibleRowIds,
+    railOrder,
+    persistVisibleOrder,
+    currentTargetId,
+    rowDisplayName,
+  ])
   useEffect(() => {
     if (!menu) return
     const onKey = (event: KeyboardEvent) => {
@@ -1016,7 +1112,7 @@ export default function AgentSidebar({
   ) => {
     const pad = 8
     const width = 220
-    const height = 280
+    const height = 320
     const x = Math.min(clientX, window.innerWidth - width - pad)
     const y = Math.min(clientY, window.innerHeight - height - pad)
     const resolvedKind = resolveMenuKind(hideId, kind)
@@ -1427,25 +1523,29 @@ export default function AgentSidebar({
       openGroupPicker(title, sessions)
       return
     }
-    if (id === 'select-session' && menu.isCli) {
+    if (id === 'select-session') {
       const agentId = menu.agentId
       const name = menu.agentName
       const cli = menu.cli || 'grok'
+      const cliRow = Boolean(menu.isCli || menu.kind === 'cli')
       closeMenu()
-      void openCliSessionPicker(agentId, name, cli)
+      if (cliRow) {
+        void openCliSessionPicker(agentId, name, cli)
+      } else {
+        void openAgentSessionPicker(agentId, name)
+      }
       return
     }
-    if (id === 'select-agent-session' && (menu.kind === 'api' || menu.kind === 'cli')) {
+    if (id === 'new-session') {
       const agentId = menu.agentId
-      const name = menu.agentName
+      const cli = menu.cli || 'grok'
+      const cliRow = Boolean(menu.isCli || menu.kind === 'cli')
       closeMenu()
-      void openAgentSessionPicker(agentId, name)
-      return
-    }
-    if (id === 'new-session' && (menu.kind === 'api' || menu.kind === 'cli')) {
-      const agentId = menu.agentId
-      closeMenu()
-      void startNewAgentSession(agentId)
+      if (cliRow) {
+        void applyCliSession({ agentId, cli, startNew: true })
+      } else {
+        void startNewAgentSession(agentId)
+      }
       return
     }
     if (id === 'unpin' || id === 'pin') {
@@ -1481,6 +1581,10 @@ export default function AgentSidebar({
       unhideAgent(menu.agentId)
       return
     }
+    if (id === 'notify') {
+      void toggleNotify(menu.agentId)
+      return
+    }
     if (id === 'delete') {
       requestDelete(menu)
     }
@@ -1493,8 +1597,9 @@ export default function AgentSidebar({
         hidden: menu.hidden,
         unread: unreadIds.includes(menu.agentId),
         hasSelectAgent: shouldShowSelectAgent(menu.sessions),
-        hasSelectSession: Boolean(menu.isCli),
-        hasAgentSessions: menu.kind === 'api' || menu.kind === 'cli',
+        hasSelectSession: menu.kind === 'api' || menu.kind === 'cli' || Boolean(menu.isCli),
+        hasNewSession: menu.kind === 'api' || menu.kind === 'cli' || Boolean(menu.isCli),
+        notifyEnabled: notifyIds.includes(menu.agentId),
         canCopyId:
           menu.kind === 'cli' || menu.kind === 'remote'
             ? Boolean(copyableConversationId(menu.kind, menu.agentId, menu.entityId))
@@ -2632,6 +2737,15 @@ export default function AgentSidebar({
           </p>
         </ConfirmModal>
       )}
+      {notifyDeniedHint ? (
+        <div
+          role="status"
+          data-testid="notify-permission-hint"
+          className="fixed bottom-4 right-4 z-50 max-w-xs rounded-lg border border-base-300 bg-neutral px-3 py-2 text-sm shadow-xl"
+        >
+          Notifications are blocked. Enable them in the browser site settings for this page.
+        </div>
+      ) : null}
       <AddAgentWizard
         isOpen={addWizardOpen}
         onClose={() => setAddWizardOpen(false)}

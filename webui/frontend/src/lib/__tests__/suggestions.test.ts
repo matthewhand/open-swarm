@@ -43,5 +43,8 @@ describe('suggestionsUrl', () => {
   it('builds the kickstart and continue endpoints', () => {
     expect(suggestionsUrl('codey')).toBe('/v1/agents/codey/suggestions/?mode=kickstart')
     expect(suggestionsUrl('codey', 'continue')).toBe('/v1/agents/codey/suggestions/?mode=continue')
+    expect(suggestionsUrl('codey', 'continue', 'conv-1')).toBe(
+      '/v1/agents/codey/suggestions/?mode=continue&conversation_id=conv-1',
+    )
   })
 })

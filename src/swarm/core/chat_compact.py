@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from swarm.core.speaker_identity import apply_speaker_identity
-from swarm.core.transcript_roles import is_ui_only_role, messages_for_model
+from swarm.core.transcript_roles import is_ui_only_item, messages_for_model
 from swarm.models import ChatConversation, ChatMessage, ConversationSummary
 
 
@@ -93,7 +93,7 @@ def summarize_items(items: list[dict[str, Any]]) -> str:
             lines.append(f"- [summary] {_clip(str(item.get('body') or ''))}")
             continue
         role = item.get("role") or "user"
-        if is_ui_only_role(role):
+        if is_ui_only_item(item):
             continue
         real.append(item)
         content = item.get("content") or item.get("text") or ""
@@ -113,6 +113,9 @@ def _message_item(message: dict[str, Any], offset: int) -> dict[str, Any]:
     name = message.get("name") or message.get("speaker") or message.get("agent")
     if isinstance(name, str) and name.strip():
         item["name"] = name.strip()
+    src_kind = message.get("kind")
+    if isinstance(src_kind, str) and src_kind.strip():
+        item["source_kind"] = src_kind.strip()
     return item
 
 
@@ -189,7 +192,7 @@ def build_model_context(
             tree = _format_summary_tree(row, by_id) if row is not None else (item.get("body") or "")
             out.append({"role": "system", "content": f"[Conversation summary]\n{tree}"})
             continue
-        if is_ui_only_role(item.get("role")):
+        if is_ui_only_item(item):
             continue
         role = item.get("role") or "user"
         role_s = str(role)
@@ -391,7 +394,7 @@ def compact_backlog(
                 continue
             mix.append(item)
             continue
-        if is_ui_only_role(item.get("role")):
+        if is_ui_only_item(item):
             continue
         offset = item.get("offset")
         if isinstance(offset, int) and start <= offset <= end:

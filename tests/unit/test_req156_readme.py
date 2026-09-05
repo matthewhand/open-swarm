@@ -1,16 +1,34 @@
-"""REQ-156: README sells openai-agents graphs and the locked kinds."""
+"""REQ-156: openai-agents graphs live on DEVELOPER.md; README sells the kinds.
+
+#791 parks mermaid off the README. README still names the differentiator
+and links the developer doc + the examples pack.
+"""
 
 from swarm.core.handoff_graph import repo_root
 
 
-def test_readme_has_forced_circular_and_harness_diagrams():
-    text = (repo_root() / "README.md").read_text(encoding="utf-8")
+def test_developer_doc_has_forced_circular_and_harness_diagrams():
+    text = (repo_root() / "docs" / "DEVELOPER.md").read_text(encoding="utf-8")
     assert "## Why openai-agents" in text
     assert "```mermaid" in text
     assert "BA" in text and "Engineer" in text and "Tester" in text
     assert "Skeptic" in text
     assert "API" in text and "CLI" in text and "Remote" in text
     assert "cannot inject" in text.lower() or "stay native" in text.lower()
+    assert "openai-agents-handoff-graphs" in text
+    assert "#564" in text or "REQ-156" in text
+    assert "005-kind-bases.md" in text
+
+
+def test_readme_sells_openai_agents_and_points_at_developer_doc():
+    text = (repo_root() / "README.md").read_text(encoding="utf-8")
+    assert "## Why openai-agents" in text
+    assert "```mermaid" not in text
+    assert "BA" in text and "Engineer" in text and "Tester" in text
+    assert "Skeptic" in text
+    assert "API" in text and "CLI" in text and "Remote" in text
+    assert "cannot inject" in text.lower() or "stay native" in text.lower()
+    assert "docs/DEVELOPER.md" in text
     assert "docs/examples/openai-agents-handoff-graphs" in text
     assert "#564" in text or "REQ-156" in text
     assert "docs/adr/005-kind-bases.md" in text
@@ -28,12 +46,10 @@ def test_readme_kinds_lock_is_visible():
     assert "subtype" in text.lower()
     assert "not a fifth kind" in text.lower()
     assert "docs/adr/006-api-vs-blueprint-kinds.md" in text
-    # WebUI first-class; do not sell Builder / MoA as the pitch.
     assert "## WebUI (start here)" in text
     assert "first-class" in text.lower()
     assert "Blueprint-Builder" not in text
     assert "## Bundled Blueprints" not in text
-    # django_chat may appear only as the historical GitHub Release title.
     if "django_chat" in text:
         assert "django_chat resolves its LLM profile" in text
 

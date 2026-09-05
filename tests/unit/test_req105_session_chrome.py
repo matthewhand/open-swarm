@@ -6,19 +6,27 @@ REPO = Path(__file__).resolve().parents[2]
 SIDEBAR = REPO / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 PICKER = REPO / "webui" / "frontend" / "src" / "components" / "SessionPicker.tsx"
 SESSIONS = REPO / "webui" / "frontend" / "src" / "lib" / "agentSessions.ts"
+RAIL_MENU = REPO / "webui" / "frontend" / "src" / "lib" / "railContextMenu.ts"
 
 
 def test_rail_menu_has_select_and_new_session_for_agents():
     src = SIDEBAR.read_text(encoding="utf-8")
-    assert "Select session…" in src
-    assert "New session" in src
-    assert "os-menu-select-session" in src
-    assert "os-menu-new-session" in src
+    menu = RAIL_MENU.read_text(encoding="utf-8")
+    assert "Select session" in menu
+    assert "New session" in menu
+    assert "'new-session'" in menu
+    assert "hasSelectSession" in src
+    assert "hasNewSession" in src
     assert "loadPickerSessions" in src
     assert "createAgentSession" in src
+    assert "openAgentSessionPicker" in src
     # Teams/remotes keep Select Agent; do not pretend we own remote stores.
-    assert "Select Agent" in src
-    assert "menu.kind === 'agent'" in src or "!menu.kind || menu.kind === 'agent'" in src
+    assert "Select Agent" in menu
+    assert "hasSelectAgent" in src
+    assert "menu.kind === 'api'" in src
+    # CLI Select stays on the REQ-104 picker; New posts start_new (fresh id).
+    assert "openCliSessionPicker" in src
+    assert "startNew: true" in src
 
 
 def test_session_picker_keeps_shared_chrome_and_new_session():

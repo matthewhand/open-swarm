@@ -109,20 +109,40 @@ export function bumpRailIdToTop(order: string[], id: string): string[] {
   return [id, ...order.filter((item) => item !== id)]
 }
 
-export function notifyGenerationComplete(agentId: string): void {
+export interface GenerationCompleteDetail {
+  agentId: string
+  snippet?: string
+  agentName?: string
+  failed?: boolean
+}
+
+export function notifyGenerationComplete(
+  agentId: string,
+  extra?: Omit<GenerationCompleteDetail, 'agentId'>,
+): void {
   if (!agentId) return
   try {
     window.dispatchEvent(
-      new CustomEvent(GENERATION_COMPLETE_EVENT, { detail: { agentId } }),
+      new CustomEvent(GENERATION_COMPLETE_EVENT, {
+        detail: { agentId, ...extra },
+      }),
     )
   } catch {
     /* window unavailable */
   }
 }
 
+export function generationCompleteDetail(event: Event): GenerationCompleteDetail | null {
+  const detail = (event as CustomEvent<Partial<GenerationCompleteDetail>>).detail
+  if (typeof detail?.agentId !== 'string' || detail.agentId.length === 0) return null
+  return {
+    agentId: detail.agentId,
+    snippet: typeof detail.snippet === 'string' ? detail.snippet : undefined,
+    agentName: typeof detail.agentName === 'string' ? detail.agentName : undefined,
+    failed: detail.failed === true,
+  }
+}
+
 export function generationCompleteAgentId(event: Event): string | null {
-  const detail = (event as CustomEvent<{ agentId?: unknown }>).detail
-  return typeof detail?.agentId === 'string' && detail.agentId.length > 0
-    ? detail.agentId
-    : null
+  return generationCompleteDetail(event)?.agentId ?? null
 }
