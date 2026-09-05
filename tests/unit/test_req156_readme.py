@@ -1,4 +1,4 @@
-"""REQ-156: README sells openai-agents graphs and the three harness types."""
+"""REQ-156: README sells openai-agents graphs and the locked kinds."""
 
 from swarm.core.handoff_graph import repo_root
 
@@ -14,6 +14,38 @@ def test_readme_has_forced_circular_and_harness_diagrams():
     assert "docs/examples/openai-agents-handoff-graphs" in text
     assert "#564" in text or "REQ-156" in text
     assert "docs/adr/005-kind-bases.md" in text
+
+
+def test_readme_kinds_lock_is_visible():
+    """Matthew lock: CLI | API | Blueprint | Remote; Team is a Blueprint subtype."""
+    text = (repo_root() / "README.md").read_text(encoding="utf-8")
+    assert "## Kinds (locked)" in text
+    assert "**CLI**" in text
+    assert "true inference" in text.lower() or "True inference" in text
+    assert "**Blueprint**" in text
+    assert "openai-agents" in text
+    assert "Hermes" in text and "OpenMousBot" in text and "Rakazo" in text and "Herdr" in text
+    assert "subtype" in text.lower()
+    assert "not a fifth kind" in text.lower()
+    assert "docs/adr/006-api-vs-blueprint-kinds.md" in text
+    # WebUI first-class; do not sell Builder / MoA as the pitch.
+    assert "## WebUI (start here)" in text
+    assert "first-class" in text.lower()
+    assert "Blueprint-Builder" not in text
+    assert "## Bundled Blueprints" not in text
+    # django_chat may appear only as the historical GitHub Release title.
+    if "django_chat" in text:
+        assert "django_chat resolves its LLM profile" in text
+
+
+def test_readme_version_honesty_and_history():
+    text = (repo_root() / "README.md").read_text(encoding="utf-8")
+    assert "## Short history" in text
+    assert "0.5.4" in text
+    assert "Orchestrating AI Agent Swarms with Django" in text
+    assert "pip install open-swarm" in text
+    assert "main" in text
+    assert "docs/DEVELOPER.md" in text
 
 
 def test_example_readme_documents_8001_seed_without_secrets():
