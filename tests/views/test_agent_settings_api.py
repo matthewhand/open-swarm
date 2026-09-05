@@ -43,6 +43,7 @@ def test_patch_toggle_on(api_client):
     assert again.json()["new_chat_per_task"] is True
 
 
+@pytest.mark.django_db
 def test_allocate_session_reuses_when_off(api_client):
     first = api_client.post("/v1/agents/worker/sessions/", {}, format="json")
     second = api_client.post("/v1/agents/worker/sessions/", {}, format="json")
@@ -74,6 +75,7 @@ def test_list_and_create_django_sessions(api_client, django_user_model, db, tmp_
     assert empty["title"] == "New session"
 
 
+@pytest.mark.django_db
 def test_allocate_session_mints_when_on(api_client):
     api_client.patch(
         "/v1/agents/worker/settings/",
