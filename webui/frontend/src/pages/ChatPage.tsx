@@ -1523,7 +1523,7 @@ const ChatPage = () => {
 
       <div
         ref={scrollBoxRef}
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-4 focus:outline focus:outline-2 focus:outline-primary"
+        className="os-chat-transcript min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-3 sm:px-3 focus:outline focus:outline-2 focus:outline-primary"
         aria-live="polite"
         role="log"
         aria-label="Conversation"
