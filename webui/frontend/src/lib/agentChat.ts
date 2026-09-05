@@ -29,6 +29,7 @@ export function setConversationIdForAgent(agentId: string, conversationId: strin
   const agent = agentIdFromBlueprint(agentId)
   const id = String(conversationId || '').trim()
   if (!id) return
+  if (peekConversationIdForAgent(agent) === id) return
   try {
     window.localStorage.setItem(`${STORAGE_PREFIX}${agent}`, id)
   } catch {

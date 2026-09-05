@@ -66,6 +66,8 @@ describe('conversationIdForAgent', () => {
     setConversationIdForAgent('codey', 'sess-b')
     window.removeEventListener(AGENT_CONVERSATION_EVENT, onChange)
     expect(seen).toEqual(['sess-b'])
+    setConversationIdForAgent('codey', 'sess-b')
+    expect(seen).toEqual(['sess-b'])
   })
 
   it('reuses the stored id when new chat per task is off', () => {
