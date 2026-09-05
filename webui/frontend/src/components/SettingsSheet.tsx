@@ -45,6 +45,7 @@ import {
   loadHostnameOverride,
   saveBumpCompleted,
 } from '../lib/settingsPrefs'
+import { HOSTNAME_CHANGED_EVENT, dispatchHostnameChanged } from '../lib/hostname'
 import { agentLabel, catalogLabel } from '../lib/supportAgent'
 import { applyHostnameOverride, fetchUserPrefs, saveUserPrefs } from '../lib/userPrefs'
 import {
@@ -146,10 +147,25 @@ export default function SettingsSheet({
     }
   }, [isOpen, blueprintId, initialSection])
 
+  useEffect(() => {
+    const onHostnameChanged = (event: Event) => {
+      const custom = event as CustomEvent<{ hostname?: string }>
+      const updated = custom.detail?.hostname
+      if (typeof updated === 'string') {
+        setHostname(updated)
+      } else {
+        setHostname(loadHostnameOverride())
+      }
+    }
+    window.addEventListener(HOSTNAME_CHANGED_EVENT, onHostnameChanged)
+    return () => window.removeEventListener(HOSTNAME_CHANGED_EVENT, onHostnameChanged)
+  }, [])
+
   const handleSaveHostname = (event: FormEvent) => {
     event.preventDefault()
     const next = applyHostnameOverride(hostname)
     setHostname(next)
+    dispatchHostnameChanged(next)
     void saveUserPrefs({ hostname_override: next })
     success('Hostname saved', 'Override stored for this account.')
   }

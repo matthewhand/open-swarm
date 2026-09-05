@@ -5,12 +5,12 @@ import { MemoryRouter, useSearchParams } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
 import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
-import { HOSTNAME_STORAGE_KEY } from '../../lib/hostname'
+import { HOSTNAME_STORAGE_KEY, dispatchHostnameChanged } from '../../lib/hostname'
 import {
   GENERATION_COMPLETE_EVENT,
   RAIL_ORDER_STORAGE_KEY,
 } from '../../lib/railOrder'
-import { BUMP_COMPLETED_KEY } from '../../lib/settingsPrefs'
+import { BUMP_COMPLETED_KEY, HOSTNAME_OVERRIDE_KEY } from '../../lib/settingsPrefs'
 import { saveAgentSessions, type AgentSession } from '../../lib/scaleOutSessions'
 import { publishChatConnection, resetChatConnection } from '../../lib/chatConnection'
 
@@ -381,6 +381,19 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.change(hostname, { target: { value: 'lab-box' } })
     fireEvent.blur(hostname)
     expect(localStorage.getItem(HOSTNAME_STORAGE_KEY)).toBe('lab-box')
+    expect(localStorage.getItem(HOSTNAME_OVERRIDE_KEY)).toBe('lab-box')
+  })
+
+  it('syncs hostname live without reload when HOSTNAME_CHANGED_EVENT is dispatched (REQ-188B-2)', async () => {
+    renderSidebar()
+    await screen.findByRole('navigation', { name: 'Agent list' })
+    const input = screen.getByLabelText('Hostname') as HTMLInputElement
+    expect(input.value).toBe('localhost')
+
+    act(() => {
+      dispatchHostnameChanged('remote.box.net')
+    })
+    expect(input.value).toBe('remote.box.net')
   })
 
   it('renders a server icon left of hostname and clicking it opens remote sessions popup (REQ-118)', async () => {

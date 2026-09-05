@@ -42,7 +42,13 @@ import {
   loadOrSeedHiddenAgentIds,
   unhideAgentId,
 } from '../lib/hiddenAgents'
-import { defaultHostname, loadHostname, saveHostname } from '../lib/hostname'
+import {
+  defaultHostname,
+  loadHostname,
+  saveHostname,
+  HOSTNAME_CHANGED_EVENT,
+  dispatchHostnameChanged,
+} from '../lib/hostname'
 import {
   GENERATION_COMPLETE_EVENT,
   applyRailOrder,
@@ -59,6 +65,7 @@ import {
 import {
   BUMP_COMPLETED_EVENT,
   loadBumpCompleted,
+  saveHostnameOverride,
 } from '../lib/settingsPrefs'
 import { computeRailHotkeyTargets } from '../lib/railHotkeys'
 import {
@@ -263,6 +270,20 @@ export default function AgentSidebar({
     return () => {
       window.removeEventListener(CHAT_CONNECTION_EVENT, handleStatus)
     }
+  }, [])
+
+  useEffect(() => {
+    const onHostnameChanged = (event: Event) => {
+      const custom = event as CustomEvent<{ hostname?: string }>
+      const updated = custom.detail?.hostname
+      if (typeof updated === 'string') {
+        setHostname(updated || defaultHostname())
+      } else {
+        setHostname(loadHostname())
+      }
+    }
+    window.addEventListener(HOSTNAME_CHANGED_EVENT, onHostnameChanged)
+    return () => window.removeEventListener(HOSTNAME_CHANGED_EVENT, onHostnameChanged)
   }, [])
 
   const localWsDown = localWsStatus === 'closed' || localWsStatus === 'failed'
@@ -1991,6 +2012,8 @@ export default function AgentSidebar({
                 const next = saveHostname(hostname)
                 setHostname(next)
                 const override = next === defaultHostname() ? '' : next
+                saveHostnameOverride(override)
+                dispatchHostnameChanged(override)
                 void saveUserPrefs({ hostname_override: override })
               }}
               onKeyDown={(event) => {

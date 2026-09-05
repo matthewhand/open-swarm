@@ -36,3 +36,17 @@ export function saveHostname(value: string): string {
   }
   return next
 }
+
+export const HOSTNAME_CHANGED_EVENT = 'swarm:hostname-changed'
+
+export function dispatchHostnameChanged(hostname: string): void {
+  try {
+    window.dispatchEvent(
+      new CustomEvent<{ hostname: string }>(HOSTNAME_CHANGED_EVENT, {
+        detail: { hostname },
+      }),
+    )
+  } catch {
+    /* ignore in environments without window */
+  }
+}
