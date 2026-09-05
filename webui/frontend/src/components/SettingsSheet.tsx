@@ -4,16 +4,20 @@ import { AlertCircle, FileCode2, HardDrive, Plus, Server } from 'lucide-react'
 import { Alert, Button, Input, Modal, Select, useToast } from './DaisyUI'
 import DefinitionPane from './DefinitionPane'
 import AvatarThemePicker from './AvatarThemePicker'
+import EnvOverrideBadge from './EnvOverrideBadge'
+import McpServersPane from './McpServersPane'
+import CliAgentsSettingsPane from './CliAgentsSettingsPane'
 import {
   EMPTY_LOCAL_STORE,
   createRemote,
   deleteRemote,
   fetchBlueprintSource,
   fetchBlueprints,
+  fetchConfigOwnership,
   fetchLlmProfiles,
   fetchLocalStore,
-  fetchModels,
   fetchRemotes,
+  patchConfigSection,
   patchLlmProfiles,
   type Blueprint,
   type BlueprintSource,
@@ -69,6 +73,8 @@ export type SettingsSection =
   | 'retention'
   | 'hostname'
   | 'llm-profiles'
+  | 'mcp'
+  | 'cli-agents'
   | 'rail'
   | 'system'
 
@@ -265,6 +271,26 @@ export default function SettingsSheet({
             <li>
               <button
                 type="button"
+                className={section === 'mcp' ? 'menu-active' : undefined}
+                aria-current={section === 'mcp' ? 'page' : undefined}
+                onClick={() => setSection('mcp')}
+              >
+                MCP servers
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                className={section === 'cli-agents' ? 'menu-active' : undefined}
+                aria-current={section === 'cli-agents' ? 'page' : undefined}
+                onClick={() => setSection('cli-agents')}
+              >
+                CLI agents
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
                 className={section === 'rail' ? 'menu-active' : undefined}
                 aria-current={section === 'rail' ? 'page' : undefined}
                 onClick={() => setSection('rail')}
@@ -310,6 +336,8 @@ export default function SettingsSheet({
             />
           )}
           {section === 'llm-profiles' && <LlmProfilesPane />}
+          {section === 'mcp' && <McpServersPane />}
+          {section === 'cli-agents' && <CliAgentsSettingsPane />}
           {section === 'rail' && (
             <RailPane
               bumpCompleted={bumpCompleted}
@@ -692,6 +720,14 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
                       <p className="truncate font-mono text-xs text-base-content/60">
                         {remote.base_url || 'localhost'}
                       </p>
+                      <div className="mt-1">
+                        <EnvOverrideBadge badge={remote.provenance?.base_url} />
+                      </div>
+                      {remote.provenance?.api_key ? (
+                        <div className="mt-1">
+                          <EnvOverrideBadge badge={remote.provenance.api_key} />
+                        </div>
+                      ) : null}
                     </div>
                     <Button
                       type="button"
@@ -985,6 +1021,11 @@ function SystemPane() {
     staleTime: 0,
     refetchOnMount: 'always',
   })
+  const ownershipQuery = useQuery({
+    queryKey: ['settings-config-ownership'],
+    queryFn: fetchConfigOwnership,
+    retry: false,
+  })
   const facts = storeQuery.data || EMPTY_LOCAL_STORE
   const sizeLabel =
     facts.created && facts.size_bytes > 0
@@ -1046,6 +1087,44 @@ function SystemPane() {
         <HardDrive className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
         Stored on this machine. No remote host.
       </p>
+
+      {ownershipQuery.data?.object === 'config_ownership' ? (
+        <div className="space-y-3 border-t border-base-200 pt-4" data-testid="config-coverage">
+          <h5 className="text-sm font-semibold">Config coverage</h5>
+          <p className="text-xs text-base-content/70">
+            Decision: <strong>{ownershipQuery.data.decision}</strong> — {ownershipQuery.data.note}
+          </p>
+          {ownershipQuery.data.force_env ? (
+            <EnvOverrideBadge
+              badge={{
+                kind: 'forced',
+                label: `Forced by env ${ownershipQuery.data.force_env_var} (read-only)`,
+                env_var: ownershipQuery.data.force_env_var,
+                forced: true,
+                editable: false,
+              }}
+            />
+          ) : null}
+          <p className="text-xs font-medium text-base-content/70">Advanced / not a dedicated pane</p>
+          <ul className="list-disc space-y-1 pl-5 text-xs text-base-content/70">
+            {(ownershipQuery.data.advanced_sections || []).map((key) => (
+              <li key={key}>
+                <code>{key}</code> — write via <code>/v1/config/sections/{key}/</code> or swarm-cli
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs font-medium text-base-content/70">Secrets · env-only</p>
+          <ul className="list-disc space-y-1 pl-5 text-xs text-base-content/70">
+            {(ownershipQuery.data.inventory || [])
+              .filter((row) => row.partition === 'env_only')
+              .map((row) => (
+                <li key={row.key}>
+                  <code>{row.key}</code> — {row.notes}
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -1062,7 +1141,14 @@ function LlmProfilesPane() {
   const [overrideOn, setOverrideOn] = useState(false)
   const [taskMap, setTaskMap] = useState<Partial<Record<LlmTaskClass, string>>>({})
   const [saving, setSaving] = useState(false)
+  const [profileName, setProfileName] = useState('')
+  const [profileModel, setProfileModel] = useState('')
+  const [profileBaseUrl, setProfileBaseUrl] = useState('')
+  const [profileKeyEnv, setProfileKeyEnv] = useState('OPENAI_API_KEY')
+  const [addingProfile, setAddingProfile] = useState(false)
   const hydrated = useRef(false)
+  const defaultBadge = remote?.provenance?.default_llm_profile
+  const defaultForced = Boolean(defaultBadge?.forced)
 
   useEffect(() => {
     if (!remote || hydrated.current) return
@@ -1184,7 +1270,7 @@ function LlmProfilesPane() {
         value={defaultId}
         onChange={(event) => setDefaultId(event.target.value)}
         size="sm"
-        disabled={optionIds.length === 0}
+        disabled={optionIds.length === 0 || defaultForced}
       >
         {optionIds.length === 0 ? (
           <option value="">No models connected</option>
@@ -1202,6 +1288,93 @@ function LlmProfilesPane() {
           uses this until you save another id.
         </p>
       ) : null}
+      <EnvOverrideBadge badge={defaultBadge} />
+
+      {addingProfile ? (
+        <div className="space-y-3 rounded-box border border-base-300 p-3">
+          <p className="text-sm font-medium">Add LLM profile</p>
+          <Input
+            label="Profile id"
+            name="llm-profile-id"
+            value={profileName}
+            onChange={(event) => setProfileName(event.target.value)}
+            placeholder="local"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <Input
+            label="Model"
+            name="llm-profile-model"
+            value={profileModel}
+            onChange={(event) => setProfileModel(event.target.value)}
+            placeholder="gpt-4o-mini"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <Input
+            label="Base URL"
+            name="llm-profile-base"
+            value={profileBaseUrl}
+            onChange={(event) => setProfileBaseUrl(event.target.value)}
+            placeholder="https://api.openai.com/v1"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <Input
+            label="API key env"
+            name="llm-profile-key-env"
+            value={profileKeyEnv}
+            onChange={(event) => setProfileKeyEnv(event.target.value)}
+            placeholder="OPENAI_API_KEY"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!profileName.trim() || !profileModel.trim()}
+              onClick={async () => {
+                try {
+                  const envName = profileKeyEnv.trim() || 'OPENAI_API_KEY'
+                  await patchConfigSection('llm', {
+                    upsert: {
+                      [profileName.trim()]: {
+                        provider: 'openai',
+                        model: profileModel.trim(),
+                        ...(profileBaseUrl.trim() ? { base_url: profileBaseUrl.trim() } : {}),
+                        api_key: `\${${envName}}`,
+                      },
+                    },
+                  })
+                  setAddingProfile(false)
+                  setProfileName('')
+                  setProfileModel('')
+                  setProfileBaseUrl('')
+                  success('LLM profile saved', 'Named profile stored in swarm_config.json llm.')
+                  hydrated.current = false
+                  await profilesQuery.refetch()
+                } catch (err) {
+                  toastError(
+                    'Could not save LLM profile',
+                    err instanceof Error ? err.message : 'Request failed.',
+                  )
+                }
+              }}
+            >
+              Save profile
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setAddingProfile(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button type="button" variant="outline" size="sm" onClick={() => setAddingProfile(true)}>
+          Add LLM profile
+        </Button>
+      )}
 
       <button
         type="button"
@@ -1264,7 +1437,13 @@ function LlmProfilesPane() {
         type="submit"
         variant="primary"
         size="sm"
-        disabled={saving || profilesQuery.isPending || profilesQuery.isError || profiles.length === 0}
+        disabled={
+          saving ||
+          profilesQuery.isPending ||
+          profilesQuery.isError ||
+          profiles.length === 0 ||
+          defaultForced
+        }
       >
         {saving ? 'Saving…' : 'Save LLM profiles'}
       </Button>

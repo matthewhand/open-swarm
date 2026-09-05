@@ -73,6 +73,8 @@ describe('SettingsSheet', () => {
     expect(screen.getByRole('button', { name: 'Retention' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hostname' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show LLM profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'MCP servers' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'CLI agents' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'System' })).toBeInTheDocument()
   })
@@ -391,6 +393,14 @@ describe('SettingsSheet', () => {
           warnings: [],
           routes: {},
           task_classes: ['orchestration', 'auxiliary', 'delegation'],
+          provenance: {
+            default_llm_profile: {
+              kind: 'overrides_env',
+              label: 'Overrides env DEFAULT_LLM',
+              env_var: 'DEFAULT_LLM',
+              helper: '.env still has DEFAULT_LLM; this instance uses Settings.',
+            },
+          },
         }),
       } as Response
     })
@@ -398,6 +408,7 @@ describe('SettingsSheet', () => {
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(await screen.findByRole('list', { name: 'Configured LLM profiles' })).toBeInTheDocument()
+    expect(await screen.findByText('Overrides env DEFAULT_LLM')).toBeInTheDocument()
     const defaultSelect = await screen.findByLabelText('Default')
     expect(defaultSelect).toHaveValue('gpt-5.6-terra')
     fireEvent.change(defaultSelect, { target: { value: 'gpt-4o-mini' } })
@@ -881,6 +892,46 @@ describe('SettingsSheet definition pane (REQ-42)', () => {
       expect(toggle).toBeChecked()
       expect(localStorage.getItem('swarm_theme_navbar')).toBe('true')
     })
+  })
+
+  it('writes an MCP server via PATCH /v1/config/sections/mcpServers/', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = (init?.method || 'GET').toUpperCase()
+      if (url.includes('/v1/config/sections/mcpServers') && method === 'PATCH') {
+        const body = JSON.parse(String(init?.body || '{}'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            object: 'config_section',
+            section: 'mcpServers',
+            data: body.upsert || {},
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'config_section', section: 'mcpServers', data: {} }),
+      } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'MCP servers' }))
+    expect(await screen.findByText(/No MCP servers/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Add MCP server/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'filesystem' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Command' }), { target: { value: 'npx' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save MCP server' }))
+    expect(await screen.findByText('MCP server saved')).toBeInTheDocument()
+    const patchCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).includes('/v1/config/sections/mcpServers') && call[1]?.method === 'PATCH',
+    )
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      upsert: { filesystem: { command: 'npx' } },
+    })
+    expect(JSON.stringify(patchCall?.[1]?.body)).not.toMatch(/sk-/)
   })
 })
 

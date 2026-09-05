@@ -1,8 +1,8 @@
 # ADR-002: Config ownership — `.env` vs XDG `swarm_config.json` vs Django DB
 
-- **Status:** Proposed (look-only; no runtime change in this PR)
+- **Status:** Accepted (implemented for Settings coverage in #776)
 - **Date:** 2026-09-04
-- **Issue:** [#541](https://github.com/matthewhand/open-swarm/issues/541) (REQ-145)
+- **Issue:** [#541](https://github.com/matthewhand/open-swarm/issues/541) (REQ-145); addendum [#776](https://github.com/matthewhand/open-swarm/issues/776)
 - **Related:** [#540](https://github.com/matthewhand/open-swarm/issues/540) (REQ-144 prefs), [#508](https://github.com/matthewhand/open-swarm/issues/508) (REQ-123 Postgres compose), [#554](https://github.com/matthewhand/open-swarm/issues/554) / [ADR-003](./003-desktop-packaging.md) (desktop profile paths), [CONFIGURATION.md](../../CONFIGURATION.md)
 - **Supersedes:** none. Complements [ADR-001](../ADR-001-primary-ui.md) (UI chrome), not config SoT.
 
@@ -484,4 +484,39 @@ Do not implement in this PR. Suggested filings (titles only):
 - Ephemeral Docker: mount **config RW + data RW**, or accept loss.
 - Implementers: no sync service; refresh the boot cache; badges before
   clever merge.
-- This PR: documentation only. `Fixes` #541 when merged.
+- This ADR began as documentation only (`Fixes` #541 when merged).
+  #776 implements the hybrid write paths and badges (see §9).
+
+---
+
+## 9. Addendum — #776 Full coverage (implemented)
+
+**Decision for #776:** **Full** coverage of non-secret product settings via
+Settings. Secrets and deploy flags stay **env-only** (the ADR-002 hybrid,
+not a second SoT).
+
+| Partition | Keys | Who writes | Who reads |
+|---|---|---|---|
+| **WebUI / `swarm_config.json`** | `llm`, `settings.*`, `mcpServers`, `remotes`, `cli_agents`, `agent_team`, plus advanced `cli_fusion` / `cli_map` / `cli_orchestrator` / `moa` / `slashCommands` / `blueprints` / `memory` | Settings + `swarm-cli` via the same persist helpers | CLI, APIs, boot cache (refreshed after persist) |
+| **Env-only** | Provider keys, `API_AUTH_TOKEN`, `DJANGO_*`, `HOST`/`PORT`, `DATABASE_URL` | Ops / `.env` | App (`${VAR}`, dotenv) |
+
+Machine-readable inventory: `GET /v1/config-ownership/` and
+`swarm.core.config_ownership.inventory()`. Writes:
+`PATCH /v1/config/sections/<section>/` (plus existing remotes / LLM
+endpoints). Out-of-partition keys and plaintext secrets are **refused**.
+
+**Precedence (enforced):** `SWARM_CONFIG_FORCE_ENV=1` or
+`SWARM_<ENV>_OVERRIDE=1` > persisted file > env bootstrap (empty
+persisted key) > built-in defaults. Secrets always resolve from env.
+
+**UI honesty:** Settings → LLM profiles and Remotes show ADR-002 §6
+badges. System lists advanced sections (write API exists; no dedicated
+pane) and env-only secrets (set/not-set inspector only).
+
+**Example file:** [`swarm_config.example.json`](../../swarm_config.example.json)
+at repo root. Sibling [#775](https://github.com/matthewhand/open-swarm/issues/775)
+may move it; keep the `*.example` name and do not commit live
+`swarm_config.json` secrets.
+
+**Not in this addendum:** compose `:ro` → RW (ADR follow-up 2); XDG helper
+unify (follow-up 3); Django prefs beyond #540.

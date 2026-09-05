@@ -171,6 +171,20 @@ export default function SearchPalette({ open, onClose, options }: SearchPaletteP
         description: 'Open system diagnostics in Settings',
         action: () => openSettingsSheet({ section: 'system' }),
       },
+      {
+        id: 'action-mcp-settings',
+        tab: 'Actions',
+        name: 'MCP servers',
+        description: 'Edit mcpServers in Settings',
+        action: () => openSettingsSheet({ section: 'mcp' }),
+      },
+      {
+        id: 'action-cli-agents-settings',
+        tab: 'Actions',
+        name: 'CLI agents',
+        description: 'Edit cli_agents in Settings',
+        action: () => openSettingsSheet({ section: 'cli-agents' }),
+      },
     ]
     return [...botRows, ...actionRows]
   }, [agents])

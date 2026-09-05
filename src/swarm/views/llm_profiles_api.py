@@ -114,12 +114,21 @@ class LlmProfilesView(APIView):
                 override_per_task=override,
                 task_llm_profiles=task_map,
             )
-        except OSError as exc:
-            logger.exception("Failed to persist LLM profile settings")
-            return Response(
-                {"error": f"failed to persist: {exc}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        except Exception as exc:
+            from swarm.core.config_ownership import ConfigOwnershipError
+
+            if isinstance(exc, ConfigOwnershipError):
+                return Response(
+                    {"error": str(exc), "code": exc.code},
+                    status=exc.status,
+                )
+            if isinstance(exc, OSError):
+                logger.exception("Failed to persist LLM profile settings")
+                return Response(
+                    {"error": f"failed to persist: {exc}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+            raise
 
         payload = _payload(cfg)
         payload["persisted_to"] = str(path)

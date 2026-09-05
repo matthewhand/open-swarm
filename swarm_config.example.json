@@ -33,6 +33,15 @@
       "api_key": "${LITELLM_API_KEY}"
     }
   },
+  "settings": {
+    "default_llm_profile": "default",
+    "override_per_task": false,
+    "task_llm_profiles": {
+      "orchestration": "default",
+      "auxiliary": "local",
+      "delegation": "default"
+    }
+  },
   "mcpServers": {
     "filesystem": {
       "command": "npx",
@@ -63,9 +72,12 @@
       }
     }
   },
-  "blueprints": {},
+  "cli_agents": {},
+  "remotes": {},
   "agent_team": {
     "members": []
   },
-  "remotes": {}
+  "blueprints": {},
+  "slashCommands": {},
+  "memory": {}
 }

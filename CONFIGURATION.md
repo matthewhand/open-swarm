@@ -2,10 +2,13 @@
 
 Ownership of `.env` vs XDG `swarm_config.json` vs Django (what is live SoT
 after boot, what WebUI writes, Docker volumes) is decided in
-**[ADR-002](docs/adr/002-config-ownership.md)** (REQ-145 / #541). This page
-remains the schema and environment-variable reference. A future Windows
-desktop zip (not shipped) must set these paths explicitly —
-[ADR-003](docs/adr/003-desktop-packaging.md) (REQ-151 / #554).
+**[ADR-002](docs/adr/002-config-ownership.md)** (REQ-145 / #541; #776 Full
+coverage addendum). Settings owns every **non-secret** product key in
+`swarm_config.json`. Secrets and bind/deploy flags stay env-only. Inventory:
+`GET /v1/config-ownership/`. Example file:
+[`swarm_config.example.json`](./swarm_config.example.json) (sibling #775 may
+move it). A future Windows desktop zip (not shipped) must set these paths
+explicitly — [ADR-003](docs/adr/003-desktop-packaging.md) (REQ-151 / #554).
 
 ## Quickstart: Configuring Swarm
 
@@ -278,6 +281,8 @@ environment / `.env`, never in `swarm_config.json` (reference them with
 | Variable | Purpose | Default |
 |---|---|---|
 | `SWARM_CONFIG_PATH` | Explicit path to `swarm_config.json` (wins over discovery). | unset → XDG-first discovery (see [§1](#1-config-file-location-and-discovery)) |
+| `SWARM_CONFIG_FORCE_ENV` | Recovery: env wins over persisted non-secret topology (Settings fields become read-only). | unset (off) |
+| `SWARM_<ENV>_OVERRIDE` | Per-key force-env (e.g. `SWARM_DEFAULT_LLM_OVERRIDE=1`, `SWARM_HERMES_BASE_URL_OVERRIDE=1`). | unset |
 | `XDG_CONFIG_HOME` | Base for the config dir (`…/swarm/swarm_config.json`, `teams.json` aliases, `team_rosters.json` composition). | `~/.config` |
 | `SWARM_RESPONSES_DIR` | Where `/v1/responses` stores records for `previous_response_id` chaining and `GET`/`DELETE`. | `$XDG_DATA_HOME/swarm/responses` (i.e. `~/.local/share/swarm/responses`) |
 | `SWARM_RESPONSES_SYNC_TIMEOUT` | Default seconds a `/v1/responses` request waits inline before auto-escalating to a queued handle (per-request override: `max_wait_seconds`). Unset = fully-blocking sync. | unset |
