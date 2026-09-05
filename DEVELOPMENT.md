@@ -204,13 +204,16 @@ Open Swarm combines a command-line interface (`swarm-cli`) for local management 
     non-failing), so a bare `pytest` already reports coverage — no extra flags
     needed. Blueprint suites including `test_codey_basic` and `test_chatbot`
     run keyless under `SWARM_TEST_MODE`.
-*   **CI (REQ-134):** `Python Tests` on 3.10 / 3.11 / 3.12 must stay green
-    on `main`. Own-diff triage still applies when a PR is red, but do not
+*   **CI (REQ-134 / REQ-171C-7):** `Python Tests` on 3.10 / 3.11 / 3.12 must
+    stay green on `main`. The sibling `vitest` job runs `npm ci` then
+    `npm test` (Vitest SPA contracts) — source-grep REQ locks are not a
+    substitute. Own-diff triage still applies when a PR is red, but do not
     treat a collection `ImportError` or tip-of-main pytest red as
     acceptable. Intentional HOLD: `golden-journey` in
     `visual-regression.yml` (`if: false`, REQ-89
     [\#446](https://github.com/matthewhand/open-swarm/issues/446)) until
-    screenshot / tour recapture. That skip is not a pytest waiver.
+    screenshot / tour recapture. That skip is not a pytest waiver and is
+    not how Vitest is recovered.
 *   **Keyless runs:** set `SWARM_TEST_MODE=1` for deterministic, network-free
     blueprint output (no provider keys required).
 *   **OpenAI SDK types:** tool-call type imports guard for both `openai<1.99`

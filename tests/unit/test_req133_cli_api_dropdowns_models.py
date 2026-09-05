@@ -1,59 +1,16 @@
-"""REQ-133: CLI chat dropdowns with model selectors (Fixes #523).
+"""REQ-133: CLI dropdown status lines persist on the chat thread (Fixes #523).
 
-API You/Default chrome (`api-select`) was removed in #751 / REQ-186.
-This contract keeps the CLI + model picker that still exist on ChatPage.
+SPA picker / CLI-discovery contracts live in Vitest (`npm test` in the
+Python Tests `vitest` job — REQ-171C-7 / #616). This file no longer greps
+ChatPage testids or `cliAgentContext.ts` as a coverage substitute.
 """
 
-from pathlib import Path
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 import json
 
 from swarm.core import chat_store
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CHAT_PAGE_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "pages" / "ChatPage.tsx"
-CLI_CONTEXT_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "cliAgentContext.ts"
-CHAT_STATUS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "chatStatus.ts"
-
-
-def test_chat_page_renders_cli_dropdowns_with_models():
-    tsx = CHAT_PAGE_TSX.read_text(encoding="utf-8")
-    assert "isCliAgent" in tsx
-    assert "isApiAgent" in tsx
-    assert "showRemotesControl" in tsx
-
-    # REQ-200: one cascading picker owns CLI + model + effort
-    assert "NavbarRoutingPicker" in tsx
-    assert 'seatKind="cli"' in tsx
-    assert "applyCliRoutingChange" in tsx
-    assert 'data-testid="cli-select"' not in tsx
-    assert 'data-testid="cli-model-select"' not in tsx
-
-    # #751 removed You/Default API chrome — do not require it here (REQ-186 forbids it)
-    assert 'data-testid="api-select"' not in tsx
-    assert 'aria-label="API"' not in tsx
-    assert "recordDropdownChange('api'" not in tsx
-
-    # Status tracking on remaining dropdowns
-    assert "recordDropdownChange('cli'" in tsx
-    assert "recordDropdownChange('model'" in tsx
-    assert "recordDropdownChange('effort'" in tsx
-    assert "persistAgentDropdownChoice" in tsx
-
-
-def test_chat_status_and_cli_context_contracts():
-    status_ts = CHAT_STATUS_TS.read_text(encoding="utf-8")
-    assert "'api'" in status_ts
-    assert "'cli'" in status_ts
-    assert "'model'" in status_ts
-    assert "formatDropdownStatus" in status_ts
-
-    cli_ts = CLI_CONTEXT_TS.read_text(encoding="utf-8")
-    assert "discoverChatClis" in cli_ts
-    assert "preferredChatCli" in cli_ts
-    assert "isCliAgentContext" in cli_ts
 
 
 @pytest.mark.django_db

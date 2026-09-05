@@ -22,6 +22,8 @@ jobs:
     # Re-enable after smash / PNG recapture. Do not delete this workflow.
     # Own-diff triage still applies, but goal is green main Python Tests (REQ-134 #524).
     # This HOLD is not a pytest waiver.
+    # Vitest (`npm test`) now gates PRs in python-pytest.yml `vitest` (REQ-171C-7
+    # / #616). Do not flip this job back on to recover SPA unit coverage.
     if: false
     runs-on: ubuntu-latest
     timeout-minutes: 30

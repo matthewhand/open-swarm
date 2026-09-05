@@ -35,6 +35,29 @@ jobs:
         env:
           CI: true
 
+  # REQ-171C-7 / C-H9 / #616: SPA contract tests must gate PRs. Visual
+  # golden-journey stays HOLD (REQ-89) — do not recover Vitest by flipping
+  # visual-regression.yml. Source-grep REQ locks are not this job.
+  vitest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest SPA contract tests
+        working-directory: webui/frontend
+        run: npm test
+
   test:
     runs-on: ubuntu-latest
     strategy:
