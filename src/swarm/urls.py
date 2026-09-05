@@ -73,6 +73,7 @@ from swarm.views.herdr_api import (
     HerdrAgentsAPIView,
     HerdrDiscoverAPIView,
 )
+from swarm.views.config_ownership_api import ConfigOwnershipView, ConfigSectionView
 from swarm.views.llm_profiles_api import LlmProfilesView
 from swarm.views.preferences_api import UserPreferencesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
@@ -202,6 +203,18 @@ urlpatterns = [
     path("v1/cli-sessions/select/", CliSessionSelectAPIView.as_view(), name="cli-sessions-select"),
     path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),
     path("v1/llm-profiles/", LlmProfilesView.as_view(), name="llm-profiles-api"),
+    path("v1/config-ownership", ConfigOwnershipView.as_view(), name="config-ownership-api-no-slash"),
+    path("v1/config-ownership/", ConfigOwnershipView.as_view(), name="config-ownership-api"),
+    path(
+        "v1/config/sections/<str:section>",
+        ConfigSectionView.as_view(),
+        name="config-section-api-no-slash",
+    ),
+    path(
+        "v1/config/sections/<str:section>/",
+        ConfigSectionView.as_view(),
+        name="config-section-api",
+    ),
     path("v1/preferences", UserPreferencesView.as_view(), name="user-preferences-api-no-slash"),
     path("v1/preferences/", UserPreferencesView.as_view(), name="user-preferences-api"),
     # Live list-models probes (REQ-44). More specific "models" routes first.

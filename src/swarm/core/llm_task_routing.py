@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -718,6 +719,12 @@ def effective_default_profile(
 ) -> tuple[str, list[str]]:
     """Stored default if present, else auto-pick. Empty catalog → ``default``."""
     warnings: list[str] = []
+    from swarm.core import config_ownership as ownership
+
+    if ownership.field_is_forced("DEFAULT_LLM"):
+        forced = (os.environ.get("DEFAULT_LLM") or "").strip()
+        if forced:
+            return forced, warnings
     stored = stored_default_profile(config)
     entries = list(catalog) if catalog is not None else collect_catalog(config)
     auto = effective_auto_picks(config, catalog=entries)
@@ -844,7 +851,15 @@ def persist_llm_settings(
     config_path: str | Path | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """Write default + override map into ``settings`` of swarm_config.json."""
+    from swarm.core import config_ownership as ownership
     from swarm.core.remotes import load_raw_config
+
+    if default_llm_profile is not None and ownership.field_is_forced("DEFAULT_LLM"):
+        raise ownership.ConfigOwnershipError(
+            "DEFAULT_LLM is forced by env (read-only).",
+            status=409,
+            code="forced_env",
+        )
 
     cfg, path = load_raw_config(config_path)
     settings = cfg.get("settings")
@@ -867,12 +882,17 @@ def persist_llm_settings(
         cfg.setdefault("llm", {})
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
+    from swarm.core.config_ownership import refresh_app_config
+
+    refresh_app_config(cfg)
     logger.info("Persisted settings.default_llm_profile to %s", path)
     return cfg, path
 
 
 def settings_public_payload(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """SPA / API payload. Auto-picks fill unsaved defaults. No secrets."""
+    from swarm.core import config_ownership as ownership
+
     config = config if config is not None else load_swarm_config()
     catalog, cli_lists, list_source, discover_warnings = discover_and_collect(config)
     auto = effective_auto_picks(config, catalog=catalog)
@@ -918,4 +938,8 @@ def settings_public_payload(config: dict[str, Any] | None = None) -> dict[str, A
         "task_classes": list(TASK_CLASSES),
         "list_models_source": list_source,
         "cli_model_lists": cli_lists,
+        "force_env": ownership.force_env_enabled(),
+        "provenance": {
+            "default_llm_profile": ownership.default_llm_provenance(config),
+        },
     }

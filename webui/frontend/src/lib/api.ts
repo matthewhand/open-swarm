@@ -364,6 +364,10 @@ export interface LlmProfilesSettings {
   /** req44 when #360 helper is present; stub = /v1/models + fixtures. */
   list_models_source?: 'req44' | 'stub'
   cli_model_lists?: Array<{ cli: string; models: string[]; warning?: string }>
+  force_env?: boolean
+  provenance?: {
+    default_llm_profile?: import('./configOwnership').EnvBadge
+  }
 }
 
 export interface PatchLlmProfilesRequest {
@@ -487,6 +491,11 @@ export interface RemoteConnection {
   notes?: string
   source?: string
   added?: boolean
+  provenance?: {
+    base_url?: import('./configOwnership').EnvBadge
+    ui_url?: import('./configOwnership').EnvBadge
+    api_key?: import('./configOwnership').EnvBadge
+  }
 }
 
 export interface RemotesListResponse {
@@ -928,4 +937,28 @@ export function updateCustomBlueprint(
     `/v1/blueprints/custom/${encodeURIComponent(blueprintId)}/`,
     body,
   )
+}
+
+/** GET /v1/config-ownership/ — #776 Full coverage inventory + force-env. */
+export function fetchConfigOwnership(): Promise<
+  import('./configOwnership').ConfigOwnershipPayload
+> {
+  return apiGet('/v1/config-ownership/')
+}
+
+export function fetchConfigSection(
+  section: string,
+): Promise<import('./configOwnership').ConfigSectionPayload> {
+  return apiGet(`/v1/config/sections/${encodeURIComponent(section)}/`)
+}
+
+export function patchConfigSection(
+  section: string,
+  body: {
+    entries?: Record<string, unknown>
+    upsert?: Record<string, unknown>
+    delete?: string | string[]
+  },
+): Promise<import('./configOwnership').ConfigSectionPayload> {
+  return apiPatch(`/v1/config/sections/${encodeURIComponent(section)}/`, body)
 }

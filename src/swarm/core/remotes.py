@@ -221,6 +221,7 @@ class RemoteSpec:
     source: str = "default"
     api_key_env: str = ""
     session_cookie_env: str = ""
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def origin(self) -> tuple[str, int]:
         parsed = urlparse(self.base_url)
@@ -247,6 +248,7 @@ class RemoteSpec:
             "api_key_env": self.api_key_env,
             "session_cookie_env": self.session_cookie_env,
             "added": self.source in ("config", "env"),
+            "provenance": dict(self.provenance),
             "member": {
                 "kind": "remote",
                 "talk": _TOOL_NAMES.get(self.id, ""),
@@ -481,7 +483,14 @@ def load_raw_config(config_path: str | Path | None = None) -> tuple[dict[str, An
 
 
 def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteSpec:
-    """Defaults ← swarm_config.json remotes ← env (env wins)."""
+    """Defaults ← persisted remotes ← env bootstrap; force-env wins when set.
+
+    Secrets (api_key / cookie) always resolve from env / ``${VAR}``.
+    Non-secret URLs use ADR-002 hybrid precedence (#776): force-env >
+    persisted file > env bootstrap > built-in default.
+    """
+    from swarm.core import config_ownership as ownership
+
     rid = _require_kind_id(remote_id)
     cfg = config if isinstance(config, dict) else load_raw_config()[0]
     if rid in OPT_IN_REMOTE_IDS and not is_configured(rid, cfg):
@@ -491,6 +500,8 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
     block = remotes_block.get(rid)
     if not isinstance(block, dict) and rid == "swarm":
         block = remotes_block.get("open-swarm")
+    persisted_base = ""
+    persisted_ui = ""
     if isinstance(block, dict):
         spec.source = "config"
         for key in (
@@ -508,24 +519,31 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
         ):
             if key in block and block[key] is not None:
                 setattr(spec, key, block[key])
-    env_base_key = _ENV_BASE.get(rid)
+        persisted_base = str(block.get("base_url") or "").strip()
+        persisted_ui = str(block.get("ui_url") or "").strip()
+
+    env_base_key = _ENV_BASE.get(rid) or ""
     env_base = os.environ.get(env_base_key, "").strip() if env_base_key else ""
-    if env_base:
+    if env_base and (ownership.field_is_forced(env_base_key) or not persisted_base):
         spec.base_url = env_base
         spec.source = "env"
+
+    env_ui_key = _ENV_UI.get(rid) or ""
+    env_ui = os.environ.get(env_ui_key, "").strip() if env_ui_key else ""
+    if env_ui and (ownership.field_is_forced(env_ui_key) or not persisted_ui):
+        spec.ui_url = env_ui
+
+    # Secrets stay env-only: file may hold ${VAR}; live value comes from env.
     env_key_name = _ENV_KEY.get(rid)
     env_key = os.environ.get(env_key_name, "").strip() if env_key_name else ""
     if env_key:
         spec.api_key = env_key
-    env_ui = _ENV_UI.get(rid)
-    if env_ui and os.environ.get(env_ui, "").strip():
-        spec.ui_url = os.environ[env_ui].strip()
     env_cookie = _ENV_COOKIE.get(rid)
     if env_cookie and os.environ.get(env_cookie, "").strip():
         spec.cookie = os.environ[env_cookie].strip()
 
     if not spec.api_key_env:
-        spec.api_key_env = _placeholder_env_name(str(spec.api_key or ""))
+        spec.api_key_env = _placeholder_env_name(str(spec.api_key or "")) or (env_key_name or "")
     if not spec.session_cookie_env:
         spec.session_cookie_env = _placeholder_env_name(str(spec.cookie or ""))
     spec.base_url = _normalize_base_url(_expand(spec.base_url))
@@ -538,6 +556,23 @@ def load_remote(remote_id: str, config: dict[str, Any] | None = None) -> RemoteS
         spec.health_path = "/" + spec.health_path
     if not spec.version_path.startswith("/"):
         spec.version_path = "/" + spec.version_path
+    spec.provenance = {
+        "base_url": ownership.badge_for(
+            env_var=env_base_key,
+            persisted=persisted_base,
+            secret=False,
+        ),
+        "ui_url": ownership.badge_for(
+            env_var=env_ui_key,
+            persisted=persisted_ui,
+            secret=False,
+        ),
+        "api_key": ownership.badge_for(
+            env_var=spec.api_key_env or (env_key_name or ""),
+            persisted=f"${{{spec.api_key_env}}}" if spec.api_key_env else "",
+            secret=True,
+        ),
+    }
     return spec
 
 
@@ -698,6 +733,9 @@ def persist_agent_team(
     cfg["agent_team"] = team
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
+    from swarm.core.config_ownership import refresh_app_config
+
+    refresh_app_config(cfg)
     logger.info("Persisted agent_team.members=%s to %s", resolved, path)
     return resolved, path
 
@@ -740,6 +778,14 @@ def persist_remote(
     entry = dict(entry)
     if "llm" not in cfg or not isinstance(cfg.get("llm"), dict):
         cfg.setdefault("llm", {})
+    from swarm.core import config_ownership as ownership
+
+    env_base_key = _ENV_BASE.get(rid) or ""
+    if base_url is not None and env_base_key and ownership.field_is_forced(env_base_key):
+        raise RemoteError(
+            f"base_url is forced by env {env_base_key} (read-only). "
+            f"Unset {ownership.FORCE_ENV_VAR} to persist Settings."
+        )
     if base_url is not None:
         normalized = _normalize_base_url(base_url)
         if _looks_like_forbidden_llm_proxy(normalized):
@@ -755,20 +801,35 @@ def persist_remote(
                 "A child is not required to nest the parent."
             )
         entry["base_url"] = normalized
+
     if api_key_env is not None:
         env_name = _placeholder_env_name(api_key_env) or api_key_env.strip()
+        if env_name and not ownership.looks_like_env_name(env_name) and not ownership.is_placeholder(api_key_env):
+            raise RemoteError("api_key_env must be an env-var name or ${ENV} placeholder, not a token.")
         entry["api_key_env"] = env_name
         if env_name:
             entry["api_key"] = f"${{{env_name}}}"
     elif api_key is not None:
-        entry["api_key"] = api_key
         derived = _placeholder_env_name(api_key)
         if derived:
+            entry["api_key"] = f"${{{derived}}}"
             entry["api_key_env"] = derived
+        elif ownership.looks_like_env_name(api_key):
+            entry["api_key_env"] = api_key.strip()
+            entry["api_key"] = f"${{{api_key.strip()}}}"
+        elif (api_key or "").strip() == "":
+            entry["api_key"] = ""
+            entry["api_key_env"] = ""
+        else:
+            raise RemoteError(
+                "Refusing to persist a plaintext API key. Use api_key_env or ${ENV}."
+            )
     if ui_url is not None:
         entry["ui_url"] = _normalize_base_url(ui_url) if ui_url else ""
     if session_cookie_env is not None:
         env_name = _as_env_name(session_cookie_env)
+        if env_name and not ownership.looks_like_env_name(env_name) and not ownership.is_placeholder(session_cookie_env):
+            raise RemoteError("session_cookie_env must be an env-var name, not a cookie value.")
         if env_name:
             entry["session_cookie_env"] = env_name
             entry["cookie"] = f"${{{env_name}}}"
@@ -776,13 +837,26 @@ def persist_remote(
             entry["session_cookie_env"] = ""
             entry["cookie"] = ""
     elif cookie is not None:
-        entry["cookie"] = cookie
         derived = _placeholder_env_name(str(cookie))
         if derived:
+            entry["cookie"] = f"${{{derived}}}"
             entry["session_cookie_env"] = derived
+        elif ownership.looks_like_env_name(cookie):
+            entry["session_cookie_env"] = str(cookie).strip()
+            entry["cookie"] = f"${{{str(cookie).strip()}}}"
+        elif str(cookie).strip() == "":
+            entry["cookie"] = ""
+            entry["session_cookie_env"] = ""
+        else:
+            raise RemoteError(
+                "Refusing to persist a plaintext cookie. Use session_cookie_env or ${ENV}."
+            )
     remotes[rid] = entry
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
+    from swarm.core.config_ownership import refresh_app_config
+
+    refresh_app_config(cfg)
     logger.info("Persisted remotes.%s to %s", rid, path)
     return load_remote(rid, cfg), path
 
@@ -808,6 +882,9 @@ def delete_remote(
         cfg["agent_team"] = team
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=4) + "\n", encoding="utf-8")
+    from swarm.core.config_ownership import refresh_app_config
+
+    refresh_app_config(cfg)
     logger.info("Deleted remotes.%s from %s", rid, path)
     return rid, path
 
