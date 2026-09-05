@@ -75,8 +75,9 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
 
     A lone user message is passed through verbatim. A multi-turn conversation
     is rendered as a simple ``ROLE: content`` transcript so a one-shot CLI sees
-    the full context. UI-only status/info rows are dropped (REQ-70). CLI
-    adapters strip a structured ``name`` field, so speaker identity uses the
+    the full context. UI-only status/info rows and the REQ-104 ``prior_history``
+    archive pill are dropped (REQ-70). Real ``system`` instructions stay.
+    CLI adapters strip a structured ``name`` field, so speaker identity uses the
     tested delimiter wrap.
     """
     from swarm.core.speaker_identity import apply_speaker_identity
