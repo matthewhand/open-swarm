@@ -277,6 +277,9 @@ class CliAgentBlueprint(BlueprintBase):
                 yield support.progress_chunk(f"_Streaming CLI agent `{target}`…_")
                 stored = self._stored_session(params, adapter.name)
                 can_resume = bool(stored and adapter.can_resume())
+                # REQ-92: new-session status is context for the reply — emit first.
+                if not can_resume:
+                    yield support.session_notice_chunk(adapter.name, resumed=False)
                 turn_prompt = self._turn_prompt(
                     messages, prompt, params, workdir, resume=can_resume
                 )
@@ -293,6 +296,7 @@ class CliAgentBlueprint(BlueprintBase):
                 resumed = can_resume and result is not None and result.ok
                 if result is not None and can_resume and not result.ok and is_resume_failure(result):
                     self._forget_session(params, adapter.name)
+                    yield support.session_notice_chunk(adapter.name, resumed=False)
                     turn_prompt = self._turn_prompt(
                         messages, prompt, params, workdir, resume=False
                     )
@@ -303,11 +307,12 @@ class CliAgentBlueprint(BlueprintBase):
                         elif chunk.delta:
                             yield support.message_chunk(chunk.delta)
                     resumed = False
+                elif can_resume:
+                    yield support.session_notice_chunk(adapter.name, resumed=resumed)
                 if result is not None and result.session_id:
                     self._remember_session(params, adapter.name, result.session_id)
                 elif resumed and stored:
                     self._remember_session(params, adapter.name, stored)
-                yield support.session_notice_chunk(adapter.name, resumed=resumed)
                 if result is None or not result.ok:
                     err = (result.error if result else None) or "unknown error"
                     yield support.message_chunk(support.format_cli_error(adapter, err), final=True)
@@ -325,10 +330,17 @@ class CliAgentBlueprint(BlueprintBase):
                 yield support.progress_chunk(f"_Skipping `{name}` (not installed); failing over…_")
                 continue
             yield support.progress_chunk(f"_Running CLI agent `{name}`…_")
+            announce_new = not bool(
+                self._stored_session(params, adapter.name) and adapter.can_resume()
+            )
+            # REQ-92: new-session line before the CLI runs so it precedes the reply.
+            if announce_new:
+                yield support.session_notice_chunk(adapter.name, resumed=False)
             result, resumed = await self._invoke_cli(
                 adapter, messages, prompt, params, workdir
             )
-            yield support.session_notice_chunk(adapter.name, resumed=resumed)
+            if not announce_new:
+                yield support.session_notice_chunk(adapter.name, resumed=resumed)
             if result.ok:
                 if result.parse_error:
                     logger.warning("CLI %s parse issue: %s", name, result.parse_error)
