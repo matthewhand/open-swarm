@@ -3,14 +3,14 @@ import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-d
 import ChatPage from './pages/ChatPage'
 import AgentRouterPage from './pages/AgentRouterPage'
 import AgentSidebar from './components/AgentSidebar'
-import SearchPalette from './components/SearchPalette'
+import SearchPalette, { type SearchPaletteOptions } from './components/SearchPalette'
 import AgentEditor, { OPEN_AGENT_EDITOR_EVENT, type OpenAgentEditorDetail } from './components/AgentEditor'
 import SettingsSheet, {
   OPEN_SETTINGS_EVENT,
   type OpenSettingsDetail,
   type SettingsSection,
 } from './components/SettingsSheet'
-import { OPEN_LLM_PROFILES_EVENT } from './lib/chromeOverlay'
+import { OPEN_LLM_PROFILES_EVENT, OPEN_HIDDEN_EVENT } from './lib/chromeOverlay'
 import { RailChromeProvider, SwipeHint } from './components/RailChrome'
 import { ToastProvider } from './components/DaisyUI'
 import CommandPalette from './experimental/CommandPalette'
@@ -68,6 +68,7 @@ function App() {
   const [railOpen, setRailOpen] = useState(() => !isNarrowViewport())
   const [swipeHint, setSwipeHint] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [searchOptions, setSearchOptions] = useState<SearchPaletteOptions | undefined>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsDetail, setSettingsDetail] = useState<OpenSettingsDetail | null>(null)
   const [agentEditorOpen, setAgentEditorOpen] = useState(false)
@@ -126,7 +127,15 @@ function App() {
         setThemePreference(detail)
       }
     }
-    const onOpenSearch = () => setSearchOpen(true)
+    const onOpenSearch = (event: Event) => {
+      const detail = (event as CustomEvent<SearchPaletteOptions>).detail
+      setSearchOptions(detail)
+      setSearchOpen(true)
+    }
+    const onOpenHidden = () => {
+      setSearchOptions({ filterHidden: true, tab: 'Bots' })
+      setSearchOpen(true)
+    }
     const onOpenSettings = (event: Event) => {
       const detail = (event as CustomEvent<OpenSettingsDetail>).detail ?? {}
       setSettingsDetail(detail)
@@ -151,6 +160,7 @@ function App() {
     window.addEventListener(THEME_TOGGLE_EVENT, onToggle)
     window.addEventListener(THEME_SET_EVENT, onSet)
     window.addEventListener('swarm:open-search', onOpenSearch)
+    window.addEventListener(OPEN_HIDDEN_EVENT, onOpenHidden)
     window.addEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
     window.addEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
     window.addEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
@@ -159,6 +169,7 @@ function App() {
       window.removeEventListener(THEME_TOGGLE_EVENT, onToggle)
       window.removeEventListener(THEME_SET_EVENT, onSet)
       window.removeEventListener('swarm:open-search', onOpenSearch)
+      window.removeEventListener(OPEN_HIDDEN_EVENT, onOpenHidden)
       window.removeEventListener(OPEN_SETTINGS_EVENT, onOpenSettings)
       window.removeEventListener(OPEN_LLM_PROFILES_EVENT, onOpenLlmProfiles)
       window.removeEventListener(OPEN_AGENT_EDITOR_EVENT, onOpenAgentEditor)
@@ -169,7 +180,14 @@ function App() {
     <Router>
       <ToastProvider>
         {SHOW_COMMAND_PALETTE && <CommandPalette />}
-        <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <SearchPalette
+          open={searchOpen}
+          options={searchOptions}
+          onClose={() => {
+            setSearchOpen(false)
+            setSearchOptions(undefined)
+          }}
+        />
         <SettingsSheet
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}

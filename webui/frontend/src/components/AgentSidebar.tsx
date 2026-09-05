@@ -236,7 +236,6 @@ export default function AgentSidebar({
     hasHiddenAgentsStorage() ? loadHiddenAgentIds() : null,
   )
   const [pins, setPins] = useState<PinnedAgent[]>(() => loadOrSeedPinnedAgents())
-  const [hiddenOpen, setHiddenOpen] = useState(false)
   const [hoveringHidden, setHoveringHidden] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
   const [remotesPopupOpen, setRemotesPopupOpen] = useState(false)
@@ -1817,10 +1816,9 @@ export default function AgentSidebar({
               type="button"
               className="os-hide-drop__action os-hidden-bots-row group"
               aria-haspopup="dialog"
-              aria-expanded={hiddenOpen}
               aria-label={`Hidden Bots ${hiddenCount} (${hiddenCount} hidden)`}
               data-testid="os-hidden-bots-button"
-              onClick={() => setHiddenOpen(true)}
+              onClick={() => openSearchPalette({ filterHidden: true })}
               onMouseEnter={() => setHoveringHidden(true)}
               onMouseLeave={() => setHoveringHidden(false)}
             >
@@ -1908,82 +1906,6 @@ export default function AgentSidebar({
           </div>
         </div>
       </aside>
-
-      {hiddenOpen && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-50 bg-black/45"
-            aria-label="Close hidden agents"
-            onClick={() => setHiddenOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="os-hidden-agents-title"
-            className="fixed left-1/2 top-1/2 z-50 w-[20rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-base-300 bg-base-100 p-4 shadow-2xl"
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 id="os-hidden-agents-title" className="text-sm font-semibold">
-                Hidden agents
-              </h2>
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle"
-                aria-label="Close hidden agents"
-                onClick={() => setHiddenOpen(false)}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            {hiddenCount === 0 ? (
-              <p className="text-sm text-base-content/60">No hidden agents.</p>
-            ) : (
-              <ul className="space-y-1">
-                {hiddenTeams.map((team) => (
-                  <li key={teamHideId(team.id)} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{team.name || team.id}</span>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      aria-label={`Unhide ${team.name || team.id}`}
-                      onClick={() => unhideAgent(teamHideId(team.id))}
-                    >
-                      Unhide
-                    </button>
-                  </li>
-                ))}
-                {hiddenRemotes.map((remote) => (
-                  <li key={remoteHideId(remote.id)} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{remote.title}</span>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      aria-label={`Unhide ${remote.title}`}
-                      onClick={() => unhideAgent(remoteHideId(remote.id))}
-                    >
-                      Unhide
-                    </button>
-                  </li>
-                ))}
-                {hiddenAgents.map((agent) => (
-                  <li key={agent.id} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{agentLabel(agent)}</span>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-xs"
-                      aria-label={`Unhide ${agentLabel(agent)}`}
-                      onClick={() => unhideAgent(agent.id)}
-                    >
-                      Unhide
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      )}
 
       {pluginsOpen && (
         <>
