@@ -2436,23 +2436,25 @@ export default function AgentSidebar({
           onSelect={handleMenuSelect}
         />
       )}
-      <ConfirmModal
-        isOpen={Boolean(deleteConfirm)}
-        onClose={() => setDeleteConfirm(null)}
-        onConfirm={confirmDeleteRow}
-        title={`Delete ${deleteConfirm?.agentName ?? 'agent'}?`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        confirmVariant="error"
-      >
-        <p>
-          {deleteConfirm?.kind === 'cli'
-            ? 'This removes the CLI agent from the rail. It does not uninstall the CLI on this machine.'
-            : deleteConfirm?.kind === 'remote'
-              ? 'This removes the configured remote from swarm. It does not change the far-side host.'
-              : 'This deletes the local entity and removes it from the rail. This cannot be undone from Hidden Bots.'}
-        </p>
-      </ConfirmModal>
+      {deleteConfirm && (
+        <ConfirmModal
+          isOpen
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={confirmDeleteRow}
+          title={`Delete ${deleteConfirm.agentName}?`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmVariant="error"
+        >
+          <p>
+            {deleteConfirm.kind === 'cli'
+              ? 'This removes the CLI agent from the rail. It does not uninstall the CLI on this machine.'
+              : deleteConfirm.kind === 'remote'
+                ? 'This removes the configured remote from swarm. It does not change the far-side host.'
+                : 'This deletes the local entity and removes it from the rail. This cannot be undone from Hidden Bots.'}
+          </p>
+        </ConfirmModal>
+      )}
       <AddAgentWizard
         isOpen={addWizardOpen}
         onClose={() => setAddWizardOpen(false)}
