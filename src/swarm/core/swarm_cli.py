@@ -1093,7 +1093,10 @@ def skills_command(
     typer.echo(f"{'SKILL':22} {'ASSETS':>6}  DESCRIPTION")
     for s in sorted(catalog.values(), key=lambda x: x.name):
         typer.echo(f"{s.name:22} {len(s.assets):>6}  {s.description[:70]}")
-    typer.echo(f"\n{len(catalog)} skill(s). Apply one: `model=cli_agent`, param `skill=<name>`.")
+    typer.echo(
+        f"\n{len(catalog)} skill(s). Apply via `skill=<name>` or `skills=[...]` "
+        "on cli_agent or a Blueprint-backed API seat. See docs/SKILLS.md."
+    )
 
 
 import json as _json

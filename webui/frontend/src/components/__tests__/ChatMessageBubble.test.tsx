@@ -363,3 +363,56 @@ describe('REQ-122: No You / agent name labels above chat bubbles', () => {
   })
 })
 
+describe('REQ-212 inline skill chips', () => {
+  it('renders a path ref as a chip, not bare path-only text', () => {
+    const onOpen = vi.fn()
+    render(
+      <ChatMessageBubble
+        role="assistant"
+        agentName="API agent"
+        text="See skills/conventional-commit/SKILL.md for the contract."
+        streaming={false}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+        skillCatalog={[
+          {
+            name: 'conventional-commit',
+            description: 'Write a conventional commit.',
+            path: 'skills/conventional-commit/SKILL.md',
+            assets: [],
+          },
+        ]}
+        onOpenSkill={onOpen}
+      />,
+    )
+    const chip = screen.getByTestId('skill-chip')
+    expect(chip).toHaveTextContent('conventional-commit')
+    expect(chip).not.toHaveTextContent('skills/conventional-commit/SKILL.md')
+    fireEvent.click(chip)
+    expect(onOpen).toHaveBeenCalledWith('conventional-commit')
+  })
+
+  it('marks an unknown skill chip as missing', () => {
+    render(
+      <ChatMessageBubble
+        role="user"
+        agentName="You"
+        text="/skill nope-not-real please"
+        streaming={false}
+        canEdit={false}
+        editing={false}
+        onStartEdit={() => {}}
+        onCancelEdit={() => {}}
+        onSaveEdit={() => {}}
+        skillCatalog={[]}
+        onOpenSkill={() => {}}
+      />,
+    )
+    expect(screen.getByTestId('skill-chip')).toHaveAttribute('data-skill-missing', 'true')
+  })
+})
+
+

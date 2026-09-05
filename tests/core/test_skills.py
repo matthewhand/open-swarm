@@ -119,6 +119,43 @@ def test_bundled_counting_lines_skill_ships_count_script():
     assert "count.py" in skill.assets
 
 
+def test_requested_skill_names_merges_skill_and_skills():
+    assert skills.requested_skill_names({}) == []
+    assert skills.requested_skill_names({"skill": "a"}) == ["a"]
+    assert skills.requested_skill_names({"skills": ["b", "a"], "skill": "a"}) == ["b", "a"]
+
+
+def test_resolve_skills_reports_missing(tmp_path: Path):
+    d = tmp_path / "haiku"
+    d.mkdir()
+    (d / "SKILL.md").write_text(SKILL_MD)
+    found, missing = skills.resolve_skills({"skills": ["haiku", "nope"]}, tmp_path)
+    assert [s.name for s in found] == ["haiku"]
+    assert missing == ["nope"]
+
+
+def test_apply_skills_composes_multiple():
+    first = skills.parse_skill_md(SKILL_MD)
+    second = skills.Skill(name="review", description="Review it.", instructions="Be brief.")
+    prompt = skills.apply_skills([first, second], "do the work")
+    assert '## "haiku"' in prompt
+    assert '## "review"' in prompt
+    assert prompt.rstrip().endswith("do the work")
+
+
+def test_skill_relpath_and_payload_use_skill_md():
+    skill = skills.discover_skills()["conventional-commit"]
+    assert skill_relpath_is_md(skill)
+    row = skills.skill_payload(skill)
+    assert row["id"] == "conventional-commit"
+    assert row["path"].endswith("skills/conventional-commit/SKILL.md")
+    assert "instructions" in row
+
+
+def skill_relpath_is_md(skill: skills.Skill) -> bool:
+    return skills.skill_relpath(skill).endswith("/SKILL.md")
+
+
 def test_bundled_skills_are_discoverable_and_standard_compliant():
     # The repo ships these skills under <root>/skills; each must satisfy the
     # Agent Skills standard (valid name + a what+when description).

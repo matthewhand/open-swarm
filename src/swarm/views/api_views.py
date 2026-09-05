@@ -770,12 +770,7 @@ class ConfigOptionsView(APIView):
 
         return Response({
             "skills": [
-                {
-                    "name": s.name,
-                    "description": s.description,
-                    "assets": s.assets,
-                    "instructions": s.instructions,
-                }
+                skills.skill_payload(s)
                 for s in skills.discover_skills().values()
             ],
             "inference": {
@@ -850,6 +845,58 @@ class BlueprintToolsView(APIView):
             "skipped_optional": res.skipped_optional,
             "ok": res.ok,
         })
+
+
+class SkillsListView(APIView):
+    """Discoverable SKILL.md catalog (REQ-212).
+
+    GET /v1/skills/ -> {object: list, data: [{name, id, description, path, assets}]}
+    Discovery walks ``<project>/skills/**/SKILL.md``.
+    """
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, *_args, **_kwargs):
+        from swarm.core import skills
+
+        return Response(
+            {
+                "object": "list",
+                "data": [
+                    skills.skill_payload(s, include_instructions=False)
+                    for s in skills.discover_skills().values()
+                ],
+            }
+        )
+
+
+class SkillDetailView(APIView):
+    """One SKILL.md by name. Missing skills fail honestly (404 + error)."""
+
+    def get_permissions(self):
+        return [perm() for perm in api_permission_classes()]
+
+    def get(self, _request, name: str, *_args, **_kwargs):
+        from swarm.core import skills
+
+        skill = skills.discover_skills().get(name)
+        if skill is None:
+            return Response(
+                {
+                    "name": name,
+                    "id": name,
+                    "found": False,
+                    "error": (
+                        f"Skill '{name}' not found. Add a SKILL.md under "
+                        "skills/ (see docs/SKILLS.md)."
+                    ),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        payload = skills.skill_payload(skill)
+        payload["found"] = True
+        return Response(payload)
 
 
 class SupportContextView(APIView):

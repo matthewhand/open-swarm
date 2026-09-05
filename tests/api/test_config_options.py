@@ -12,6 +12,8 @@ def test_config_options_exposes_all_decoupling_primitives(client):
     assert {"conventional-commit", "counting-lines"} <= names
     cc = next(s for s in data["skills"] if s["name"] == "conventional-commit")
     assert cc["instructions"] and "Conventional Commit" in cc["instructions"]
+    assert cc["id"] == "conventional-commit"
+    assert cc["path"].endswith("skills/conventional-commit/SKILL.md")
 
     # Inference: axes + per-provider and per-model traits + model flags.
     inf = data["inference"]

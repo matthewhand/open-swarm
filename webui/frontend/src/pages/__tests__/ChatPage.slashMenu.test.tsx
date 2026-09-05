@@ -61,6 +61,24 @@ describe('ChatPage slash menu (REQ-169)', () => {
       'fetch',
       vi.fn((url: string | URL | Request) => {
         const urlStr = String(url)
+        if (urlStr.includes('/v1/skills')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                object: 'list',
+                data: [
+                  {
+                    name: 'custom-skill',
+                    description: 'Custom dynamic skill',
+                    path: 'skills/custom-skill/SKILL.md',
+                    assets: [],
+                  },
+                ],
+              }),
+              { status: 200 },
+            ),
+          )
+        }
         if (urlStr.includes('/v1/config-options/')) {
           return Promise.resolve(
             new Response(

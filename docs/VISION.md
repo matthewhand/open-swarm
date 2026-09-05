@@ -161,7 +161,7 @@ SaaS product is claimed here.
 | Remote catalog (opt-in) — Hermes / OpenMousBot / Rakazo / Herdr / nested swarm | 🟡 | Hermes list/send ✅; OMB HTTP ✅; Rakazo send 🟡 (Better Auth 401); Herdr CLI ✅. Not a concurrent-seat clone. |
 | Team roster + place remotes + isolation | 🟡 | `/v1/agent-team/`, `/v1/team-rosters/`; Django `/teams/` stays Profiles |
 | WebUI — Grok-like SPA chrome + Django operator | 🟡 | First-class product; WS needs session cookie |
-| Skills (`SKILL.md`) + inference profiles | ✅ | Applied via CLI / config; not a kind |
+| Skills (`SKILL.md`) + inference profiles | ✅ | Discover `skills/**/SKILL.md`; attach via `skill` / `skills` on CLI and today's Blueprint-backed API seats; chat chips + popup. Not a kind. True inference-only API: N/A until ADR-006 Phase 2. [docs/SKILLS.md](./SKILLS.md) |
 | Tool capabilities → MCP provider | 🟡 | Client works; `ENABLE_MCP_SERVER` is still a flag |
 | Cross-conversation memory (mem0) | 🟡 | Wired, not validated against a live mem0 |
 | True **API** inference seat (no `BlueprintBase`) | 📋 | ADR-006 Phase 2; today’s “API” tab writes a blueprint |

@@ -1,0 +1,86 @@
+name: REQ-212 API skills + chat chips
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/skills.py"
+      - "src/swarm/core/skill_attach.py"
+      - "src/swarm/blueprints/common/cli_fusion_support.py"
+      - "src/swarm/blueprints/cli_agent/blueprint_cli_agent.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/api_views.py"
+      - "src/swarm/views/chat_views.py"
+      - "src/swarm/urls.py"
+      - "tests/core/test_skills.py"
+      - "tests/core/test_skill_attach.py"
+      - "tests/api/test_skills_api.py"
+      - "webui/frontend/src/lib/skills.ts"
+      - "webui/frontend/src/components/SkillChip.tsx"
+      - "webui/frontend/src/components/SkillPopup.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - ".github/workflows/req212-api-skill-chips.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/skills.py"
+      - "src/swarm/core/skill_attach.py"
+      - "src/swarm/blueprints/common/cli_fusion_support.py"
+      - "src/swarm/blueprints/cli_agent/blueprint_cli_agent.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/api_views.py"
+      - "src/swarm/views/chat_views.py"
+      - "src/swarm/urls.py"
+      - "tests/core/test_skills.py"
+      - "tests/core/test_skill_attach.py"
+      - "tests/api/test_skills_api.py"
+      - "webui/frontend/src/lib/skills.ts"
+      - "webui/frontend/src/components/SkillChip.tsx"
+      - "webui/frontend/src/components/SkillPopup.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - ".github/workflows/req212-api-skill-chips.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-212
+        run: |
+          uv run pytest \
+            tests/core/test_skills.py \
+            tests/core/test_skill_attach.py \
+            tests/api/test_skills_api.py \
+            tests/api/test_config_options.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-212 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/skills.test.ts \
+            src/components/__tests__/SkillChip.test.tsx \
+            src/components/__tests__/SkillPopup.test.tsx \
+            src/components/__tests__/ChatMessageBubble.test.tsx

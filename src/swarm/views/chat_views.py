@@ -472,6 +472,22 @@ class ChatCompletionsView(APIView):
         except Exception:
             logger.debug("auto-compress hook skipped", exc_info=True)
 
+        try:
+            from swarm.core.skill_attach import (
+                apply_skills_to_messages,
+                blueprint_applies_own_skills,
+            )
+
+            if (
+                isinstance(blueprint_params, dict)
+                and not blueprint_applies_own_skills(str(model_name or ""))
+            ):
+                messages, _applied, _missing = apply_skills_to_messages(
+                    messages, blueprint_params
+                )
+        except Exception:
+            logger.debug("skill attach hook skipped", exc_info=True)
+
         # --- Async fire-and-forget: return a queued handle immediately, run in a
         #     background worker, poll via GET /v1/responses/{id}. Reuses the
         #     Responses async machinery. (Streaming is always inline.) ---

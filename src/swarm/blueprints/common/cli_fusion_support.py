@@ -100,10 +100,34 @@ def render_prompt(messages: list[dict[str, Any]]) -> str:
     return "\n\n".join(lines)
 
 
+def apply_skills_to_prompt(
+    prompt: str, params: dict[str, Any] | None, workdir: str | None = None
+) -> tuple[str, list[str], list[str]]:
+    """Apply ``params['skill']`` and/or ``params['skills']`` to ``prompt``.
+
+    Returns ``(prompt, applied_names, missing_names)``. Unknown names leave the
+    prompt unchanged for those entries (the caller can warn) — we never fail
+    the run over a bad skill name. Skills load from ``<project>/skills/**/SKILL.md``.
+
+    When ``workdir`` is given and a skill bundles assets (scripts/templates),
+    they are copied into ``workdir`` so a write-mode CLI can read or execute them.
+    """
+    from swarm.core import skills  # lazy: only pay discovery cost when used
+
+    found, missing = skills.resolve_skills(params)
+    if not found:
+        return prompt, [], missing
+    if workdir:
+        for skill in found:
+            if skill.assets:
+                skills.stage_assets(skill, workdir)
+    return skills.apply_skills(found, prompt), [skill.name for skill in found], missing
+
+
 def apply_skill_to_prompt(
     prompt: str, params: dict[str, Any] | None, workdir: str | None = None
 ) -> tuple[str, str | None]:
-    """Apply a named skill (``params['skill']``) to ``prompt``.
+    """Apply a named skill (``params['skill']`` / ``skills``) to ``prompt``.
 
     Returns ``(prompt, applied_name)``. With no skill requested, the prompt is
     unchanged and ``applied_name`` is None. An unknown skill name also leaves
@@ -112,18 +136,13 @@ def apply_skill_to_prompt(
 
     When ``workdir`` is given and the skill bundles assets (scripts/templates),
     they are copied into ``workdir`` so a write-mode CLI can read or execute them.
-    """
-    name = (params or {}).get(PARAM_SKILL)
-    if not name:
-        return prompt, None
-    from swarm.core import skills  # lazy: only pay discovery cost when used
 
-    skill = skills.discover_skills().get(name)
-    if skill is None:
-        return prompt, None
-    if workdir and skill.assets:
-        skills.stage_assets(skill, workdir)
-    return skills.apply_skill(skill, prompt), skill.name
+    Multiple requested skills apply in order; ``applied_name`` is the first
+    successfully loaded name (callers that need the full list should use
+    :func:`apply_skills_to_prompt`).
+    """
+    new_prompt, applied, _missing = apply_skills_to_prompt(prompt, params, workdir=workdir)
+    return new_prompt, applied[0] if applied else None
 
 
 def build_registry(config: dict[str, Any] | None) -> CliAdapterRegistry:

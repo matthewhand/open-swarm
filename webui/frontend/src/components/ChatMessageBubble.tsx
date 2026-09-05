@@ -12,6 +12,8 @@ import { Textarea, LoadingDots } from './DaisyUI'
 import { renderSafeMarkdown } from '../lib/markdown'
 import { setupCodeFenceControls } from '../lib/codeFences'
 import { SystemPreloadPill } from './SystemPreloadPill'
+import { SkillChip } from './SkillChip'
+import { splitSkillRefs, type SkillInfo } from '../lib/skills'
 
 export interface ChatMessageBubbleProps {
   role: 'user' | 'assistant' | 'system' | 'status'
@@ -29,6 +31,8 @@ export interface ChatMessageBubbleProps {
   contextStrategy?: 'compress' | 'cull'
   children?: ReactNode
   isSystemPreload?: boolean
+  skillCatalog?: SkillInfo[]
+  onOpenSkill?: (name: string) => void
 }
 
 function selectionIsActive(): boolean {
@@ -49,12 +53,17 @@ export const ChatBubbleBody = memo(
   function ChatBubbleBody({
     text,
     streaming,
+    skillCatalog,
+    onOpenSkill,
   }: {
     text: string
     streaming: boolean
+    skillCatalog?: SkillInfo[]
+    onOpenSkill?: (name: string) => void
   }) {
     const mdRef = useRef<HTMLDivElement | null>(null)
     const expandedIndicesRef = useRef<Set<number>>(new Set())
+    const segments = splitSkillRefs(text)
 
     useEffect(() => {
       const root = mdRef.current
@@ -70,16 +79,53 @@ export const ChatBubbleBody = memo(
         <span className="opacity-60">(empty response)</span>
       )
     }
+
+    const mdClass =
+      'chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline'
+
+    if (segments.every((segment) => segment.type === 'text')) {
+      return (
+        <div
+          ref={mdRef}
+          data-testid="chat-md"
+          className={mdClass}
+          dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
+        />
+      )
+    }
+
     return (
-      <div
-        ref={mdRef}
-        data-testid="chat-md"
-        className="chat-md break-words [&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded [&_pre]:bg-base-300/40 [&_pre]:p-2 [&_code]:text-sm [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:underline"
-        dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(text) }}
-      />
+      <div ref={mdRef} data-testid="chat-md" className={mdClass}>
+        {segments.map((segment, index) => {
+          if (segment.type === 'text') {
+            return (
+              <span
+                key={`t-${index}`}
+                dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(segment.text) }}
+              />
+            )
+          }
+          const info = skillCatalog?.find((row) => row.name === segment.ref.name)
+          const missing = Boolean(skillCatalog && !info)
+          return (
+            <SkillChip
+              key={`s-${index}-${segment.ref.name}`}
+              name={segment.ref.name}
+              raw={segment.ref.raw}
+              skill={info}
+              missing={missing}
+              onClick={() => onOpenSkill?.(segment.ref.name)}
+            />
+          )
+        })}
+      </div>
     )
   },
-  (prev, next) => prev.text === next.text && prev.streaming === next.streaming,
+  (prev, next) =>
+    prev.text === next.text &&
+    prev.streaming === next.streaming &&
+    prev.skillCatalog === next.skillCatalog &&
+    prev.onOpenSkill === next.onOpenSkill,
 )
 
 export function ChatMessageBubble({
@@ -98,6 +144,8 @@ export function ChatMessageBubble({
   contextStrategy = 'compress',
   children,
   isSystemPreload,
+  skillCatalog,
+  onOpenSkill,
 }: ChatMessageBubbleProps) {
   const startFromHere = contextStrategy === 'cull'
   const contextActionLabel = startFromHere ? 'Start context from here' : 'Compress to here'
@@ -189,7 +237,12 @@ export function ChatMessageBubble({
           data-testid="chat-bubble"
           onClick={handleBubbleClick}
         >
-          <ChatBubbleBody text={text} streaming={streaming} />
+          <ChatBubbleBody
+            text={text}
+            streaming={streaming}
+            skillCatalog={skillCatalog}
+            onOpenSkill={onOpenSkill}
+          />
           {children}
         </div>
       )}

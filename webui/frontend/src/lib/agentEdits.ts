@@ -53,6 +53,8 @@ export interface AgentEdit {
   profileOverride?: string
   /** REQ-69 ordered inference seats (`llm:…` / `cli:…` / `remote:…`). Empty = Settings default. */
   inferenceList?: string[]
+  /** REQ-212 attached SKILL.md names for API / Blueprint-backed seats. */
+  skills?: string[]
 }
 
 export type AgentEditMap = Record<string, AgentEdit>
@@ -155,6 +157,11 @@ export function saveAgentEdit(agentId: string, patch: AgentEdit): AgentEdit {
     const seats = serializeInferenceList(patch.inferenceList)
     if (seats.length) next.inferenceList = seats
     else delete next.inferenceList
+  }
+  if (patch.skills !== undefined) {
+    const skills = [...new Set(patch.skills.map((name) => name.trim()).filter(Boolean))]
+    if (skills.length) next.skills = skills
+    else delete next.skills
   }
 
   if (Object.keys(next).length === 0) delete map[agentId]

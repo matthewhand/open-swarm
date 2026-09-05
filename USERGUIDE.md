@@ -434,7 +434,9 @@ swarm-cli wizard --non-interactive \
 
 List reusable `SKILL.md` capabilities under the project's `skills/` directory
 (or `--dir`). Applying a skill is not a separate CLI write path — pass
-`skill=<name>` on the `cli_agent` model (API / Open WebUI params).
+`skill=<name>` or `skills=[...]` on `cli_agent` **or** a Blueprint-backed API
+seat (today's stored `api` kind). Chat shows those references as chips; click
+opens a skill card. Discovery and #652 kinds: [docs/SKILLS.md](./docs/SKILLS.md).
 
 ```bash
 swarm-cli skills                         # name, asset count, description

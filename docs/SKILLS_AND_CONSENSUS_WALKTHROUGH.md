@@ -46,6 +46,10 @@ curl -sf localhost:8000/v1/chat/completions -H "Content-Type: application/json" 
 }'
 ```
 
+API / Blueprint-backed seats (today's stored `api` kind — see [ADR-006](./adr/006-api-vs-blueprint-kinds.md) / #652) accept the same `skill` / `skills` params. Discovery, attach, chat chips, and the honest-missing popup are documented in [docs/SKILLS.md](./SKILLS.md). True inference-only API seats do not exist yet; skills stay N/A on that future path until Blueprint (or a Phase 2 hook).
+
+Chat renders `skills/<name>/SKILL.md` and `/skill <name>` as inline chips. Click opens a dismissible preview card (name, description, source path, Instructions).
+
 `scripts/prove_skill_across_clis.py` runs one task through the
 `conventional-commit` skill on all three CLIs and checks each output against the
 skill's contract (`type(scope): summary`):
