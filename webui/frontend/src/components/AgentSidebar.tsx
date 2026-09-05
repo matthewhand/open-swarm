@@ -9,8 +9,14 @@ import {
 } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
+import { Circle, Eye, EyeOff, Pencil, Pin, PinOff, Plug, Plus, Search, Server, Users, X } from 'lucide-react'
 import AddAgentWizard, { type AgentKind } from './AddAgentWizard'
+import {
+  UNREAD_CHANGED_EVENT,
+  loadUnreadAgentIds,
+  markAgentRead,
+  markAgentUnread,
+} from '../lib/unreadAgents'
 import {
   fetchBlueprints,
   fetchCliAgents,
@@ -262,6 +268,30 @@ export default function AgentSidebar({
   const searchShortcut = searchShortcutLabel()
   const [addWizardOpen, setAddWizardOpen] = useState(false)
   const sessionsByAgent = useMemo(() => loadAllAgentSessions(), [sessionTick])
+  const [unreadIds, setUnreadIds] = useState<string[]>(() => loadUnreadAgentIds())
+  const currentTargetId = selectedTeamId || selectedRemoteId || selectedId
+  const prevTargetRef = useRef(currentTargetId)
+
+  useEffect(() => {
+    const onUnreadChange = () => {
+      setUnreadIds(loadUnreadAgentIds())
+    }
+    window.addEventListener(UNREAD_CHANGED_EVENT, onUnreadChange)
+    window.addEventListener('storage', onUnreadChange)
+    return () => {
+      window.removeEventListener(UNREAD_CHANGED_EVENT, onUnreadChange)
+      window.removeEventListener('storage', onUnreadChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentTargetId && currentTargetId !== prevTargetRef.current) {
+      if (unreadIds.includes(currentTargetId)) {
+        setUnreadIds(markAgentRead(currentTargetId))
+      }
+      prevTargetRef.current = currentTargetId
+    }
+  }, [currentTargetId, unreadIds])
 
   const [railWidth, setRailWidth] = useState(() => loadRailWidth())
   const [isResizing, setIsResizing] = useState(false)
@@ -682,15 +712,18 @@ export default function AgentSidebar({
 
   useEffect(() => {
     const onComplete = (event: Event) => {
-      if (!bumpCompleted) return
       const agentId = generationCompleteAgentId(event)
+      if (agentId && agentId !== currentTargetId) {
+        setUnreadIds(markAgentUnread(agentId))
+      }
+      if (!bumpCompleted) return
       if (!agentId || !visibleRowIds.includes(agentId)) return
       const base = mergeRailOrder(railOrder, visibleRowIds)
       persistVisibleOrder(bumpRailIdToTop(base, agentId))
     }
     window.addEventListener(GENERATION_COMPLETE_EVENT, onComplete)
     return () => window.removeEventListener(GENERATION_COMPLETE_EVENT, onComplete)
-  }, [bumpCompleted, visibleRowIds, railOrder, persistVisibleOrder])
+  }, [bumpCompleted, visibleRowIds, railOrder, persistVisibleOrder, currentTargetId])
   useEffect(() => {
     if (!menu) return
     const onKey = (event: KeyboardEvent) => {
@@ -966,6 +999,7 @@ export default function AgentSidebar({
     } ${dropping ? 'os-agent-row--drop' : ''}`
     const { snippet, timestamp } = getRowLastMessage(agent.id, sessions, agent as any)
     const timestampLabel = formatRailTimestamp(timestamp)
+    const unread = unreadIds.includes(agent.id)
     const mark = (
       scaleOut ? (
         // Teams/remotes (#398) must not be stacked here — import AvatarStack there.
@@ -1033,7 +1067,15 @@ export default function AgentSidebar({
                   {isMac ? `⌥${spillSlot}` : `Alt+${spillSlot}`}
                 </span>
               ) : null}
-              {timestampLabel ? (
+              {unread ? (
+                <span
+                  className={`os-rail-unread-dot inline-block h-2 w-2 rounded-full bg-sky-500 shrink-0 ${
+                    spillSlot ? 'group-hover/row:hidden' : ''
+                  }`}
+                  aria-label="Unread"
+                  data-testid="rail-unread-dot"
+                />
+              ) : timestampLabel ? (
                 <span
                   className={`os-rail-timestamp text-xs text-base-content/40 tabular-nums ${
                     spillSlot ? 'group-hover/row:hidden' : ''
@@ -1157,6 +1199,7 @@ export default function AgentSidebar({
       team as any,
     )
     const teamTimestampLabel = formatRailTimestamp(teamTime)
+    const unread = unreadIds.includes(hideId)
     return (
       <Link
         to={`/chat?team=${encodeURIComponent(team.id)}`}
@@ -1260,7 +1303,15 @@ export default function AgentSidebar({
                   {isMac ? `⌥${spillSlot}` : `Alt+${spillSlot}`}
                 </span>
               ) : null}
-              {teamTimestampLabel ? (
+              {unread ? (
+                <span
+                  className={`os-rail-unread-dot inline-block h-2 w-2 rounded-full bg-sky-500 shrink-0 ${
+                    spillSlot ? 'group-hover/row:hidden' : ''
+                  }`}
+                  aria-label="Unread"
+                  data-testid="rail-unread-dot"
+                />
+              ) : teamTimestampLabel ? (
                 <span
                   className={`os-rail-timestamp shrink-0 text-xs text-base-content/40 tabular-nums ${
                     spillSlot ? 'group-hover/row:hidden' : ''
@@ -1298,6 +1349,7 @@ export default function AgentSidebar({
       remote as any,
     )
     const remoteTimestampLabel = formatRailTimestamp(remoteTime)
+    const unread = unreadIds.includes(hideId)
     return (
       <Link
         to={`/chat?remote=${encodeURIComponent(remote.id)}`}
@@ -1395,7 +1447,15 @@ export default function AgentSidebar({
                   {isMac ? `⌥${spillSlot}` : `Alt+${spillSlot}`}
                 </span>
               ) : null}
-              {remoteTimestampLabel ? (
+              {unread ? (
+                <span
+                  className={`os-rail-unread-dot inline-block h-2 w-2 rounded-full bg-sky-500 shrink-0 ${
+                    spillSlot ? 'group-hover/row:hidden' : ''
+                  }`}
+                  aria-label="Unread"
+                  data-testid="rail-unread-dot"
+                />
+              ) : remoteTimestampLabel ? (
                 <span
                   className={`os-rail-timestamp text-xs text-base-content/40 tabular-nums ${
                     spillSlot ? 'group-hover/row:hidden' : ''
@@ -1630,13 +1690,21 @@ export default function AgentSidebar({
             const role = live ? agentRole(live) : 'default'
             const badge = live ? roleBadgeLabel(role) : ''
             const pinActive = Boolean(selectedId && selectedId === pin.id)
-            const pinClass = `os-fav-tile ${
+            const pinUnread = unreadIds.includes(pin.id)
+            const pinClass = `os-fav-tile group/tile ${
               draggingId === pin.id ? 'os-fav-tile--dragging' : ''
             } ${dropTargetId === pin.id ? 'os-fav-tile--drop' : ''} ${
               pinActive ? 'os-fav-tile--active' : ''
             }`
             const pinFace = (
               <>
+                {pinUnread && (
+                  <span
+                    className="os-rail-unread-dot absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-sky-500 z-10 group-hover/tile:hidden"
+                    aria-label="Unread"
+                    data-testid="rail-unread-dot"
+                  />
+                )}
                 {badge ? (
                   <span
                     className={`os-fav-tile__badge os-agent-role-badge ${roleCssClass(role)}`}
@@ -2010,6 +2078,22 @@ export default function AgentSidebar({
               Hide from sidebar
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-300/50"
+            onClick={() => {
+              if (unreadIds.includes(menu.agentId)) {
+                setUnreadIds(markAgentRead(menu.agentId))
+              } else {
+                setUnreadIds(markAgentUnread(menu.agentId))
+              }
+              closeMenu()
+            }}
+          >
+            <Circle className="h-4 w-4" aria-hidden="true" />
+            {unreadIds.includes(menu.agentId) ? 'Mark as read' : 'Mark as unread'}
+          </button>
           <button
             type="button"
             role="menuitem"
