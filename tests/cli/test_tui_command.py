@@ -65,7 +65,11 @@ def test_tui_api_down_is_honest(monkeypatch):
     assert "Support" not in result.stdout
 
 
-def test_tui_interactive_flag_is_wave1():
-    result = runner.invoke(app, ["tui", "--interactive"])
+def test_tui_interactive_default_needs_terminal():
+    # Wave 1a: interactive is the default, but a non-TTY (CI / pipe) must get
+    # an honest hint instead of hanging or pretending to open a TUI.
+    result = runner.invoke(app, ["tui"])
     assert result.exit_code == 2
-    assert "Wave 1" in result.stderr
+    assert "--once" in result.stderr
+    assert "terminal" in result.stderr
+

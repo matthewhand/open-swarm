@@ -77,6 +77,11 @@ codey = "swarm.blueprints.codey.codey_cli:main"
 suggestion = "swarm.blueprints.suggestion.suggestion_cli:main"
 
 [project.optional-dependencies]
+tui = [
+    # REQ-111 Wave 1a: interactive Herdr-like TUI chrome. Kept optional so a
+    # plain core install stays thin; `swarm-cli tui` explains how to add it.
+    "textual>=0.80.0,<1.0",
+]
 memory = [
     # The mem0 integration imports `from mem0 import Memory`; that module is
     # provided by the `mem0ai` distribution on PyPI (there is no `mem0` dist).

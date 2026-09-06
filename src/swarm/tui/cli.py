@@ -1,13 +1,15 @@
-"""``swarm-cli tui`` — Wave 0 stub. Textual interactivity is Wave 1."""
+"""``swarm-cli tui`` — REQ-111 Wave 1a: Textual chrome with a --once CI dump."""
 
 from __future__ import annotations
 
 import json
+import sys
 
 import typer
 
 from swarm.tui.client import (
     DEFAULT_BASE_URL,
+    RailSeat,
     SwarmApiError,
     list_rail_agents,
     resolve_base_url,
@@ -17,9 +19,10 @@ from swarm.tui.layout import render_scaffold
 
 def tui_cmd(
     once: bool = typer.Option(
-        True,
+        False,
         "--once/--interactive",
-        help="Dump rail + placeholder pane and exit (Wave 0 default).",
+        help="Interactive Textual chrome (default, needs a terminal). "
+        "--once dumps the ASCII rail + placeholder pane for CI.",
     ),
     base_url: str | None = typer.Option(
         None,
@@ -38,20 +41,54 @@ def tui_cmd(
     ),
 ) -> None:
     """Herdr-like TUI client of the same HTTP API the WebUI uses (REQ-111)."""
-    if not once:
-        typer.echo(
-            "Interactive Textual chrome is Wave 1. Use --once (default) for the "
-            "Wave 0 scaffold.",
-            err=True,
-        )
-        raise typer.Exit(code=2)
+    if once or as_json:
+        _non_interactive(as_json=as_json, base_url=base_url, agent=agent)
+        return
+    _interactive(base_url=base_url, agent=agent)
 
-    resolved = resolve_base_url(base_url)
+
+def _fetch_seats(base_url: str) -> list[RailSeat]:
     try:
-        seats = list_rail_agents(base_url=resolved)
+        return list_rail_agents(base_url=base_url)
     except SwarmApiError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+
+
+def _interactive(*, base_url: str | None, agent: str | None) -> None:
+    if not sys.stdout.isatty():
+        typer.echo(
+            "Interactive TUI needs a terminal. Use --once for the ASCII dump (CI).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    # Guard only the optional dependency so a genuine bug inside swarm.tui.app
+    # (bad import, missing symbol) still surfaces instead of masquerading as an
+    # install hint.
+    try:
+        import textual  # noqa: F401
+    except ImportError:
+        typer.echo(
+            "Interactive TUI needs the optional [tui] extra: "
+            "install with `pip install -e '.[tui]'` or `uv sync --all-extras`.",
+            err=True,
+        )
+        raise typer.Exit(code=2) from None
+    from swarm.tui.app import run_tui_app
+
+    resolved = resolve_base_url(base_url)
+    seats = _fetch_seats(resolved)
+    run_tui_app(seats, base_url=resolved, selected_id=agent)
+
+
+def _non_interactive(
+    *,
+    as_json: bool,
+    base_url: str | None,
+    agent: str | None,
+) -> None:
+    resolved = resolve_base_url(base_url)
+    seats = _fetch_seats(resolved)
 
     if as_json:
         payload = {
