@@ -30,6 +30,13 @@ import {
 } from '../lib/agentEdits'
 import { apiModelOptionsFromProfiles } from '../lib/cliAgentContext'
 import { FOLDER_FORMAT_ERROR, isValidFolderPath } from '../lib/agentFolder'
+import {
+  GITHUB_REPO_FORMAT_ERROR,
+  emptyWorkspaceFields,
+  isValidGithubRepo,
+  type AgentWorkspaceFields,
+} from '../lib/agentWorkspace'
+import AgentWorkspaceBinding from './AgentWorkspaceBinding'
 import type { InferenceSeat } from '../lib/inferenceList'
 import {
   NEW_CHAT_PER_TASK_LABEL,
@@ -114,6 +121,8 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   const [avatarPrompt, setAvatarPrompt] = useState('')
   const [folder, setFolder] = useState('')
   const [folderError, setFolderError] = useState<string | null>(null)
+  const [githubRepo, setGithubRepo] = useState('')
+  const [repoError, setRepoError] = useState<string | null>(null)
   const [attachedSkills, setAttachedSkills] = useState<string[]>([])
 
   const blueprintsQuery = useQuery({
@@ -235,6 +244,8 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     setInferenceSeats(loadInferenceList(id))
     setFolder(edit.folder || '')
     setFolderError(null)
+    setGithubRepo(edit.githubRepo || '')
+    setRepoError(null)
     setAttachedSkills(edit.skills || [])
     const catalogNameForPrompt = catalogAgent?.name || id
     const roleForPrompt = edit.role || agentRole({ id, name: catalogAgent?.name, role: catalogAgent?.role })
@@ -670,43 +681,6 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
                 </select>
               </div>
             </div>
-
-            <div className="form-control">
-              <label className="label py-1">
-                <span className="label-text text-xs">
-                  Folder <span className="font-normal text-base-content/60">(optional)</span>
-                </span>
-              </label>
-              <input
-                type="text"
-                className={`input input-sm input-bordered w-full font-mono text-xs ${
-                  folderError ? 'input-error' : ''
-                }`}
-                placeholder="/path/to/working/directory or ./project"
-                value={folder}
-                onChange={(event) => {
-                  const next = event.target.value
-                  setFolder(next)
-                  if (next && !isValidFolderPath(next)) {
-                    setFolderError(FOLDER_FORMAT_ERROR)
-                    return
-                  }
-                  setFolderError(null)
-                  saveAgentEdit(id, { folder: next })
-                  void saveAgentSettings(id, { folder: next.trim() })
-                }}
-                aria-label="Folder"
-                data-testid="input-cli-folder"
-              />
-              <span className="block text-[11px] text-base-content/60 mt-1">
-                Working directory for this CLI agent
-              </span>
-              {folderError ? (
-                <span className="block text-xs text-error" data-testid="folder-error">
-                  {folderError}
-                </span>
-              ) : null}
-            </div>
           </div>
         )}
 
@@ -775,6 +749,39 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
             </div>
           </div>
         )}
+
+        <AgentWorkspaceBinding
+          kind={agentKind === 'cli' || agentKind === 'remote' ? agentKind : 'api'}
+          value={
+            agentKind === 'cli'
+              ? { folder, githubRepo, workspacesEnabled: false }
+              : emptyWorkspaceFields()
+          }
+          folderError={folderError}
+          repoError={repoError}
+          onChange={(next: AgentWorkspaceFields) => {
+            if (agentKind !== 'cli' || !id) return
+            setFolder(next.folder)
+            setGithubRepo(next.githubRepo)
+            if (next.folder && !isValidFolderPath(next.folder)) {
+              setFolderError(FOLDER_FORMAT_ERROR)
+              return
+            }
+            setFolderError(null)
+            if (next.githubRepo && !isValidGithubRepo(next.githubRepo)) {
+              setRepoError(GITHUB_REPO_FORMAT_ERROR)
+              saveAgentEdit(id, { folder: next.folder, githubRepo: next.githubRepo, workspacesEnabled: false })
+              return
+            }
+            setRepoError(null)
+            saveAgentEdit(id, {
+              folder: next.folder,
+              githubRepo: next.githubRepo,
+              workspacesEnabled: false,
+            })
+            void saveAgentSettings(id, { folder: next.folder.trim() })
+          }}
+        />
 
         <div
           className="tooltip tooltip-bottom w-full text-left"

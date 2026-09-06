@@ -413,8 +413,10 @@ describe('AgentEditor (REQ-58)', () => {
       expect(within(modelSelect).queryByRole('option', { name: 'Stewie' })).not.toBeInTheDocument()
 
       expect(within(dialog).getByTestId('default-llm-label')).toBeInTheDocument()
+      expect(within(dialog).getByTestId('agent-workspace-binding')).toBeInTheDocument()
       expect(within(dialog).getByTestId('input-cli-folder')).toBeInTheDocument()
       expect(within(dialog).getByText(/Working directory for this CLI agent/i)).toBeInTheDocument()
+      expect(within(dialog).getByTestId('toggle-workspaces')).toBeDisabled()
 
       // Save override
       fireEvent.change(cliSelect, { target: { value: 'copilot' } })
@@ -422,10 +424,14 @@ describe('AgentEditor (REQ-58)', () => {
       fireEvent.change(within(dialog).getByTestId('input-cli-folder'), {
         target: { value: '/home/dev/tool' },
       })
+      fireEvent.change(within(dialog).getByTestId('input-github-repo'), {
+        target: { value: 'acme/app' },
+      })
       const stored = JSON.parse(localStorage.getItem(AGENT_EDITS_KEY) || '{}')['cli_agent']
       expect(stored.cliOverride).toBe('copilot')
       expect(stored.llmOverride).toBe('gpt-4o')
       expect(stored.folder).toBe('/home/dev/tool')
+      expect(stored.githubRepo).toBe('acme/app')
     })
 
     it('API agent: renders profiles and models, not agents from catalog', async () => {
@@ -469,6 +475,11 @@ describe('AgentEditor (REQ-58)', () => {
       expect(within(modelSelect).queryByRole('option', { name: 'stewie' })).not.toBeInTheDocument()
 
       expect(within(dialog).getByTestId('default-llm-label')).toHaveTextContent(/Default would be:\s*orchestration/i)
+      expect(within(dialog).getByTestId('agent-workspace-binding')).toHaveAttribute(
+        'data-workspace-kind',
+        'api',
+      )
+      expect(within(dialog).getByTestId('workspace-kind-stub')).toBeInTheDocument()
 
       // Save override
       fireEvent.change(profileSelect, { target: { value: 'custom-profile' } })

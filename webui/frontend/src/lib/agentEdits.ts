@@ -48,6 +48,10 @@ export interface AgentEdit {
   workflow?: BlueprintWorkflow
   llmOverride?: string
   folder?: string
+  /** REQ-166 Phase 0 — GitHub repo bind (chrome + local persist; no checkout). */
+  githubRepo?: string
+  /** REQ-166 Phase 0 — worktree scale-out toggle (chrome only; stays off until Phase 3). */
+  workspacesEnabled?: boolean
   command?: string
   cliOverride?: string
   profileOverride?: string
@@ -137,6 +141,15 @@ export function saveAgentEdit(agentId: string, patch: AgentEdit): AgentEdit {
     const folder = patch.folder.trim()
     if (folder) next.folder = folder
     else delete next.folder
+  }
+  if (patch.githubRepo !== undefined) {
+    const githubRepo = patch.githubRepo.trim()
+    if (githubRepo) next.githubRepo = githubRepo
+    else delete next.githubRepo
+  }
+  if (patch.workspacesEnabled !== undefined) {
+    if (patch.workspacesEnabled) next.workspacesEnabled = true
+    else delete next.workspacesEnabled
   }
   if (patch.command !== undefined) {
     const command = patch.command.trim()

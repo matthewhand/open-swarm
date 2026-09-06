@@ -118,9 +118,11 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
     fireEvent.click(screen.getByTestId('empty-add-btn'))
     expect(screen.getByTestId('input-cli-name')).toBeInTheDocument()
 
-    // REQ-167: Folder field rendered with help text
+    expect(screen.getByTestId('agent-workspace-binding')).toBeInTheDocument()
     expect(screen.getByTestId('input-cli-folder')).toBeInTheDocument()
     expect(screen.getByText(/Working directory for this CLI agent/i)).toBeInTheDocument()
+    expect(screen.getByTestId('input-github-repo')).toBeInTheDocument()
+    expect(screen.getByTestId('toggle-workspaces')).toBeDisabled()
 
     // Fill in inputs
     fireEvent.change(screen.getByTestId('input-cli-name'), {
@@ -131,6 +133,9 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
     })
     fireEvent.change(screen.getByTestId('input-cli-folder'), {
       target: { value: '/home/dev/tool' },
+    })
+    fireEvent.change(screen.getByTestId('input-github-repo'), {
+      target: { value: 'acme/app' },
     })
 
     // Submit
@@ -154,6 +159,12 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
         kind: 'cli',
       })
       expect(onClose).toHaveBeenCalled()
+      expect(agentEdits.loadAgentEdit('custom_cli_agent')).toEqual(
+        expect.objectContaining({
+          folder: '/home/dev/tool',
+          githubRepo: 'acme/app',
+        }),
+      )
     })
   })
 
@@ -170,6 +181,41 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
 
     expect(screen.getByTestId('folder-error')).toBeInTheDocument()
     expect(screen.getByTestId('submit-create-agent')).toBeDisabled()
+  })
+
+  it('shows inline repo format error and coming-soon workspace chrome on CLI', () => {
+    renderWizard()
+
+    fireEvent.click(screen.getByTestId('kind-option-cli'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
+
+    expect(screen.getByTestId('workspace-folder-empty')).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('input-github-repo'), {
+      target: { value: 'not a repo' },
+    })
+    expect(screen.getByTestId('repo-error')).toBeInTheDocument()
+    expect(screen.getByTestId('submit-create-agent')).toBeDisabled()
+    expect(screen.getByTestId('toggle-workspaces')).toBeDisabled()
+  })
+
+  it('shows coming-soon workspace stub on API and Remote kinds', () => {
+    renderWizard()
+
+    fireEvent.click(screen.getByTestId('kind-option-api'))
+    fireEvent.click(screen.getByTestId('empty-add-btn'))
+    expect(screen.getByTestId('agent-workspace-binding')).toHaveAttribute(
+      'data-workspace-kind',
+      'api',
+    )
+    expect(screen.getByTestId('workspace-kind-stub')).toBeInTheDocument()
+    expect(screen.queryByTestId('input-cli-folder')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('kind-option-remote'))
+    expect(screen.getByTestId('agent-workspace-binding')).toHaveAttribute(
+      'data-workspace-kind',
+      'remote',
+    )
+    expect(screen.getByTestId('workspace-kind-stub')).toBeInTheDocument()
   })
 
   it('creates an API agent on happy-path submit', async () => {
