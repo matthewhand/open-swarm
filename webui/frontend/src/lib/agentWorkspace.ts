@@ -92,8 +92,8 @@ export function saveAgentWorkspace(
   if (!agentId) return emptyWorkspaceFields()
   const current = loadAgentWorkspace(agentId)
   const next: AgentWorkspaceFields = {
-    folder: fields.folder !== undefined ? fields.folder : current.folder,
-    githubRepo: fields.githubRepo !== undefined ? fields.githubRepo : current.githubRepo,
+    folder: (fields.folder !== undefined ? fields.folder : current.folder).trim(),
+    githubRepo: (fields.githubRepo !== undefined ? fields.githubRepo : current.githubRepo).trim(),
     workspacesEnabled:
       fields.workspacesEnabled !== undefined ? fields.workspacesEnabled : current.workspacesEnabled,
   }

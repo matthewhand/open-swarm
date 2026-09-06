@@ -39,7 +39,7 @@ def test_binding_component_covers_kinds_and_stubs():
     assert "input-github-repo" in text
     assert "toggle-workspaces" in text
     assert "disabled" in text
-    assert "Coming soon" in text
+    assert "COMING_SOON_LABEL" in text
     assert "workspace-kind-stub" in text
     assert "workspace-folder-empty" in text
     assert "No checkout or worktree" in text
