@@ -22,7 +22,6 @@ permissions:
 
 jobs:
   build:
-    if: github.repository == 'matthewhand/open-swarm'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -49,7 +48,7 @@ jobs:
           path: dist/
 
   publish-testpypi:
-    if: github.repository == 'matthewhand/open-swarm' && github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
     needs: build
     runs-on: ubuntu-latest
     environment:
@@ -70,7 +69,7 @@ jobs:
           attestations: false
 
   publish-pypi:
-    if: github.repository == 'matthewhand/open-swarm' && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi'))
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
     needs: build
     runs-on: ubuntu-latest
     environment:
