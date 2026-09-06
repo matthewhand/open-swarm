@@ -32,8 +32,15 @@ def _readme() -> str:
     return README.read_text(encoding="utf-8")
 
 
+_TEXT_SKIP_SUFFIXES = {".gif", ".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"}
+
+
 def _asset_blob() -> str:
-    parts = [p.read_text(encoding="utf-8") for p in sorted(ASSETS.glob("*")) if p.is_file()]
+    parts = [
+        p.read_text(encoding="utf-8")
+        for p in sorted(ASSETS.glob("*"))
+        if p.is_file() and p.suffix.lower() not in _TEXT_SKIP_SUFFIXES
+    ]
     return "\n".join(parts)
 
 
@@ -115,6 +122,8 @@ def test_media_and_docs_have_no_secrets_or_lan():
     allow_ban_mentions = {RECORDING, ASSETS / "FOLLOWUP_ISSUE.md"}
     for path in [README, REGISTRY, *ASSETS.glob("*")]:
         if not path.is_file():
+            continue
+        if path.suffix.lower() in _TEXT_SKIP_SUFFIXES:
             continue
         blob = path.read_text(encoding="utf-8")
         lowered = blob.lower()

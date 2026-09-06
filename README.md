@@ -114,7 +114,7 @@ The differentiator is a **programmatic graph** — not “let chat figure it out
 
 ### Two ways to build a team
 
-**Under the hood** a team/workflow is a **Python blueprint class** (`ApiKindBase` — ADR-005). That is the power-user path.
+**Under the hood** a team/workflow is a **Python blueprint class** ([ADR-005](docs/adr/005-kind-bases.md)). That is the power-user path.
 
 **Happy path:** ask **Support** in natural language — “Create a BA → Engineer → Tester workflow.” Support persists a usable seat. You do **not** write Python. Code stays hidden unless you choose **View / edit code**. The product bootstraps more of itself this way (REQ-158 / #567). Guided path + checklist (GitHub-only): [docs/SUPPORT_NL_BLUEPRINTS.md](docs/SUPPORT_NL_BLUEPRINTS.md).
 
