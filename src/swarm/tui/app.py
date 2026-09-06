@@ -1,4 +1,4 @@
-"""REQ-111 Wave 3a: interactive Textual TUI — rail, transcript, composer, sessions.
+"""REQ-111 Waves 3a/4b: interactive Textual TUI — rail, search, transcript, composer, sessions.
 
 Left rail = AGENTS grouped under kind sections CLI / API / Blueprint / Remote
 (Wave 1b). Selecting a seat hydrates its real thread via ``GET /chat/thread/``
@@ -23,6 +23,7 @@ from contextlib import suppress
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
 from textual.widgets import Input, ListItem, ListView, Static
 
 from swarm.tui.client import (
@@ -44,7 +45,7 @@ EMPTY_SESSION = " New session — no messages yet. Type below to send the first 
 HYDRATE_LOADING = " Loading transcript…"
 COMPOSER_SENDABLE = "Type a message — Enter sends"
 COMPOSER_UNSENDABLE = "Not sendable over REST v1 (websocket path = Wave 3b)"
-FOOTER = " j/k move \u00b7 Enter select \u00b7 n new session \u00b7 s sessions \u00b7 type + Enter send \u00b7 q quit"
+FOOTER = " j/k move \u00b7 Enter select \u00b7 n new session \u00b7 s sessions \u00b7 / filter (Esc clears) \u00b7 type + Enter send \u00b7 q quit"
 
 _ROLE_LABELS = {"user": "you", "assistant": "assistant"}
 
@@ -117,6 +118,7 @@ class TuiApp(App[None]):
     #chrome { height: 1fr; }
     #rail-box { width: 36; border-right: solid $primary; }
     #rail-title { text-style: bold; background: $primary; color: $text; }
+    #rail-filter { display: none; height: 1; background: $surface; color: $text; }
     #rail-list { height: 1fr; }
     #chat-box { width: 1fr; }
     #chat-title { text-style: bold; background: $surface; color: $text; }
@@ -133,8 +135,11 @@ class TuiApp(App[None]):
         Binding("k", "cursor_up", "Up", show=False),
         Binding("n", "new_session", "New session", show=False),
         Binding("s", "list_sessions", "Sessions", show=False),
+        Binding("/", "find", "Filter", show=False),
         Binding("escape", "close_sessions", "Close", show=False),
     ]
+
+    filter_query = reactive("", init=False)
 
     def __init__(
         self,
@@ -164,12 +169,16 @@ class TuiApp(App[None]):
         self._send_worker = None
         self._sending = False
         self._chooser = False
+        self._list_view = None
+        self._filter_open = False
+        self._rail_query = ""
 
     # -- composition ---------------------------------------------------------
     def compose(self) -> ComposeResult:
         with Horizontal(id="chrome"):
             with Vertical(id="rail-box"):
                 yield Static(" AGENTS", id="rail-title")
+                yield Static("", id="rail-filter")
                 yield self._rail_list()
             with Vertical(id="chat-box"):
                 yield Static(self._chat_heading(), id="chat-title")
@@ -229,21 +238,23 @@ class TuiApp(App[None]):
         return isinstance(getattr(self, "focused", None), Input)
 
     def action_cursor_down(self) -> None:
-        if self._seats and not self._input_focused() and not self._chooser:
+        if self._seats and not self._input_focused() and not self._chooser and not self._filter_open:
             self._list_view.action_cursor_down()
 
     def action_cursor_up(self) -> None:
-        if self._seats and not self._input_focused() and not self._chooser:
+        if self._seats and not self._input_focused() and not self._chooser and not self._filter_open:
             self._list_view.action_cursor_up()
 
     def action_quit(self) -> None:
+        if self._filter_open:
+            return  # q types into the filter instead of quitting
         if not self._input_focused():
             self.exit()
 
     def action_new_session(self) -> None:
         """``n`` starts a new conversation id for the selected seat (Wave 3a)."""
         seat = self._current_seat()
-        if seat is None or self._input_focused() or self._chooser:
+        if seat is None or self._input_focused() or self._chooser or self._filter_open:
             return
         self._cancel_send()
         session = _mint_session_id()
@@ -261,7 +272,7 @@ class TuiApp(App[None]):
     def action_list_sessions(self) -> None:
         """``s`` lists this seat's sessions; pick a number to resume (Wave 3a)."""
         seat = self._current_seat()
-        if seat is None or self._input_focused():
+        if seat is None or self._input_focused() or self._filter_open:
             return
         self._chooser = True
         sessions = self._sessions_for(seat.id)
@@ -274,7 +285,70 @@ class TuiApp(App[None]):
         lines.append("  Pick a number to resume \u00b7 Esc closes")
         self._set_chat_body("\n".join(lines))
 
+    # -- rail filter (Wave 4b) ----------------------------------------------
+    def action_find(self) -> None:
+        """``/`` opens a name filter over the rail; typing narrows it."""
+        if not self._seats or self._input_focused() or self._chooser:
+            return
+        if self._filter_open:
+            return
+        self._filter_open = True
+        self._rail_query = ""
+        self._set_filter_row(" / ")
+
+    def _set_filter_row(self, text: str) -> None:
+        with suppress(Exception):
+            row = self.query_one("#rail-filter", Static)
+            row.update(text)
+            row.styles.display = "block" if self._filter_open else "none"
+
+    def _apply_filter(self, query: str) -> None:
+        self._rail_query = query
+        self.filter_query = query  # reactive watcher rebuilds the rail
+        self._set_filter_row(f" / {query}" if query else " / ")
+
+    async def watch_filter_query(self, value: str) -> None:
+        """Rebuild the rail to the seats whose name/id matches the query."""
+        lv = self._list_view
+        if lv is None:
+            return
+        q = value.strip().lower()
+        items: list[ListItem] = []
+        for label, group in sectioned_seats(self._seats):
+            kept = [s for s in group if not q or q in s.name.lower() or q in s.id.lower()]
+            if not kept:
+                continue
+            items.append(_SectionHeaderItem(label))
+            for seat in kept:
+                items.append(_SeatItem(seat))
+        if not items:
+            items.append(ListItem(Static(" No matching seats", classes="seat-name")))
+        await lv.clear()
+        await lv.extend(items)
+        target: int | None = None
+        for i, child in enumerate(lv.children):
+            child_seat = getattr(child, "seat", None)
+            if child_seat is None:
+                continue
+            if target is None:
+                target = i
+            if child_seat.id == self._selected_id:
+                target = i
+                break
+        if target is not None:
+            lv.index = target
+
+    def _close_filter(self) -> None:
+        """Clear + close the filter and restore the full rail."""
+        self._filter_open = False
+        self._rail_query = ""
+        self.filter_query = ""
+        self._set_filter_row("")
+
     def action_close_sessions(self) -> None:
+        if self._filter_open:
+            self._close_filter()
+            return
         if self._chooser:
             self._chooser = False
             seat = self._current_seat()
@@ -282,7 +356,17 @@ class TuiApp(App[None]):
                 self._refresh_view(seat)
 
     def on_key(self, event) -> None:
-        if not self._chooser or self._input_focused():
+        if self._input_focused():
+            return
+        if self._filter_open:
+            if event.key == "backspace":
+                event.stop()
+                self._apply_filter(self._rail_query[:-1])
+            elif event.character and event.character.isprintable():
+                event.stop()
+                self._apply_filter(self._rail_query + event.character)
+            return
+        if not self._chooser:
             return
         if event.character not in "123456789":
             return
@@ -300,6 +384,11 @@ class TuiApp(App[None]):
         self._refresh_view(seat)
 
     # -- events -------------------------------------------------------------
+    def watch_focused(self, widget) -> None:
+        """Leaving the rail filter to type a message closes it (no stale row)."""
+        if self._filter_open and isinstance(widget, Input):
+            self._close_filter()
+
     def on_mount(self) -> None:
         target = self._selected_display_index() if self._seats else None
         if target is not None:
@@ -315,6 +404,11 @@ class TuiApp(App[None]):
         seat = getattr(event.item, "seat", None)
         if not isinstance(seat, RailSeat):
             return
+        # Enter on a real seat picks it and closes the filter. Enter on the
+        # informational "No matching seats" / header rows stays filtered and
+        # is dropped here; Esc is the way out of a no-match query.
+        if self._filter_open:
+            self._close_filter()
         self._cancel_send()
         self._selected_id = seat.id
         self.selected_id = seat.id

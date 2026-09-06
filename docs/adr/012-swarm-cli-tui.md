@@ -238,6 +238,8 @@ Filed from this Wave 0 (PR #873). Each child `Fixes` itself:
 - **Constraints:** No new API. Mock-only tests.
 - **Owner:** Cursor implementer (1).
 
+**Outcome (Wave 4 — landed):** `/` opens a live name/id filter over the rail — typing narrows (case-insensitive substring on seat name or id, section headers pruned when their seats drop out), backspace edits, `Enter` picks the highlighted filtered seat (the filter closes and the full rail returns), and `Esc` clears + restores the whole list. While the filter is open the chat chords (`j`/`k`/`n`/`s`/`q`) type into the query instead of firing; arrows and `Enter` still move and select. Purely local — no new API, headless-mock tests only.
+
 ---
 
 ## 7. Rejected alternatives

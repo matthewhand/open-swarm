@@ -444,3 +444,119 @@ async def test_send_appends_context_for_the_next_turn():
         assert ("user", "one") in roles
         assert ("assistant", "first reply") in roles
         assert roles[-1] == ("user", "two")
+
+
+# --- Wave 4b: rail search / filter ------------------------------------------
+
+
+async def _pump_rows(pilot, app, *, absent: list[str] | None = None,
+                     present: list[str] | None = None, attempts: int = 60) -> list[str]:
+    """Wait until the rail rows lose/pick up the named substrings."""
+    absent = absent or []
+    present = present or []
+    for _ in range(attempts):
+        rows = _row_texts(app)
+        if all(not any(a in r for r in rows) for a in absent) and all(
+            any(p in r for r in rows) for p in present
+        ):
+            return rows
+        await pilot.pause(0.02)
+    raise AssertionError(f"rows never settled: absent={absent} present={present}")
+
+
+def _filter_row(app) -> Static:
+    return app.query_one("#rail-filter", Static)
+
+
+async def test_filter_slash_narrows_rail_by_name():
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await pilot.press("/", "s", "u", "p")
+        rows = await _pump_rows(
+            pilot, pilot.app, absent=["Grok", "Night"], present=["Support"]
+        )
+        assert any(" API" in r for r in rows)
+        assert "sup" in str(_filter_row(pilot.app).renderable)
+        assert _filter_row(pilot.app).styles.display != "none"
+
+
+async def test_filter_typing_does_not_fire_chat_chords():
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await pilot.press("/")
+        await pilot.press("j")
+        # The chord was suspended: j landed in the query, not a cursor move.
+        assert str(_filter_row(pilot.app).renderable).endswith("j")
+        await pilot.press("n", "s")
+        assert "jns" in str(_filter_row(pilot.app).renderable)
+        await _pump_rows(pilot, pilot.app, present=["No matching seats"])
+        heading = str(pilot.app.query_one("#chat-title", Static).renderable)
+        assert "tui-" not in heading  # n did not start a session
+        assert "Sessions for" not in _static_text(pilot.app)  # s did not open
+        await pilot.press("escape")
+        await pilot.press("q")
+        assert pilot.app.is_running is False  # q only quit after the filter closed
+
+
+async def test_filter_esc_clears_and_restores_full_rail_and_chords():
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await pilot.press("/", "x")
+        rows = await _pump_rows(
+            pilot, pilot.app, absent=["Grok", "Support", "Night"], present=["No matching seats"]
+        )
+        assert any("No matching seats" in r for r in rows)
+        await pilot.press("escape")
+        rows = await _pump_rows(
+            pilot, pilot.app, present=["Grok", "Support", "Night"]
+        )
+        assert len(rows) >= 6  # 3 headers + 3 seats
+        assert _filter_row(pilot.app).styles.display == "none"
+        # Chords are back: q quits again.
+        await pilot.press("q")
+        assert pilot.app.is_running is False
+
+
+async def test_filter_q_and_slash_type_while_open():
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await pilot.press("/")
+        await pilot.press("q")  # would quit if the chord were live
+        assert pilot.app.is_running is True
+        await pilot.press("/")  # a second '/' types instead of re-opening
+        assert "q/" in str(_filter_row(pilot.app).renderable)
+        await pilot.press("escape")
+        await pilot.press("q")
+        assert pilot.app.is_running is False
+
+
+async def test_filter_backspace_trims_query():
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await pilot.press("/", "s", "u", "p")
+        await _pump_rows(pilot, pilot.app, absent=["Grok"], present=["Support"])
+        await pilot.press("backspace")
+        await _pump_rows(pilot, pilot.app, absent=["Grok"], present=["Support"])
+        assert "su" in str(_filter_row(pilot.app).renderable)
+        await pilot.press("backspace", "backspace")
+        await _pump_rows(pilot, pilot.app, present=["Grok", "Night", "Support"])
+        assert " / " in str(_filter_row(pilot.app).renderable)
+
+
+async def test_filter_enter_selects_filtered_seat_and_closes():
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await pilot.press("/")
+        for ch in ("s", "u", "p", "p", "o", "r", "t"):
+            await pilot.press(ch)
+        await _pump_rows(pilot, pilot.app, absent=["Grok", "Night"], present=["Support"])
+        await pilot.press("enter")
+        for _ in range(60):
+            heading = str(pilot.app.query_one("#chat-title", Static).renderable)
+            if "Support" in heading and _filter_row(pilot.app).styles.display == "none":
+                break
+            await pilot.pause(0.02)
+        assert "Support" in heading
+        # Rail is back to the full list after the pick.
+        rows = await _pump_rows(pilot, pilot.app, present=["Grok", "Night", "Support"])
+        assert len(rows) >= 6

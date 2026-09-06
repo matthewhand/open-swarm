@@ -181,7 +181,8 @@ session and `s` lists / resumes. Not Herdr’s SSH TUI and not an in-process
 blueprint runtime (`swarm-cli launch` stays a separate door).
 
 Keys: `j` / `k` (or arrows) move, `Enter` selects, type + `Enter` sends,
-`n` new session, `s` session list + a digit resumes, `q` quits. API down,
+`n` new session, `s` session list + a digit resumes, `/` filters the rail
+(name/id, Esc clears), `q` quits. API down,
 auth failure, or a login-gated hydrate are named errors — nothing is
 invented. CLI-tool / team / remote / Herdr rows honestly disable the
 composer (their send is the SPA websocket path; TUI v1 has no cookie jar).
