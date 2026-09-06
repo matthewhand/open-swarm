@@ -164,6 +164,113 @@ def test_herdr_health_and_list_stub_http(http_router, monkeypatch):
     assert listed.data["members"][0]["kind"] == "herdr"
 
 
+def test_operate_send_uses_from_remote_config_exact_argv(monkeypatch):
+    """C-H4: operate send is HerdrClient.from_remote_config, not a stub / 'prompt' in argv."""
+    import subprocess
+    from unittest.mock import patch
+
+    calls: list[list[str]] = []
+    from_remote_calls: list[object] = []
+
+    def runner(argv, timeout=None):
+        del timeout
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, '{"type":"agent_prompted"}', "")
+
+    real = HerdrClient.from_remote_config
+
+    def spy(config=None, **kwargs):
+        from_remote_calls.append(config)
+        kwargs.setdefault("runner", runner)
+        return real(config, **kwargs)
+
+    cfg = {"remotes": {"herdr": {"herdr_mode": "local"}}}
+    monkeypatch.delenv("HERDR_BASE_URL", raising=False)
+    monkeypatch.delenv("HERDR_SSH_HOST", raising=False)
+    with patch.object(HerdrClient, "from_remote_config", side_effect=spy):
+        sent = remotes_core.operate(
+            "herdr",
+            "send",
+            prompt="HERDR_PING_OK",
+            target="w3:p1",
+            config=cfg,
+        )
+    assert sent.ok is True
+    assert from_remote_calls == [cfg]
+    assert calls == [["herdr", "agent", "prompt", "w3:p1", "HERDR_PING_OK"]]
+    assert "--remote" not in calls[0]
+    assert "gap" not in (sent.detail or "").lower()
+    assert getattr(sent, "gap", None) in (None, "")
+
+
+def test_operate_list_uses_from_remote_config_exact_argv(monkeypatch):
+    import subprocess
+    from unittest.mock import patch
+
+    calls: list[list[str]] = []
+    from_remote_calls: list[object] = []
+
+    def runner(argv, timeout=None):
+        del timeout
+        calls.append(list(argv))
+        if argv[-2:] == ["agent", "list"]:
+            return subprocess.CompletedProcess(
+                argv, 0, '{"agents":[{"pane_id":"w3:p1","state":"idle"}]}', ""
+            )
+        if argv[-2:] == ["workspace", "list"]:
+            return subprocess.CompletedProcess(argv, 0, '{"workspaces":[]}', "")
+        return subprocess.CompletedProcess(argv, 0, "{}", "")
+
+    real = HerdrClient.from_remote_config
+
+    def spy(config=None, **kwargs):
+        from_remote_calls.append(config)
+        kwargs.setdefault("runner", runner)
+        return real(config, **kwargs)
+
+    cfg = {"remotes": {"herdr": {"herdr_mode": "local"}}}
+    monkeypatch.delenv("HERDR_BASE_URL", raising=False)
+    with patch.object(HerdrClient, "from_remote_config", side_effect=spy):
+        listed = remotes_core.operate("herdr", "list", config=cfg)
+    assert listed.ok is True
+    assert from_remote_calls == [cfg]
+    assert calls == [
+        ["herdr", "agent", "list"],
+        ["herdr", "workspace", "list"],
+    ]
+
+
+def test_herdr_health_and_list_stub_http_sends_configured_auth(http_router, monkeypatch):
+    host, port, router = http_router
+    captured_auth: list[str] = []
+    orig_handle = router._handle
+
+    def _handle(self, method: str) -> None:
+        captured_auth.append(self.headers.get("Authorization") or "")
+        orig_handle(self, method)
+
+    monkeypatch.setattr(router, "_handle", _handle)
+    router.routes = {
+        ("GET", "/health"): (200, {"status": "ok", "app": "herdr"}),
+        (
+            "GET",
+            "/agents",
+        ): (
+            200,
+            {"agents": [{"pane_id": "w3:p1", "state": "idle", "name": "grok"}]},
+        ),
+    }
+    monkeypatch.setenv("HERDR_API_KEY", "test-herdr-token")
+    monkeypatch.delenv("HERDR_BASE_URL", raising=False)
+    cfg = {
+        "llm": {},
+        "remotes": {"herdr": {"base_url": f"http://{host}:{port}", "api_key": "${HERDR_API_KEY}"}},
+    }
+    listed = remotes_core.operate("herdr", "list", config=cfg)
+    assert listed.ok is True
+    assert any(header == "Bearer test-herdr-token" for header in captured_auth)
+
+
 def test_herdr_not_configured_constant_mentions_settings():
     assert "Settings" in HERDR_NOT_CONFIGURED
     assert "SSH" in HERDR_NOT_CONFIGURED

@@ -240,6 +240,7 @@ Open Swarm as a harness **for** other harnesses. Not a Grok-Bot chrome claim; no
 | Persisted members `kind=herdr` | ✅ | `HerdrAgent` model + migration `0012`; DRF `/v1/herdr-agents/` list/add/remove; discover from live `agent list` / `workspace list`. Settings + Teams + Django admin + SPA sidepane. Django DB (Compose Postgres or SQLite); no Neon |
 | Honesty | ✅ | [docs/HERDR.md](./docs/HERDR.md) — not Hermes/OMB/Rakazo; same-host default; `--remote` for other machines; blocked reject / `--wait` may finish an in-flight turn; CI must mock `herdr` |
 | Remotes kind + CLI `--remote` (REQ-64) | ✅ | `remotes.herdr` persist; Settings + Add; `HerdrClient.from_remote_config()`; stub HTTP health/list in `tests/core/test_herdr_remote.py` |
+| One Herdr client list + send (C-H4) | ✅ | `operate(..., "send")` and `chat_herdr` share `HerdrClient.from_remote_config` (`check_blocked=True`, single `--until idle`). Tests lock send argv/headers against the configured remote. Own-diff CI. Fixes #614. |
 | SSH-shaped remote Herdr (REQ-100) | ✅ | `SSHTransport` stub; `herdr_mode` local\|ssh; persist `ssh_host` / `ssh_user` / `ssh_identity_env`; operate list/send/interrogate. Tests: `tests/herdr/test_herdr_ssh.py`, `tests/core/test_herdr_ssh_remote.py` |
 
 ## 14. Durable database (REQ-123) — ✅

@@ -142,4 +142,13 @@ assert extract_prompt_type(payload) == "agent_prompted"
 
 client = HerdrClient(remote="matthewh@10.0.0.36")
 client.agent_list()  # herdr --remote matthewh@10.0.0.36 agent list
+
+# Settings operate + sidebar chat share this factory (REQ-171C-5 / #614)
+client = HerdrClient.from_remote_config()  # remotes.herdr; raises if not added
+client.agent_prompt("w3:p1", "HERDR_PING_OK", check_blocked=True, wait=True, until="idle")
 ```
+
+`swarm.core.remotes.operate(..., "send")` and `chat_herdr` both call
+`HerdrClient.from_remote_config`. Chat preflights a blocked pane
+(`check_blocked=True`) and passes a **single** `--until idle` (herdr rejects
+two `--until` flags). Tests mock the CLI and lock argv — no live LAN.

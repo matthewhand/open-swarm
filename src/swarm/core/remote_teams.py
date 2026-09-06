@@ -659,28 +659,71 @@ def herdr_bin() -> str | None:
     return shutil.which("herdr")
 
 
-def herdr_list_agents(*, runner=subprocess.run) -> list[dict[str, Any]]:
-    exe = herdr_bin()
-    if not exe:
-        raise RuntimeError("herdr is not on PATH")
-    proc = runner(
-        [exe, "agent", "list"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
-    if proc.returncode != 0:
-        err = (proc.stderr or proc.stdout or "").strip()[:400]
-        raise RuntimeError(f"herdr agent list failed: {err or proc.returncode}")
+def _adapt_herdr_runner(runner):
+    """Map subprocess.run-style callables onto HerdrClient's runner."""
+
+    def adapted(argv, timeout=None):
+        try:
+            return runner(
+                argv,
+                timeout=timeout,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except TypeError:
+            return runner(argv, timeout=timeout)
+
+    return adapted
+
+
+def herdr_client_from_settings(*, config: dict[str, Any] | None = None, runner=None):
+    """Same client Settings operate uses (``HerdrClient.from_remote_config``).
+
+    Falls back to local ``herdr`` when ``remotes.herdr`` is not added so
+    persisted ``kind=herdr`` members still work without a remotes card.
+    """
+    from swarm.core.remotes import RemoteError
+    from swarm.herdr.client import HerdrClient
+
+    kwargs: dict[str, Any] = {}
+    if runner is not None:
+        kwargs["runner"] = _adapt_herdr_runner(runner)
     try:
-        data = json.loads(proc.stdout or "{}")
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"herdr agent list returned non-JSON: {exc}") from exc
-    agents = (data.get("result") or {}).get("agents")
-    if not isinstance(agents, list):
+        return HerdrClient.from_remote_config(config, **kwargs)
+    except RemoteError:
+        if runner is None and not herdr_bin():
+            raise RuntimeError("herdr is not on PATH") from None
+        return HerdrClient(**kwargs)
+
+
+def _agent_dicts_from_list_payload(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if not isinstance(payload, dict):
         return []
-    return [a for a in agents if isinstance(a, dict)]
+    for key in ("agents", "items"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [row for row in value if isinstance(row, dict)]
+    for wrap in ("result", "data"):
+        inner = payload.get(wrap)
+        if inner is not None and inner is not payload:
+            found = _agent_dicts_from_list_payload(inner)
+            if found:
+                return found
+    return []
+
+
+def herdr_list_agents(*, runner=None, config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """``herdr agent list`` via the same client Settings operate uses."""
+    from swarm.herdr.client import HerdrCLIError
+
+    try:
+        payload = herdr_client_from_settings(config=config, runner=runner).agent_list()
+    except HerdrCLIError as exc:
+        raise RuntimeError(f"herdr agent list failed: {exc}") from exc
+    return _agent_dicts_from_list_payload(payload)
 
 
 def format_herdr_roster(agents: list[dict[str, Any]]) -> str:
@@ -724,39 +767,40 @@ def chat_herdr(
     *,
     target: str,
     timeout_ms: int = 120_000,
-    runner=subprocess.run,
+    runner=None,
+    config: dict[str, Any] | None = None,
 ) -> str:
-    """Submit *prompt* to a live Herdr pane and return recent terminal text."""
-    exe = herdr_bin()
-    if not exe:
-        raise RuntimeError("herdr is not on PATH")
+    """Submit *prompt* via ``HerdrClient.from_remote_config`` and read recent text.
+
+    Uses ``check_blocked=True`` and a single ``--until idle`` (herdr rejects
+    two ``--until`` flags). Sidebar and Settings share this client.
+    """
+    from swarm.herdr.client import HerdrBlockedError, HerdrCLIError
+
     if not target:
         raise RuntimeError("herdr target (pane id) is required")
-    wait = runner(
-        [
-            exe, "agent", "prompt", target, prompt,
-            "--wait", "--until", "idle", "--until", "done",
-            "--timeout", str(int(timeout_ms)),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=max(5.0, timeout_ms / 1000 + 5),
-        check=False,
-    )
-    if wait.returncode != 0:
-        err = (wait.stderr or wait.stdout or "").strip()[:600]
-        raise RuntimeError(f"herdr agent prompt failed: {err or wait.returncode}")
-    read = runner(
-        [exe, "agent", "read", target, "--source", "recent", "--format", "text"],
-        capture_output=True,
-        text=True,
-        timeout=15,
-        check=False,
-    )
-    if read.returncode != 0:
-        err = (read.stderr or read.stdout or "").strip()[:400]
-        raise RuntimeError(f"herdr agent read failed: {err or read.returncode}")
-    return (read.stdout or "").strip() or (wait.stdout or "").strip()
+    client = herdr_client_from_settings(config=config, runner=runner)
+    try:
+        prompted = client.agent_prompt(
+            target,
+            prompt,
+            wait=True,
+            until="idle",
+            timeout_ms=int(timeout_ms),
+            check_blocked=True,
+        )
+        read = client.agent_read(target, source="recent", fmt="text")
+    except HerdrBlockedError as exc:
+        raise RuntimeError(str(exc)) from exc
+    except HerdrCLIError as exc:
+        raise RuntimeError(f"herdr agent prompt failed: {exc}") from exc
+    if isinstance(read, str) and read.strip():
+        return read.strip()
+    if isinstance(prompted, str) and prompted.strip():
+        return prompted.strip()
+    return ("" if read is None else str(read)).strip() or (
+        "" if prompted is None else str(prompted)
+    ).strip()
 
 
 DSH_DEFAULT_ORIGIN = "http://127.0.0.1:3080"

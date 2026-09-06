@@ -1,0 +1,59 @@
+name: REQ-171C-5 one Herdr client
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/remotes.py"
+      - "src/swarm/core/remote_teams.py"
+      - "src/swarm/herdr/client.py"
+      - "src/swarm/herdr/remote.py"
+      - "src/swarm/views/herdr_api.py"
+      - "src/swarm/blueprints/agent_router/blueprint_agent_router.py"
+      - "tests/core/test_herdr_remote.py"
+      - "tests/core/test_herdr_ssh_remote.py"
+      - "tests/core/test_remote_teams.py"
+      - "tests/herdr/test_herdr_client.py"
+      - "tests/unit/test_req171c5_herdr_client.py"
+      - ".github/workflows/req171c5-one-herdr-client.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/remotes.py"
+      - "src/swarm/core/remote_teams.py"
+      - "src/swarm/herdr/client.py"
+      - "src/swarm/herdr/remote.py"
+      - "src/swarm/views/herdr_api.py"
+      - "src/swarm/blueprints/agent_router/blueprint_agent_router.py"
+      - "tests/core/test_herdr_remote.py"
+      - "tests/core/test_herdr_ssh_remote.py"
+      - "tests/core/test_remote_teams.py"
+      - "tests/herdr/test_herdr_client.py"
+      - "tests/unit/test_req171c5_herdr_client.py"
+      - ".github/workflows/req171c5-one-herdr-client.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest C-H4 one Herdr client
+        run: |
+          uv run pytest \
+            tests/core/test_herdr_remote.py \
+            tests/core/test_herdr_ssh_remote.py \
+            tests/core/test_remote_teams.py \
+            tests/herdr/test_herdr_client.py \
+            tests/unit/test_req171c5_herdr_client.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
