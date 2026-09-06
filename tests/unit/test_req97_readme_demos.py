@@ -11,6 +11,7 @@ from pathlib import Path
 from swarm.core.handoff_graph import repo_root
 
 STEMS = ("cli-agents", "api-agents", "remote-agents", "combined-team")
+GIF_STEMS = ("cli-agent", "api-agent", "remote-agent", "combined-team")
 ASSETS = repo_root() / "docs" / "assets" / "readme"
 README = repo_root() / "README.md"
 RECORDING = ASSETS / "RECORDING.md"
@@ -55,7 +56,6 @@ def test_four_poster_stems_exist():
 
 
 def test_readme_embeds_four_demo_slots_in_order():
-    """REQ-97b — the live GIF table replaced the SVG posters on README."""
     text = _readme()
     assert "## Demos" in text
     # Pitch, then demos, then how to run.
@@ -77,9 +77,6 @@ def test_readme_embeds_four_demo_slots_in_order():
     assert "Combined Team" in text or "Combined team" in text
     assert re.search(r"CLI\s*\+\s*API", text, re.I)
     assert "docs/SHOWOFF_DEMO_AGENTS.md" in text
-
-
-GIF_STEMS = ("cli-agent", "api-agent", "remote-agent", "combined-team")
 
 
 def test_readme_demo_copy_says_openmousbot_not_omb():
