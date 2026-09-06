@@ -14,7 +14,9 @@ Announce GIF [#529](https://github.com/matthewhand/open-swarm/issues/529)
 ([docs/ANNOUNCE.md](./ANNOUNCE.md), hero
 [`docs/assets/readme/announce-bridge.gif`](./assets/readme/announce-bridge.gif))
 and near-release media [#456](https://github.com/matthewhand/open-swarm/issues/456)
-should prefer **Mode A** names on harness rows. The announce film also
+([`docs/assets/readme/`](./assets/readme/README.md) — posters now, GIF
+checklist in [`RECORDING.md`](./assets/readme/RECORDING.md)) should prefer
+**Mode A** names on harness rows. The announce film also
 shows **OpenCode CLI** (`cli:opencode`) as a Mode A extra — not a default
 seed member.
 

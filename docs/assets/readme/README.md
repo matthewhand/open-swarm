@@ -18,13 +18,24 @@ README heroes there.
 |---|---|---|
 | [`announce-bridge.gif`](./announce-bridge.gif) | #529 | Storyboard hero (spiel captions). Live recapture later. |
 | [`announce-bridge.meta.json`](./announce-bridge.meta.json) | #529 | Duration + caption lock. |
-| `cli.gif` | #456 | Reserved — CLI kind (e.g. OpenCode / Antigravity / grok). |
+| [`cli-agents.svg`](./cli-agents.svg) | #456 | Poster — CLI agents (Grok / OpenCode / agy). GIF pending. |
+| [`api-agents.svg`](./api-agents.svg) | #456 | Poster — API agents (OpenAI-compat / owned thread). GIF pending. |
+| [`remote-agents.svg`](./remote-agents.svg) | #456 | Poster — Remote agents (**OpenMousBot**, never OMB). GIF pending. |
+| [`combined-team.svg`](./combined-team.svg) | #456 | Poster — Combined team (CLI + API + remote). GIF pending. |
+| `cli.gif` | #456 | Reserved — live CLI GIF (e.g. OpenCode / Antigravity / grok). |
 | `api.gif` | #456 | Reserved — API / true-inference seat. |
 | `remotes.gif` | #456 | Reserved — Hermes / OpenMousBot / Rakazo (label OpenMousBot, not OMB). |
 | `combined.gif` | #456 | Reserved — team that mixes CLI + API + remote. May reuse `announce-bridge.gif`. |
 
-Reserved names are the contract. Do not invent placeholder pixels for
-#456 in this PR.
+REQ-97 ships **posters now** (SVG). Live GIFs use the reserved
+`cli.gif` / `api.gif` / `remotes.gif` / `combined.gif` names when
+[RECORDING.md](./RECORDING.md) is executed. Keep each SVG as a
+poster/fallback and point README at the GIF.
+
+Reserved GIF names are the live-capture contract. Do not invent
+placeholder pixels for those four GIF stems.
+
+Follow-up Issue body (not filed from the cloud agent): [FOLLOWUP_ISSUE.md](./FOLLOWUP_ISSUE.md).
 
 ## Render (storyboard)
 

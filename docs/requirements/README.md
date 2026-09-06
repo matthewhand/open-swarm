@@ -51,6 +51,7 @@ Oracle from anything in this tree.
 | [REQ-153](./REQ-153.md) | [Agent tools — list peers + send message (kind-scoped first)](https://github.com/matthewhand/open-swarm/issues/561) |
 | [REQ-154](./REQ-154.md) | [Support/CoS create + archive agents (soft-delete → purge ~30d)](https://github.com/matthewhand/open-swarm/issues/562) |
 | [REQ-162](./REQ-162.md) | [Agent messaging ACL — whitelist XOR blacklist + Support allow-all](https://github.com/matthewhand/open-swarm/issues/573) |
+| [REQ-97](./REQ-97.md) | [Near-release README GIF demos — CLI / API / remotes / combined team](https://github.com/matthewhand/open-swarm/issues/456) |
 | [REQ-156](./REQ-156.md) | [README — why openai-agents + 3 harness types + workflow diagrams](https://github.com/matthewhand/open-swarm/issues/564) |
 | [REQ-158](./REQ-158.md) | [Support builds blueprints in NL — code optional](https://github.com/matthewhand/open-swarm/issues/567) |
 | [REQ-157](./REQ-157.md) | [CLI agents — empty until added; startup discover+prepopulate (no auth check)](https://github.com/matthewhand/open-swarm/issues/565) |

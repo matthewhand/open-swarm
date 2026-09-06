@@ -20,6 +20,40 @@ Announce copy, storyboard, and recapture checklist: [docs/ANNOUNCE.md](docs/ANNO
 
 Direction: [docs/VISION.md](docs/VISION.md). Vocabulary: [docs/GLOSSARY.md](docs/GLOSSARY.md).
 
+## Demos
+
+Four compact slots — CLI, API, remote, then the mix. **Posters now** (this VM
+cannot film `:8001`). Live GIFs replace the same stems using
+[docs/assets/readme/RECORDING.md](docs/assets/readme/RECORDING.md). Demo names:
+[docs/SHOWOFF_DEMO_AGENTS.md](docs/SHOWOFF_DEMO_AGENTS.md) (Mode A).
+
+<table>
+<tr>
+<td align="center" width="50%">
+<strong>CLI agents</strong><br/>
+<img src="docs/assets/readme/cli-agents.svg" alt="CLI agents — Grok / OpenCode / agy poster" width="320"/>
+</td>
+<td align="center" width="50%">
+<strong>API agents</strong><br/>
+<img src="docs/assets/readme/api-agents.svg" alt="API agents — OpenAI-compatible owned thread poster" width="320"/>
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<strong>Remote agents</strong> (OpenMousBot)<br/>
+<img src="docs/assets/readme/remote-agents.svg" alt="Remote agents — OpenMousBot poster" width="320"/>
+</td>
+<td align="center" width="50%">
+<strong>Combined team</strong> (CLI + API + remote)<br/>
+<img src="docs/assets/readme/combined-team.svg" alt="Combined team — CLI plus API plus OpenMousBot poster" width="320"/>
+</td>
+</tr>
+</table>
+
+A historical terminal loop (one blueprint as CLI + API) stays at
+[`docs/demo/cli-and-api.gif`](docs/demo/cli-and-api.gif) — not the Grok chrome
+story.
+
 ---
 
 ## Short history
@@ -80,7 +114,7 @@ The differentiator is a **programmatic graph** — not “let chat figure it out
 
 ### Two ways to build a team
 
-**Under the hood** a team/workflow is a **Python blueprint class** (`ApiKindBase` — ADR-005). That is the power-user path.
+**Under the hood** a team/workflow is a **Python blueprint class** ([ADR-005](docs/adr/005-kind-bases.md)). That is the power-user path.
 
 **Happy path:** ask **Support** in natural language — “Create a BA → Engineer → Tester workflow.” Support persists a usable seat. You do **not** write Python. Code stays hidden unless you choose **View / edit code**. The product bootstraps more of itself this way (REQ-158 / #567). Guided path + checklist (GitHub-only): [docs/SUPPORT_NL_BLUEPRINTS.md](docs/SUPPORT_NL_BLUEPRINTS.md).
 
@@ -135,8 +169,6 @@ curl -sf http://localhost:8000/v1/chat/completions \
 ```
 
 `model` selects which seat / recipe handles the request. Streaming is supported. Full CLI reference: [USERGUIDE.md](./USERGUIDE.md). Remotes: [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md). Herdr: [docs/HERDR.md](docs/HERDR.md). CLI wrap / fusion (not the first team story): [docs/CLI_FUSION.md](docs/CLI_FUSION.md). MoA consensus (not the first team story): [docs/MOA.md](docs/MOA.md).
-
-A historical terminal loop (one blueprint as CLI + API) lives at [`docs/demo/cli-and-api.gif`](docs/demo/cli-and-api.gif). The announce hero (Grok-agnostic UI + remote harness bridge) is [`docs/assets/readme/announce-bridge.gif`](docs/assets/readme/announce-bridge.gif) ([#529](https://github.com/matthewhand/open-swarm/issues/529)). Extra CLI / API / remotes / combined clips for that same folder are a later #456 pass.
 
 ### Pinokio (local sideload)
 
