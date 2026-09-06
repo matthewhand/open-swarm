@@ -220,6 +220,8 @@ Filed from this Wave 0 (PR #873). Each child `Fixes` itself:
 - **Constraints:** Do not weaken AUTH.md. Skip this child if Wave 2 SSE covers MVP seats.
 - **Owner:** Cursor implementer (1).
 
+**Outcome (Wave 3 — skipped by its own gate):** Waves 2b/2c already send and stream over REST SSE (`POST /v1/chat/completions`, Bearer) for every seat the SPA chats with over WS — Blueprint CLI/API seats are Bearer-REST sendable in the TUI, so the “only if REST SSE is insufficient” condition never fired. No login / cookie-jar is added to TUI v1: `GET /chat/thread/` hydrate failures on a Bearer-only shell stay a named, honest login-gated error, and AUTH.md (Bearer REST vs session WS) is untouched. WS 4401 handling for a TUI client would be an additive later child if a seat ever requires the websocket path.
+
 ### Wave 4 — docs + polish (2)
 
 **W4a — TUI as documented interactive front door**
