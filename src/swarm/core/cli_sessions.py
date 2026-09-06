@@ -62,7 +62,7 @@ def sanitize_cli_session_id(raw: Any) -> str | None:
     """
     if raw is None:
         return None
-    if isinstance(raw, bool) or isinstance(raw, (dict, list)):
+    if isinstance(raw, (bool, dict, list)):
         return None
     text = str(raw).strip()
     if not text or len(text) > 128:
