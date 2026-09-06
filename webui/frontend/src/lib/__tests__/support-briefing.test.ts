@@ -41,6 +41,9 @@ describe('support briefing', () => {
     expect(text).toContain('/settings/')
     expect(supportQuickstarts(false).map((p) => p.label)).toContain('Configure inference')
     expect(supportQuickstarts(true).map((p) => p.label)).toContain('Create a team')
+    expect(supportQuickstarts(true).map((p) => p.label)).toContain(
+      'Create a BA → Engineer → Tester workflow',
+    )
     expect(supportQuickstarts(true).map((p) => p.label)).toContain('Add a remote')
     expect(supportQuickstarts(true).map((p) => p.label)).toContain('Wire a CLI')
     expect(text).toContain('create a team')

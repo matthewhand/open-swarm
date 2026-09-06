@@ -7,9 +7,9 @@ export const SUPPORT_JOURNEY_FIXTURE = 'ONBOARD_JOURNEY_CLI_API_REMOTE'
 
 export const SUPPORT_JOURNEY_KICKSTART = [
   'Create a team',
+  'Create a BA → Engineer → Tester workflow',
   'Add a remote',
   'Wire a CLI',
-  'How do CLI, API, and remotes differ?',
 ] as const
 
 export function isSupportJourneyConsumer(id: string | null | undefined): boolean {

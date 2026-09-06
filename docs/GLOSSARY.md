@@ -58,6 +58,8 @@ A discoverable `BlueprintBase` subclass (`swarm.core.blueprint_base`) that defin
 
 A Blueprint **catalog** row is a template. A Blueprint **agent** (ADR-006) is a seat that runs a chosen recipe. The AGENTS rail and Search Bots list only recipes with `metadata.rail: true` (default deny). Catalog stays on `GET /v1/blueprints/`, Settings, and Add-agent ([#595](https://github.com/matthewhand/open-swarm/issues/595) / REQ-170). Add-agent CLI/API creates are merged into that list with `rail: true` so the same filter can show them ([#607](https://github.com/matthewhand/open-swarm/issues/607) / REQ-171B).
 
+**Support NL create (REQ-158 / #567):** the happy path is ask **Support** in natural language. Support persists a custom `ApiKindBase` seat. The user does not write Python; **View / edit code** is optional. See [SUPPORT_NL_BLUEPRINTS.md](./SUPPORT_NL_BLUEPRINTS.md).
+
 ## Team (handoff members — REQ-11)
 
 A **Team** wires **API** (inference), **CLI**, **Blueprint** (programmatic), and **remote** agents (Hermes, OpenMausBot, Rakazo, nested open-swarm) so they can **see and talk** to each other via openai-agents **handoff / as_tool**. On `main` today, “API agents” in this sentence still means the conflated recipe bucket — see [ADR-006](./adr/006-api-vs-blueprint-kinds.md). Remotes are Team *members* (`consult_hermes`, `consult_omb`, `consult_rakazo`, `consult_swarm`). Place or unplace them with `swarm-cli remotes place|unplace` / `PATCH /v1/agent-team/` (`agent_team.members` in `swarm_config.json`). Blueprint: `remote_harness`. Nested swarm is a network remote (own process, own DB); do not auto-add this instance as its own remote.

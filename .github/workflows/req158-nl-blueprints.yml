@@ -1,0 +1,106 @@
+name: REQ-158 Support NL blueprints
+
+on:
+  pull_request:
+    paths:
+      - "skills/support-session-ownership/SKILL.md"
+      - "src/swarm/core/support_nl_blueprint.py"
+      - "src/swarm/core/support_journey.py"
+      - "src/swarm/core/support_agent.py"
+      - "src/swarm/blueprints/support/blueprint_support.py"
+      - "tests/core/test_support_nl_blueprint.py"
+      - "tests/unit/test_req158_nl_blueprints.py"
+      - "tests/blueprints/test_support.py"
+      - "tests/core/test_support_agent.py"
+      - "tests/core/test_support_journey.py"
+      - "webui/frontend/src/lib/supportNlBlueprint.ts"
+      - "webui/frontend/src/lib/supportJourney.ts"
+      - "webui/frontend/src/lib/support-briefing.ts"
+      - "webui/frontend/src/components/SupportCreatedBlueprintCard.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - "webui/frontend/src/lib/__tests__/supportNlBlueprint.test.ts"
+      - "webui/frontend/src/lib/__tests__/supportJourney.test.ts"
+      - "webui/frontend/src/components/__tests__/SupportCreatedBlueprintCard.test.tsx"
+      - "webui/frontend/src/components/__tests__/ChatMessageBubble.nlBlueprint.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.supportOnboard.test.tsx"
+      - "docs/SUPPORT_NL_BLUEPRINTS.md"
+      - "docs/requirements/REQ-158.md"
+      - "README.md"
+      - ".github/workflows/req158-nl-blueprints.yml"
+  push:
+    branches: [main]
+    paths:
+      - "skills/support-session-ownership/SKILL.md"
+      - "src/swarm/core/support_nl_blueprint.py"
+      - "src/swarm/core/support_journey.py"
+      - "src/swarm/core/support_agent.py"
+      - "src/swarm/blueprints/support/blueprint_support.py"
+      - "tests/core/test_support_nl_blueprint.py"
+      - "tests/unit/test_req158_nl_blueprints.py"
+      - "tests/blueprints/test_support.py"
+      - "tests/core/test_support_agent.py"
+      - "tests/core/test_support_journey.py"
+      - "webui/frontend/src/lib/supportNlBlueprint.ts"
+      - "webui/frontend/src/lib/supportJourney.ts"
+      - "webui/frontend/src/lib/support-briefing.ts"
+      - "webui/frontend/src/components/SupportCreatedBlueprintCard.tsx"
+      - "webui/frontend/src/components/ChatMessageBubble.tsx"
+      - "webui/frontend/src/lib/__tests__/supportNlBlueprint.test.ts"
+      - "webui/frontend/src/lib/__tests__/supportJourney.test.ts"
+      - "webui/frontend/src/components/__tests__/SupportCreatedBlueprintCard.test.tsx"
+      - "webui/frontend/src/components/__tests__/ChatMessageBubble.nlBlueprint.test.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.supportOnboard.test.tsx"
+      - "docs/SUPPORT_NL_BLUEPRINTS.md"
+      - "docs/requirements/REQ-158.md"
+      - "README.md"
+      - ".github/workflows/req158-nl-blueprints.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-158 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/unit/test_req158_nl_blueprints.py \
+            tests/core/test_support_nl_blueprint.py \
+            tests/blueprints/test_support.py \
+            tests/core/test_support_agent.py \
+            tests/core/test_support_journey.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+          SWARM_TEST_MODE: "1"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-158 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/supportNlBlueprint.test.ts \
+            src/lib/__tests__/supportJourney.test.ts \
+            src/lib/__tests__/support-briefing.test.ts \
+            src/components/__tests__/SupportCreatedBlueprintCard.test.tsx \
+            src/components/__tests__/ChatMessageBubble.nlBlueprint.test.tsx \
+            src/pages/__tests__/ChatPage.supportOnboard.test.tsx

@@ -25,20 +25,32 @@ from swarm.core.support_context import (
     model_context_block,
     quickstart_section,
 )
+from swarm.core.support_nl_blueprint import (
+    create_nl_blueprint,
+    wants_code_reveal,
+    wants_nl_create,
+)
 
 logger = logging.getLogger(__name__)
 
 SUPPORT_INSTRUCTIONS = """
 You are Support, Open Swarm's first-run journey onboarder (role=support).
 Fixture: ONBOARD_JOURNEY_CLI_API_REMOTE
+Fixture: SUPPORT_NL_BLUEPRINT_NO_USER_PYTHON
 
 Goals:
 - Guide the open-swarm journey in natural language + kickstart chips
-  (Create a team, Add a remote, Wire a CLI) — not a form maze.
+  (Create a team, Create a BA → Engineer → Tester workflow, Add a remote,
+  Wire a CLI) — not a form maze.
+- Happy path: when they ask to create a team or workflow, call
+  create_blueprint_from_nl. They do **not** write Python. Do **not** dump
+  a ```python fence unless they ask to view / edit code.
+- Under the hood a team is a Python ApiKindBase class (ADR-005). Say that
+  briefly. Code stays hidden; the UI offers View / edit code.
 - Help them create a local team: personas, optional Chief of Staff (CoS).
-- Help them code a blueprint in Python. Always show Python in a fenced
-  ```python code block. Prefer ApiKindBase / CliKindBase / RemoteKindBase
-  (ADR-005), not raw BlueprintBase for most cases.
+- Power-user path only: if they ask to write or see the Python, consult
+  blueprint_coder and show a fenced ```python block (ApiKindBase /
+  CliKindBase / RemoteKindBase — not raw BlueprintBase for most cases).
 - Help them add a CLI agent and list models the host CLI reports.
 - Help them connect remotes (Hermes, OpenMousBot, Herdr, nested swarm)
   to setups they already have. Env var names only — never plaintext secrets.
@@ -49,11 +61,13 @@ Goals:
   overlay /profiles/ — never invent credentials, ports, or a live host.
 
 Tools:
+- create_blueprint_from_nl: persist a usable team/workflow from NL (no user Python).
 - get_live_context: current agents + inference status.
 - get_quickstart: existing quickstart excerpts (inference / team / blueprint / run).
 - list_create_paths: in-product paths to create agents, blueprints, and teams.
 - consult_product_guide: specialist (as_tool) for product Q&A.
-- consult_blueprint_coder: specialist (as_tool) for drafting blueprint Python.
+- consult_blueprint_coder: specialist (as_tool) for drafting blueprint Python
+  only when they ask to view / edit / write code.
 
 Do not shell out to grok, omb, or rakazo. Stay on this Support seat.
 """
@@ -155,6 +169,13 @@ def list_create_paths() -> str:
     return create_paths_markdown()
 
 
+@_function_tool
+def create_blueprint_from_nl(request: str) -> str:
+    """Create a usable team/workflow from natural language. User does not write Python."""
+    created = create_nl_blueprint(request)
+    return created.user_reply(include_code_fence=False)
+
+
 class SupportBlueprint(BlueprintBase):
     """Onboarding Support agent. Discoverable; metadata.role = support."""
 
@@ -196,7 +217,12 @@ class SupportBlueprint(BlueprintBase):
             name="BlueprintCoder",
             instructions=BLUEPRINT_CODER_INSTRUCTIONS.strip(),
         )
-        tools: list[Any] = [get_live_context, get_quickstart, list_create_paths]
+        tools: list[Any] = [
+            get_live_context,
+            get_quickstart,
+            list_create_paths,
+            create_blueprint_from_nl,
+        ]
         coordinator = Agent(
             name="Support",
             instructions=SUPPORT_INSTRUCTIONS.strip(),
@@ -241,7 +267,8 @@ class SupportBlueprint(BlueprintBase):
                     "",
                     "A local team is personas on one roster. Optional Chief of Staff "
                     "(CoS) talks across teams. Chat stays the main view — New team is "
-                    "an overlay, not a Settings maze.",
+                    "an overlay, not a Settings maze. Happy path: ask Support; you do "
+                    "not write Python.",
                 ]
             )
         if "add a remote" in lowered or "connect a remote" in lowered:
@@ -262,9 +289,11 @@ class SupportBlueprint(BlueprintBase):
                     "Open Swarm — no click-to-edit.",
                 ]
             )
-        if any(
-            word in lowered
-            for word in ("blueprint", "code", "python", "agent team", "write", "create a team")
+        if wants_nl_create(user_text):
+            created = create_nl_blueprint(user_text)
+            return created.user_reply(include_code_fence=wants_code_reveal(user_text))
+        if wants_code_reveal(user_text) or any(
+            word in lowered for word in ("blueprint", "code", "python", "write")
         ):
             parts.extend(["", STARTER_BLUEPRINT_PYTHON])
         parts.extend(["", create_paths_markdown()])

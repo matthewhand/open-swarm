@@ -76,7 +76,9 @@ flowchart TB
 | `CliKindBase` | `cli` | Discover/add CLI, native session, optional wrap | No — native CLI session |
 | `RemoteKindBase` | `remote` | Consult Hermes / OpenMousBot / Herdr / … | No — native remote harness |
 
-**Teams** compose members across kinds (REQ-156 Demo Bridge). Support and NL
+**Teams** compose members across kinds (REQ-156 Demo Bridge). Support NL
+create (REQ-158 / #567) persists an `ApiKindBase` seat from plain language;
+the user does not write that class unless they **View / edit code**. Support and NL
 builders (#567) know `BlueprintBase` **and** the three kind bases; they
 **default to a kind template**.
 
