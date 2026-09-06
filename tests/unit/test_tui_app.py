@@ -230,8 +230,8 @@ async def test_hydrate_session_gated_error_is_named():
         assert "session cookie" in body
 
 
-async def test_hydrate_failure_keeps_non_empty_cache():
-    """Second hydrate of the same seat fails but the loaded thread stays visible."""
+async def test_reloading_loaded_seat_serves_cache_without_refetch():
+    """Wave 3a: cache-first hydrate — a loaded (seat, session) is never refetched."""
     hits = {"grok": 0}
 
     def getter(url: str, _headers: dict[str, str]) -> httpx.Response:
@@ -239,7 +239,7 @@ async def test_hydrate_failure_keeps_non_empty_cache():
         if agent.startswith("grok"):
             hits["grok"] += 1
             if hits["grok"] > 1:
-                raise httpx.ConnectError("connection refused")
+                raise AssertionError("cache-first hydrate must not refetch")
             return _thread_response(
                 [{"role": "assistant", "content": "grok cached answer"}],
                 agent=agent,
@@ -253,9 +253,9 @@ async def test_hydrate_failure_keeps_non_empty_cache():
         await _pump_until(pilot, pilot.app, "No messages yet")
         await pilot.press("k")  # back to grok
         await pilot.press("enter")
-        body = await _pump_until(pilot, pilot.app, "offline cache")
-        assert "grok cached answer" in body
-        assert "refresh failed" in body
+        body = await _pump_until(pilot, pilot.app, "grok cached answer")
+        assert hits["grok"] == 1  # served from cache, no network
+        assert "offline cache" not in body
 
 
 # --- Wave 2c: composer + REST SSE streaming send ---------------------------
@@ -340,6 +340,81 @@ async def test_send_failure_keeps_user_echo_and_is_honest():
         body = await _pump_until(pilot, pilot.app, "send failed")
         assert "you: will this fail" in body  # user echo never vanishes
         assert "API unreachable" in body
+
+
+# --- Wave 3a: new session (n), session list (s), resume ---------------------
+
+
+async def test_n_starts_new_session_without_prior_context():
+    replies = iter(["default reply", "new reply"])
+    captured: list[dict] = []
+
+    def poster(url: str, body: dict, _headers: dict[str, str]) -> httpx.Response:
+        captured.append(body)
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            200,
+            text=_sse_chunk(next(replies)) + _sse_done(),
+            headers={"content-type": "text/event-stream"},
+            request=request,
+        )
+
+    async with TuiApp(
+        _seats(), selected_id="support", getter=_ok_getter(), poster=poster
+    ).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await _send_text(pilot, pilot.app, "one")
+        await _pump_until(pilot, pilot.app, "default reply")
+
+        await pilot.press("n")  # new session (composer lost focus when disabled)
+        heading = pilot.app.query_one("#chat-title", Static).renderable
+        assert "tui-" in str(heading)
+        await _pump_until(pilot, pilot.app, "New session")
+
+        await _send_text(pilot, pilot.app, "two")
+        await _pump_until(pilot, pilot.app, "new reply")
+        # A fresh session never inherits the default session's context.
+        assert [m["content"] for m in captured[1]["messages"]] == ["two"]
+
+
+async def test_s_lists_sessions_and_number_resumes_cached_thread():
+    replies = iter(["default reply", "new reply"])
+
+    def poster(url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            200,
+            text=_sse_chunk(next(replies)) + _sse_done(),
+            headers={"content-type": "text/event-stream"},
+            request=request,
+        )
+
+    async with TuiApp(
+        _seats(), selected_id="support", getter=_ok_getter(), poster=poster
+    ).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await _send_text(pilot, pilot.app, "one")
+        await _pump_until(pilot, pilot.app, "default reply")
+
+        await pilot.press("n")
+        await _pump_until(pilot, pilot.app, "New session")
+        await _send_text(pilot, pilot.app, "two")
+        await _pump_until(pilot, pilot.app, "new reply")
+
+        await pilot.press("s")
+        body = await _pump_until(pilot, pilot.app, "Sessions for Support")
+        assert "1) default" in body
+        assert "2) tui-" in body
+        assert "current" in body  # the new session is current
+
+        await pilot.press("1")  # resume the default session (from cache)
+        body = await _pump_until(pilot, pilot.app, "default reply")
+        assert "you: one" in body
+
+        await pilot.press("s")
+        await pilot.press("2")  # back to the new session
+        body = await _pump_until(pilot, pilot.app, "new reply")
+        assert "you: two" in body
 
 
 async def test_send_appends_context_for_the_next_turn():

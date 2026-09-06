@@ -409,6 +409,17 @@ def test_fetch_thread_uses_default_thread_and_bearer():
     assert headers_seen["Authorization"] == "Bearer tok-123"
 
 
+def test_fetch_thread_appends_conversation_id_when_given():
+    captured: list[str] = []
+
+    def getter(url: str, _headers: dict[str, str]) -> httpx.Response:
+        captured.append(url)
+        return _thread_response(200, {"conversation_id": "tui-abc", "messages": []})
+
+    fetch_thread(agent="support", conversation_id="tui-abc", getter=getter)
+    assert "conversation_id=tui-abc" in captured[0]
+
+
 def test_fetch_thread_session_gated_302_html_is_named():
     def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
         return _thread_response(302, content_type="text/html")

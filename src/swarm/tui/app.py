@@ -1,21 +1,22 @@
-"""REQ-111 Wave 2c: interactive Textual chrome — real transcript, composer, stream.
+"""REQ-111 Wave 3a: interactive Textual TUI — rail, transcript, composer, sessions.
 
 Left rail = AGENTS grouped under kind sections CLI / API / Blueprint / Remote
 (Wave 1b). Selecting a seat hydrates its real thread via ``GET /chat/thread/``
-(Wave 2a). Blueprint-backed seats can also send: the composer POSTs
-``/v1/chat/completions`` with Bearer (Wave 2b) and assistant deltas render as
-they arrive. CLI-tool / team / remote / Herdr rows are honestly not-sendable
-over REST v1 (they use the SPA websocket path — Wave 3b).
+(Wave 2a); blueprint seats send and stream through ``/v1/chat/completions``
+REST SSE (Waves 2b/2c). ``n`` starts a new conversation for the selected seat,
+``s`` lists that seat's sessions and a number resumes one (Esc closes), all
+still keyboard-first. Sessions are tracked per seat for the TUI run; the
+default thread (no ``conversation_id``) is the server's per-agent conversation.
 
-Keyboard: ``j``/``k`` (or arrows) move between seats, ``Enter`` selects a seat
-from the rail, typing goes to the composer and ``Enter`` sends, ``q`` quits
-(typing never quits). Textual stays an optional ``[tui]`` extra; the Wave 0
-``--once`` ASCII dump is unaffected.
+CLI-tool / team / remote / Herdr rows are honestly not-sendable over REST v1
+(SPA websocket path — Wave 3b). Textual stays an optional ``[tui]`` extra; the
+Wave 0 ``--once`` ASCII dump is unaffected.
 """
 
 from __future__ import annotations
 
 import asyncio
+import uuid
 from collections.abc import Iterator
 from contextlib import suppress
 
@@ -39,12 +40,17 @@ from swarm.tui.client import (
 
 EMPTY_RAIL = "No seats — API returned none (honest)."
 EMPTY_THREAD = " No messages yet for this seat — type below to send the first turn."
+EMPTY_SESSION = " New session — no messages yet. Type below to send the first turn."
 HYDRATE_LOADING = " Loading transcript…"
 COMPOSER_SENDABLE = "Type a message — Enter sends"
 COMPOSER_UNSENDABLE = "Not sendable over REST v1 (websocket path = Wave 3b)"
-FOOTER = " j/k move \u00b7 Enter select \u00b7 type + Enter send \u00b7 q quit"
+FOOTER = " j/k move \u00b7 Enter select \u00b7 n new session \u00b7 s sessions \u00b7 type + Enter send \u00b7 q quit"
 
 _ROLE_LABELS = {"user": "you", "assistant": "assistant"}
+
+
+def _mint_session_id() -> str:
+    return f"tui-{uuid.uuid4().hex[:12]}"
 
 
 class _SeatItem(ListItem):
@@ -103,10 +109,10 @@ class _SectionListView(ListView):
 
 
 class TuiApp(App[None]):
-    """Two-pane chrome: rail + live transcript + composer with streaming replies."""
+    """Two-pane chrome: rail + live transcript + composer + per-seat sessions."""
 
     TITLE = "Open Swarm TUI"
-    SUB_TITLE = "REQ-111 Wave 2c \u2014 rail + transcript + REST SSE send"
+    SUB_TITLE = "REQ-111 Wave 3a \u2014 rail + transcript + sessions (REST)"
     CSS = """
     #chrome { height: 1fr; }
     #rail-box { width: 36; border-right: solid $primary; }
@@ -125,6 +131,9 @@ class TuiApp(App[None]):
         Binding("q", "quit", "Quit"),
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
+        Binding("n", "new_session", "New session", show=False),
+        Binding("s", "list_sessions", "Sessions", show=False),
+        Binding("escape", "close_sessions", "Close", show=False),
     ]
 
     def __init__(
@@ -148,9 +157,13 @@ class TuiApp(App[None]):
         self._getter = getter
         self._poster = poster
         self._token = token
-        self._cache: dict[str, AgentThread] = {}
+        # Per-seat session registry + transcripts (Wave 3a). Key = (seat, session).
+        self._sessions: dict[str, list[str]] = {}
+        self._session: dict[str, str] = {}
+        self._cache: dict[tuple[str, str], AgentThread] = {}
         self._send_worker = None
         self._sending = False
+        self._chooser = False
 
     # -- composition ---------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -194,23 +207,97 @@ class TuiApp(App[None]):
                 return i
         return found
 
-    # -- keys ---------------------------------------------------------------
+    # -- session registry (Wave 3a) -----------------------------------------
+    def _sessions_for(self, seat_id: str) -> list[str]:
+        if seat_id not in self._sessions:
+            self._sessions[seat_id] = [""]  # "" = the server default thread
+        return self._sessions[seat_id]
+
+    def _session_for(self, seat_id: str) -> str:
+        sessions = self._sessions_for(seat_id)
+        current = self._session.get(seat_id, "")
+        if current not in sessions:
+            current = ""
+            self._session[seat_id] = ""
+        return current
+
+    def _cache_key(self, seat_id: str, session: str) -> tuple[str, str]:
+        return (seat_id, session)
+
+    # -- keys / actions -----------------------------------------------------
+    def _input_focused(self) -> bool:
+        return isinstance(getattr(self, "focused", None), Input)
+
     def action_cursor_down(self) -> None:
-        if self._seats and not self._input_focused():
+        if self._seats and not self._input_focused() and not self._chooser:
             self._list_view.action_cursor_down()
 
     def action_cursor_up(self) -> None:
-        if self._seats and not self._input_focused():
+        if self._seats and not self._input_focused() and not self._chooser:
             self._list_view.action_cursor_up()
 
     def action_quit(self) -> None:
-        # Typing 'q' in the composer must not quit; the Input consumed it anyway,
-        # but keep the guard so future global bindings never steal letters.
         if not self._input_focused():
             self.exit()
 
-    def _input_focused(self) -> bool:
-        return isinstance(getattr(self, "focused", None), Input)
+    def action_new_session(self) -> None:
+        """``n`` starts a new conversation id for the selected seat (Wave 3a)."""
+        seat = self._current_seat()
+        if seat is None or self._input_focused() or self._chooser:
+            return
+        self._cancel_send()
+        session = _mint_session_id()
+        self._session[seat.id] = session
+        self._sessions_for(seat.id).append(session)
+        # A fresh conversation has no server rows yet — seed an honest empty
+        # thread so resume needs no round-trip and nothing is invented.
+        self._cache[self._cache_key(seat.id, session)] = AgentThread(
+            agent_id=seat.id, conversation_id=session, messages=[], editable=True
+        )
+        self.query_one("#chat-title", Static).update(self._chat_heading(seat))
+        self._set_chat_body(EMPTY_SESSION)
+        self._update_composer(seat)
+
+    def action_list_sessions(self) -> None:
+        """``s`` lists this seat's sessions; pick a number to resume (Wave 3a)."""
+        seat = self._current_seat()
+        if seat is None or self._input_focused():
+            return
+        self._chooser = True
+        sessions = self._sessions_for(seat.id)
+        current = self._session_for(seat.id)
+        lines = [f" Sessions for {seat.name}:"]
+        for i, session in enumerate(sessions, start=1):
+            label = _session_label(session)
+            marker = " \u25b8 current" if session == current else ""
+            lines.append(f"  {i}) {label}{marker}")
+        lines.append("  Pick a number to resume \u00b7 Esc closes")
+        self._set_chat_body("\n".join(lines))
+
+    def action_close_sessions(self) -> None:
+        if self._chooser:
+            self._chooser = False
+            seat = self._current_seat()
+            if seat is not None:
+                self._refresh_view(seat)
+
+    def on_key(self, event) -> None:
+        if not self._chooser or self._input_focused():
+            return
+        if event.character not in "123456789":
+            return
+        seat = self._current_seat()
+        if seat is None:
+            return
+        sessions = self._sessions_for(seat.id)
+        index = int(event.character) - 1
+        if index >= len(sessions):
+            return
+        event.stop()
+        self._chooser = False
+        self._session[seat.id] = sessions[index]
+        self.query_one("#chat-title", Static).update(self._chat_heading(seat))
+        self._refresh_view(seat)
 
     # -- events -------------------------------------------------------------
     def on_mount(self) -> None:
@@ -219,7 +306,8 @@ class TuiApp(App[None]):
             self._list_view.index = target
         initial = _seat_by_id(self._seats, self._selected_id)
         if initial is not None:
-            self._hydrate(initial)
+            self._session_for(initial.id)
+            self._refresh_view(initial)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not self._seats:
@@ -230,12 +318,14 @@ class TuiApp(App[None]):
         self._cancel_send()
         self._selected_id = seat.id
         self.selected_id = seat.id
+        self._chooser = False
+        self._session_for(seat.id)
         self.query_one("#chat-title", Static).update(self._chat_heading(seat))
         self._update_composer(seat)
-        self._hydrate(seat)
+        self._refresh_view(seat)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        seat = _seat_by_id(self._seats, self._selected_id)
+        seat = self._current_seat()
         if seat is None or self._sending:
             event.input.value = ""
             return
@@ -245,70 +335,86 @@ class TuiApp(App[None]):
             return
         model = sendable_model(seat)
         if not model:
-            self._notice(seat, f"{seat.name} is not sendable over REST v1 — the websocket path is Wave 3b")
             return
         self._send(seat, model, text)
 
-    # -- hydrate (Wave 2a) --------------------------------------------------
-    def _hydrate(self, seat: RailSeat) -> None:
+    # -- hydrate (Wave 2a + 3a sessions) ------------------------------------
+    def _refresh_view(self, seat: RailSeat) -> None:
+        """Show the current (seat, session): cache first, else hydrate via HTTP."""
+        session = self._session_for(seat.id)
+        cached = self._cache.get(self._cache_key(seat.id, session))
+        if cached is not None:
+            body = _render_messages(cached.messages, seat.name, session)
+            if cached.session_missing:
+                body += "\n\n [!] requested session is missing on the server"
+            self._set_chat_body(body)
+            return
+        self._hydrate(seat, session)
+
+    def _hydrate(self, seat: RailSeat, session: str) -> None:
         self._set_chat_body(HYDRATE_LOADING)
         self.run_worker(
-            self._hydrate_coro(seat),
-            name=f"hydrate-{seat.id}",
+            self._hydrate_coro(seat, session),
+            name=f"hydrate-{seat.id}-{session}",
             group="net",
             exclusive=True,
         )
 
-    async def _hydrate_coro(self, seat: RailSeat) -> None:
+    async def _hydrate_coro(self, seat: RailSeat, session: str) -> None:
         try:
-            thread = await asyncio.to_thread(self._fetch_thread, seat.id)
+            thread = await asyncio.to_thread(self._fetch_thread, seat.id, session)
         except SwarmApiError as exc:
-            self._show_hydrate_failure(seat, exc)
+            self._show_hydrate_failure(seat, session, exc)
             return
-        self._cache[seat.id] = thread
-        if seat.id != self._selected_id:
+        self._cache[self._cache_key(seat.id, session)] = thread
+        if self._session_for(seat.id) != session or seat.id != self._selected_id:
             return
-        body = _render_messages(thread.messages, seat.name)
+        body = _render_messages(thread.messages, seat.name, session)
         if thread.session_missing:
             body += "\n\n [!] requested session is missing on the server"
         self._set_chat_body(body)
 
-    def _fetch_thread(self, seat_id: str) -> AgentThread:
+    def _fetch_thread(self, seat_id: str, session: str) -> AgentThread:
         return fetch_thread(
             agent=seat_id,
+            conversation_id=session or None,
             base_url=self._base_url or None,
             token=self._token,
             getter=self._getter,
         )
 
-    def _show_hydrate_failure(self, seat: RailSeat, exc: BaseException) -> None:
-        if seat.id != self._selected_id:
+    def _show_hydrate_failure(
+        self, seat: RailSeat, session: str, exc: BaseException
+    ) -> None:
+        if seat.id != self._selected_id or self._session_for(seat.id) != session:
             return
-        cached = self._cache.get(seat.id)
+        cached = self._cache.get(self._cache_key(seat.id, session))
         if cached is not None and cached.messages:
-            body = _render_messages(cached.messages, seat.name)
+            body = _render_messages(cached.messages, seat.name, session)
             self._set_chat_body(f"{body}\n\n [!] offline cache shown — refresh failed: {exc}")
-        elif cached is not None:
-            self._set_chat_body(f"{EMPTY_THREAD}\n\n [!] refresh failed: {exc}")
         else:
-            self._set_chat_body(f" [!] could not load {seat.name}'s thread: {exc}")
+            self._set_chat_body(
+                f" [!] could not load {seat.name}'s thread: {exc} — "
+                "(GET /chat/thread/ is login-gated; cookie jar lands in Wave 3b)"
+            )
 
     # -- send + stream (Wave 2b/2c) ----------------------------------------
     def _send(self, seat: RailSeat, model: str, text: str) -> None:
         self._sending = True
         self._update_composer(seat, sending=True)
-        base = self._cache.get(seat.id)
+        session = self._session_for(seat.id)
+        key = self._cache_key(seat.id, session)
+        base = self._cache.get(key)
         history = list(base.messages) if base is not None else []
         user_msg = ThreadMessage(role="user", content=text)
         payload = [
             {"role": m.role, "content": m.content} for m in history
         ] + [{"role": "user", "content": text}]
-        # Visible user echo immediately (honest even if the stream then fails).
         running = [*history, user_msg]
-        self._set_chat_body(_render_messages(running, seat.name))
+        self._set_chat_body(_render_messages(running, seat.name, session))
         self._send_worker = self.run_worker(
-            self._send_coro(seat, model, payload, running),
-            name=f"send-{seat.id}",
+            self._send_coro(seat, session, model, payload, running),
+            name=f"send-{seat.id}-{session}",
             group="send",
             exclusive=True,
         )
@@ -323,11 +429,8 @@ class TuiApp(App[None]):
         )
 
     async def _next_delta(self, iterator: Iterator[str]) -> str | None:
-        """Advance the SSE iterator in a thread; None = clean [DONE] end.
+        """Advance the SSE iterator in a thread; None = clean [DONE] end."""
 
-        ``StopIteration`` must not cross the ``await`` boundary (asyncio turns
-        it into RuntimeError), so it is mapped to None inside the thread.
-        """
         def _step() -> str | None:
             try:
                 return next(iterator)
@@ -339,6 +442,7 @@ class TuiApp(App[None]):
     async def _send_coro(
         self,
         seat: RailSeat,
+        session: str,
         model: str,
         payload: list[dict[str, str]],
         running: list[ThreadMessage],
@@ -352,20 +456,19 @@ class TuiApp(App[None]):
                 if delta is None:
                     break
                 buffer.append(delta)
-                if seat.id == self._selected_id:
-                    view = [*running, ThreadMessage(role="assistant", content="".join(buffer))]
-                    self._set_chat_body(_render_messages(view, seat.name))
+                if seat.id == self._selected_id and self._session_for(seat.id) == session:
+                    view = [*running, *self._assistant_row(buffer)]
+                    self._set_chat_body(_render_messages(view, seat.name, session))
         except asyncio.CancelledError:
-            raise  # seat switch — the finally block closes the stream
+            raise  # seat / session switch — the finally block closes the stream
         except SwarmApiError as exc:
             self._sending = False
             self._send_worker = None
-            if seat.id == self._selected_id:
-                # Keep the user echo + any partial deltas (never lose the transcript).
+            if seat.id == self._selected_id and self._session_for(seat.id) == session:
                 keep = [*running, *self._assistant_row(buffer)]
-                self._store_thread(seat, keep)
+                self._store_thread(seat, session, keep)
                 self._set_chat_body(
-                    f"{_render_messages(keep, seat.name)}\n\n [!] send failed: {exc}"
+                    f"{_render_messages(keep, seat.name, session)}\n\n [!] send failed: {exc}"
                 )
                 self._update_composer(seat)
             return
@@ -376,24 +479,24 @@ class TuiApp(App[None]):
         self._sending = False
         self._send_worker = None
         done = [*running, *self._assistant_row(buffer)]
-        self._store_thread(seat, done)
-        if seat.id == self._selected_id:
-            self._set_chat_body(_render_messages(done, seat.name))
+        self._store_thread(seat, session, done)
+        if seat.id == self._selected_id and self._session_for(seat.id) == session:
+            self._set_chat_body(_render_messages(done, seat.name, session))
             self._update_composer(seat)
 
     @staticmethod
     def _assistant_row(buffer: list[str]) -> list[ThreadMessage]:
-        """One assistant row from streamed deltas; none when the stream was empty."""
         if not buffer:
             return []
         return [ThreadMessage(role="assistant", content="".join(buffer))]
 
-    def _store_thread(self, seat: RailSeat, messages: list[ThreadMessage]) -> None:
-        """Persist a transcript for a seat, keeping the hydrated thread metadata."""
-        base = self._cache.get(seat.id)
-        self._cache[seat.id] = AgentThread(
+    def _store_thread(
+        self, seat: RailSeat, session: str, messages: list[ThreadMessage]
+    ) -> None:
+        base = self._cache.get(self._cache_key(seat.id, session))
+        self._cache[self._cache_key(seat.id, session)] = AgentThread(
             agent_id=(base.agent_id if base else seat.id),
-            conversation_id=(base.conversation_id if base else ""),
+            conversation_id=(base.conversation_id if base else (session or "")),
             messages=list(messages),
             kind=(base.kind if base else ""),
             editable=True,
@@ -407,32 +510,44 @@ class TuiApp(App[None]):
             worker.cancel()
 
     # -- chrome helpers -----------------------------------------------------
+    def _current_seat(self) -> RailSeat | None:
+        return _seat_by_id(self._seats, self._selected_id)
+
     def _update_composer(self, seat: RailSeat | None, *, sending: bool = False) -> None:
         with suppress(Exception):
             composer = self.query_one("#composer", Input)
             sendable = seat is not None and sendable_model(seat) is not None
             composer.disabled = not sendable or sending
             composer.placeholder = (
-                "Streaming…" if sending else COMPOSER_SENDABLE if sendable else COMPOSER_UNSENDABLE
+                "Streaming…"
+                if sending
+                else COMPOSER_SENDABLE
+                if sendable
+                else COMPOSER_UNSENDABLE
             )
 
-    def _notice(self, seat: RailSeat, text: str) -> None:
-        if seat.id == self._selected_id:
-            self._set_chat_body(f"{_render_messages(self._cache.get(seat.id).messages if self._cache.get(seat.id) else [], seat.name)}\n\n [!] {text}")
-
     def _chat_heading(self, seat: RailSeat | None = None) -> str:
-        seat = seat or _seat_by_id(self._seats, self._selected_id)
+        seat = seat or self._current_seat()
         if seat is None:
             return " Chat \u2014 none selected"
-        return f" Chat \u2014 {seat.name} ({seat.kind} \u00b7 {seat.source})"
+        session = self._session_for(seat.id)
+        base = f" Chat \u2014 {seat.name} ({seat.kind} \u00b7 {seat.source})"
+        return f"{base} [{_session_label(session)}]" if session else base
 
     def _set_chat_body(self, text: str) -> None:
         with suppress(Exception):
             self.query_one("#chat-body", Static).update(text)
 
 
-def _render_messages(messages: list[ThreadMessage], seat_name: str | None = None) -> str:
-    """Plain-text transcript render (v1 — assistant label is the seat name)."""
+def _session_label(session: str) -> str:
+    return session if session else "default"
+
+
+def _render_messages(
+    messages: list[ThreadMessage],
+    seat_name: str | None = None,
+    session: str = "",
+) -> str:
     assistant = seat_name or "assistant"
     lines: list[str] = []
     for message in messages:
@@ -446,7 +561,9 @@ def _render_messages(messages: list[ThreadMessage], seat_name: str | None = None
         else:
             lines.append(f" {label}{edited}: {text}")
     body = "\n".join(lines)
-    return body if body else EMPTY_THREAD
+    if body:
+        return body
+    return EMPTY_SESSION if session else EMPTY_THREAD
 
 
 def _initial_selected(seats: list[RailSeat], selected_id: str | None) -> str | None:
@@ -492,6 +609,7 @@ __all__ = [
     "COMPOSER_SENDABLE",
     "COMPOSER_UNSENDABLE",
     "EMPTY_RAIL",
+    "EMPTY_SESSION",
     "EMPTY_THREAD",
     "FOOTER",
     "HYDRATE_LOADING",

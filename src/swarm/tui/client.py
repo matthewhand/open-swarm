@@ -338,6 +338,7 @@ def _thread_from_payload(payload: dict[str, Any], agent: str) -> AgentThread:
 def fetch_thread(
     *,
     agent: str,
+    conversation_id: str | None = None,
     base_url: str | None = None,
     token: str | None = None,
     timeout: float = 8.0,
@@ -345,9 +346,9 @@ def fetch_thread(
 ) -> AgentThread:
     """Hydrate a seat's real transcript — same endpoint as the SPA (Wave 2a).
 
-    ``GET /chat/thread/?agent=<id>`` with no ``conversation_id``, so the server
-    resolves the user's default thread for the agent (session switching is
-    Wave 3a). A transport failure, an HTTP error, or a session-gated status is
+    ``GET /chat/thread/?agent=<id>`` plus an optional ``conversation_id`` for a
+    specific session (omitted = the server's default thread for the agent). A
+    transport failure, an HTTP error, or a session-gated status is
     an explicit ``SwarmApiError`` — a first miss never falls open to a fake
     empty thread. ``GET /chat/thread/`` is ``@login_required``: a Bearer token
     does not authenticate it (the TUI cookie jar lands in Wave 3b).
@@ -362,6 +363,8 @@ def fetch_thread(
 
     fetch = getter or default_getter
     url = f"{base}/chat/thread/?agent={quote(agent)}"
+    if conversation_id:
+        url += f"&conversation_id={quote(conversation_id)}"
     try:
         response = fetch(url, headers)
     except httpx.HTTPError as exc:
