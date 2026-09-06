@@ -44,6 +44,12 @@ def test_resolve_token_reads_env_names_only(monkeypatch):
     assert resolve_token() == "placeholder-not-a-secret"
 
 
+def test_resolve_token_prefers_api_auth_token_over_swarm_api_key(monkeypatch):
+    monkeypatch.setenv("API_AUTH_TOKEN", "primary-token")
+    monkeypatch.setenv("SWARM_API_KEY", "legacy-token")
+    assert resolve_token() == "primary-token"
+
+
 def test_is_rail_seat_matches_spa_default_deny():
     assert is_rail_seat({"id": "poets", "rail": False}) is False
     assert is_rail_seat({"id": "support", "rail": True}) is True
@@ -139,6 +145,18 @@ def test_list_rail_agents_connection_error_is_honest():
         list_rail_agents(base_url="http://127.0.0.1:8000", getter=getter)
 
 
+def test_connection_error_names_base_env_hint():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    with pytest.raises(SwarmApiError) as exc:
+        list_rail_agents(getter=getter)
+    message = str(exc.value)
+    assert "API unreachable" in message
+    assert "SWARM_API_BASE" in message
+    assert "127.0.0.1:8000" in message
+
+
 def test_list_rail_agents_http_error_is_honest():
     def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
         return _response(503, {"detail": "down"})
@@ -156,14 +174,90 @@ def test_list_rail_agents_empty_catalog_is_not_faked():
     assert list_rail_agents(getter=getter) == []
 
 
-def test_optional_catalog_auth_failure_is_fatal():
+def test_optional_catalog_rejected_token_is_fatal():
     def getter(url: str, _headers: dict[str, str]) -> httpx.Response:
         if url.endswith("/v1/blueprints/"):
             return _response(200, {"object": "list", "data": []})
         return _response(401, {"detail": "nope"})
 
-    with pytest.raises(SwarmApiError, match="auth failed"):
+    with pytest.raises(SwarmApiError, match="not accepted"):
+        list_rail_agents(getter=getter, token="wrong-key")
+
+
+def test_optional_catalog_auth_required_without_token_is_fatal():
+    def getter(url: str, _headers: dict[str, str]) -> httpx.Response:
+        if url.endswith("/v1/blueprints/"):
+            return _response(200, {"object": "list", "data": []})
+        return _response(403, {"detail": "nope"})
+
+    with pytest.raises(SwarmApiError, match="auth required"):
         list_rail_agents(getter=getter)
+
+
+# --- Wave 1c: named auth, missing vs rejected, never leaks a token ----------
+
+
+def test_auth_required_401_without_token_names_env_vars(monkeypatch):
+    monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("SWARM_API_KEY", raising=False)
+
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _response(401, {"detail": "nope"})
+
+    with pytest.raises(SwarmApiError) as exc:
+        list_rail_agents(getter=getter)
+    message = str(exc.value)
+    assert "auth required (401)" in message
+    assert "API_AUTH_TOKEN" in message
+    assert "SWARM_API_KEY" in message
+
+
+def test_auth_rejected_401_with_token_is_named_and_never_leaks():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _response(401, {"detail": "nope"})
+
+    with pytest.raises(SwarmApiError) as exc:
+        list_rail_agents(getter=getter, token="sk-live-secret-value")
+    message = str(exc.value)
+    assert "auth failed (401)" in message
+    assert "not accepted" in message
+    assert "sk-live-secret-value" not in message
+
+
+def test_auth_403_is_named_and_never_leaks():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _response(403, {"detail": "nope"})
+
+    with pytest.raises(SwarmApiError) as exc:
+        list_rail_agents(getter=getter, token="wrong-key")
+    message = str(exc.value)
+    assert "auth failed (403)" in message
+    assert "wrong-key" not in message
+
+
+def test_no_authorization_header_when_no_token(monkeypatch):
+    monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("SWARM_API_KEY", raising=False)
+    captured: dict[str, object] = {}
+
+    class FakeClient:
+        def __init__(self, timeout: float):
+            captured["timeout"] = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, _url: str, headers: dict[str, str]):
+            captured["headers"] = headers
+            return _response(200, {"object": "list", "data": []})
+
+    monkeypatch.setattr("swarm.tui.client.httpx.Client", FakeClient)
+    assert list_rail_agents(base_url="http://127.0.0.1:8000", token=None) == []
+    assert "Authorization" not in captured["headers"]
+    assert captured["headers"] == {"Accept": "application/json"}
 
 
 def test_list_rail_agents_uses_httpx_when_no_getter(monkeypatch):

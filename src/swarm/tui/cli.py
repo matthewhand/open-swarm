@@ -13,6 +13,7 @@ from swarm.tui.client import (
     SwarmApiError,
     list_rail_agents,
     resolve_base_url,
+    resolve_token,
     sectioned_seats,
 )
 from swarm.tui.layout import render_scaffold
@@ -41,7 +42,12 @@ def tui_cmd(
         help="Print the rail list as JSON instead of the ASCII chrome.",
     ),
 ) -> None:
-    """Herdr-like TUI client of the same HTTP API the WebUI uses (REQ-111)."""
+    """Herdr-like TUI client of the same HTTP API the WebUI uses (REQ-111).
+
+    Auth/base contract (env-var **names** only): SWARM_API_BASE for the origin,
+    API_AUTH_TOKEN or SWARM_API_KEY for the Bearer token. 401/403 and API-down
+    failures are named; no agents are invented when the API is down or empty.
+    """
     if once or as_json:
         _non_interactive(as_json=as_json, base_url=base_url, agent=agent)
         return
@@ -95,6 +101,8 @@ def _non_interactive(
         payload = {
             "object": "tui.rail",
             "base_url": resolved,
+            # Wave 1c: is a Bearer token attached? (boolean only — no value).
+            "auth": resolve_token() is not None,
             "selected": agent or (seats[0].id if seats else None),
             "data": [
                 {

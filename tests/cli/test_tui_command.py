@@ -24,6 +24,11 @@ def test_tui_help_lists_command():
     assert "--once" in stdout
     assert "--interactive" in stdout
     assert "--base-url" in stdout
+    # Wave 1c: help names the env vars (names only) — no :8001 anywhere.
+    assert "SWARM_API_BASE" in stdout
+    assert "API_AUTH_TOKEN" in stdout
+    assert "SWARM_API_KEY" in stdout
+    assert "8001" not in stdout
 
 
 def test_tui_once_renders_rail_and_placeholder(monkeypatch):
@@ -45,6 +50,8 @@ def test_tui_once_renders_rail_and_placeholder(monkeypatch):
 
 
 def test_tui_json_lists_seats_and_kind_sections(monkeypatch):
+    monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("SWARM_API_KEY", raising=False)
     monkeypatch.setattr(
         "swarm.tui.cli.list_rail_agents",
         lambda **_: [
@@ -64,6 +71,32 @@ def test_tui_json_lists_seats_and_kind_sections(monkeypatch):
         "API": ["support"],
         "Blueprint": ["team:office"],
     }
+    # Wave 1c: auth is a boolean, never a value.
+    assert payload["auth"] is False
+
+
+def test_tui_json_reports_auth_flag_with_env_token(monkeypatch):
+    monkeypatch.setattr("swarm.tui.cli.list_rail_agents", lambda **_: [])
+    monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("SWARM_API_KEY", raising=False)
+    result = runner.invoke(app, ["tui", "--json"])
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout)["auth"] is False
+
+    monkeypatch.setenv("API_AUTH_TOKEN", "env-only-token")
+    result = runner.invoke(app, ["tui", "--json"])
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout)["auth"] is True
+
+
+def test_tui_once_empty_rail_exits_zero_and_invents_nothing(monkeypatch):
+    monkeypatch.setattr("swarm.tui.cli.list_rail_agents", lambda **_: [])
+    result = runner.invoke(app, ["tui", "--once"])
+    assert result.exit_code == 0, result.stderr
+    assert "AGENTS" in result.stdout
+    assert "none" in result.stdout
+    assert "Support" not in result.stdout
+    assert "placeholder" in result.stdout.lower()
 
 
 def test_tui_api_down_is_honest(monkeypatch):

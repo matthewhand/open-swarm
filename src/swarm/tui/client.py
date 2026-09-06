@@ -105,18 +105,45 @@ def _url(base: str, path: str) -> str:
     return urljoin(base.rstrip("/") + "/", path.lstrip("/"))
 
 
+def _transport_error_message(url: str, exc: httpx.HTTPError) -> str:
+    """Wave 1c: name the failure and how to point the TUI elsewhere."""
+    return (
+        f"API unreachable at {url}: {exc}. "
+        "Is the swarm-api running there? If not, set SWARM_API_BASE "
+        f"(default {DEFAULT_BASE_URL})."
+    )
+
+
 def _request(getter: GETTER, url: str, headers: dict[str, str]) -> httpx.Response:
     try:
         return getter(url, headers)
     except httpx.HTTPError as exc:
-        raise SwarmApiError(f"API unreachable at {url}: {exc}") from exc
+        raise SwarmApiError(_transport_error_message(url, exc)) from exc
 
 
-def _json_object(response: httpx.Response, url: str) -> dict[str, Any]:
+def _auth_failure_message(status: int, auth_sent: bool) -> str:
+    """Wave 1c: 401/403 named, and the cause told apart — no token vs rejected.
+
+    Env-var **names** only; a raw token is never echoed back to the terminal.
+    """
+    if auth_sent:
+        return (
+            f"API auth failed ({status}) \u2014 the Bearer token sent is not "
+            "accepted by the swarm-api. Set API_AUTH_TOKEN or SWARM_API_KEY to "
+            "a token the API accepts (env-var names only)."
+        )
+    return (
+        f"API auth required ({status}) \u2014 the swarm-api has auth enabled but this "
+        "shell sets no API_AUTH_TOKEN / SWARM_API_KEY (env-var names only)."
+    )
+
+
+def _json_object(
+    response: httpx.Response, url: str, *, auth_sent: bool
+) -> dict[str, Any]:
     if response.status_code in {401, 403}:
         raise SwarmApiError(
-            f"API auth failed ({response.status_code}) at {url}. "
-            "Set API_AUTH_TOKEN or SWARM_API_KEY (env-var names only)."
+            f"{_auth_failure_message(response.status_code, auth_sent)} at {url}"
         )
     if response.status_code >= 400:
         raise SwarmApiError(f"API error {response.status_code} at {url}")
@@ -130,16 +157,20 @@ def _json_object(response: httpx.Response, url: str) -> dict[str, Any]:
 
 
 def _optional_json(
-    getter: GETTER, url: str, headers: dict[str, str]
+    getter: GETTER,
+    url: str,
+    headers: dict[str, str],
+    *,
+    auth_sent: bool,
 ) -> dict[str, Any] | None:
     """Secondary catalogs may 404; transport / auth failures stay fatal."""
     try:
         response = getter(url, headers)
     except httpx.HTTPError as exc:
-        raise SwarmApiError(f"API unreachable at {url}: {exc}") from exc
+        raise SwarmApiError(_transport_error_message(url, exc)) from exc
     if response.status_code == 404:
         return None
-    return _json_object(response, url)
+    return _json_object(response, url, auth_sent=auth_sent)
 
 
 def _seats_from_blueprints(payload: dict[str, Any]) -> list[RailSeat]:
@@ -254,9 +285,16 @@ def list_rail_agents(
     ``/v1/herdr-agents/`` merge when present (Wave 1b parity with the SPA
     AgentSidebar). Seats dedupe by id; teams keep their ``team:`` / ``herdr:``
     rail ids so a roster never collides with a catalog seat of the same name.
+
+    Auth matches the WebUI REST contract (Wave 1c): ``API_AUTH_TOKEN`` or
+    ``SWARM_API_KEY`` from the shell becomes ``Authorization: Bearer``. A
+    401/403 names the cause (no token set vs token rejected) and never echoes
+    the value; a connection failure names the origin and ``SWARM_API_BASE``.
+    Empty catalogs stay empty — no agents are ever invented.
     """
     base = resolve_base_url(base_url)
     auth = token if token is not None else resolve_token()
+    auth_sent = auth is not None
     headers = _headers(auth)
 
     def default_getter(url: str, hdrs: dict[str, str]) -> httpx.Response:
@@ -266,22 +304,32 @@ def list_rail_agents(
     fetch = getter or default_getter
 
     blueprints_url = _url(base, "/v1/blueprints/")
-    payload = _json_object(_request(fetch, blueprints_url, headers), blueprints_url)
+    payload = _json_object(
+        _request(fetch, blueprints_url, headers), blueprints_url, auth_sent=auth_sent
+    )
     seats = _seats_from_blueprints(payload)
 
-    cli_payload = _optional_json(fetch, _url(base, "/v1/cli-agents/"), headers)
+    cli_payload = _optional_json(
+        fetch, _url(base, "/v1/cli-agents/"), headers, auth_sent=auth_sent
+    )
     if cli_payload is not None:
         seats.extend(_seats_from_cli_agents(cli_payload))
 
-    remotes_payload = _optional_json(fetch, _url(base, "/v1/remotes/"), headers)
+    remotes_payload = _optional_json(
+        fetch, _url(base, "/v1/remotes/"), headers, auth_sent=auth_sent
+    )
     if remotes_payload is not None:
         seats.extend(_seats_from_remotes(remotes_payload))
 
-    teams_payload = _optional_json(fetch, _url(base, "/v1/team-rosters/"), headers)
+    teams_payload = _optional_json(
+        fetch, _url(base, "/v1/team-rosters/"), headers, auth_sent=auth_sent
+    )
     if teams_payload is not None:
         seats.extend(_seats_from_team_rosters(teams_payload))
 
-    herdr_payload = _optional_json(fetch, _url(base, "/v1/herdr-agents/"), headers)
+    herdr_payload = _optional_json(
+        fetch, _url(base, "/v1/herdr-agents/"), headers, auth_sent=auth_sent
+    )
     if herdr_payload is not None:
         seats.extend(_seats_from_herdr_agents(herdr_payload))
 
