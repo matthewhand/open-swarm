@@ -48,7 +48,10 @@ describe('agent types', () => {
     expect(agentTypeOf(agent({ kind: 'blueprint' }))).toBe('api')
     expect(agentTypeOf(agent({ kind: 'cli', cli: 'grok' }))).toBe('cli')
     expect(agentTypeOf(agent({ kind: 'remote', framework: 'openmausbot' }))).toBe('remote')
+    expect(agentTypeOf(agent({ kind: 'herdr' }))).toBe('remote')
+    expect(agentTypeOf(agent({ kind: 'hermes' }))).toBe('remote')
     expect(agentTypeOf(agent({ agent_type: 'cli', kind: 'personality' }))).toBe('cli')
+    expect(AGENT_TYPE_SECTIONS).not.toContain('herdr')
   })
 
   it('labels API swarms vs LiteLLM vs CLI vs remote', () => {

@@ -24,7 +24,7 @@ import {
 import { saveAgentSettings } from '../lib/agentSettings'
 import AgentWorkspaceBinding from './AgentWorkspaceBinding'
 import { RemoteSelect } from './RemoteSelect'
-import { configuredRemotes } from '../lib/remotes'
+import { addAgentRemoteImpls, configuredRemotes } from '../lib/remotes'
 import { remotesListForSelect, saveAgentRemoteBinding } from '../lib/agentRemote'
 
 export type AgentKind = 'cli' | 'api' | 'remote'
@@ -52,7 +52,8 @@ export interface ManageAgentItem {
 /**
  * REQ-184 / REQ-109 / REQ-164 / REQ-165 / REQ-167 / REQ-166: Add agent popup wizard.
  *
- * - Tabs: CLI | API | Remote (with OpenMousBot product naming).
+ * - Tabs: CLI | API | Remote. Remote lists impls (Hermes / OpenMousBot /
+ *   Rakazo / Herdr / nested swarm) — not a parallel Herdr kind (REQ-203).
  * - Under each tab: shows existing list (empty state when none) AND create/edit fields on the same view.
  * - Esc / backdrop / close cancels without creating.
  * - Completing create bumps to top of unpinned and navigates.
@@ -90,7 +91,7 @@ export default function AddAgentWizard({
   const [apiPrompt, setApiPrompt] = useState('')
 
   // Remote fields
-  const [remoteKind, setRemoteKind] = useState<'omb' | 'generic'>('omb')
+  const [remoteKind, setRemoteKind] = useState('omb')
   const [remoteBaseUrl, setRemoteBaseUrl] = useState('')
   const [remoteApiKey, setRemoteApiKey] = useState('')
   const [pickedRemoteId, setPickedRemoteId] = useState('')
@@ -125,6 +126,7 @@ export default function AddAgentWizard({
   })
   const remotesCatalog = remotesListForSelect(remotesQuery.data)
   const configuredRemoteRows = configuredRemotes(remotesCatalog)
+  const remoteImpls = addAgentRemoteImpls(remotesQuery.data)
 
   const resetFormFields = () => {
     setError(null)
@@ -480,9 +482,10 @@ ${folderComment}`
       } else if (selectedKind === 'remote') {
         const baseUrl = remoteBaseUrl.trim()
         if (baseUrl) {
+          const implId = remoteKind === 'generic' ? 'hermes' : remoteKind
           const created = await createRemote({
-            kind: remoteKind === 'omb' ? 'omb' : 'remote',
-            base_url: baseUrl,
+            kind: implId,
+            ...(implId === 'herdr' && !baseUrl ? { herdr_mode: 'local' } : { base_url: baseUrl }),
             ...(remoteApiKey.trim() ? { api_key: remoteApiKey.trim() } : {}),
           })
 
@@ -493,9 +496,11 @@ ${folderComment}`
           await queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
           await queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
           await queryClient.invalidateQueries({ queryKey: ['remotes-list'] })
+          const implLabel =
+            remoteImpls.find((row) => row.id === implId)?.label || created.id
           onCreated?.({
             id: created.id,
-            name: remoteKind === 'omb' ? OPENMOUSBOT_LABEL : created.id,
+            name: implLabel,
             kind: 'remote',
           })
           handleClose()
@@ -509,6 +514,25 @@ ${folderComment}`
           onCreated?.({
             id: picked.id,
             name: picked.label || picked.title || picked.id,
+            kind: 'remote',
+          })
+          handleClose()
+        } else if (remoteKind === 'herdr') {
+          const created = await createRemote({
+            kind: 'herdr',
+            herdr_mode: 'local',
+            ...(remoteApiKey.trim() ? { api_key: remoteApiKey.trim() } : {}),
+          })
+          saveAgentRemoteBinding(created.id, {
+            id: created.id,
+            kind: created.kind || created.id,
+          })
+          await queryClient.invalidateQueries({ queryKey: ['configured-remotes'] })
+          await queryClient.invalidateQueries({ queryKey: ['settings-remotes'] })
+          await queryClient.invalidateQueries({ queryKey: ['remotes-list'] })
+          onCreated?.({
+            id: created.id,
+            name: remoteImpls.find((row) => row.id === 'herdr')?.label || 'Herdr',
             kind: 'remote',
           })
           handleClose()
@@ -606,7 +630,7 @@ ${folderComment}`
             data-testid="kind-option-remote"
           >
             <Globe className="h-4 w-4" aria-hidden="true" />
-            <span>Remote ({OPENMOUSBOT_LABEL})</span>
+            <span>Remote</span>
           </button>
         </div>
 
@@ -629,7 +653,8 @@ ${folderComment}`
                 </div>
                 <p className="mt-2 text-sm font-medium">No remotes configured yet</p>
                 <p className="mt-1 text-xs text-base-content/60">
-                  Connect an external {OPENMOUSBOT_LABEL} or HTTP worker below.
+                  Connect Hermes, {OPENMOUSBOT_LABEL}, Rakazo, Herdr, or nested
+                  open-swarm — implementations of Remote, not extra kinds.
                 </p>
                 <Button
                   type="button"
@@ -968,17 +993,20 @@ ${folderComment}`
                   <select
                     className="select select-sm select-bordered w-full"
                     value={remoteKind}
-                    onChange={(e) => setRemoteKind(e.target.value as 'omb' | 'generic')}
+                    onChange={(e) => setRemoteKind(e.target.value)}
                     aria-label="Remote type"
                     data-testid="select-remote-kind"
                   >
-                    <option value="omb">{OPENMOUSBOT_LABEL}</option>
-                    <option value="generic">Generic Remote Agent</option>
+                    {remoteImpls.map((impl) => (
+                      <option key={impl.id} value={impl.id}>
+                        {impl.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">
                   <label className="block text-xs font-medium text-base-content/80">
-                    Base URL <span className="text-error">*</span>
+                    Base URL {remoteKind === 'herdr' ? '(optional — local Herdr)' : <span className="text-error">*</span>}
                   </label>
                   <input
                     ref={firstInputRef}

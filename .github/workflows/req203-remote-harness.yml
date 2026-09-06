@@ -1,0 +1,68 @@
+name: REQ-203 Remote harness spec
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/remote_harness.py"
+      - "src/swarm/core/remotes.py"
+      - "src/swarm/core/agent_kind.py"
+      - "src/swarm/core/agent_types.py"
+      - "src/swarm/core/kind_bases.py"
+      - "webui/frontend/src/lib/agentKind.ts"
+      - "webui/frontend/src/lib/agent-types.ts"
+      - "webui/frontend/src/lib/remoteKinds.ts"
+      - "webui/frontend/src/lib/remotes.ts"
+      - "webui/frontend/src/components/AddAgentWizard.tsx"
+      - "tests/core/test_remote_harness.py"
+      - "tests/core/test_agent_kind.py"
+      - "tests/core/test_agent_types.py"
+      - "tests/unit/test_adr011_remote_harness.py"
+      - "docs/adr/011-remote-harness.md"
+      - "docs/REMOTE_HARNESSES.md"
+      - ".github/workflows/req203-remote-harness.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/remote_harness.py"
+      - "src/swarm/core/remotes.py"
+      - "src/swarm/core/agent_kind.py"
+      - "src/swarm/core/agent_types.py"
+      - "src/swarm/core/kind_bases.py"
+      - "webui/frontend/src/lib/agentKind.ts"
+      - "webui/frontend/src/lib/agent-types.ts"
+      - "webui/frontend/src/lib/remoteKinds.ts"
+      - "webui/frontend/src/lib/remotes.ts"
+      - "webui/frontend/src/components/AddAgentWizard.tsx"
+      - "tests/core/test_remote_harness.py"
+      - "tests/core/test_agent_kind.py"
+      - "tests/core/test_agent_types.py"
+      - "tests/unit/test_adr011_remote_harness.py"
+      - "docs/adr/011-remote-harness.md"
+      - "docs/REMOTE_HARNESSES.md"
+      - ".github/workflows/req203-remote-harness.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-203 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/core/test_remote_harness.py \
+            tests/core/test_agent_kind.py \
+            tests/core/test_agent_types.py \
+            tests/unit/test_adr011_remote_harness.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"

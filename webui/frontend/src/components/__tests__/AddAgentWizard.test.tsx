@@ -57,16 +57,22 @@ describe('AddAgentWizard (REQ-109, REQ-165, REQ-167)', () => {
     localStorage.clear()
   })
 
-  it('renders three agent kinds on step 1 with OpenMousBot copy for remote', () => {
+  it('renders three agent kinds; Remote tab lists impls, not a Herdr kind', async () => {
     renderWizard()
 
     expect(screen.getByTestId('add-agent-wizard')).toBeInTheDocument()
     expect(screen.getByTestId('kind-option-cli')).toBeInTheDocument()
     expect(screen.getByTestId('kind-option-api')).toBeInTheDocument()
     expect(screen.getByTestId('kind-option-remote')).toBeInTheDocument()
+    expect(screen.queryByTestId('kind-option-herdr')).not.toBeInTheDocument()
+    expect(screen.getByTestId('kind-option-remote')).toHaveTextContent('Remote')
 
-    // Must use OpenMousBot copy (not OMB)
-    expect(screen.getByText(new RegExp(OPENMOUSBOT_LABEL, 'i'))).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('kind-option-remote'))
+    const implSelect = await screen.findByTestId('select-remote-kind')
+    expect(within(implSelect).getByRole('option', { name: OPENMOUSBOT_LABEL })).toBeInTheDocument()
+    expect(within(implSelect).getByRole('option', { name: 'Hermes' })).toBeInTheDocument()
+    expect(within(implSelect).getByRole('option', { name: 'Herdr' })).toBeInTheDocument()
+    expect(within(implSelect).queryByRole('option', { name: 'Generic Remote Agent' })).not.toBeInTheDocument()
     expect(screen.queryByText(/^OMB$/)).not.toBeInTheDocument()
   })
 

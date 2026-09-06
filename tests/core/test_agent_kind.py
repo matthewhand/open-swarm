@@ -22,3 +22,13 @@ def test_explicit_kind_wins():
     assert classify_agent_kind("jeeves", explicit="cli") == "cli"
     assert classify_agent_kind("cli:grok", explicit="api") == "api"
     assert can_edit_agent_messages("jeeves", explicit="remote") is False
+
+
+def test_herdr_and_remote_impls_classify_as_remote():
+    assert classify_agent_kind("herdr") == "remote"
+    assert classify_agent_kind("herdr:w3:p1") == "remote"
+    assert classify_agent_kind("pane", explicit="herdr") == "remote"
+    assert classify_agent_kind("hermes") == "remote"
+    assert classify_agent_kind("omb") == "remote"
+    assert can_edit_agent_messages("herdr") is False
+    assert classify_agent_kind("swarm") == "api"

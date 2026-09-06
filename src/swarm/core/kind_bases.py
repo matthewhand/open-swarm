@@ -61,8 +61,10 @@ class CliKindBase(KindBase):
 class RemoteKindBase(KindBase):
     """Remote-backed template.
 
-    Consult Hermes / OpenMousBot / Herdr / nested swarm as tools or team
-    members. The remote harness stays native; Open Swarm sits in front.
+    Consult Hermes / OpenMousBot / Rakazo / Herdr / nested swarm as tools or
+    team members. Those are implementations of one Remote harness
+    (ADR-011 / REQ-203), not extra user-facing kinds. The remote stays native;
+    Open Swarm sits in front.
     """
 
     kind: ClassVar[str] = KIND_REMOTE

@@ -15,7 +15,7 @@ Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.
 | **CLI** | Host executable (grok, agy, …). |
 | **API** | Inference seat: OpenAI-compat base URL / model / key env. Chat completions. Not a graph. |
 | **Blueprint** | Programmatic recipe (`BlueprintBase`: openai-agents handoffs, MoA, custom Python, …). |
-| **Remote** | Another agentic framework (OpenMausBot, Hermes, Herdr, nested swarm, …). |
+| **Remote** | Abstract harness ([ADR-011](./adr/011-remote-harness.md)). Implementations: Hermes, OpenMousBot, Rakazo, Herdr, nested swarm — not extra kinds. |
 
 Until Phase 1/2 land, UI copy and classifiers still say “API” for recipes. Prefer the target names in **new** docs.
 Related: [ADR-001 — Primary UI is Django; SPA Chat only](./ADR-001-primary-ui.md);
@@ -26,7 +26,7 @@ Chat list windowing: [ADR-004](./adr/004-virtualized-chat-history.md) (REQ-163).
 
 Three ways an agent runs. **API** (OpenAI-compatible / blueprints) is the only
 type that can execute an openai-agents **handoff / as-tool graph**. **CLI**
-(`grok` / `agy` / …) and **Remote** (Hermes / OpenMousBot / Herdr / …) stay
+(`grok` / `agy` / …) and **Remote** (one interface; Hermes / OpenMousBot / Herdr / … implement it) stay
 native sessions — the framework is not injected into those harnesses. A
 **cross-type team** may still mix all three for coordination; only API
 members own the programmatic topology. See
@@ -131,7 +131,7 @@ An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id
 
 ## Herdr member (`kind=herdr`)
 
-A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). **Remotes kind** (REQ-64 / REQ-100): add `herdr` in Settings. **Local Herdr** talks to Herdr on this host (no SSH). **Remote Herdr is SSH-shaped** — SSH to the Herdr host, then Herdr’s CLIs there — **not** an HTTP remote like OpenMousBot / Hermes / Rakazo. Missing SSH config is an error, not a silent other-host. Docs: [HERDR.md](./HERDR.md).
+A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). **Remote implementation** (REQ-203 / ADR-011): `herdr` is the impl id under user-facing kind **Remote**, not a fifth harness. Add `herdr` in Settings. **Local Herdr** talks to Herdr on this host (no SSH). **Remote Herdr is SSH-shaped** — SSH to the Herdr host, then Herdr’s CLIs there — **not** an HTTP remote like OpenMousBot / Hermes / Rakazo. Missing SSH config is an error, not a silent other-host. Classifiers map `herdr` / `herdr:…` → `remote`. Docs: [HERDR.md](./HERDR.md).
 
 ## Operator UI vs SPA Chat
 
