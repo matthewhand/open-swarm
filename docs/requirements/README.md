@@ -43,6 +43,7 @@ Oracle from anything in this tree.
 | [REQ-106](./REQ-106.md) | [Bee brand mark — SVG favicon + multi-size app icons (colour + mono)](https://github.com/matthewhand/open-swarm/issues/470); surface split [minimal / geometric / cyber-swarm](https://github.com/matthewhand/open-swarm/issues/768) |
 | [REQ-107](./REQ-107.md) | [Team designer — optional Chief of Staff + how-to-use-the-team instructions](https://github.com/matthewhand/open-swarm/issues/475) |
 | [REQ-108](./REQ-108.md) | [Classifier roles — verdict via tool call + continue nudges](https://github.com/matthewhand/open-swarm/issues/476) |
+| [REQ-111](./REQ-111.md) | [swarm-cli TUI — Herdr-like rail + chat over the same API as WebUI](https://github.com/matthewhand/open-swarm/issues/481) |
 | [REQ-135](./REQ-135.md) | [Showoff demo agents — kind-clear names + team personas](https://github.com/matthewhand/open-swarm/issues/526) |
 | [REQ-136](./REQ-136.md) | [Launch spiel + 15–30s GIF — Grok-agnostic UI + multi-harness bridge](https://github.com/matthewhand/open-swarm/issues/529) |
 | [REQ-189](./REQ-189.md) | [Look-only — OMB+Rakazo local computer control → open-swarm adaptation](https://github.com/matthewhand/open-swarm/issues/645) |

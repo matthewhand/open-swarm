@@ -7,6 +7,7 @@ import typer
 
 import swarm
 from swarm.core import paths
+from swarm.tui.cli import register_tui
 
 paths.ensure_swarm_directories_exist()
 
@@ -1390,6 +1391,10 @@ def uninstall_cmd(
         raise typer.Exit(code=1)
     exe.unlink()
     typer.echo(f"Uninstalled '{blueprint_name}' from {bin_dir}")
+
+
+# REQ-111 Wave 0: Herdr-like TUI client of the same HTTP API as WebUI.
+register_tui(app)
 
 
 if __name__ == "__main__":
