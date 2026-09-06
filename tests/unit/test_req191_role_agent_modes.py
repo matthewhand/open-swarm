@@ -47,7 +47,7 @@ def test_adr010_is_indexed_and_req_pointer_exists():
     assert "010-role-agent-invocation-modes.md" in req
     req_index = REQ_INDEX.read_text(encoding="utf-8")
     assert "REQ-191.md" in req_index
-    assert "#648" in req_index
+    assert "issues/648" in req_index
 
 
 def test_chat_pane_tip_not_overlay_and_not_first_load_tips():
