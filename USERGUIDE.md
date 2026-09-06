@@ -55,6 +55,7 @@ swarm-cli list
 | `cli-agents` / `agents` | Autodiscover configured agentic CLIs (`--check-auth`, `--init`, `--smoke`, `--suggest`, `--list-models`, …) |
 | `list-models` | Probe a catalogued CLI for the models it actually offers (`{cli, models: [...]}`) |
 | `skills` | List reusable `SKILL.md` capabilities (apply via `cli_agent` `skill=` param) |
+| `tui` | Interactive terminal UI — AGENTS rail + chat over the same REST/SSE API as the WebUI ([ADR-012](./docs/adr/012-swarm-cli-tui.md)) |
 | `wizard` | Scaffold a new team blueprint (supports `--non-interactive`) |
 | `moa` | Mixture of Agents (`--backend fake\|grok\|acpx`; `--act` / `--act-write`, or `--team --workdir` + `--team-tasks` for scripted consensus→team — not a live Runner) |
 | `moa-init` | Install/merge default `moa` panel config/presets (`--write`, `--show-openwebui`; team mode is CLI/model-path, not a preset key) |
@@ -167,17 +168,31 @@ swarm-cli install jeeves
     without an API key (see
     [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md#try-a-blueprint-without-an-api-key-swarm_test_mode)).
 
-### Terminal TUI (`swarm-cli tui`) — Wave 0 scaffold
+### Terminal TUI (`swarm-cli tui`) — interactive front door
 
-A Herdr-like left rail + chat pane that talks to the **same HTTP API** as the
-WebUI ([REQ-111](https://github.com/matthewhand/open-swarm/issues/481) /
-[ADR-012](./docs/adr/012-swarm-cli-tui.md)). Wave 0 lists rail seats and
-shows a placeholder chat pane — it does not send yet. Distinct from
-`swarm-cli remotes` Herdr SSH.
+Open Swarm’s own terminal client of the **same HTTP API** as the WebUI
+([REQ-111](https://github.com/matthewhand/open-swarm/issues/481) /
+[ADR-012](./docs/adr/012-swarm-cli-tui.md)): a Herdr-like left **AGENTS rail**
+(kind sections CLI / API / Blueprint / Remote from the same five catalogs the
+SPA sidebar reads) and a live chat pane. Selecting a seat hydrates that
+agent’s real thread (`GET /chat/thread/`); Blueprint seats send and stream
+replies over REST SSE (`/v1/chat/completions`, Bearer); `n` starts a new
+session and `s` lists / resumes. Not Herdr’s SSH TUI and not an in-process
+blueprint runtime (`swarm-cli launch` stays a separate door).
+
+Keys: `j` / `k` (or arrows) move, `Enter` selects, type + `Enter` sends,
+`n` new session, `s` session list + a digit resumes, `q` quits. API down,
+auth failure, or a login-gated hydrate are named errors — nothing is
+invented. CLI-tool / team / remote / Herdr rows honestly disable the
+composer (their send is the SPA websocket path; TUI v1 has no cookie jar).
 
 ```bash
-# Requires a running swarm-api (default http://127.0.0.1:8000 — not :8001).
-# Optional: API_AUTH_TOKEN or SWARM_API_KEY (env values; do not commit them).
+# Textual is an optional [tui] extra (included by `uv sync --all-extras`).
+# Requires a running swarm-api (default http://127.0.0.1:8000 — not :8001)
+# and, when API auth is on, API_AUTH_TOKEN / SWARM_API_KEY (env values only).
+swarm-cli tui
+
+# Non-TTY / CI: the Wave 0 ASCII dump + JSON still work
 swarm-cli tui --once
 swarm-cli tui --once --base-url http://127.0.0.1:8000 --json
 ```

@@ -174,7 +174,7 @@ SaaS product is claimed here.
 | Cross-conversation memory (mem0) | 🟡 | Wired, not validated against a live mem0 |
 | True **API** inference seat (no `BlueprintBase`) | 📋 | ADR-006 Phase 2; today’s “API” tab writes a blueprint |
 | Desktop zip (pywebview) | 📋 | [ADR-003](./adr/003-desktop-packaging.md) — no installer |
-| `swarm-cli tui` (REQ-111 / #481) | 🔲 | [ADR-012](./adr/012-swarm-cli-tui.md) Wave 0 scaffold — list rail via REST, placeholder chat. MVP send/hydrate on child Issues. |
+| `swarm-cli tui` (REQ-111 / #481) | 🟡 | [ADR-012](./adr/012-swarm-cli-tui.md). Interactive client of the same API. Landed: `--once` ASCII dump (CI), Textual rail with kind sections, Bearer REST + honest API-down, `GET /chat/thread/` hydrate, REST SSE send + streaming, composer, `n`/`s` sessions. Wave 3b (WS cookie jar) decided-skip — REST SSE covers the SPA-chat seats. |
 | Hosted Fly / public live demo | — | **Not claimed.** Deploy workflow exists; this doc does not sell a running cloud. |
 
 ### Proof the CLI path is real (not mocks)
@@ -213,8 +213,10 @@ network.
 - **Memory** — mem0 opt-in, not live-validated; `langmem` / `papr` are
   placeholders.
 - **Desktop** — ADR only; no installer.
-- **CLI TUI (#481)** — Wave 0 scaffold (`swarm-cli tui --once`) + [ADR-012](./adr/012-swarm-cli-tui.md).
-  Send / hydrate / Textual chrome are child Issues. Not Herdr SSH.
+- **CLI TUI (#481)** — Waves 0–3a landed: `swarm-cli tui` is an interactive
+  rail + chat client of the same REST/SSE API (hydrate, send + stream,
+  sessions); `--once` dump stays for CI. Wave 3b (cookie jar) decided-skip in
+  [ADR-012](./adr/012-swarm-cli-tui.md). Not Herdr SSH.
 
 Do not treat [ROADMAP.md](../ROADMAP.md) as rewritten here. Granular rows
 stay on FEATURE_STATUS / ROADMAP.

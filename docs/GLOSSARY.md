@@ -137,8 +137,10 @@ A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swa
 
 Open Swarm’s own terminal client of the **same HTTP API** as the WebUI: left
 agent rail + chat pane ([ADR-012](./adr/012-swarm-cli-tui.md) /
-[#481](https://github.com/matthewhand/open-swarm/issues/481)). Wave 0 is a
-`--once` list + placeholder pane. Distinct from **remote Herdr** (SSH-shaped
+[#481](https://github.com/matthewhand/open-swarm/issues/481)). Interactive in
+a TTY (rail sections, hydrate via `GET /chat/thread/`, REST SSE send + stream,
+`n`/`s` sessions); `--once` keeps an ASCII dump for CI. No WS cookie jar in
+v1 (Wave 3b decided-skip). Distinct from **remote Herdr** (SSH-shaped
 `herdr` CLI) and from `swarm-cli launch` (in-process blueprint run).
 
 ## Operator UI vs SPA Chat
