@@ -2,6 +2,10 @@
 
 Open Swarm can drive **Herdr** as a member `kind=herdr` without owning the TUI.
 
+`swarm-cli tui` ([REQ-111](https://github.com/matthewhand/open-swarm/issues/481)
+/ [ADR-012](./adr/012-swarm-cli-tui.md)) is **open-swarm’s own** API client
+(Herdr-*like* chrome). It is not this Herdr hop and does not SSH to a Herdr host.
+
 This is **NOT Hermes**, **NOT OMB**, and **NOT Rakazo**. Those are different
 products. Herdr is the pane session server + CLI at [herdr.dev](https://herdr.dev/).
 
