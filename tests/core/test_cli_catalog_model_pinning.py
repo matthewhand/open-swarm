@@ -30,6 +30,19 @@ def test_apply_model_appends_flag_when_absent():
     assert out["cmd"].index("--model") < prompt_at
 
 
+def test_apply_model_pins_gemini_before_prompt_not_over_gotchas():
+    # Gemini catalog legitimately ends with --yolo --skip-trust. The pin is
+    # MODEL_FLAG -m + id before -p, not a rewrite of those trailing gotchas.
+    entry = c.catalog_entry("gemini")
+    assert "-m" not in entry["cmd"]
+    assert entry["cmd"][-2:] == ["--yolo", "--skip-trust"]
+    out = c.apply_model(entry, "gemini", "gemini-3-pro-preview")
+    assert out["cmd"][out["cmd"].index("-m") + 1] == "gemini-3-pro-preview"
+    prompt_at = next(i for i, part in enumerate(out["cmd"]) if "{prompt}" in part)
+    assert out["cmd"].index("-m") < prompt_at
+    assert out["cmd"][-2:] == ["--yolo", "--skip-trust"]
+
+
 def test_apply_model_noop_for_cli_without_model_flag():
     # A CLI not in MODEL_FLAG (e.g. codex) is returned unchanged.
     assert "codex" not in c.MODEL_FLAG

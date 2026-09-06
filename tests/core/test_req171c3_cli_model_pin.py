@@ -43,6 +43,21 @@ def test_params_model_reaches_apply_model_and_assembled_argv():
     assert argv[argv.index("-m") + 1] == "grok-4.5"
 
 
+def test_params_model_reaches_apply_model_for_gemini():
+    # Chat send params.model (not only Agent Router cli_model) pins MODEL_FLAG.
+    config = {"cli_agents": {"gemini": cli_catalog.catalog_entry("gemini")}}
+    registry = support.apply_overrides(
+        support.build_registry(config),
+        {"cli": "gemini", "model": "gemini-3-pro-preview"},
+    )
+    cmd = registry.get("gemini").config.cmd
+    assert "-m" in cmd
+    assert cmd[cmd.index("-m") + 1] == "gemini-3-pro-preview"
+    prompt_at = next(i for i, part in enumerate(cmd) if "{prompt}" in part)
+    assert cmd.index("-m") < prompt_at
+    assert cmd[-2:] == ["--yolo", "--skip-trust"]
+
+
 def test_params_cli_model_alias_pins_gemini():
     config = {"cli_agents": {"gemini": cli_catalog.catalog_entry("gemini")}}
     registry = support.apply_overrides(
