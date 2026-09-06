@@ -10,7 +10,7 @@ FEATURE_STATUS = REPO / "FEATURE_STATUS.md"
 VISION = REPO / "docs" / "VISION.md"
 
 
-def test_adr010_exists_and_picks_textual_not_herdr_or_go():
+def test_adr012_exists_and_picks_textual_not_herdr_or_go():
     text = ADR.read_text(encoding="utf-8")
     assert "ADR-012" in text
     assert "REQ-111" in text
@@ -29,7 +29,7 @@ def test_adr010_exists_and_picks_textual_not_herdr_or_go():
     assert "W1a" in text and "W2b" in text and "W4b" in text
 
 
-def test_adr010_is_indexed_and_req_pointer_exists():
+def test_adr012_is_indexed_and_req_pointer_exists():
     index = INDEX.read_text(encoding="utf-8")
     assert "012-swarm-cli-tui.md" in index
     assert "REQ-111" in index

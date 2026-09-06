@@ -143,7 +143,20 @@ Stable import: `from swarm.tui import list_rail_agents, render_scaffold`.
 
 GitHub Issues remain SoT. Each child `Fixes` **itself**. Max **2–3** implementers per wave; squash before the next wave. Own-diff CI only. No Neon. No secrets. No `:8001`.
 
-Filed from this Wave 0 (titles + Intent/Success/Constraints/Owner). Update numbers after `gh issue create`:
+Filed from this Wave 0 (PR #873). Each child `Fixes` itself:
+
+| Wave | Issue | Title |
+|------|-------|-------|
+| 1 | [#874](https://github.com/matthewhand/open-swarm/issues/874) | W1a Textual chrome |
+| 1 | [#875](https://github.com/matthewhand/open-swarm/issues/875) | W1b Rail list parity |
+| 1 | [#876](https://github.com/matthewhand/open-swarm/issues/876) | W1c Auth + honest API-down |
+| 2 | [#877](https://github.com/matthewhand/open-swarm/issues/877) | W2a Hydrate `/chat/thread/` |
+| 2 | [#878](https://github.com/matthewhand/open-swarm/issues/878) | W2b REST SSE send |
+| 2 | [#879](https://github.com/matthewhand/open-swarm/issues/879) | W2c Composer + stream display |
+| 3 | [#880](https://github.com/matthewhand/open-swarm/issues/880) | W3a New session + list |
+| 3 | [#881](https://github.com/matthewhand/open-swarm/issues/881) | W3b Optional WS cookie path |
+| 4 | [#882](https://github.com/matthewhand/open-swarm/issues/882) | W4a Docs front door |
+| 4 | [#883](https://github.com/matthewhand/open-swarm/issues/883) | W4b Rail search / filter |
 
 ### Wave 1 — chrome + honest list (3)
 
