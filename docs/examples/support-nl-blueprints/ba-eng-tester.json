@@ -1,0 +1,16 @@
+{
+  "id": "ba_eng_tester",
+  "title": "BA → Engineer → Tester",
+  "usable": true,
+  "chatHref": "/chat?blueprint=ba_eng_tester",
+  "graphLabel": "BA → Engineer → Tester",
+  "edges": [
+    ["ba", "engineer"],
+    ["engineer", "tester"]
+  ],
+  "template": "pipeline",
+  "source": "support-nl",
+  "fixture": "SUPPORT_NL_BLUEPRINT_NO_USER_PYTHON",
+  "userWrotePython": false,
+  "note": "Example Support NL-create payload (REQ-158 / #567). Ties to REQ-156 sdlc-pipeline. No secrets."
+}

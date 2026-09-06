@@ -12,6 +12,7 @@ describe('supportJourney (REQ-137)', () => {
     expect(chips).toEqual([...SUPPORT_JOURNEY_KICKSTART])
     const joined = chips.join(' ').toLowerCase()
     expect(joined).toContain('create a team')
+    expect(joined).toContain('ba → engineer → tester')
     expect(joined).toContain('add a remote')
     expect(joined).toContain('wire a cli')
     expect(SUPPORT_JOURNEY_FIXTURE).toBe('ONBOARD_JOURNEY_CLI_API_REMOTE')

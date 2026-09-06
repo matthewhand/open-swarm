@@ -36,7 +36,9 @@ Open Swarm closes that gap on three axes:
 2. **Compose** — openai-agents **handoff / `as_tool`** so members can see and
    talk. A **Team** is that composition (a Blueprint subtype), not a fifth
    kind. Grok Bot / Rakazo / OpenMousBot can run many concurrent seats; they
-   do not host this programmatic graph.
+   do not host this programmatic graph. **Support** can build that team from
+   natural language (REQ-158); under the hood it is still a Python
+   `ApiKindBase` class.
 3. **Surface** — a **Grok-like WebUI** (rail, remotes, sessions) is
    first-class, and the same work is reachable as an OpenAI-compatible API
    (`/v1/chat/completions`, `/v1/responses`, `/v1/models`) and as `swarm-cli`.

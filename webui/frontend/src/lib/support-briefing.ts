@@ -15,7 +15,7 @@ export function inferenceConfigured(opts: {
 }
 
 export function supportQuickstarts(inferenceOk: boolean): { key: string; label: string; prompt: string }[] {
-  return [
+  const journey = [
     {
       key: 'A',
       label: SUPPORT_JOURNEY_KICKSTART[0],
@@ -26,27 +26,32 @@ export function supportQuickstarts(inferenceOk: boolean): { key: string; label: 
       key: 'B',
       label: SUPPORT_JOURNEY_KICKSTART[1],
       prompt:
-        'Add a remote: connect Hermes, OpenMousBot, or Herdr to a setup I already have. Env var names only — no secrets.',
+        'Create a BA → Engineer → Tester workflow. Build the team for me — I will not write Python. Hide the code unless I ask to view / edit it.',
     },
     {
       key: 'C',
       label: SUPPORT_JOURNEY_KICKSTART[2],
       prompt:
+        'Add a remote: connect Hermes, OpenMousBot, or Herdr to a setup I already have. Env var names only — no secrets.',
+    },
+    {
+      key: 'D',
+      label: SUPPORT_JOURNEY_KICKSTART[3],
+      prompt:
         'Wire a CLI: add a host CLI agent and list the models it reports. Be honest that the live CLI session stays outside Open Swarm.',
     },
-    inferenceOk
-      ? {
-          key: 'D',
-          label: 'Code a blueprint',
-          prompt:
-            'Help me code an ApiKindBase / CliKindBase / RemoteKindBase team. Show a complete module in a python fenced block. One pane for CLI ↔ API ↔ remotes.',
-        }
-      : {
-          key: 'D',
-          label: 'Configure inference',
-          prompt:
-            'Inference is not configured. How do I set LiteLLM or install grok/agy from the Settings overlay — no invented host or secrets?',
-        },
+  ]
+  if (inferenceOk) {
+    return journey
+  }
+  return [
+    ...journey,
+    {
+      key: 'E',
+      label: 'Configure inference',
+      prompt:
+        'Inference is not configured. How do I set LiteLLM or install grok/agy from the Settings overlay — no invented host or secrets?',
+    },
   ]
 }
 
@@ -78,7 +83,7 @@ export function buildSupportBriefing(opts: {
       ]
 
   return [
-    'I am **Support**. I onboard your open-swarm journey: create a team, add a remote, wire a CLI, and bridge CLI ↔ API ↔ remotes in one pane.',
+    'I am **Support**. I onboard your open-swarm journey: ask me in NL to create a team or workflow (you do not write Python), add a remote, wire a CLI, and bridge CLI ↔ API ↔ remotes in one pane.',
     '',
     '### Agents on this desk',
     lines.length ? lines.join('\n') : '- (catalog hidden — CLI, API, and Remote starters are in the sidebar)',
@@ -87,7 +92,7 @@ export function buildSupportBriefing(opts: {
     ...inferenceLines,
     '',
     '### Next',
-    'Start with **Create a team**, **Add a remote**, or **Wire a CLI**. I can also **code a kind-base** module (ApiKindBase / CliKindBase / RemoteKindBase) in a Python block.',
+    'Start with **Create a team** or **Create a BA → Engineer → Tester workflow**. Under the hood that is an `ApiKindBase` Python class — code stays hidden unless you **View / edit code**.',
     '',
     'Shortcuts: [Teams](/teams/launch/) · [Blueprint creator](/blueprint-library/creator/) · [Settings](/settings/)',
   ].join('\n')

@@ -13,13 +13,14 @@ SUPPORT_CONSUMER_IDS = frozenset({"support", "starter-support"})
 # First-run chips — keep these short; they are sent as the user message.
 SUPPORT_KICKSTART_CANNED = (
     "Create a team",
+    "Create a BA → Engineer → Tester workflow",
     "Add a remote",
     "Wire a CLI",
-    "How do CLI, API, and remotes differ?",
 )
 
 SUPPORT_JOURNEY_PHRASES = (
     "create a team",
+    "Create a BA → Engineer → Tester workflow",
     "add a remote",
     "wire a CLI",
     "blueprint",
@@ -32,6 +33,7 @@ SUPPORT_JOURNEY_PHRASES = (
     "remote",
     "one pane",
     "list models",
+    "View / edit code",
 )
 
 

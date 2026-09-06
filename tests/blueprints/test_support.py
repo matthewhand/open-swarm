@@ -50,6 +50,7 @@ def test_starting_agent_uses_as_tool_not_cli_seats():
     agent = bp.create_starting_agent([])
     names = [getattr(t, "name", None) or getattr(t, "__name__", "") for t in (agent.tools or [])]
     joined = " ".join(str(n) for n in names)
+    assert "create_blueprint_from_nl" in joined or any("create_blueprint" in str(n).lower() for n in names)
     assert "consult_product_guide" in joined or any("product" in str(n).lower() for n in names)
     assert "consult_blueprint_coder" in joined or any("blueprint" in str(n).lower() for n in names)
     assert "grok" not in joined.lower()
@@ -75,8 +76,11 @@ def test_support_instructions_cover_the_journey():
     lowered = text.lower()
     assert "ONBOARD_JOURNEY_CLI_API_REMOTE" in text
     assert "create a team" in lowered
+    assert "engineer" in lowered and "tester" in lowered
     assert "add a remote" in lowered
     assert "wire a cli" in lowered
+    assert "SUPPORT_NL_BLUEPRINT_NO_USER_PYTHON" in text
+    assert "create_blueprint_from_nl" in text
     assert "chief of staff" in lowered
     assert "hermes" in lowered
     assert "openmousbot" in lowered
@@ -89,8 +93,11 @@ async def test_journey_prompts_include_honest_hints():
     bp = SupportBlueprint(blueprint_id="support")
     team = await _collect(bp.run([{"role": "user", "content": "Create a team"}]))
     team_text = _final_content(team)
-    assert "Chief of Staff" in team_text
-    assert "```python" in team_text
+    assert "you did not write python" in team_text.lower()
+    assert "```swarm-nl-blueprint" in team_text
+    assert "```python" not in team_text
+    assert "View / edit code" in team_text
+    assert "Chief of Staff" in SUPPORT_INSTRUCTIONS or "Chief of Staff" in team_text
     remote = await _collect(bp.run([{"role": "user", "content": "Add a remote"}]))
     remote_text = _final_content(remote)
     assert "Hermes" in remote_text
@@ -100,6 +107,26 @@ async def test_journey_prompts_include_honest_hints():
     cli_text = _final_content(cli)
     assert "list models" in cli_text.lower()
     assert "click-to-edit" in cli_text.lower() or "click the bubble" not in cli_text.lower()
+
+
+async def test_ba_eng_tester_nl_create_hides_python():
+    bp = SupportBlueprint(blueprint_id="support")
+    chunks = await _collect(
+        bp.run(
+            [
+                {
+                    "role": "user",
+                    "content": "Create a BA → Engineer → Tester workflow",
+                }
+            ]
+        )
+    )
+    text = _final_content(chunks)
+    assert "BA → Engineer → Tester" in text
+    assert "```swarm-nl-blueprint" in text
+    assert "```python" not in text
+    assert '"userWrotePython": false' in text
+    assert "ba" in text and "engineer" in text and "tester" in text
 
 
 async def test_blueprint_ask_includes_python_fence():
@@ -119,8 +146,11 @@ def test_skill_is_discoverable_and_carries_fixture():
     assert SUPPORT_SKILL_FIXTURE in skill.instructions
     assert "ONBOARD_JOURNEY_CLI_API_REMOTE" in skill.instructions
     assert "create a team" in skill.instructions.lower()
+    assert "engineer" in skill.instructions.lower()
+    assert "view / edit code" in skill.instructions.lower()
     assert "add a remote" in skill.instructions.lower()
     assert "wire a cli" in skill.instructions.lower()
+    assert "SUPPORT_NL_BLUEPRINT_NO_USER_PYTHON" in skill.instructions
     assert "hermes" in skill.instructions.lower()
     assert "openmousbot" in skill.instructions.lower()
     assert "herdr" in skill.instructions.lower()

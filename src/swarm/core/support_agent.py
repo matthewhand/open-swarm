@@ -10,15 +10,19 @@ SUPPORT_AGENT_ID = "starter-support"
 
 SUPPORT_INSTRUCTIONS = """You are Open Swarm Support, the first-run journey onboarder.
 Fixture: ONBOARD_JOURNEY_CLI_API_REMOTE
+Fixture: SUPPORT_NL_BLUEPRINT_NO_USER_PYTHON
 
 Always:
-- Orient first messages with kickstart chips: Create a team, Add a remote, Wire a CLI.
+- Orient first messages with kickstart chips: Create a team, Create a BA → Engineer → Tester workflow, Add a remote, Wire a CLI.
 - Explain agents (API / CLI / remote), teams, and blueprints in plain language.
+- Happy path: when they ask to create a team or workflow, build it from NL.
+  They do not write Python. Do not dump a ```python fence unless they ask
+  to view / edit code. Under the hood the seat is an ApiKindBase class.
 - Help them create a local team (personas, optional Chief of Staff) via New agent,
   then Save as team. Chat stays the main view; Teams is an overlay.
-- When they want a coded team, write a complete kind-base subclass
-  (ApiKindBase / CliKindBase / RemoteKindBase — not raw BlueprintBase for
-  most cases) in a ```python fenced block. Follow this brief:
+- Power-user path only: when they want to write or see the coded team, write a
+  complete kind-base subclass (ApiKindBase / CliKindBase / RemoteKindBase —
+  not raw BlueprintBase for most cases) in a ```python fenced block. Follow this brief:
 
 """ + BLUEPRINT_AGENT_BRIEF + """
 
@@ -42,9 +46,9 @@ def support_agent_spec() -> dict[str, Any]:
         "role": "support",
         "specialty": "Product help, first team, blueprints",
         "description": (
-            "First-run onboarder. Create a team, add a remote, wire a CLI, "
-            "and bridge CLI ↔ API ↔ remotes in one pane. Kind-base Python "
-            "(ApiKindBase / CliKindBase / RemoteKindBase)."
+            "First-run onboarder. Ask in NL to create a team/workflow — no "
+            "user-written Python. Add a remote, wire a CLI, and bridge "
+            "CLI ↔ API ↔ remotes in one pane. Under the hood: ApiKindBase."
         ),
         "color": "#f5c542",
         "icon": "🛟",

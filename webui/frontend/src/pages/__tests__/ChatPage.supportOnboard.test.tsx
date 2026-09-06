@@ -129,8 +129,24 @@ describe('ChatPage REQ-137 Support journey chips', () => {
     expect(screen.getByRole('button', { name: SUPPORT_JOURNEY_KICKSTART[0] })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: SUPPORT_JOURNEY_KICKSTART[1] })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: SUPPORT_JOURNEY_KICKSTART[2] })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: SUPPORT_JOURNEY_KICKSTART[3] })).toBeInTheDocument()
     expect(screen.getByText(/one pane/i)).toBeInTheDocument()
     expect(ws).toBeTruthy()
+  })
+
+  it('clicking the BA → Engineer → Tester chip sends that message', async () => {
+    const ws = await openSupport()
+    const chip = await screen.findByRole('button', {
+      name: 'Create a BA → Engineer → Tester workflow',
+    })
+    fireEvent.click(chip)
+    await waitFor(() => {
+      expect(ws.send).toHaveBeenCalled()
+    })
+    expect(JSON.parse(String(ws.send.mock.calls[0][0]))).toMatchObject({
+      message: 'Create a BA → Engineer → Tester workflow',
+      blueprint: 'support',
+    })
   })
 
   it('clicking Create a team sends that message', async () => {

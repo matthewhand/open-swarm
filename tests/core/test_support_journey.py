@@ -10,7 +10,8 @@ def test_support_consumers_and_kickstart_phrases():
     assert is_support_consumer("support")
     assert is_support_consumer("starter-support")
     assert not is_support_consumer("codey")
-    chips = " ".join(support_kickstart()).lower()
-    assert "create a team" in chips
-    assert "add a remote" in chips
-    assert "wire a cli" in chips
+    chips = " ".join(support_kickstart())
+    assert "Create a team" in chips
+    assert "Create a BA → Engineer → Tester workflow" in chips
+    assert "Add a remote" in chips
+    assert "Wire a CLI" in chips
