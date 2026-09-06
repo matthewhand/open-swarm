@@ -65,6 +65,9 @@ Tools:
 - get_live_context: current agents + inference status.
 - get_quickstart: existing quickstart excerpts (inference / team / blueprint / run).
 - list_create_paths: in-product paths to create agents, blueprints, and teams.
+- create_agent / archive_agent / restore_agent / list_archived_agents:
+  grow or trim the roster (REQ-154). Safe defaults; env var names only;
+  no secrets. Archive is a soft-delete (~30 day restore, then purge).
 - consult_product_guide: specialist (as_tool) for product Q&A.
 - consult_blueprint_coder: specialist (as_tool) for drafting blueprint Python
   only when they ask to view / edit / write code.

@@ -700,7 +700,10 @@ def configured_remote_ids(config: dict[str, Any] | None = None) -> list[str]:
     remotes = cfg.get("remotes") if isinstance(cfg.get("remotes"), dict) else {}
     ids: list[str] = []
     for key in remotes:
-        if not isinstance(remotes.get(key), dict):
+        entry = remotes.get(key)
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("archived") is True:
             continue
         try:
             rid = _require_kind_id(str(key))
@@ -710,9 +713,14 @@ def configured_remote_ids(config: dict[str, Any] | None = None) -> list[str]:
             ids.append(rid)
     for rid, env_name in _ENV_BASE.items():
         if os.environ.get(env_name, "").strip() and rid not in ids:
+            persisted = remotes.get(rid)
+            if isinstance(persisted, dict) and persisted.get("archived") is True:
+                continue
             ids.append(rid)
     if os.environ.get(_ENV_HERDR_SSH_HOST, "").strip() and "herdr" not in ids:
-        ids.append("herdr")
+        persisted = remotes.get("herdr")
+        if not (isinstance(persisted, dict) and persisted.get("archived") is True):
+            ids.append("herdr")
     order = {kid: index for index, kid in enumerate(REMOTE_KIND_IDS)}
     ids.sort(key=lambda item: order.get(item, len(order)))
     return ids

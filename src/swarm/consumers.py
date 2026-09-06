@@ -753,6 +753,17 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             )
         except Exception:
             logger.exception("Failed to install peer mailbox tools")
+        try:
+            from swarm.core.agent_lifecycle import install_lifecycle_for_runtime
+
+            install_lifecycle_for_runtime(
+                blueprint_instance,
+                caller_id=str(blueprint_id or ""),
+                user=getattr(self, "user", None),
+                params=params if isinstance(params, dict) else {},
+            )
+        except Exception:
+            logger.exception("Failed to install Support/CoS lifecycle tools")
 
         final_message = None
         token = None

@@ -15,7 +15,7 @@ Eligible in v1: **API-kind** agents (including Support). CLI, remote, and herdr 
 | Support / CoS | All same-kind catalogued peers (allow-all) |
 | Unteamed, non-Support API agent | Empty (no global roster dump) |
 
-Hidden Bots are omitted and `send_message` fails with `target_hidden`. Archived seats fail with `target_archived`. Unknown ids, kind mismatch, and out-of-graph targets return those error codes.
+Hidden Bots are omitted and `send_message` fails with `target_hidden`. Archived seats fail with `target_archived` (REQ-154 `archive_agent` stamps the catalog flag that feeds this). Unknown ids, kind mismatch, and out-of-graph targets return those error codes.
 
 ## Delivery
 

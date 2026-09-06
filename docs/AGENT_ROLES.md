@@ -8,10 +8,10 @@ Rakazo seats.
 | Role | Sidepane classes | What it does |
 |---|---|---|
 | `default` / `none` | (no badge) | Ordinary worker. No special wiring. |
-| `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7 / REQ-137). First-run journey onboarder: create a team, add a remote, wire a CLI, bridge CLI↔API↔remotes. |
+| `support` | `os-agent-role-support` `data-role="support"` | Support seat (REQ-7 / REQ-137 / REQ-154). First-run journey onboarder **and** the only global role that can `create_agent` / `archive_agent` (with API CoS). |
 | `gate` (`tool_gate`) | `os-agent-role-gate` `data-role="gate"` | Classifies a **pending tool call** as dangerous or not via `submit_gate_verdict` (yes/no). |
 | `skeptic` | `os-agent-role-skeptic` `data-role="skeptic"` | Reviews whether the original prompt was accomplished via `submit_skeptic_verdict` (pass/fail). |
-| `chief_of_staff` (`cos`) | `os-agent-role-chief_of_staff` `data-role="chief_of_staff"` | Talks to any team. Badge only (`CoS`). |
+| `chief_of_staff` (`cos`) | `os-agent-role-chief_of_staff` `data-role="chief_of_staff"` | Talks to any team. API CoS also gets create/archive tools (REQ-154). CLI CoS does not (v1). |
 | `engineer` | `os-agent-role-engineer` `data-role="engineer"` | Implementer seat (software-dev / Chatty). Badge only. |
 | `suggestions` | `os-agent-role-suggestions` `data-role="suggestions"` | Prepares 2–5 quick-select chips after a turn (REQ-85). |
 
@@ -90,7 +90,12 @@ skeptic.as_tool(original prompt + output)
 
 Code:
 
+Lifecycle (REQ-154 / #562): Support and API CoS share `create_agent` /
+`archive_agent` / `restore_agent`. Ordinary roles do not. See
+[AGENT_LIFECYCLE.md](./AGENT_LIFECYCLE.md).
+
 * `swarm.core.agent_roles` — normalize, roster, CSS class names, API payload
+* `swarm.core.agent_lifecycle` — Support/CoS create + archive + purge
 * `swarm.core.classifier_verdict` — verdict tools + continue nudges (REQ-108)
 * `swarm.core.tool_gate` — `approve_pending_tool_call` (fail-open when unwired)
 * `swarm.core.skeptic` — `run_with_skeptic` (bounded as-tool loop)

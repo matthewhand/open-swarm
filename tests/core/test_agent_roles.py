@@ -10,6 +10,7 @@ from swarm.core.agent_roles import (
     ROLE_SUGGESTIONS,
     ROLE_SUPPORT,
     blueprint_role_fields,
+    can_manage_agent_lifecycle,
     is_chief_of_staff,
     normalize_agent_role,
     role_badge_label,
@@ -21,6 +22,17 @@ def test_chief_of_staff_aliases():
     for alias in ("chief_of_staff", "cos", "chief", "Chief", "CoS", "chief-of-staff"):
         assert normalize_agent_role(alias) == ROLE_CHIEF_OF_STAFF
         assert is_chief_of_staff(alias)
+
+
+def test_lifecycle_roles_are_support_and_cos_only():
+    assert can_manage_agent_lifecycle("support")
+    assert can_manage_agent_lifecycle("helper")
+    assert can_manage_agent_lifecycle("cos")
+    assert can_manage_agent_lifecycle("chief_of_staff")
+    assert not can_manage_agent_lifecycle("engineer")
+    assert not can_manage_agent_lifecycle("gate")
+    assert not can_manage_agent_lifecycle("default")
+    assert not can_manage_agent_lifecycle("skeptic")
 
 
 def test_role_enum_includes_cos_and_existing_seats():

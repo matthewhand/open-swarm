@@ -104,10 +104,10 @@ Do not call `/v1/teams` aliases “MoA teams” or “persona teams.”
 First-class field on an agent spec (`AgentConfig.role`, team `AGENT_SPECS`, `/v1/blueprints/` `role` + `agents[]`). Visual CSS: `os-agent-role-<role>` and `data-role` on the **badge only**. Wiring (openai-agents `as_tool` / handoff only — not extra Grok seats):
 
 * **default** / **none** — ordinary worker / coordinator (no badge)
-* **support** — Support seat (REQ-7). Talk about gate/skeptic; this repo wires them.
+* **support** — Support seat (REQ-7 / REQ-137). First-run onboarder; also the global create/archive role (REQ-154).
 * **gate** (`tool_gate`) — classifies a pending tool call YES/NO (dangerous). Wired → elicit on dangerous. **Unwired → all approved, never prompt.**
 * **skeptic** — reviews whether the original prompt was accomplished; on NO, findings go back to the original agent (bounded retries, default 2). On YES, stop — do not nag.
-* **chief_of_staff** (`cos`) — talks to any team.
+* **chief_of_staff** (`cos`) — talks to any team. API CoS shares Support’s create/archive tools (REQ-154); CLI CoS does not in v1. See [AGENT_LIFECYCLE.md](./AGENT_LIFECYCLE.md).
 * **engineer** — implementer seat (software-dev / Chatty). A blueprint may declare this as its default role (REQ-75); the agent editor override still wins.
 
 A blueprint `metadata.role` is applied on create / re-pick unless the operator has explicitly changed Role. Optional `metadata.workflow` is `handoff` or `as_tool` (hint only).
