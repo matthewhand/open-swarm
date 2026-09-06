@@ -2010,10 +2010,10 @@ def _bind_http_list(fn):
 def _hermes_send_bound(
     spec: RemoteSpec,
     prompt: str,
-    target: str = "",
+    target: str = "",  # noqa: ARG001 — RemoteHarness.send signature
     *,
     timeout: float,
-    config: dict[str, Any] | None = None,
+    config: dict[str, Any] | None = None,  # noqa: ARG001
     session_id: str | None = None,
 ) -> OperateResult:
     return _hermes_send(spec, prompt, timeout, session_id=session_id)
@@ -2025,8 +2025,8 @@ def _omb_send_bound(
     target: str = "",
     *,
     timeout: float,
-    config: dict[str, Any] | None = None,
-    session_id: str | None = None,
+    config: dict[str, Any] | None = None,  # noqa: ARG001
+    session_id: str | None = None,  # noqa: ARG001
 ) -> OperateResult:
     return _omb_send(spec, prompt, target, timeout)
 
@@ -2037,8 +2037,8 @@ def _rakazo_send_bound(
     target: str = "",
     *,
     timeout: float,
-    config: dict[str, Any] | None = None,
-    session_id: str | None = None,
+    config: dict[str, Any] | None = None,  # noqa: ARG001
+    session_id: str | None = None,  # noqa: ARG001
 ) -> OperateResult:
     return _rakazo_send(spec, prompt, target, timeout)
 
@@ -2049,8 +2049,8 @@ def _swarm_send_bound(
     target: str = "",
     *,
     timeout: float,
-    config: dict[str, Any] | None = None,
-    session_id: str | None = None,
+    config: dict[str, Any] | None = None,  # noqa: ARG001
+    session_id: str | None = None,  # noqa: ARG001
 ) -> OperateResult:
     return _swarm_send(spec, prompt, target, timeout)
 
@@ -2071,7 +2071,7 @@ def _herdr_send_bound(
     *,
     timeout: float,
     config: dict[str, Any] | None = None,
-    session_id: str | None = None,
+    session_id: str | None = None,  # noqa: ARG001
 ) -> OperateResult:
     return _herdr_send(spec, prompt, target, timeout, config)
 
@@ -2084,7 +2084,7 @@ def _herdr_operate_bound(
     config: dict[str, Any] | None = None,
     prompt: str = "",
     target: str = "",
-    session_id: str | None = None,
+    session_id: str | None = None,  # noqa: ARG001
 ) -> OperateResult:
     if op == "interrogate":
         return _herdr_interrogate(spec, target, timeout, config)

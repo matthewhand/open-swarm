@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import get_args
 
+from swarm.core import remotes as remotes_core
 from swarm.core.agent_kind import AgentKind, classify_agent_kind
 from swarm.core.agent_types import AGENT_TYPES, agent_type_for_kind
 from swarm.core.remote_harness import (
@@ -22,7 +23,6 @@ from swarm.core.remote_harness import (
     normalize_impl_id,
     user_facing_kind,
 )
-from swarm.core import remotes as remotes_core
 
 
 def test_user_facing_kind_is_always_remote():
