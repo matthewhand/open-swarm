@@ -182,7 +182,7 @@ Default dest is XDG `…/swarm/team_rosters.json`. Override with
 # See what would be added (no write)
 uv run python scripts/seed_demo_agents.py --dry-run
 
-# Additive upsert of demo-* rosters only
+# Additive upsert of demo-* rosters only (seed_req156_demo.py)
 uv run python scripts/seed_demo_agents.py
 
 # If a previous Demo seed exists and you want to replace those four ids only

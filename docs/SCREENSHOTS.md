@@ -94,7 +94,11 @@ Regenerate with:
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `demo/cli-and-api.gif` | Animated terminal demo (~25s loop): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake) | README.md | 2026-08-18 | current |
+| `demo/cli-agent.gif` | CLI agent: host executable discovery & native session launch (`grok-cli`) | README.md | 2026-09-06 | current |
+| `demo/api-agent.gif` | API agent: OpenAI-compatible `/v1/models` and streaming completions (`litellm-api`) | README.md | 2026-09-06 | current |
+| `demo/remote-agent.gif` | Remote agent: external harness catalog & bridge dispatch (**OpenMousBot**, Hermes) | README.md | 2026-09-06 | current |
+| `demo/combined-team.gif` | Combined team: unified flow coordinating CLI + API + Remote via handoff (`demo-bridge`) | README.md | 2026-09-06 | current |
+| `demo/cli-and-api.gif` | Historical animated terminal loop (~25s loop): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake) | README.md | 2026-08-18 | historical |
 
 Four scenes from real `SWARM_TEST_MODE` / curl / `--backend fake` captures under
 `docs/demo/captures/` (see `raw_*.txt`). Scene 2 uses documented
