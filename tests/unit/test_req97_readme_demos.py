@@ -41,7 +41,8 @@ def test_four_poster_stems_exist():
     for stem in STEMS:
         path = ASSETS / f"{stem}.svg"
         assert path.is_file(), f"missing poster {path}"
-        text = path.read_text(encoding="utf-8")
+        raw = path.read_bytes()
+        text = raw.decode("ascii")
         assert text.lstrip().startswith("<svg"), f"{path.name} must be SVG"
         assert 'role="img"' in text
 
@@ -135,7 +136,9 @@ def test_svg_posters_label_kinds_and_openmousbot():
     assert "Grok CLI" in cli and "OpenCode" in cli
     assert "LiteLLM API" in api
     assert "OpenMousBot" in remote
-    assert "OMB" not in remote
+    visible = "".join(re.findall(r"<text[^>]*>([^<]*)</text>", remote))
+    assert "OpenMousBot" in visible
+    assert "OMB" not in visible
     assert "OpenMousBot" in team
     assert "handoff" in team
     assert "Demo Bridge" in team

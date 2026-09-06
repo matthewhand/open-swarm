@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
-  <title id="title">CLI agents  poster frame</title>
+  <title id="title">CLI agents - poster frame</title>
   <desc id="desc">Placeholder poster for a CLI-agent demo. Grok-like rail plus chat. No secrets, no LAN IPs. Replace with a recorded GIF.</desc>
   <rect width="640" height="360" rx="16" fill="#111111"/>
   <rect x="0" y="0" width="176" height="360" rx="16" fill="#0b0b0b"/>
@@ -20,6 +20,6 @@
   <text x="236" y="172" fill="#EBA222" font-family="ui-monospace, monospace" font-size="12">grok   opencode   agy</text>
   <text x="236" y="194" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Native session. Not a graph.</text>
   <rect x="220" y="300" width="380" height="36" rx="18" fill="#262626"/>
-  <text x="240" y="323" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Message Grok CLI&</text>
-  <text x="20" y="340" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10">POSTER · GIF pending · demo names only</text>
+  <text x="240" y="323" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Message Grok CLI...</text>
+  <text x="20" y="340" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10">POSTER - GIF pending - demo names only</text>
 </svg>

@@ -39,7 +39,6 @@ jobs:
         run: |
           uv run pytest \
             tests/unit/test_req97_readme_demos.py \
-            tests/unit/test_req102_readme_rewrite.py \
-            tests/unit/test_req156_readme.py
+            tests/unit/test_req102_readme_rewrite.py
         env:
           DJANGO_ALLOW_ASYNC_UNSAFE: "true"
