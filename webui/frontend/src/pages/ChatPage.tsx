@@ -154,6 +154,7 @@ import {
   MANAGE_TEAMS_VALUE,
   applyTeamMemberSessionParam,
   fetchTeamRosters,
+  parseTeamRosters,
   memberOptionLabel,
   teamHideId,
   teamThreadId,
@@ -598,7 +599,7 @@ const ChatPage = () => {
   })
   const blueprints = exampleRoleAgents(blueprintsQuery.data?.data ?? [])
   const cliAgents = cliQuery.data?.rail ?? []
-  const teams = teamsQuery.data ?? []
+  const teams = parseTeamRosters(teamsQuery.data ?? [])
   const remotes = remotesQuery.data ?? []
   const selectedTeam = teams.find((team) => team.id === teamFromUrl) ?? null
   const teamDeclaredRoster = selectedTeam

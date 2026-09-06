@@ -79,8 +79,8 @@ describe('REQ-217: Unpinned agent labels — shared left vertical alignment', ()
           json: async () => ({
             object: 'list',
             data: [
-              { id: 'codey', name: 'Codey', role: 'default', description: 'Writes code' },
-              { id: 'tester', name: 'Tester', role: 'support', description: 'Tests code' },
+              { id: 'codey', name: 'Codey', role: 'default', description: 'Writes code', rail: true },
+              { id: 'tester', name: 'Tester', role: 'support', description: 'Tests code', rail: true },
             ],
           }),
         } as Response

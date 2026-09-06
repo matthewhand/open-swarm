@@ -913,6 +913,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=_oob_append_html(contents_div_id, full_message))
 
         _record_turn(self, "assistant", full_message, ts=_message_ts())
+        await self._emit_pr_opened_from_text(full_message)
 
         final_message_html = render_to_string(
             "websocket_partials/final_system_message.html",
@@ -924,6 +925,28 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=final_message_html)
         await self._persist_completed_turn()
         await self._emit_suggestions_if_enabled(blueprint_id, blueprint=blueprint_instance)
+
+    async def _emit_pr_opened_from_text(self, text):
+        """REQ-79: CLI/API stdout with a real GitHub PR URL → REQ-71 View PR card.
+
+        Never invents a URL. Markdown-only chatter without a pull link is ignored.
+        """
+        try:
+            from swarm.core.self_update import parse_cli_pr_opened
+
+            payload = parse_cli_pr_opened(
+                text,
+                agent_id=str(
+                    getattr(self, "active_agent", None)
+                    or getattr(self, "default_blueprint", None)
+                    or ""
+                ),
+                conversation_id=str(getattr(self, "conversation_id", "") or ""),
+            )
+            if payload:
+                await self.emit_tool_event(payload)
+        except Exception:
+            logger.debug("CLI PR-opened parse skipped", exc_info=True)
 
     async def _persist_completed_turn(self):
         """REQ-171A-2: write JSON + Django rows after a finished assistant turn.

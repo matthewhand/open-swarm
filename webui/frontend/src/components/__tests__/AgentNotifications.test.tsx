@@ -43,8 +43,8 @@ function mockFetch() {
         ok: true,
         json: async () => ({
           data: [
-            { id: 'codey', name: 'Codey', role: 'default' },
-            { id: 'stewie', name: 'Stewie', role: 'default' },
+            { id: 'codey', name: 'Codey', role: 'default', rail: true },
+            { id: 'stewie', name: 'Stewie', role: 'default', rail: true },
           ],
         }),
       } as Response

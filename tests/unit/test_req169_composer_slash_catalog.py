@@ -33,6 +33,7 @@ def test_standard_skills_discoverable():
         "counting-lines",
         "reviewing-code",
         "support-session-ownership",
+        "self-update-pr",
         "writing-changelog",
     ]
     for skill_name in expected_skills:

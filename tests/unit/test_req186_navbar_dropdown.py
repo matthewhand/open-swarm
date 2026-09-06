@@ -15,7 +15,8 @@ def test_navbar_no_mystery_api_or_model_dropdown():
     assert "availableApiAgents" not in content, "availableApiAgents blueprint picker must be removed from navbar"
     assert "isNamedApiAgent" not in content, "isNamedApiAgent should not be in ChatPage"
 
-    # fetchModels, fetchLlmProfiles, and modelsQuery should no longer be in ChatPage
+    # Navbar must not grow a models dropdown. Token meter may load LLM profiles
+    # for context-window max (resolveContextMaxFromProfiles) — that is not a picker.
     assert "fetchModels" not in content, "fetchModels should not be imported in ChatPage"
-    assert "fetchLlmProfiles" not in content, "fetchLlmProfiles should not be imported in ChatPage"
     assert "modelsQuery" not in content, "modelsQuery should not be present in ChatPage"
+    assert 'data-testid="api-model-select"' not in content
