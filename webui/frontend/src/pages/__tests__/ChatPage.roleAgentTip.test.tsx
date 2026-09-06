@@ -157,19 +157,30 @@ describe('ChatPage REQ-191 role-agent tip', () => {
     expect(screen.getByTestId('chat-messages-container')).toBeInTheDocument()
   })
 
-  it('Esc dismisses the tip without unmounting chat or clearing a draft', async () => {
+  it('Esc dismisses the tip when the draft is empty and leaves chat mounted', async () => {
     await openChat('/chat?blueprint=skeptic', [
       { id: 'skeptic', name: 'Skeptic', role: 'skeptic' },
     ])
     const composer = await screen.findByRole('textbox', { name: 'Chat message' })
     expect(await screen.findByTestId('role-agent-tip')).toBeInTheDocument()
-    fireEvent.change(composer, { target: { value: 'keep this draft' } })
     fireEvent.keyDown(composer, { key: 'Escape' })
     await waitFor(() => {
       expect(screen.queryByTestId('role-agent-tip')).not.toBeInTheDocument()
     })
-    expect(composer).toHaveValue('keep this draft')
+    expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
     expect(screen.getByTestId('chat-messages-container')).toBeInTheDocument()
+  })
+
+  it('does not steal composer Esc while a draft is present (REQ-160 / #571)', async () => {
+    await openChat('/chat?blueprint=skeptic', [
+      { id: 'skeptic', name: 'Skeptic', role: 'skeptic' },
+    ])
+    const composer = await screen.findByRole('textbox', { name: 'Chat message' })
+    expect(await screen.findByTestId('role-agent-tip')).toBeInTheDocument()
+    fireEvent.change(composer, { target: { value: 'draft that should clear' } })
+    fireEvent.keyDown(composer, { key: 'Escape' })
+    expect(composer).toHaveValue('')
+    expect(screen.getByTestId('role-agent-tip')).toBeInTheDocument()
   })
 
   it('stays hidden after a persisted dismiss on remount', async () => {

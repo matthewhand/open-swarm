@@ -2297,14 +2297,14 @@ const ChatPage = () => {
         setReplyTarget(null)
         return
       }
-      if (showRoleTip) {
-        event.preventDefault()
-        dismissRoleTip()
-        return
-      }
       if (input.length > 0) {
         event.preventDefault()
         setInput('')
+        return
+      }
+      if (showRoleTip) {
+        event.preventDefault()
+        dismissRoleTip()
         return
       }
     }
