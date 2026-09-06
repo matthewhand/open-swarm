@@ -1,6 +1,8 @@
 """SPA chat thread restore + Settings-only retention actions.
 
 ``GET /chat/thread/`` hydrates an agent thread after reload / agent switch.
+Load order is JSON first, then Django backfill — same helper as WS
+``fetch_conversation`` (``swarm.core.thread_load``).
 ``POST /chat/compact/`` summarises a span (REQ-37). Retention (archive,
 restore, empty trash) lives on ``/settings/`` only.
 """
@@ -23,7 +25,9 @@ from swarm.core.chat_compact import (
     list_summaries,
     summary_to_dict,
 )
-from swarm.models import ChatAttachment, ChatConversation, ChatMessage
+from swarm.core.thread_load import load_thread
+from swarm.core.thread_load import public_messages as _public_messages
+from swarm.models import ChatAttachment, ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -32,26 +36,6 @@ _ALLOWED_ACTIONS = frozenset({"archive", "archive_all", "restore", "empty_trash"
 
 def _user_key(user) -> str:
     return chat_store.user_key_for(user)
-
-
-def _messages_from_db(user, conversation_id: str) -> list[dict[str, str]]:
-    if not conversation_id:
-        return []
-    try:
-        chat = ChatConversation.objects.get(
-            conversation_id=conversation_id,
-            student=user,
-        )
-    except ChatConversation.DoesNotExist:
-        return []
-    out: list[dict[str, str]] = []
-    for row in chat.chat_messages.all():
-        item = {"role": row.sender, "content": row.content}
-        ts = row.timestamp.isoformat() if getattr(row, "timestamp", None) else ""
-        if ts:
-            item["ts"] = ts
-        out.append(item)
-    return out
 
 
 def _json_body(request) -> dict:
@@ -77,40 +61,6 @@ def _summaries_for(*conversation_ids: str) -> tuple[str, list[dict]]:
         if rows:
             return text, rows
     return (seen[0] if seen else ""), []
-
-
-def _public_messages(messages) -> list[dict]:
-    out: list[dict] = []
-    for item in messages or []:
-        row = {
-            "role": item.get("role", "user"),
-            "content": item.get("content", ""),
-        }
-        ts = item.get("ts") or item.get("timestamp")
-        if isinstance(ts, str) and ts:
-            row["ts"] = ts
-        if item.get("edited"):
-            row["edited"] = True
-        kind = item.get("kind")
-        if isinstance(kind, str) and kind:
-            row["kind"] = kind
-        from_cid = item.get("from_conversation_id")
-        if isinstance(from_cid, str) and from_cid:
-            row["from_conversation_id"] = from_cid
-        seq = item.get("seq")
-        if isinstance(seq, int) and not isinstance(seq, bool):
-            row["seq"] = seq
-        out.append(row)
-    return out
-
-
-def _thread_channels(record, db_messages=None) -> tuple[list[dict], list[dict]]:
-    """Model turns + UI events. Schema-1 mixed rows are split."""
-    from swarm.core.transcript_roles import split_store
-
-    if record is not None:
-        return split_store(record.get("messages") or [], record.get("ui_events") or [])
-    return split_store(db_messages or [], [])
 
 
 def _thread_payload_messages(turns, events) -> list[dict]:
@@ -186,62 +136,36 @@ def chat_thread(request):
     # REQ-171C-4 / C-H7: mint or refuse reuse before loading the old Django row.
     minted = resolve_on_mode_conversation(request.user, agent, requested_cid)
     session_id = ""
-    turns: list[dict] = []
-    events: list[dict] = []
     session_missing = False
-    record = None
     if minted is not None:
         conversation_id = minted.conversation_id
         session_id = minted.conversation_id
-        record = chat_store.load(
-            user_key,
-            agent,
-            conversation_id=conversation_id,
-            session_id=session_id,
-        )
-        turns, events = _thread_channels(record, [])
+        requested_for_load = conversation_id
     else:
         if requested_cid and requested_cid != default_cid:
             session_id = requested_cid
-        record = chat_store.load(
-            user_key,
-            agent,
-            conversation_id=requested_cid,
-            session_id=session_id,
-        )
-        db_id = requested_cid or (record or {}).get("conversation_id") or default_cid
-        if fresh_task:
-            # Explicit task cid only — never fall back to the reused default row.
-            db_messages = [] if record and record.get("messages") else _messages_from_db(
-                request.user, requested_cid
-            )
-        else:
-            db_messages = [] if record and record.get("messages") else _messages_from_db(
-                request.user, db_id
-            )
-        if (
-            requested_cid
-            and record is None
-            and not db_messages
-            and requested_cid.startswith(("cli-", "sess-", "task-"))
-        ):
-            # Select-minted / on-mode ids — honest miss, no swap.
-            session_missing = True
-            turns, events = [], []
-        else:
-            turns, events = _thread_channels(record, db_messages)
-            if not record and turns and not session_id:
-                # Upgrade path: mirror an existing Django row onto disk.
-                try:
-                    chat_store.save(
-                        user_key,
-                        agent,
-                        turns,
-                        conversation_id=db_id,
-                        ui_events=events,
-                    )
-                except OSError:
-                    logger.exception("Failed to backfill chat JSON for %s/%s", user_key, agent)
+        requested_for_load = requested_cid
+    # JSON first, Django backfill — same order as WS fetch_conversation.
+    loaded = load_thread(
+        request.user,
+        agent,
+        requested_cid=requested_for_load,
+        session_id=session_id,
+        default_cid=default_cid,
+        fresh_task=fresh_task,
+    )
+    record = loaded.record
+    turns, events = loaded.turns, loaded.events
+    if (
+        minted is None
+        and requested_cid
+        and record is None
+        and not turns
+        and requested_cid.startswith(("cli-", "sess-", "task-"))
+    ):
+        # Select-minted / on-mode ids — honest miss, no swap.
+        session_missing = True
+        turns, events = [], []
     if minted is None and requested_cid:
         conversation_id = requested_cid
     elif minted is None and record and record.get("conversation_id") and not fresh_task:

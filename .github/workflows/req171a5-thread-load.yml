@@ -1,0 +1,50 @@
+name: REQ-171A-5 align WS and HTTP thread load
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/thread_load.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/chat_persist_views.py"
+      - "tests/unit/test_req171a5_thread_load.py"
+      - "tests/test_consumers.py"
+      - "tests/views/test_chat_retention.py"
+      - "docs/websocket_chat.md"
+      - ".github/workflows/req171a5-thread-load.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/thread_load.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/chat_persist_views.py"
+      - "tests/unit/test_req171a5_thread_load.py"
+      - "tests/test_consumers.py"
+      - "tests/views/test_chat_retention.py"
+      - "docs/websocket_chat.md"
+      - ".github/workflows/req171a5-thread-load.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-171A-5 pytest (own-diff)
+        run: |
+          uv run pytest tests/unit/test_req171a5_thread_load.py
+          uv run pytest tests/test_consumers.py \
+            -k "fetch_from_memory or cache_hit_does_not_leak or fetch_from_database or memory_cache_isolation"
+          uv run pytest tests/views/test_chat_retention.py \
+            -k "passes_through_stored_ts or backfills_from_django"
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"

@@ -77,9 +77,16 @@ Each agent thread is a JSON file under `$SWARM_CHAT_DIR` (default
 `$SWARM_USER_DATA_DIR/chats`): `active/<user>/<agent>.json`. The consumer
 mirrors the transcript there when a turn finishes (`assistant_final` /
 blueprint final partial — REQ-171A-2) and again on disconnect (idempotent
-replace). Status and edit frames still save immediately. `GET /chat/thread/?agent=`
-hydrates the SPA after reload or agent switch. Retention (counts, disk, trash,
-`SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the Chat chrome.
+replace). Status and edit frames still save immediately.
+
+Reload (`GET /chat/thread/?agent=`) and websocket reconnect
+(`fetch_conversation`) share one load order — JSON first, then DB backfill
+(Django `ChatMessage` rows) when the file is missing (`swarm.core.thread_load`).
+JSON is the source of truth, so `ts` and `edited` survive both hydrate and
+reconnect. The WS in-memory cache stays keyed by `(user_id, conversation_id)`.
+On-mode mint (REQ-171C-4) still runs before any row load. Retention (counts,
+disk, trash, `SWARM_CHAT_MAX_AGE_DAYS`) is on **Settings only** — not in the
+Chat chrome.
 
 Dropdown changes (REQ-46) record a status event with a timestamp. The SPA
 POSTs `/chat/thread/` and, when the socket is open, also sends

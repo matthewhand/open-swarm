@@ -95,16 +95,10 @@ def _load_agent_record(user, agent_id, *, conversation_id=""):
         return empty
     if not record:
         return empty
+    from swarm.core.thread_load import public_message
+
     return {
-        "messages": [
-            {
-                "role": m.get("role", "user"),
-                "content": m.get("content", ""),
-                **({"ts": m["ts"]} if isinstance(m.get("ts"), str) and m.get("ts") else {}),
-                **({"seq": m["seq"]} if isinstance(m.get("seq"), int) else {}),
-            }
-            for m in record.get("messages") or []
-        ],
+        "messages": [public_message(m) for m in record.get("messages") or []],
         "ui_events": list(record.get("ui_events") or []),
     }
 
@@ -1129,15 +1123,22 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def fetch_conversation(self, conversation_id):
-        """
-        Fetch conversation messages from memory or DB. If missing from memory, load from DB.
+        """Fetch transcript: cache, then JSON, then Django backfill.
+
+        Load order matches ``GET /chat/thread/`` (``swarm.core.thread_load``):
+
+        0. On-mode mint (REQ-171C-4) — refuse reuse before any row load.
+        1. In-memory cache keyed by ``(user_id, conversation_id)``.
+        2. JSON disk (source of truth) — keeps ``ts`` / ``edited``.
+        3. Django ``ChatMessage`` rows when the JSON file is missing.
 
         Always returns a COPY: two tabs sharing a conversation must not mutate
         each other's in-flight transcript list (interleaved appends previously
         corrupted both and double-persisted merged turns on disconnect).
         """
-        from swarm.core.transcript_roles import split_store
+        from swarm.core import chat_store
         from swarm.core.session_policy import resolve_on_mode_conversation
+        from swarm.core.thread_load import load_thread
 
         agent_id = getattr(self, "default_blueprint", None) or getattr(
             self, "active_agent", None
@@ -1160,44 +1161,33 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
             return list(IN_MEMORY_CONVERSATIONS[cache_key])
 
         on_mode = False
+        default_cid = ""
         try:
             from swarm.core.agent_settings import is_new_chat_per_task
 
-            on_mode = bool(agent_id and is_new_chat_per_task(agent_id))
+            if agent_id:
+                default_cid = chat_store.conversation_id_for(self.user, agent_id)
+                on_mode = bool(is_new_chat_per_task(agent_id))
         except Exception:
             logger.debug("new-chat-per-task check failed; using reuse fallback", exc_info=True)
 
-        try:
-            chat = ChatConversation.objects.get(conversation_id=conversation_id, student=self.user)
-            raw = [{'role': m['sender'], 'content': m['content']} for m in chat.messages.values("sender", "content")]
-            turns, events = split_store(raw, [])
-            IN_MEMORY_CONVERSATIONS[cache_key] = turns
-            IN_MEMORY_UI_EVENTS[cache_key] = events
-            self.ui_events = list(events)
-            return list(turns)
-        except ChatConversation.DoesNotExist:
-            logger.debug(f"Conversation {conversation_id} not found in database for user: {self.user}")
+        session_id = ""
+        if conversation_id and (conversation_id != default_cid or on_mode):
+            session_id = conversation_id
 
-        if agent_id:
-            loaded = _load_agent_record(
-                self.user, agent_id, conversation_id=conversation_id
-            )
-            if loaded["messages"] or loaded["ui_events"]:
-                IN_MEMORY_CONVERSATIONS[cache_key] = loaded["messages"]
-                IN_MEMORY_UI_EVENTS[cache_key] = loaded["ui_events"]
-                self.ui_events = list(loaded["ui_events"])
-                return list(loaded["messages"])
-            if on_mode:
-                self.ui_events = []
-                return []
-
-        # Off-mode disk fallback: per-agent JSON (survives a new conversation UUID).
-        loaded = _load_agent_record(self.user, agent_id)
-        if loaded["messages"] or loaded["ui_events"]:
-            IN_MEMORY_CONVERSATIONS[cache_key] = loaded["messages"]
-            IN_MEMORY_UI_EVENTS[cache_key] = loaded["ui_events"]
-            self.ui_events = list(loaded["ui_events"])
-            return list(loaded["messages"])
+        loaded = load_thread(
+            self.user,
+            agent_id or "",
+            requested_cid=conversation_id,
+            session_id=session_id,
+            default_cid=default_cid,
+            fresh_task=on_mode,
+        )
+        if loaded.turns or loaded.events:
+            IN_MEMORY_CONVERSATIONS[cache_key] = list(loaded.turns)
+            IN_MEMORY_UI_EVENTS[cache_key] = list(loaded.events)
+            self.ui_events = list(loaded.events)
+            return list(loaded.turns)
         self.ui_events = []
         return []
 

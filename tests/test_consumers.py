@@ -8,7 +8,7 @@ Covers:
   overlapping frames serialised (REQ-171A-3 / #603)
 - blueprint selection: message field, connection default, override,
   unknown-blueprint error partial
-- fetch_conversation: cache hit, DB hit, DoesNotExist
+- fetch_conversation: cache hit, JSON-first + DB backfill, DoesNotExist
 - save_conversation: create/update, idempotent replace on repeat save
 - delete_conversation: existing, missing
 """
@@ -1341,7 +1341,7 @@ class TestFetchConversation:
         fetch_sync = DjangoChatConsumer.__dict__["fetch_conversation"].func
 
         with patch(
-            "swarm.consumers.ChatConversation.objects.get",
+            "swarm.core.thread_load.ChatConversation.objects.get",
             side_effect=ChatConversation.DoesNotExist,
         ) as mock_get:
             result = fetch_sync(attacker_consumer, conv_id)
@@ -1352,29 +1352,32 @@ class TestFetchConversation:
         assert IN_MEMORY_CONVERSATIONS[_conversation_cache_key(owner, conv_id)] == secret
 
     @pytest.mark.django_db
-    def test_fetch_from_database_sync(self, test_user):
-        """Should fetch conversation from database if not in cache (sync version)."""
+    def test_fetch_from_database_sync(self, test_user, tmp_path, monkeypatch):
+        """DB backfill via fetch_conversation when JSON is missing."""
         from swarm.models import ChatConversation, ChatMessage
 
-        # Create a conversation in the database
+        monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
         chat = ChatConversation.objects.create(
             conversation_id="db-conv-123",
-            student=test_user
+            student=test_user,
         )
         ChatMessage.objects.create(
             conversation=chat,
             sender="user",
-            content="DB message"
+            content="DB message",
         )
 
-        # Create consumer and test fetch (the method uses database_sync_to_async)
         consumer = DjangoChatConsumer()
         consumer.user = test_user
+        consumer.default_blueprint = None
+        consumer.active_agent = None
+        fetch_sync = DjangoChatConsumer.__dict__["fetch_conversation"].func
+        result = fetch_sync(consumer, "db-conv-123")
 
-        # The fetch_conversation method is async and uses database_sync_to_async
-        # We test the underlying logic by checking the DB state
-        assert ChatConversation.objects.filter(conversation_id="db-conv-123").exists()
-        assert ChatMessage.objects.filter(conversation=chat).count() == 1
+        assert len(result) == 1
+        assert result[0]["role"] == "user"
+        assert result[0]["content"] == "DB message"
+        assert result[0].get("ts")
 
     @pytest.mark.django_db
     def test_fetch_nonexistent_returns_empty_sync(self, test_user):
