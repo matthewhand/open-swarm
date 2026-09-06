@@ -17,6 +17,17 @@ Rakazo seats.
 
 Chrome stays **badge-only** (REQ-67 / #396): no row fill or left-border accent.
 
+## Two invocation modes (REQ-191)
+
+A seat with a role runs in two modes. Full contract: [ADR-010](./adr/010-role-agent-invocation-modes.md).
+
+| Mode | Who | Context |
+|------|-----|---------|
+| **A — Human chat** | Operator on `/chat` | Role-aware configure/discuss prompt + **this thread** (wide context). |
+| **B — as-tool / handoff** | Other agents / graph | Execution prompt + **caller context** and the **latest message**. Not the role agent’s private configure thread. |
+
+SPA Chat shows a dismissable tip on the pane when the selected agent has a role. Role-less seats (`default` / `none`) skip it. Mode B payload wiring is a follow-up; mailbox `send_message` (ADR-009) is Mode A on the target chat.
+
 ## Blueprint default role (REQ-75)
 
 Python blueprints remain the source. A recipe may declare:
