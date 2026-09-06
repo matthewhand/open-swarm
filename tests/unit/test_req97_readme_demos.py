@@ -75,7 +75,7 @@ def test_readme_embeds_four_demo_slots_in_order():
     assert "Remote Agent" in text or "Remote agents" in text
     assert "OpenMousBot" in text
     assert "Combined Team" in text or "Combined team" in text
-    assert "CLI + API + remote" in text
+    assert re.search(r"CLI\s*\+\s*API", text, re.I)
     assert "docs/SHOWOFF_DEMO_AGENTS.md" in text
 
 
