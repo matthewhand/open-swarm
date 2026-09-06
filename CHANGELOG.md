@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **REQ-191 role-agent Mode A/B tip + contract:** [ADR-010](docs/adr/010-role-agent-invocation-modes.md) names Mode A (human chat = configure/discuss, full thread) vs Mode B (as-tool/handoff = caller context + latest message). SPA Chat shows a dismissable DaisyUI tip on the pane when the selected agent has a role; role-less seats skip it. Esc/X hide the tip and leave chat mounted. Dismiss persists in `localStorage` and `/v1/preferences/` extras (`role_agent_tip_dismissed`; #540). Mode B runtime wiring is deferred to a child Issue. Does not revive first-load keybinding overlay chrome (#571/#577). Fixes #648.
+
 ### Fixed
 - **REQ-171C-3 Chat CLI/API model pin:** List-models and MCP help resolve on the same `which_cli` / `host_cli_path` as runs. `GET /v1/cli-agents/` exposes `installed` / `configured` / `rail`. Chat `params.model` reaches `apply_model` (flag before `-p`). Empty probes stay empty with a warning — no fake `default`. API Model lists LLM/profile ids; `/v1/models` stays blueprints. Fixes #612.
 

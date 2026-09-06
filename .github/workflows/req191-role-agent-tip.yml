@@ -1,0 +1,81 @@
+name: REQ-191 role-agent tip
+
+on:
+  pull_request:
+    paths:
+      - "docs/adr/010-role-agent-invocation-modes.md"
+      - "docs/adr/README.md"
+      - "docs/requirements/REQ-191.md"
+      - "docs/requirements/README.md"
+      - "docs/AGENT_ROLES.md"
+      - "docs/GLOSSARY.md"
+      - "webui/frontend/src/lib/roleAgentTip.ts"
+      - "webui/frontend/src/lib/agentRoles.ts"
+      - "webui/frontend/src/lib/__tests__/roleAgentTip.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentRoles.test.ts"
+      - "webui/frontend/src/components/RoleAgentTip.tsx"
+      - "webui/frontend/src/components/__tests__/RoleAgentTip.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.roleAgentTip.test.tsx"
+      - "webui/frontend/src/index.css"
+      - "tests/unit/test_req191_role_agent_modes.py"
+      - ".github/workflows/req191-role-agent-tip.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/adr/010-role-agent-invocation-modes.md"
+      - "docs/adr/README.md"
+      - "docs/requirements/REQ-191.md"
+      - "docs/requirements/README.md"
+      - "docs/AGENT_ROLES.md"
+      - "docs/GLOSSARY.md"
+      - "webui/frontend/src/lib/roleAgentTip.ts"
+      - "webui/frontend/src/lib/agentRoles.ts"
+      - "webui/frontend/src/lib/__tests__/roleAgentTip.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentRoles.test.ts"
+      - "webui/frontend/src/components/RoleAgentTip.tsx"
+      - "webui/frontend/src/components/__tests__/RoleAgentTip.test.tsx"
+      - "webui/frontend/src/pages/ChatPage.tsx"
+      - "webui/frontend/src/pages/__tests__/ChatPage.roleAgentTip.test.tsx"
+      - "webui/frontend/src/index.css"
+      - "tests/unit/test_req191_role_agent_modes.py"
+      - ".github/workflows/req191-role-agent-tip.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-191 source lock
+        run: uv run pytest tests/unit/test_req191_role_agent_modes.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-191 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/roleAgentTip.test.ts \
+            src/lib/__tests__/agentRoles.test.ts \
+            src/components/__tests__/RoleAgentTip.test.tsx \
+            src/pages/__tests__/ChatPage.roleAgentTip.test.tsx

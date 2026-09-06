@@ -52,6 +52,18 @@ def test_merge_values_patches_known_keys_only():
     assert merged["theme"] == "dark"
 
 
+def test_extras_bag_keeps_role_agent_tip_dismissed():
+    bag = coerce_values({"role_agent_tip_dismissed": True, "theme": "dark"})
+    assert bag["role_agent_tip_dismissed"] is True
+    payload = public_payload(
+        principal="user:alice",
+        guest=False,
+        empty=False,
+        values=bag,
+    )
+    assert payload["values"]["role_agent_tip_dismissed"] is True
+
+
 def test_public_payload_marks_empty_and_lists_registry():
     payload = public_payload(principal="user:alice", guest=False, empty=True)
     assert payload["object"] == "user_preferences"

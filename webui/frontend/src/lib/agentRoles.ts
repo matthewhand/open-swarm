@@ -204,6 +204,15 @@ export function isExampleRole(role: string): role is ExampleRole {
   return (EXAMPLE_ROLES as readonly string[]).includes(role)
 }
 
+/** True when the seat has a first-class role (not `default` / `none`). */
+export function agentHasRole(agent: {
+  id?: string | null
+  name?: string | null
+  role?: string | null
+}): boolean {
+  return agentRole(agent) !== 'default'
+}
+
 /** Hover-edit is for example roles (or a default row that already has a role blueprint). */
 export function showsBlueprintEdit(agent: {
   id?: string | null

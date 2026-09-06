@@ -110,6 +110,8 @@ First-class field on an agent spec (`AgentConfig.role`, team `AGENT_SPECS`, `/v1
 
 A blueprint `metadata.role` is applied on create / re-pick unless the operator has explicitly changed Role. Optional `metadata.workflow` is `handoff` or `as_tool` (hint only).
 
+**Invocation (REQ-191):** Mode A = human chat configures/discusses the role (full thread). Mode B = as-tool / handoff uses the caller’s context and the latest message, not the role agent’s configure thread. See [ADR-010](./adr/010-role-agent-invocation-modes.md). Distinct from showoff “Mode A/B” **names** in [SHOWOFF_DEMO_AGENTS.md](./SHOWOFF_DEMO_AGENTS.md).
+
 See [AGENT_ROLES.md](./AGENT_ROLES.md).
 
 ## CLI Fusion
