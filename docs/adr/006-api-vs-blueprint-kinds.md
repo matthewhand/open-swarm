@@ -3,7 +3,7 @@
 - **Status:** Proposed (look-only; no runtime or UI change in this PR)
 - **Date:** 2026-09-04
 - **Issue:** [#652](https://github.com/matthewhand/open-swarm/issues/652) (REQ-193) — Phase 0
-- **Related:** [#570](https://github.com/matthewhand/open-swarm/issues/570) / [PR #578](https://github.com/matthewhand/open-swarm/pull/578) (ADR-005 kind bases), [#640](https://github.com/matthewhand/open-swarm/issues/640) (Add-agent tabs), [#595](https://github.com/matthewhand/open-swarm/issues/595) (rail filter), [#564](https://github.com/matthewhand/open-swarm/issues/564) (openai-agents graphs), [#586](https://github.com/matthewhand/open-swarm/issues/586) (manage CLI/API from wizard)
+- **Related:** [#570](https://github.com/matthewhand/open-swarm/issues/570) / [PR #578](https://github.com/matthewhand/open-swarm/pull/578) (ADR-005 kind bases), [#640](https://github.com/matthewhand/open-swarm/issues/640) (Add-agent tabs), [#595](https://github.com/matthewhand/open-swarm/issues/595) (rail filter), [#564](https://github.com/matthewhand/open-swarm/issues/564) (openai-agents graphs), [#586](https://github.com/matthewhand/open-swarm/issues/586) (manage CLI/API from wizard), [#680](https://github.com/matthewhand/open-swarm/issues/680) / [ADR-011](./011-remote-harness.md) (Remote harness spec)
 - **Amends:** ADR-005 (PR #578, not yet on `main`) — the `ApiKindBase` slot conflated inference with programmatic graphs. This ADR splits that slot.
 - **Supersedes:** none. Complements [ADR-001](../ADR-001-primary-ui.md) (UI chrome) and [ADR-002](./002-config-ownership.md) (config / secrets).
 

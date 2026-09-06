@@ -17,7 +17,10 @@ export function agentTypeOf(agent: Pick<Agent, 'agent_type' | 'kind'> | undefine
     return agent.agent_type
   }
   if (agent.kind === 'cli') return 'cli'
-  if (agent.kind === 'remote') return 'remote'
+  if (agent.kind === 'remote' || agent.kind === 'herdr') return 'remote'
+  if (agent.kind === 'hermes' || agent.kind === 'omb' || agent.kind === 'rakazo') {
+    return 'remote'
+  }
   return 'api'
 }
 

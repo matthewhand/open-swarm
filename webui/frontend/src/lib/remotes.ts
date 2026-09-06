@@ -70,6 +70,26 @@ export function remoteSelectPlaceholder(configuredCount: number, selectedId = ''
   return 'Remote'
 }
 
+/** Add-agent Remote tab: impls under kind=remote, never a parallel Herdr kind. */
+export function addAgentRemoteImpls(
+  response?: RemotesListResponse | null,
+): RemoteKind[] {
+  const listed = remoteKinds(response)
+  const seen = new Set(listed.map((kind) => kind.id))
+  const merged = [...listed]
+  for (const fallback of FALLBACK_REMOTE_KINDS) {
+    if (!seen.has(fallback.id)) {
+      merged.push(fallback)
+      seen.add(fallback.id)
+    }
+  }
+  return merged.map((kind) => ({
+    ...kind,
+    kind: 'remote',
+    impl: kind.impl || kind.id,
+  }))
+}
+
 export function unusedRemoteKinds(
   response?: RemotesListResponse | null,
 ): RemoteKind[] {

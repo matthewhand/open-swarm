@@ -14,7 +14,11 @@ def test_kind_maps_to_api_cli_or_remote():
     assert agent_type_for_kind("api") == "api"
     assert agent_type_for_kind("cli") == "cli"
     assert agent_type_for_kind("remote") == "remote"
+    assert agent_type_for_kind("herdr") == "remote"
+    assert agent_type_for_kind("hermes") == "remote"
+    assert agent_type_for_kind("omb") == "remote"
     assert agent_type_for_kind(None) == "api"
+    assert "herdr" not in AGENT_TYPES
 
 
 def test_public_personas_drops_nameless():

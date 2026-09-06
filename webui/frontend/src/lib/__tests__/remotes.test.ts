@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addAgentRemoteImpls,
   configuredRemotes,
   herdrLocationLabel,
   isHerdrKind,
@@ -97,6 +98,21 @@ describe('remotes catalog (REQ-59)', () => {
     expect(rows[0].id).toBe('omb')
     expect(remoteSelectPlaceholder(rows.length, '')).toBe('Pick a remote')
     expect(remoteSelectPlaceholder(0, '')).toBe('No remotes')
+  })
+
+  it('Add-agent Remote impls stay under kind=remote (REQ-203)', () => {
+    const impls = addAgentRemoteImpls({
+      object: 'list',
+      kinds: [{ id: 'omb', label: 'OpenMousBot' }],
+      configured: [],
+    })
+    const ids = impls.map((kind) => kind.id)
+    expect(ids).toContain('hermes')
+    expect(ids).toContain('omb')
+    expect(ids).toContain('rakazo')
+    expect(ids).toContain('herdr')
+    expect(impls.every((kind) => kind.kind === 'remote')).toBe(true)
+    expect(impls.find((kind) => kind.id === 'herdr')?.impl).toBe('herdr')
   })
 
   it('labels Herdr as local vs SSH (REQ-100)', () => {

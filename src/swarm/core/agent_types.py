@@ -24,10 +24,16 @@ KIND_TO_TYPE: dict[str, str] = {
     "api": "api",
     "builtin": "api",
     "personality": "api",
-    "swarm": "api",
+    "swarm": "api",  # persona/swarm *design* — not the nested open-swarm remote
     "blueprint": "api",
     "cli": "cli",
     "remote": "remote",
+    # REQ-203: remotes impl ids are Remote, not a fifth user-facing kind.
+    "herdr": "remote",
+    "hermes": "remote",
+    "omb": "remote",
+    "rakazo": "remote",
+    "open-swarm": "remote",
 }
 
 AGENT_TYPE_CATALOG: tuple[dict[str, str], ...] = (

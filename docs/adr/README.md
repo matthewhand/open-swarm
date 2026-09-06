@@ -12,7 +12,10 @@
 | [ADR-008](./008-3d-robot-avatar-theme.md) | Optional 3D robot avatar theme family (Reachy-inspired; REQ-194 / #667). Report: [reachy-3d-avatar-inspiration.md](../reports/reachy-3d-avatar-inspiration.md) |
 | [ADR-009](./009-peer-mailbox.md) | Peer mailbox — team graph + relationship edges, not a global mesh (REQ-153 / #561) |
 | [ADR-010](./010-role-agent-invocation-modes.md) | Role-agent Mode A (human chat / wide context) vs Mode B (as-tool / caller context) — tip this PR; Mode B wiring deferred (REQ-191 / #648) |
+| [ADR-011](./011-remote-harness.md) | Remote as abstract harness spec — Hermes / OMB / Rakazo / Herdr / nested swarm implement (REQ-203 / #680) |
 
 ADR-006 **amends** ADR-005’s `ApiKindBase` slot: user-facing kinds become CLI | API | Blueprint | Remote.
+
+ADR-011 **amends** ADR-006: Remote stays one kind; variants are `RemoteHarness` implementations, not extra kinds.
 
 Related research (not an ADR): [Grok Bot keybinding parity](../GROK_KEYBINDING_PARITY.md) (REQ-150 / #552).

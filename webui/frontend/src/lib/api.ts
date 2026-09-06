@@ -572,6 +572,19 @@ export type RemoteKindId = 'hermes' | 'omb' | 'rakazo' | 'herdr' | 'open-swarm' 
 export interface RemoteKind {
   id: string
   label: string
+  /** User-facing harness kind. Always ``remote`` (REQ-203). */
+  kind?: 'remote' | string
+  /** Implementation discriminator under Remote. */
+  impl?: string
+  transport?: string
+  capabilities?: {
+    list?: boolean
+    send?: boolean
+    health?: boolean
+    operate?: boolean
+    interrogate?: boolean
+    transport?: string
+  }
   title?: string
   complete?: boolean
   fields?: string[]

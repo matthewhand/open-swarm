@@ -1,4 +1,20 @@
-# Remote harnesses — Hermes, OpenMausBot, Rakazo, nested swarm
+# Remote harnesses — Hermes, OpenMausBot, Rakazo, Herdr, nested swarm
+
+**Remote** is one user-facing kind. Concrete remotes **implement**
+[`RemoteHarness`](./adr/011-remote-harness.md) (REQ-203 / #680). Herdr is a
+Remote implementation, not a fifth kind.
+
+| Implementation | `impl` id | Transport | Live verbs | Optional `operate` (computer) |
+|----------------|-----------|-----------|------------|-------------------------------|
+| **Hermes** | `hermes` | HTTP | health, list, send | no |
+| **OpenMousBot** | `omb` | HTTP | health, list, send | yes — stub (`computer-status` / `computer-screenshot`) until ADR-007 Phase 3 |
+| **Rakazo** | `rakazo` | HTTP | health, list, send | yes — stub until ADR-007 Phase 3 |
+| **Herdr** | `herdr` | CLI local / SSH remote | health, list, send, interrogate | no |
+| **Nested open-swarm** | `swarm` (`open-swarm`) | HTTP | health, list, send | no |
+
+Typed protocol: `from swarm.core.remote_harness import RemoteHarness`. Settings
+`GET /v1/remotes/` `kinds[]` uses `kind=remote` and `id`/`impl` as the
+discriminator. Add-agent Remote tab lists these impls — not a parallel Herdr kind.
 
 Open Swarm can sit **in front of** other agent harnesses: configure them, check
 they are up, and send work through **their** APIs. This is not a concurrent

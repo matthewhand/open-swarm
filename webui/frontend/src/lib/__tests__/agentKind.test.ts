@@ -21,4 +21,14 @@ describe('classifyAgentKind', () => {
     expect(classifyAgentKind('jeeves', 'cli')).toBe('cli')
     expect(classifyAgentKind('cli:grok', 'api')).toBe('api')
   })
+
+  it('treats Herdr and remotes impls as Remote, not a fifth kind', () => {
+    expect(classifyAgentKind('herdr')).toBe('remote')
+    expect(classifyAgentKind('herdr:w3:p1')).toBe('remote')
+    expect(classifyAgentKind('pane', 'herdr')).toBe('remote')
+    expect(classifyAgentKind('hermes')).toBe('remote')
+    expect(classifyAgentKind('omb')).toBe('remote')
+    expect(classifyAgentKind('swarm')).toBe('api')
+    expect(canEditAgentMessages('herdr')).toBe(false)
+  })
 })

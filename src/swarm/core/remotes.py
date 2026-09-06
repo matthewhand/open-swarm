@@ -258,6 +258,8 @@ class RemoteSpec:
             "version_path": self.version_path,
             "notes": self.notes,
             "kind": self.id,
+            "impl": self.id,
+            "user_kind": "remote",
             "label": kind_label(self.id),
             "source": self.source,
             "api_key_env": self.api_key_env,
@@ -431,9 +433,26 @@ def display_label(remote_id: str) -> str:
     return kind_label(remote_id)
 
 
-def list_remote_kinds() -> list[dict[str, str]]:
-    """Kinds the user can add. Unused kinds do not appear as catalog rows."""
-    return [{"id": kid, "label": REMOTE_KIND_LABELS[kid]} for kid in REMOTE_KIND_IDS]
+def list_remote_kinds() -> list[dict[str, Any]]:
+    """Kinds the user can add. Unused kinds do not appear as catalog rows.
+
+    ``kind`` is the user-facing harness (always ``remote``). ``id`` / ``impl``
+    is the implementation discriminator (REQ-203 / ADR-011).
+    """
+    from swarm.core.remote_harness import implementation_catalog
+
+    catalog = implementation_catalog()
+    if catalog:
+        return catalog
+    return [
+        {
+            "id": kid,
+            "label": REMOTE_KIND_LABELS[kid],
+            "kind": "remote",
+            "impl": kid,
+        }
+        for kid in REMOTE_KIND_IDS
+    ]
 
 
 def remote_kind_catalog() -> list[dict[str, str]]:
@@ -1925,6 +1944,10 @@ def operate(
                 ok=False,
                 detail="interrogate is Herdr-only (SSH or local CLI). HTTP remotes use list / send.",
             )
+        from swarm.core.remote_harness import COMPUTER_OPS, computer_operate_stub
+
+        if action in COMPUTER_OPS:
+            return computer_operate_stub(rid, action)
         if action not in ("list", "send", "interrogate"):
             return OperateResult(remote=rid, op=action, ok=False, detail=f"Unknown op '{op}'. Use list or send.")
         if not is_configured(rid, config):
@@ -1968,3 +1991,167 @@ def operate(
             ok=False,
             detail=f"operate error: {exc}",
         )
+
+
+def _bind_health(impl_id: str):
+    def _health(spec: RemoteSpec, *, timeout: float, config: dict[str, Any] | None = None) -> HealthResult:  # noqa: ARG001
+        return check_health(impl_id, config=config, timeout=timeout)
+
+    return _health
+
+
+def _bind_http_list(fn):
+    def _list(spec: RemoteSpec, *, timeout: float, config: dict[str, Any] | None = None) -> OperateResult:  # noqa: ARG001
+        return fn(spec, timeout)
+
+    return _list
+
+
+def _hermes_send_bound(
+    spec: RemoteSpec,
+    prompt: str,
+    target: str = "",
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> OperateResult:
+    return _hermes_send(spec, prompt, timeout, session_id=session_id)
+
+
+def _omb_send_bound(
+    spec: RemoteSpec,
+    prompt: str,
+    target: str = "",
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> OperateResult:
+    return _omb_send(spec, prompt, target, timeout)
+
+
+def _rakazo_send_bound(
+    spec: RemoteSpec,
+    prompt: str,
+    target: str = "",
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> OperateResult:
+    return _rakazo_send(spec, prompt, target, timeout)
+
+
+def _swarm_send_bound(
+    spec: RemoteSpec,
+    prompt: str,
+    target: str = "",
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> OperateResult:
+    return _swarm_send(spec, prompt, target, timeout)
+
+
+def _herdr_list_bound(
+    spec: RemoteSpec,
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+) -> OperateResult:
+    return _herdr_list(spec, timeout, config)
+
+
+def _herdr_send_bound(
+    spec: RemoteSpec,
+    prompt: str,
+    target: str = "",
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> OperateResult:
+    return _herdr_send(spec, prompt, target, timeout, config)
+
+
+def _herdr_operate_bound(
+    spec: RemoteSpec,
+    op: str,
+    *,
+    timeout: float,
+    config: dict[str, Any] | None = None,
+    prompt: str = "",
+    target: str = "",
+    session_id: str | None = None,
+) -> OperateResult:
+    if op == "interrogate":
+        return _herdr_interrogate(spec, target, timeout, config)
+    if op == "list":
+        return _herdr_list(spec, timeout, config)
+    return _herdr_send(spec, prompt, target, timeout, config)
+
+
+def _install_remote_harnesses() -> None:
+    """Map existing remotes.py adapters onto :class:`RemoteHarness` (REQ-203)."""
+    from swarm.core.remote_harness import (
+        BoundRemoteHarness,
+        capabilities_for,
+        register_harness,
+    )
+
+    register_harness(
+        BoundRemoteHarness(
+            impl_id="hermes",
+            label="Hermes",
+            capabilities=capabilities_for("hermes"),
+            health_fn=_bind_health("hermes"),
+            list_fn=_bind_http_list(_hermes_list),
+            send_fn=_hermes_send_bound,
+        )
+    )
+    register_harness(
+        BoundRemoteHarness(
+            impl_id="omb",
+            label="OpenMousBot",
+            capabilities=capabilities_for("omb"),
+            health_fn=_bind_health("omb"),
+            list_fn=_bind_http_list(_omb_list),
+            send_fn=_omb_send_bound,
+        )
+    )
+    register_harness(
+        BoundRemoteHarness(
+            impl_id="rakazo",
+            label="Rakazo",
+            capabilities=capabilities_for("rakazo"),
+            health_fn=_bind_health("rakazo"),
+            list_fn=_bind_http_list(_rakazo_list),
+            send_fn=_rakazo_send_bound,
+        )
+    )
+    register_harness(
+        BoundRemoteHarness(
+            impl_id="herdr",
+            label="Herdr",
+            capabilities=capabilities_for("herdr"),
+            health_fn=_bind_health("herdr"),
+            list_fn=_herdr_list_bound,
+            send_fn=_herdr_send_bound,
+            operate_fn=_herdr_operate_bound,
+        )
+    )
+    register_harness(
+        BoundRemoteHarness(
+            impl_id="swarm",
+            label="Swarm",
+            capabilities=capabilities_for("swarm"),
+            health_fn=_bind_health("swarm"),
+            list_fn=_bind_http_list(_swarm_list),
+            send_fn=_swarm_send_bound,
+        )
+    )
+
+
+_install_remote_harnesses()

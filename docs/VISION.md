@@ -194,7 +194,8 @@ network.
   `blueprint`; new `api` = inference only. Do not close #652 from this
   docs PR.
 - **#680** — Remote stays one kind; Hermes / OpenMousBot / Rakazo / Herdr
-  implement an abstract harness. Herdr is not a fifth kind.
+  implement [`RemoteHarness`](./adr/011-remote-harness.md) (ADR-011). Herdr is
+  not a fifth kind.
 - **README** — WebUI-first front door + `docs/DEVELOPER.md` is
   [#791](https://github.com/matthewhand/open-swarm/issues/791), not the old
   #466 rewrite (that cut already landed in

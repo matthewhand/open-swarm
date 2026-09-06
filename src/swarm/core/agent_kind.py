@@ -1,12 +1,18 @@
-"""Classify chat agents as API, CLI, or remote (REQ-49).
+"""Classify chat agents as API, CLI, or remote (REQ-49 / REQ-203).
 
 API-agent threads are owned by Open Swarm and may be edited in place.
 CLI and remote sessions are owned outside swarm — no edit.
+
+Herdr / Hermes / OpenMousBot / Rakazo are Remote **implementations**, not a
+fifth user-facing kind (ADR-011). Stored roster ``kind=herdr`` still classifies
+as ``remote``.
 """
 
 from __future__ import annotations
 
 from typing import Literal
+
+from swarm.core.remote_harness import is_remote_impl_id
 
 AgentKind = Literal["api", "cli", "remote"]
 
@@ -21,18 +27,28 @@ def classify_agent_kind(
     """Return ``api``, ``cli``, or ``remote`` for an agent id / source.
 
     Explicit kind (from a roster or fixture) wins when it is one of the
-    three values. Otherwise source-style prefixes are used:
+    three user-facing values. Remote **impl** ids (``herdr``, ``hermes``,
+    ``omb``, ``rakazo``) also classify as ``remote`` — not a fifth kind.
+
+    Otherwise source-style prefixes are used:
 
     * ``cli:<name>`` → cli
-    * ``remote:<name>`` / ``placeholder:remote:…`` → remote
+    * ``remote:<name>`` / ``placeholder:remote:…`` / ``herdr:…`` → remote
     * everything else (including API blueprints such as ``cli_agent``) → api
     """
     if explicit in _VALID_KINDS:
         return explicit  # type: ignore[return-value]
+    if is_remote_impl_id(explicit):
+        return "remote"
     text = (raw or "").strip().lower()
     if text.startswith("cli:"):
         return "cli"
-    if text.startswith("remote:") or text.startswith("placeholder:remote:"):
+    if (
+        text.startswith("remote:")
+        or text.startswith("placeholder:remote:")
+        or text.startswith("herdr:")
+        or is_remote_impl_id(text)
+    ):
         return "remote"
     return "api"
 
