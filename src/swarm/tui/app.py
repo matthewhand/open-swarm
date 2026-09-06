@@ -1,44 +1,48 @@
-"""REQ-111 Wave 2a: interactive Textual chrome with a real transcript pane.
+"""REQ-111 Wave 2c: interactive Textual chrome — real transcript, composer, stream.
 
-Renders the AGENTS rail on the left (grouped under kind sections CLI / API /
-Blueprint / Remote) and the selected seat's chat pane on the right. Selecting a
-seat (Enter or the initial selection) hydrates that agent's real thread from
-``GET /chat/thread/`` — the same endpoint the SPA reads (REQ-171A-4 / #604).
-Hydrate failures are explicit (never a fake empty thread); a previously loaded
-thread for the same seat is kept and shown as offline cache.
+Left rail = AGENTS grouped under kind sections CLI / API / Blueprint / Remote
+(Wave 1b). Selecting a seat hydrates its real thread via ``GET /chat/thread/``
+(Wave 2a). Blueprint-backed seats can also send: the composer POSTs
+``/v1/chat/completions`` with Bearer (Wave 2b) and assistant deltas render as
+they arrive. CLI-tool / team / remote / Herdr rows are honestly not-sendable
+over REST v1 (they use the SPA websocket path — Wave 3b).
 
-Keyboard: ``j``/``k`` (or arrows) move between seats, ``Enter`` selects, ``q``
-quits. Kind-section headers are decoration only — cursor movement skips them
-(Wave 1b). Wave 2b adds send (REST SSE) and Wave 2c the composer.
-
-Textual stays an optional ``[tui]`` extra: this module is only imported from
-the interactive branch of ``swarm.tui.cli``, so the Wave 0 ``--once`` ASCII
-dump keeps working on a plain install.
+Keyboard: ``j``/``k`` (or arrows) move between seats, ``Enter`` selects a seat
+from the rail, typing goes to the composer and ``Enter`` sends, ``q`` quits
+(typing never quits). Textual stays an optional ``[tui]`` extra; the Wave 0
+``--once`` ASCII dump is unaffected.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterator
 from contextlib import suppress
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import ListItem, ListView, Static
+from textual.widgets import Input, ListItem, ListView, Static
 
 from swarm.tui.client import (
     GETTER,
+    POSTER,
     AgentThread,
     RailSeat,
     SwarmApiError,
+    ThreadMessage,
     fetch_thread,
+    iter_assistant,
     sectioned_seats,
+    sendable_model,
 )
 
 EMPTY_RAIL = "No seats — API returned none (honest)."
-EMPTY_THREAD = " No messages yet for this seat — Wave 2b adds send (REST SSE)."
+EMPTY_THREAD = " No messages yet for this seat — type below to send the first turn."
 HYDRATE_LOADING = " Loading transcript…"
-FOOTER = " j/k or \u2191/\u2193 move \u00b7 Enter select \u00b7 q quit \u00b7 --once for the ASCII dump (CI)"
+COMPOSER_SENDABLE = "Type a message — Enter sends"
+COMPOSER_UNSENDABLE = "Not sendable over REST v1 (websocket path = Wave 3b)"
+FOOTER = " j/k move \u00b7 Enter select \u00b7 type + Enter send \u00b7 q quit"
 
 _ROLE_LABELS = {"user": "you", "assistant": "assistant"}
 
@@ -61,13 +65,7 @@ class _SectionHeaderItem(ListItem):
 
 
 class _SectionListView(ListView):
-    """A rail ListView whose kind-section header rows are skipped by the cursor.
-
-    j/k and the arrow keys all end up in ``action_cursor_down`` /
-    ``action_cursor_up`` (ListView natively binds the arrows; the app reuses
-    the same actions for j/k). Home / End are also overridden so the highlight
-    always rests on a real seat, never on a header row.
-    """
+    """A rail ListView whose kind-section header rows are skipped by the cursor."""
 
     def _is_header_index(self, index: int | None) -> bool:
         if index is None:
@@ -92,14 +90,12 @@ class _SectionListView(ListView):
             self.index = nxt
 
     def action_cursor_home(self) -> None:
-        """Home parks on the first real seat, never a section header."""
         for i in range(len(self.children)):
             if not self._is_header_index(i):
                 self.index = i
                 return
 
     def action_cursor_end(self) -> None:
-        """End parks on the last real seat, never a section header."""
         for i in range(len(self.children) - 1, -1, -1):
             if not self._is_header_index(i):
                 self.index = i
@@ -107,10 +103,10 @@ class _SectionListView(ListView):
 
 
 class TuiApp(App[None]):
-    """Two-pane chrome: left rail grouped by kind section, right live thread."""
+    """Two-pane chrome: rail + live transcript + composer with streaming replies."""
 
     TITLE = "Open Swarm TUI"
-    SUB_TITLE = "REQ-111 Wave 2a hydrate \u2014 list + transcript, no send"
+    SUB_TITLE = "REQ-111 Wave 2c \u2014 rail + transcript + REST SSE send"
     CSS = """
     #chrome { height: 1fr; }
     #rail-box { width: 36; border-right: solid $primary; }
@@ -118,14 +114,13 @@ class TuiApp(App[None]):
     #rail-list { height: 1fr; }
     #chat-box { width: 1fr; }
     #chat-title { text-style: bold; background: $surface; color: $text; }
-    #chat-body { padding: 1 2; }
+    #chat-body { height: 1fr; padding: 1 2; }
+    #composer { dock: bottom; }
     #footer { height: 1; color: $text-muted; }
     .seat-name { padding: 0 1; }
     .section-name { padding: 0 1; color: $text-muted; text-style: bold; }
     """
 
-    # ``q`` is app-wide today (no text input exists yet). Wave 2c adds a
-    # composer — scope these bindings to the chrome then so typing never quits.
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("j", "cursor_down", "Down", show=False),
@@ -139,22 +134,23 @@ class TuiApp(App[None]):
         base_url: str = "",
         selected_id: str | None = None,
         getter: GETTER | None = None,
+        poster: POSTER | None = None,
         token: str | None = None,
     ) -> None:
         super().__init__()
         self._seats = list(seats)
         self._base_url = base_url
-        # Display order is the kind-section order (CLI, API, Blueprint, Remote).
         self._display_seats = [
             seat for _, group in sectioned_seats(self._seats) for seat in group
         ]
         self._selected_id = _initial_selected(self._display_seats, selected_id)
         self.selected_id = self._selected_id
-        # Wave 2a: hydrate uses the same client contract (env token); ``getter``
-        # lets headless tests inject mocked HTTP responses.
         self._getter = getter
+        self._poster = poster
         self._token = token
         self._cache: dict[str, AgentThread] = {}
+        self._send_worker = None
+        self._sending = False
 
     # -- composition ---------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -165,11 +161,18 @@ class TuiApp(App[None]):
             with Vertical(id="chat-box"):
                 yield Static(self._chat_heading(), id="chat-title")
                 yield Static(HYDRATE_LOADING, id="chat-body")
+                initial = _seat_by_id(self._seats, self._selected_id)
+                initial_sendable = bool(initial and sendable_model(initial))
+                composer = Input(
+                    placeholder=COMPOSER_SENDABLE if initial_sendable else COMPOSER_UNSENDABLE,
+                    id="composer",
+                )
+                composer.disabled = not initial_sendable
+                yield composer
         yield Static(FOOTER, id="footer")
 
     def _rail_list(self) -> _SectionListView:
         items: list[ListItem] = []
-        # Wave 1b: seat rows grouped under kind-section header rows.
         for label, group in sectioned_seats(self._seats):
             items.append(_SectionHeaderItem(label))
             for seat in group:
@@ -180,7 +183,6 @@ class TuiApp(App[None]):
         return self._list_view
 
     def _selected_display_index(self) -> int | None:
-        """Child index of the current selection in the grouped rail, else first seat."""
         found = None
         for i, child in enumerate(self._list_view.children):
             seat = getattr(child, "seat", None)
@@ -194,12 +196,21 @@ class TuiApp(App[None]):
 
     # -- keys ---------------------------------------------------------------
     def action_cursor_down(self) -> None:
-        if self._seats:
+        if self._seats and not self._input_focused():
             self._list_view.action_cursor_down()
 
     def action_cursor_up(self) -> None:
-        if self._seats:
+        if self._seats and not self._input_focused():
             self._list_view.action_cursor_up()
+
+    def action_quit(self) -> None:
+        # Typing 'q' in the composer must not quit; the Input consumed it anyway,
+        # but keep the guard so future global bindings never steal letters.
+        if not self._input_focused():
+            self.exit()
+
+    def _input_focused(self) -> bool:
+        return isinstance(getattr(self, "focused", None), Input)
 
     # -- events -------------------------------------------------------------
     def on_mount(self) -> None:
@@ -215,15 +226,31 @@ class TuiApp(App[None]):
             return
         seat = getattr(event.item, "seat", None)
         if not isinstance(seat, RailSeat):
-            return  # section header — keep the current selection
+            return
+        self._cancel_send()
         self._selected_id = seat.id
         self.selected_id = seat.id
         self.query_one("#chat-title", Static).update(self._chat_heading(seat))
+        self._update_composer(seat)
         self._hydrate(seat)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        seat = _seat_by_id(self._seats, self._selected_id)
+        if seat is None or self._sending:
+            event.input.value = ""
+            return
+        text = (event.value or "").strip()
+        event.input.value = ""
+        if not text:
+            return
+        model = sendable_model(seat)
+        if not model:
+            self._notice(seat, f"{seat.name} is not sendable over REST v1 — the websocket path is Wave 3b")
+            return
+        self._send(seat, model, text)
 
     # -- hydrate (Wave 2a) --------------------------------------------------
     def _hydrate(self, seat: RailSeat) -> None:
-        """Kick an exclusive net worker; the newest selection wins races."""
         self._set_chat_body(HYDRATE_LOADING)
         self.run_worker(
             self._hydrate_coro(seat),
@@ -240,14 +267,11 @@ class TuiApp(App[None]):
             return
         self._cache[seat.id] = thread
         if seat.id != self._selected_id:
-            return  # a newer selection superseded this worker
+            return
+        body = _render_messages(thread.messages, seat.name)
         if thread.session_missing:
-            self._set_chat_body(
-                _render_thread(thread, seat.name)
-                + "\n\n [!] requested session is missing on the server"
-            )
-        else:
-            self._set_chat_body(_render_thread(thread, seat.name))
+            body += "\n\n [!] requested session is missing on the server"
+        self._set_chat_body(body)
 
     def _fetch_thread(self, seat_id: str) -> AgentThread:
         return fetch_thread(
@@ -258,39 +282,160 @@ class TuiApp(App[None]):
         )
 
     def _show_hydrate_failure(self, seat: RailSeat, exc: BaseException) -> None:
-        """REST failure is explicit; a non-empty cache is kept (not fail-open)."""
         if seat.id != self._selected_id:
-            return  # a newer selection superseded this worker
+            return
         cached = self._cache.get(seat.id)
         if cached is not None and cached.messages:
-            self._set_chat_body(
-                _render_thread(cached, seat.name)
-                + f"\n\n [!] offline cache shown — refresh failed: {exc}"
-            )
+            body = _render_messages(cached.messages, seat.name)
+            self._set_chat_body(f"{body}\n\n [!] offline cache shown — refresh failed: {exc}")
         elif cached is not None:
-            self._set_chat_body(
-                EMPTY_THREAD + f"\n\n [!] refresh failed: {exc}"
-            )
+            self._set_chat_body(f"{EMPTY_THREAD}\n\n [!] refresh failed: {exc}")
         else:
             self._set_chat_body(f" [!] could not load {seat.name}'s thread: {exc}")
 
-    def _set_chat_body(self, text: str) -> None:
-        with suppress(Exception):  # widget not mounted yet — next hydrate overwrites
-            self.query_one("#chat-body", Static).update(text)
+    # -- send + stream (Wave 2b/2c) ----------------------------------------
+    def _send(self, seat: RailSeat, model: str, text: str) -> None:
+        self._sending = True
+        self._update_composer(seat, sending=True)
+        base = self._cache.get(seat.id)
+        history = list(base.messages) if base is not None else []
+        user_msg = ThreadMessage(role="user", content=text)
+        payload = [
+            {"role": m.role, "content": m.content} for m in history
+        ] + [{"role": "user", "content": text}]
+        # Visible user echo immediately (honest even if the stream then fails).
+        running = [*history, user_msg]
+        self._set_chat_body(_render_messages(running, seat.name))
+        self._send_worker = self.run_worker(
+            self._send_coro(seat, model, payload, running),
+            name=f"send-{seat.id}",
+            group="send",
+            exclusive=True,
+        )
 
-    # -- helpers ------------------------------------------------------------
+    def _send_iterator(self, model: str, payload: list[dict[str, str]]) -> Iterator[str]:
+        return iter_assistant(
+            model=model,
+            messages=payload,
+            base_url=self._base_url or None,
+            token=self._token,
+            poster=self._poster,
+        )
+
+    async def _next_delta(self, iterator: Iterator[str]) -> str | None:
+        """Advance the SSE iterator in a thread; None = clean [DONE] end.
+
+        ``StopIteration`` must not cross the ``await`` boundary (asyncio turns
+        it into RuntimeError), so it is mapped to None inside the thread.
+        """
+        def _step() -> str | None:
+            try:
+                return next(iterator)
+            except StopIteration:
+                return None
+
+        return await asyncio.to_thread(_step)
+
+    async def _send_coro(
+        self,
+        seat: RailSeat,
+        model: str,
+        payload: list[dict[str, str]],
+        running: list[ThreadMessage],
+    ) -> None:
+        buffer: list[str] = []
+        iterator: Iterator[str] | None = None
+        try:
+            iterator = self._send_iterator(model, payload)
+            while True:
+                delta = await self._next_delta(iterator)
+                if delta is None:
+                    break
+                buffer.append(delta)
+                if seat.id == self._selected_id:
+                    view = [*running, ThreadMessage(role="assistant", content="".join(buffer))]
+                    self._set_chat_body(_render_messages(view, seat.name))
+        except asyncio.CancelledError:
+            raise  # seat switch — the finally block closes the stream
+        except SwarmApiError as exc:
+            self._sending = False
+            self._send_worker = None
+            if seat.id == self._selected_id:
+                # Keep the user echo + any partial deltas (never lose the transcript).
+                keep = [*running, *self._assistant_row(buffer)]
+                self._store_thread(seat, keep)
+                self._set_chat_body(
+                    f"{_render_messages(keep, seat.name)}\n\n [!] send failed: {exc}"
+                )
+                self._update_composer(seat)
+            return
+        finally:
+            if iterator is not None:
+                with suppress(Exception):
+                    iterator.close()  # never leak the open SSE response
+        self._sending = False
+        self._send_worker = None
+        done = [*running, *self._assistant_row(buffer)]
+        self._store_thread(seat, done)
+        if seat.id == self._selected_id:
+            self._set_chat_body(_render_messages(done, seat.name))
+            self._update_composer(seat)
+
+    @staticmethod
+    def _assistant_row(buffer: list[str]) -> list[ThreadMessage]:
+        """One assistant row from streamed deltas; none when the stream was empty."""
+        if not buffer:
+            return []
+        return [ThreadMessage(role="assistant", content="".join(buffer))]
+
+    def _store_thread(self, seat: RailSeat, messages: list[ThreadMessage]) -> None:
+        """Persist a transcript for a seat, keeping the hydrated thread metadata."""
+        base = self._cache.get(seat.id)
+        self._cache[seat.id] = AgentThread(
+            agent_id=(base.agent_id if base else seat.id),
+            conversation_id=(base.conversation_id if base else ""),
+            messages=list(messages),
+            kind=(base.kind if base else ""),
+            editable=True,
+        )
+
+    def _cancel_send(self) -> None:
+        worker = self._send_worker
+        self._send_worker = None
+        self._sending = False
+        if worker is not None:
+            worker.cancel()
+
+    # -- chrome helpers -----------------------------------------------------
+    def _update_composer(self, seat: RailSeat | None, *, sending: bool = False) -> None:
+        with suppress(Exception):
+            composer = self.query_one("#composer", Input)
+            sendable = seat is not None and sendable_model(seat) is not None
+            composer.disabled = not sendable or sending
+            composer.placeholder = (
+                "Streaming…" if sending else COMPOSER_SENDABLE if sendable else COMPOSER_UNSENDABLE
+            )
+
+    def _notice(self, seat: RailSeat, text: str) -> None:
+        if seat.id == self._selected_id:
+            self._set_chat_body(f"{_render_messages(self._cache.get(seat.id).messages if self._cache.get(seat.id) else [], seat.name)}\n\n [!] {text}")
+
     def _chat_heading(self, seat: RailSeat | None = None) -> str:
         seat = seat or _seat_by_id(self._seats, self._selected_id)
         if seat is None:
             return " Chat \u2014 none selected"
         return f" Chat \u2014 {seat.name} ({seat.kind} \u00b7 {seat.source})"
 
+    def _set_chat_body(self, text: str) -> None:
+        with suppress(Exception):
+            self.query_one("#chat-body", Static).update(text)
 
-def _render_thread(thread: AgentThread, seat_name: str | None = None) -> str:
-    """Plain-text transcript render (v1 — Wave 2c adds inline streaming)."""
+
+def _render_messages(messages: list[ThreadMessage], seat_name: str | None = None) -> str:
+    """Plain-text transcript render (v1 — assistant label is the seat name)."""
     assistant = seat_name or "assistant"
     lines: list[str] = []
-    for message in thread.messages:
+    for message in messages:
         label = _ROLE_LABELS.get(message.role, message.role or "note")
         if label == "assistant":
             label = assistant
@@ -329,6 +474,7 @@ def run_tui_app(
     base_url: str = "",
     selected_id: str | None = None,
     getter: GETTER | None = None,
+    poster: POSTER | None = None,
     token: str | None = None,
 ) -> None:
     """Blocking entry point used by the interactive ``swarm-cli tui`` path."""
@@ -337,11 +483,14 @@ def run_tui_app(
         base_url=base_url,
         selected_id=selected_id,
         getter=getter,
+        poster=poster,
         token=token,
     ).run()
 
 
 __all__ = [
+    "COMPOSER_SENDABLE",
+    "COMPOSER_UNSENDABLE",
     "EMPTY_RAIL",
     "EMPTY_THREAD",
     "FOOTER",

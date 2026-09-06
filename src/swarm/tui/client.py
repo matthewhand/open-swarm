@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urljoin
@@ -409,13 +409,39 @@ def stream_assistant(
     timeout: float = 120.0,
     poster: POSTER | None = None,
 ) -> list[str]:
-    """POST ``/v1/chat/completions`` (stream) and return assistant deltas.
+    """POST ``/v1/chat/completions`` (stream) and return all assistant deltas.
 
-    Same Bearer contract as every other REST client (Wave 1c). SSE is parsed
-    line by line: OpenAI ``choices[].delta.content`` chunks, a mid-stream
-    ``{"error": ...}`` event, or ``[DONE]``. A transport failure, 401/403,
-    HTTP error, or server error event is an explicit ``SwarmApiError`` — never
-    a fake local reply.
+    Convenience over :func:`iter_assistant` (single-shot accumulator).
+    """
+    return list(
+        iter_assistant(
+            model=model,
+            messages=messages,
+            base_url=base_url,
+            token=token,
+            timeout=timeout,
+            poster=poster,
+        )
+    )
+
+
+def iter_assistant(
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    base_url: str | None = None,
+    token: str | None = None,
+    timeout: float = 120.0,
+    poster: POSTER | None = None,
+) -> Iterator[str]:
+    """Yield assistant deltas as the REST SSE stream arrives (Wave 2c).
+
+    Same Bearer contract as every other REST client (Wave 1c). The POST and
+    status checks happen eagerly on call; content is then yielded delta by
+    delta from OpenAI ``choices[].delta.content``. A mid-stream ``error``
+    event, an HTTP error, a transport failure (including a reset mid-read), or
+    a stream that ends without ``[DONE]`` raises ``SwarmApiError`` inside the
+    iterator — never a fake local reply.
     """
     base = resolve_base_url(base_url)
     auth = token if token is not None else resolve_token()
@@ -437,41 +463,39 @@ def stream_assistant(
         raise SwarmApiError(_auth_failure_message(response.status_code, auth is not None))
     if response.status_code >= 400:
         raise SwarmApiError(f"API error {response.status_code} at {url}")
+    yield from _iter_sse_deltas(response, url)
+
+
+def _iter_sse_deltas(response: httpx.Response, url: str) -> Iterator[str]:
+    """Lazily yield content from a ``text/event-stream`` body."""
     try:
-        return _parse_sse_deltas(response)
+        for line in response.iter_lines():
+            line = (line or "").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                return  # clean end — iterator stops normally
+            try:
+                event = json.loads(data)
+            except ValueError:
+                continue  # keepalive / unknown frame
+            if not isinstance(event, dict):
+                continue
+            error = event.get("error")
+            if isinstance(error, dict):
+                # Any error event is fatal — never keep streaming after it.
+                raise SwarmApiError(str(error.get("message") or "stream error"))
+            for choice in event.get("choices") or []:
+                if not isinstance(choice, dict):
+                    continue
+                delta = choice.get("delta") or choice.get("message") or {}
+                content = delta.get("content")
+                if isinstance(content, str) and content:
+                    yield content
     except httpx.HTTPError as exc:
         # A reset / read error while streaming is still an honest API-down.
         raise SwarmApiError(_transport_error_message(url, exc)) from exc
-
-
-def _parse_sse_deltas(response: httpx.Response) -> list[str]:
-    """Accumulate assistant content from a ``text/event-stream`` body."""
-    deltas: list[str] = []
-    for line in response.iter_lines():
-        line = (line or "").strip()
-        if not line.startswith("data:"):
-            continue
-        data = line[len("data:"):].strip()
-        if data == "[DONE]":
-            return deltas
-        try:
-            event = json.loads(data)
-        except ValueError:
-            continue  # keepalive / unknown frame
-        if not isinstance(event, dict):
-            continue
-        error = event.get("error")
-        if isinstance(error, dict):
-            # Any error event is fatal — never return partial deltas as success.
-            raise SwarmApiError(str(error.get("message") or "stream error"))
-        for choice in event.get("choices") or []:
-            if not isinstance(choice, dict):
-                continue
-            delta = choice.get("delta") or choice.get("message") or {}
-            content = delta.get("content")
-            if isinstance(content, str) and content:
-                deltas.append(content)
-    # Stream ended without [DONE] — treat as an honest transport truncation.
     raise SwarmApiError("SSE stream ended without [DONE]")
 
 

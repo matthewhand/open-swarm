@@ -1,5 +1,5 @@
-"""REQ-111 Wave 1a/1b/2a: headless Textual chrome tests (kind sections, keys,
-hydrate via mocked GET /chat/thread/).
+"""REQ-111 Wave 1a/1b/2a/2c: headless Textual chrome tests (kind sections,
+keys, hydrate via mocked GET /chat/thread/, composer send via mocked SSE).
 
 Textual is an optional ``[tui]`` extra; these tests skip when it is not
 installed so the core suite never hard-depends on it.
@@ -7,14 +7,22 @@ installed so the core suite never hard-depends on it.
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
 textual = pytest.importorskip("textual")
 
-from textual.widgets import ListItem, ListView, Static  # noqa: E402
+from textual.widgets import Input, ListItem, ListView, Static  # noqa: E402
 
-from swarm.tui.app import EMPTY_RAIL, EMPTY_THREAD, TuiApp  # noqa: E402
+from swarm.tui.app import (  # noqa: E402
+    COMPOSER_SENDABLE,
+    COMPOSER_UNSENDABLE,
+    EMPTY_RAIL,
+    EMPTY_THREAD,
+    TuiApp,
+)
 from swarm.tui.client import RailSeat  # noqa: E402
 
 
@@ -248,3 +256,116 @@ async def test_hydrate_failure_keeps_non_empty_cache():
         body = await _pump_until(pilot, pilot.app, "offline cache")
         assert "grok cached answer" in body
         assert "refresh failed" in body
+
+
+# --- Wave 2c: composer + REST SSE streaming send ---------------------------
+
+
+def _sse_chunk(content: str) -> str:
+    payload = {
+        "object": "chat.completion.chunk",
+        "choices": [{"delta": {"role": "assistant", "content": content}}],
+    }
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def _sse_done() -> str:
+    return "data: [DONE]\n\n"
+
+
+def _composer(app) -> Input:
+    return app.query_one("#composer", Input)
+
+
+async def _send_text(pilot, app, text: str) -> None:
+    composer = _composer(app)
+    composer.focus()
+    composer.value = text
+    await pilot.press("enter")
+
+
+async def test_composer_echoes_user_and_streams_assistant():
+    captured: list[dict] = []
+
+    def poster(url: str, body: dict, _headers: dict[str, str]) -> httpx.Response:
+        captured.append(body)
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            200,
+            text=_sse_chunk("from ") + _sse_chunk("the ") + _sse_chunk("API") + _sse_done(),
+            headers={"content-type": "text/event-stream"},
+            request=request,
+        )
+
+    # support is a blueprint rail seat (source=blueprints) → REST sendable.
+    async with TuiApp(
+        _seats(), selected_id="support", getter=_ok_getter(), poster=poster
+    ).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await _send_text(pilot, pilot.app, "hello there")
+        body = await _pump_until(pilot, pilot.app, "from the API")
+        assert "you: hello there" in body
+        assert "Support: from the API" in body
+        assert captured[0]["model"] == "support"
+        assert captured[0]["stream"] is True
+        assert captured[0]["messages"][-1] == {"role": "user", "content": "hello there"}
+
+
+async def test_composer_disabled_for_non_blueprint_seat():
+    # Default first seat is grok (CLI tool) — not sendable over REST v1.
+    async with TuiApp(_seats(), getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        composer = _composer(pilot.app)
+        assert composer.disabled is True
+        assert COMPOSER_UNSENDABLE in (composer.placeholder or "")
+
+
+async def test_composer_enabled_for_blueprint_seat():
+    async with TuiApp(_seats(), selected_id="support", getter=_ok_getter()).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        composer = _composer(pilot.app)
+        assert composer.disabled is False
+        assert COMPOSER_SENDABLE in (composer.placeholder or "")
+
+
+async def test_send_failure_keeps_user_echo_and_is_honest():
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    async with TuiApp(
+        _seats(), selected_id="support", getter=_ok_getter(), poster=poster
+    ).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await _send_text(pilot, pilot.app, "will this fail")
+        body = await _pump_until(pilot, pilot.app, "send failed")
+        assert "you: will this fail" in body  # user echo never vanishes
+        assert "API unreachable" in body
+
+
+async def test_send_appends_context_for_the_next_turn():
+    captured: list[dict] = []
+
+    def poster(url: str, body: dict, _headers: dict[str, str]) -> httpx.Response:
+        captured.append(body)
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            200,
+            text=_sse_chunk("first reply") + _sse_done(),
+            headers={"content-type": "text/event-stream"},
+            request=request,
+        )
+
+    async with TuiApp(
+        _seats(), selected_id="support", getter=_ok_getter(), poster=poster
+    ).run_test() as pilot:
+        await _pump_until(pilot, pilot.app, "No messages yet")
+        await _send_text(pilot, pilot.app, "one")
+        await _pump_until(pilot, pilot.app, "first reply")
+        await _send_text(pilot, pilot.app, "two")
+        body = await _pump_until(pilot, pilot.app, "first reply")
+        assert "you: two" in body
+        # Second turn carries the first turn as context (no fake local reset).
+        roles = [(m["role"], m["content"]) for m in captured[1]["messages"]]
+        assert ("user", "one") in roles
+        assert ("assistant", "first reply") in roles
+        assert roles[-1] == ("user", "two")
