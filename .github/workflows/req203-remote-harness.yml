@@ -13,7 +13,7 @@ on:
       - "webui/frontend/src/lib/remoteKinds.ts"
       - "webui/frontend/src/lib/remotes.ts"
       - "webui/frontend/src/components/AddAgentWizard.tsx"
-      - "tests/core/test_remote_harness.py"
+      - "tests/core/test_remote_harness_spec.py"
       - "tests/core/test_agent_kind.py"
       - "tests/core/test_agent_types.py"
       - "tests/unit/test_adr011_remote_harness.py"
@@ -33,7 +33,7 @@ on:
       - "webui/frontend/src/lib/remoteKinds.ts"
       - "webui/frontend/src/lib/remotes.ts"
       - "webui/frontend/src/components/AddAgentWizard.tsx"
-      - "tests/core/test_remote_harness.py"
+      - "tests/core/test_remote_harness_spec.py"
       - "tests/core/test_agent_kind.py"
       - "tests/core/test_agent_types.py"
       - "tests/unit/test_adr011_remote_harness.py"
@@ -60,7 +60,7 @@ jobs:
       - name: REQ-203 pytest (own-diff)
         run: |
           uv run pytest \
-            tests/core/test_remote_harness.py \
+            tests/core/test_remote_harness_spec.py \
             tests/core/test_agent_kind.py \
             tests/core/test_agent_types.py \
             tests/unit/test_adr011_remote_harness.py

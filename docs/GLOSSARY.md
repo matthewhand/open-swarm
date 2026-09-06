@@ -133,6 +133,14 @@ An id **owned by an agentic CLI** (`--resume` / `--session` / `exec resume` / id
 
 A persisted connection to a [Herdr](https://herdr.dev/) pane/agent that Open Swarm drives via the official `herdr` CLI (not a socket protocol). Empty `remote` means localhost (unix sockets, typically `~/.config/herdr/`). **Remote implementation** (REQ-203 / ADR-011): `herdr` is the impl id under user-facing kind **Remote**, not a fifth harness. Add `herdr` in Settings. **Local Herdr** talks to Herdr on this host (no SSH). **Remote Herdr is SSH-shaped** — SSH to the Herdr host, then Herdr’s CLIs there — **not** an HTTP remote like OpenMousBot / Hermes / Rakazo. Missing SSH config is an error, not a silent other-host. Classifiers map `herdr` / `herdr:…` → `remote`. Docs: [HERDR.md](./HERDR.md).
 
+## swarm-cli TUI (REQ-111)
+
+Open Swarm’s own terminal client of the **same HTTP API** as the WebUI: left
+agent rail + chat pane ([ADR-012](./adr/012-swarm-cli-tui.md) /
+[#481](https://github.com/matthewhand/open-swarm/issues/481)). Wave 0 is a
+`--once` list + placeholder pane. Distinct from **remote Herdr** (SSH-shaped
+`herdr` CLI) and from `swarm-cli launch` (in-process blueprint run).
+
 ## Operator UI vs SPA Chat
 
 | Surface | Role (v1) |

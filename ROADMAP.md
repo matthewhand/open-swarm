@@ -223,7 +223,8 @@ commit log; version bumped to 0.4.0.
   merges: OpenMausBot-style **local loopback server + owned window**,
   implemented as **pywebview + PyInstaller onedir** (not Electron).
   Phase 1 portable zip and Phase 2 NSIS/signing are split Issues — no
-  installer in the ADR PR. TUI (#481) stays a separate API client.
+  installer in the ADR PR. TUI (#481 / ADR-012) is a separate API client —
+  Wave 0 scaffold is `swarm-cli tui --once`; Waves 1–N are child Issues.
 
 ---
 

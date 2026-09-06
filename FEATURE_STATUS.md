@@ -22,11 +22,12 @@ Legend: ✅ working (verified) · 🟡 partial (caveat named) · 🔲 scaffolded
 | Test suite health | ✅ | Goal is green `main` `Python Tests` (3.10/3.11/3.12) plus the sibling `vitest` job (`npm ci` then `npm test`, REQ-171C-7 / #616). Own-diff triage still applies on a red PR, but a collection `ImportError` on tip of `main` is a must-fix (REQ-134 / #524). Source-grep REQ locks are not SPA coverage. Intentional HOLD: `golden-journey` skipped (`visual-regression.yml` `if: false`, REQ-89 #446) until screenshot/tour recapture — not a pytest waiver and not how Vitest is recovered. |
 | Consolidation deprecation shims | 🗑 removed | `extensions.blueprint`, `extensions.config.config_loader`, `blueprints.common.spinner`, `ux.spinner`, `utils.ansi_box`, `extensions.launchers.swarm_api` deleted. Use `swarm.core.*` / `swarm.ux.ansi_box`. Locked gone by `tests/unit/test_deprecation_shims.py` (ROADMAP §2.1). |
 
-## 2. CLI — ✅ 4
+## 2. CLI — ✅ 4 · 🔲 1
 
 | Feature | Status | Evidence |
 |---|---|---|
 | `swarm-cli` | ✅ | Entry point `pyproject.toml [project.scripts]` → `swarm.core.swarm_cli:app`; `uv run swarm-cli --help` exits 0. Orphan argparse trees `extensions/cli` + `core/cli` deleted (ROADMAP §3.4b / §4.4). |
+| `swarm-cli tui` (REQ-111 Wave 0) | 🔲 | ADR-012 + stub `swarm.tui`: `--once` lists rail seats via `GET /v1/blueprints/` (rail filter) + `/v1/cli-agents/` + `/v1/remotes/` and paints a placeholder chat pane. Same Bearer / `SWARM_API_BASE` as WebUI REST. Default `http://127.0.0.1:8000` — no `:8001`. Distinct from Herdr SSH remotes. API down is an error; no fake agents. Children #874–#883 own Waves 1–N. Tests: `tests/unit/test_adr012_swarm_cli_tui.py`, `test_tui_client.py`, `test_tui_layout.py`, `tests/cli/test_tui_command.py`. Own-diff CI: `.github/workflows/req111-tui-wave0.yml`. |
 | `swarm-api` | ✅ | → `swarm.core.swarm_api:main` (pyproject); former `extensions.launchers.swarm_api` `-m` shim removed; launcher tests `tests/cli/test_launchers.py` pass |
 | `codey` | ✅ | → `swarm.blueprints.codey.codey_cli:main`; `--help` exits 0 |
 | `suggestion` | ✅ | → `swarm.blueprints.suggestion.suggestion_cli:main`; `--help` exits 0 |

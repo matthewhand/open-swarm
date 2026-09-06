@@ -167,6 +167,23 @@ swarm-cli install jeeves
     without an API key (see
     [docs/USER_JOURNEY.md](./docs/USER_JOURNEY.md#try-a-blueprint-without-an-api-key-swarm_test_mode)).
 
+### Terminal TUI (`swarm-cli tui`) — Wave 0 scaffold
+
+A Herdr-like left rail + chat pane that talks to the **same HTTP API** as the
+WebUI ([REQ-111](https://github.com/matthewhand/open-swarm/issues/481) /
+[ADR-012](./docs/adr/012-swarm-cli-tui.md)). Wave 0 lists rail seats and
+shows a placeholder chat pane — it does not send yet. Distinct from
+`swarm-cli remotes` Herdr SSH.
+
+```bash
+# Requires a running swarm-api (default http://127.0.0.1:8000 — not :8001).
+# Optional: API_AUTH_TOKEN or SWARM_API_KEY (env values; do not commit them).
+swarm-cli tui --once
+swarm-cli tui --once --base-url http://127.0.0.1:8000 --json
+```
+
+`launch` / `install` stay available (dual entry).
+
 ### Launching Blueprints (`swarm-cli launch`)
 
 Runs a **previously installed** blueprint executable from
