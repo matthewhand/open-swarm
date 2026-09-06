@@ -306,7 +306,10 @@ def test_with_native_consensus_does_not_mutate_catalog():
 
 def test_with_model_appends_flag_for_gemini():
     entry = cli_catalog.with_model("gemini", "gemini-3-pro-preview", timeout=600)
-    assert entry["cmd"][-2:] == ["-m", "gemini-3-pro-preview"]
+    assert "-m" in entry["cmd"]
+    assert entry["cmd"][entry["cmd"].index("-m") + 1] == "gemini-3-pro-preview"
+    prompt_at = next(i for i, part in enumerate(entry["cmd"]) if "{prompt}" in part)
+    assert entry["cmd"].index("-m") < prompt_at
     assert entry["timeout"] == 600
     assert entry["parse"] == "json:.response"  # base entry preserved
 

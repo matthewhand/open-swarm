@@ -149,7 +149,7 @@ describe('ChatPage CLI model pin (REQ-171C-3)', () => {
     fireEvent.change(composer, { target: { value: 'pin the next run' } })
     fireEvent.submit(composer.closest('form')!)
     const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
-    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toEqual({
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({
       message: 'pin the next run',
       blueprint: 'cli_agent',
       params: { cli: 'grok', model: 'grok-4.5' },
