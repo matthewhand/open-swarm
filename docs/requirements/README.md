@@ -44,6 +44,7 @@ Oracle from anything in this tree.
 | [REQ-107](./REQ-107.md) | [Team designer — optional Chief of Staff + how-to-use-the-team instructions](https://github.com/matthewhand/open-swarm/issues/475) |
 | [REQ-108](./REQ-108.md) | [Classifier roles — verdict via tool call + continue nudges](https://github.com/matthewhand/open-swarm/issues/476) |
 | [REQ-135](./REQ-135.md) | [Showoff demo agents — kind-clear names + team personas](https://github.com/matthewhand/open-swarm/issues/526) |
+| [REQ-136](./REQ-136.md) | [Launch spiel + 15–30s GIF — Grok-agnostic UI + multi-harness bridge](https://github.com/matthewhand/open-swarm/issues/529) |
 | [REQ-189](./REQ-189.md) | [Look-only — OMB+Rakazo local computer control → open-swarm adaptation](https://github.com/matthewhand/open-swarm/issues/645) |
 | [REQ-191](./REQ-191.md) | [Role agents — chat configures (wide context); as-tool uses caller context + tip](https://github.com/matthewhand/open-swarm/issues/648) |
 | [REQ-194](./REQ-194.md) | [3D robot avatar theme (Reachy-style) + body/head combo catalog](https://github.com/matthewhand/open-swarm/issues/667) |

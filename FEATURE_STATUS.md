@@ -64,6 +64,7 @@ Canonical day-to-day chrome is the **trailing-slash Django routes** below. `/` p
 | `chat.html` / `simple_blueprint_page.html` | 🗑 removed | Deleted 0.5.2 (unrouted / never-rendered). Do not expect these templates on disk. |
 | SPA fallback / asset serving | ✅ | FIXED in `f1fa20b1`: `urls.py:155` now `from django.urls import re_path` (was `django.conf.urls`, removed in Django 4.0 — broke whenever `webui/frontend/dist` existed). `tests/views` + `tests/mcp` green (169 passed) with dist present |
 | Bee brand mark (REQ-106 / #768) | ✅ | Three #537 tasters by surface: `favicon-minimal.svg` (tab/PWA/Pinokio), `webui-geometric.svg` (operator navbar, login, Settings), `marketing-cyber-swarm.svg` (website fanfare). ICO 16/32/48 + Apple/PWA 180/192/512 from minimal. #487 clipart in `assets/brand/retired/`. Tests: `tests/unit/test_req106_brand_mark.py` |
+| Launch spiel + hero GIF (REQ-136 / #529) | ✅ | SoT `docs/ANNOUNCE.md`. README short pitch + `docs/assets/readme/announce-bridge.gif` (storyboard 15–20s; live recapture parked). Path contract shared with #456. Tests: `tests/unit/test_req136_announce.py`. No secrets / no Neon / no Fast-Forward preview host. Fixes #529. |
 
 ## 5. Web UI — React SPA (`webui/frontend`) — 🔲 2 · 🟡 1 · 📋 2 · 🗑 3
 
