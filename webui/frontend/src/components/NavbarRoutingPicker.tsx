@@ -63,6 +63,7 @@ export interface NavbarRoutingPickerProps {
   selectedAgent: string
   models: string[]
   selectedModel: string
+  modelWarning?: string | null
   preferredEffort?: string
   onChange: (next: RoutingPathChange) => void
   footerAction?: RoutingFooterAction
@@ -101,6 +102,7 @@ export function NavbarRoutingPicker({
   selectedAgent,
   models,
   selectedModel,
+  modelWarning,
   preferredEffort,
   onChange,
   footerAction,
@@ -175,7 +177,7 @@ export function NavbarRoutingPicker({
     [path, selectedModels],
   )
   const joined = useMemo(() => joinRoutingPath(faceParts), [faceParts])
-  const showModel = selectedFamilies.length > 0
+  const showModel = selectedFamilies.length > 0 || Boolean(modelWarning)
   const selectedFamily = selectedFamilies.find((row) => row.base === path.modelBase)
   const showEffort = Boolean(selectedFamily && familyHasEffort(selectedFamily))
   const agentLabel =
@@ -183,7 +185,9 @@ export function NavbarRoutingPicker({
     selectedAgent ||
     placeholder ||
     (seatKind === 'remote' ? 'Remote' : 'Agent')
-  const modelLabel = showModel ? path.modelBase || selectedModel : ''
+  const modelLabel = showModel
+    ? path.modelBase || selectedModel || (modelWarning ? '—' : '')
+    : ''
   const effortLabel = showEffort ? path.effort || '' : ''
   const groupLabel = ariaLabel || (seatKind === 'cli' ? 'CLI' : seatKind === 'remote' ? 'Remote' : 'Routing')
 
@@ -561,7 +565,14 @@ export function NavbarRoutingPicker({
         {isModel && previewModelsQuery.isFetching && families.length === 0 ? (
           <div className="os-routing-menu__empty">Loading models…</div>
         ) : null}
-        {items.length === 0 && !(isModel && previewModelsQuery.isFetching) ? (
+        {isModel && modelWarning && families.length === 0 ? (
+          <div className="os-routing-menu__warning" data-testid="routing-model-warning" role="status">
+            {modelWarning}
+          </div>
+        ) : null}
+        {items.length === 0 &&
+        !(isModel && previewModelsQuery.isFetching) &&
+        !(isModel && modelWarning) ? (
           <div className="os-routing-menu__empty">No options</div>
         ) : null}
         {items.map((item, index) => (

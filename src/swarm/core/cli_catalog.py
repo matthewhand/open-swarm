@@ -93,21 +93,16 @@ def host_cli_path(current: str | None = None) -> str:
 
 
 def which_cli(exe: str) -> str | None:
-    """Resolve ``exe`` on PATH, then user-local bins (nvm, ~/.local/bin, …)."""
+    """Resolve ``exe`` on the same PATH runs use (``host_cli_path``)."""
     if not exe:
         return None
     if os.path.sep in exe:
         return exe if os.path.isfile(exe) and os.access(exe, os.X_OK) else None
-    found = shutil.which(exe)
-    if found:
-        return found
-    extra = extra_cli_path_dirs()
-    if not extra:
-        return None
+    path = host_cli_path()
     try:
-        return shutil.which(exe, path=os.pathsep.join(extra))
+        return shutil.which(exe, path=path)
     except TypeError:
-        return None
+        return shutil.which(exe)
 
 # name -> adapter config dict (same shape as one `cli_agents` entry).
 CATALOG: dict[str, dict[str, Any]] = {
@@ -657,11 +652,29 @@ def model_traits(model: str) -> dict[str, float] | None:
     return dict(t) if t is not None else None
 
 
+_PROMPT_FLAG_TOKENS = frozenset({"-p", "--print", "--prompt", "--single"})
+
+
+def _model_flag_insert_at(cmd: list[str]) -> int:
+    """Index to insert a model flag — before ``-p`` / ``{prompt}``, never after."""
+    if "--" in cmd:
+        return cmd.index("--")
+    for i, part in enumerate(cmd):
+        if part in _PROMPT_FLAG_TOKENS:
+            return i
+        if part.startswith(("-p=", "--print=", "--prompt=", "--single=")):
+            return i
+        if "{prompt}" in part:
+            return i
+    return len(cmd)
+
+
 def apply_model(entry: dict[str, Any], name: str, model: str) -> dict[str, Any]:
     """Return a copy of ``entry`` with ``name``'s model flag set to ``model``.
 
     Replaces an already-pinned model (e.g. opencode's default) rather than
-    duplicating it; a no-op for CLIs with no known model flag.
+    duplicating it; a no-op for CLIs with no known model flag. New flags sit
+    before ``-p`` / ``{prompt}`` so the prompt cannot swallow them.
     """
     entry = _deepcopy(entry)
     flag = MODEL_FLAG.get(name)
@@ -680,7 +693,7 @@ def apply_model(entry: dict[str, Any], name: str, model: str) -> dict[str, Any]:
         else:
             cmd.append(model)
     else:
-        insert_at = cmd.index("--") if "--" in cmd else len(cmd)
+        insert_at = _model_flag_insert_at(cmd)
         cmd[insert_at:insert_at] = [flag, model]
     entry["cmd"] = cmd
     return entry

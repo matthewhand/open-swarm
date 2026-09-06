@@ -439,23 +439,11 @@ describe('AgentEditor (REQ-58)', () => {
               status: 200,
               json: async () => ({
                 object: 'llm_profiles',
-                profiles: [{ id: 'custom-profile', name: 'Custom Profile' }],
+                profiles: [
+                  { id: 'custom-profile', name: 'Custom Profile', model: 'gpt-4o' },
+                ],
                 default_llm_profile: 'orchestration',
                 task_llm_profiles: {},
-              }),
-            } as Response
-          }
-          if (url.includes('/v1/models')) {
-            return {
-              ok: true,
-              status: 200,
-              json: async () => ({
-                object: 'list',
-                data: [
-                  { id: 'gpt-4o', object: 'model' },
-                  { id: 'codey', object: 'model' }, // Agent name in models list!
-                  { id: 'stewie', object: 'model' }, // Agent name in models list!
-                ],
               }),
             } as Response
           }

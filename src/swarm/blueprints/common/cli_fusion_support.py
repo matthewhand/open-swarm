@@ -20,6 +20,8 @@ PARAM_PANEL = "panel"        # fusion: list of adapter names
 PARAM_PRESET = "preset"      # fusion: named preset
 PARAM_JUDGE = "judge"        # fusion: judge adapter/profile
 PARAM_TIMEOUT = "timeout"    # override adapter timeout (seconds)
+PARAM_MODEL = "model"        # pin CLI model flag (Chat send / apply_model)
+PARAM_CLI_MODEL = "cli_model"  # Agent Router alias of model
 PARAM_WORKDIR = "workdir"    # working directory for the CLI(s)
 PARAM_CWD = "cwd"            # alias for workdir (MoA / hybrid twins)
 PARAM_ISOLATE = "isolate"    # fusion: per-panelist workdir isolation (bool)
@@ -385,16 +387,51 @@ def resolve_agent_consensus(
     return resolve_consensus_spec(getattr(cfg, "consensus", None), getattr(cfg, "name", None), registry)
 
 
+def requested_cli_model(params: dict[str, Any] | None) -> str | None:
+    """Chat ``params.model`` or Agent Router ``cli_model``. Skip empty / ``default``."""
+    params = params or {}
+    for key in (PARAM_MODEL, PARAM_CLI_MODEL):
+        raw = params.get(key)
+        if isinstance(raw, str):
+            value = raw.strip()
+            if value and value.lower() != "default":
+                return value
+    return None
+
+
 def apply_overrides(
     registry: CliAdapterRegistry, params: dict[str, Any] | None
 ) -> CliAdapterRegistry:
-    """Apply per-request adapter overrides (currently: timeout) to a registry."""
+    """Apply per-request adapter overrides (timeout + model pin) to a registry."""
     params = params or {}
     timeout = params.get(PARAM_TIMEOUT)
-    if timeout is None:
+    model = requested_cli_model(params)
+    if timeout is None and not model:
         return registry
-    patch = {name: {"timeout": float(timeout)} for name in registry.names()}
-    return registry.with_overrides(patch)
+    from swarm.core import cli_catalog
+
+    names = list(registry.names())
+    requested = params.get(PARAM_CLI)
+    if isinstance(requested, str) and requested.strip() and requested.strip() in names:
+        model_targets = [requested.strip()]
+    else:
+        model_targets = names
+    patch: dict[str, dict[str, Any]] = {}
+    for name in names:
+        entry: dict[str, Any] = {}
+        if timeout is not None:
+            entry["timeout"] = float(timeout)
+        if model and name in model_targets and name in cli_catalog.MODEL_FLAG:
+            adapter = registry.get(name)
+            pinned = cli_catalog.apply_model(
+                {"cmd": list(adapter.config.cmd)}, name, model
+            )
+            pinned_cmd = pinned.get("cmd")
+            if isinstance(pinned_cmd, list) and pinned_cmd:
+                entry["cmd"] = pinned_cmd
+        if entry:
+            patch[name] = entry
+    return registry.with_overrides(patch) if patch else registry
 
 
 # --- Chunk helpers (match what swarm.views.chat_views expects to consume) --- #

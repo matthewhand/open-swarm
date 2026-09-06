@@ -305,8 +305,15 @@ def test_with_native_consensus_does_not_mutate_catalog():
 
 
 def test_with_model_appends_flag_for_gemini():
+    # Gemini catalog still ends with --yolo --skip-trust (untrusted-dir gotchas).
+    # apply_model inserts MODEL_FLAG before -p/{prompt} (C-M3 / #612), so
+    # cmd[-2:] stays those gotchas rather than the pin — same contract as grok.
     entry = cli_catalog.with_model("gemini", "gemini-3-pro-preview", timeout=600)
-    assert entry["cmd"][-2:] == ["-m", "gemini-3-pro-preview"]
+    assert "-m" in entry["cmd"]
+    assert entry["cmd"][entry["cmd"].index("-m") + 1] == "gemini-3-pro-preview"
+    prompt_at = next(i for i, part in enumerate(entry["cmd"]) if "{prompt}" in part)
+    assert entry["cmd"].index("-m") < prompt_at
+    assert entry["cmd"][-2:] == ["--yolo", "--skip-trust"]
     assert entry["timeout"] == 600
     assert entry["parse"] == "json:.response"  # base entry preserved
 
@@ -330,7 +337,10 @@ def test_with_model_no_flag_known_returns_entry_unchanged():
 
 def test_with_model_pins_grok_dash_m():
     entry = cli_catalog.with_model("grok", "grok-4.5")
-    assert entry["cmd"][-2:] == ["-m", "grok-4.5"]
+    assert "-m" in entry["cmd"]
+    assert entry["cmd"][entry["cmd"].index("-m") + 1] == "grok-4.5"
+    prompt_at = next(i for i, part in enumerate(entry["cmd"]) if "{prompt}" in part)
+    assert entry["cmd"].index("-m") < prompt_at
 
 
 def test_with_model_does_not_mutate_catalog():

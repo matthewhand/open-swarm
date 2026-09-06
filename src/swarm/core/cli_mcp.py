@@ -76,27 +76,45 @@ def parse_mcp_help_flags(help_text: str) -> dict[str, bool]:
 
 
 def probe_cli_help(executable: str, *, timeout: float = 3.0) -> str:
-    """Run ``executable --help``. Empty in pytest and on any probe failure."""
+    """Run ``executable --help``. Empty in pytest and on any probe failure.
+
+    Resolves the binary with :func:`cli_catalog.which_cli` and runs it with
+    the same ``PATH`` as CLI runs (``host_cli_path``).
+    """
     if os.getenv("PYTEST_CURRENT_TEST"):
         return ""
     if not executable:
         return ""
-    cached = _HELP_CACHE.get(executable)
+    from swarm.core.cli_catalog import host_cli_path, which_cli
+
+    resolved = (
+        executable
+        if os.path.sep in executable
+        else (which_cli(executable) or executable)
+    )
+    if os.path.sep in resolved and not (
+        os.path.isfile(resolved) and os.access(resolved, os.X_OK)
+    ):
+        return ""
+    cached = _HELP_CACHE.get(resolved)
     if cached is not None:
         return cached
     text = ""
+    env = os.environ.copy()
+    env["PATH"] = host_cli_path(env.get("PATH", ""))
     try:
         proc = subprocess.run(
-            [executable, "--help"],
+            [resolved, "--help"],
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
+            env=env,
         )
         text = f"{proc.stdout or ''}\n{proc.stderr or ''}"
     except Exception:
         text = ""
-    _HELP_CACHE[executable] = text
+    _HELP_CACHE[resolved] = text
     return text
 
 

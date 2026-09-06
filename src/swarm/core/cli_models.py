@@ -16,7 +16,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import signal
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
@@ -246,12 +245,14 @@ def _resolve_executable(
 ) -> str | None:
     if os.path.sep in argv0:
         return argv0 if os.path.isfile(argv0) and os.access(argv0, os.X_OK) else None
-    finder = which or shutil.which
+    finder = which or cli_catalog.which_cli
     return finder(argv0)
 
 
 async def _run_exec(argv: list[str], timeout: float) -> tuple[int | None, str, str]:
     """Run argv with stdin closed. Kill the process group on timeout."""
+    env = os.environ.copy()
+    env["PATH"] = cli_catalog.host_cli_path(env.get("PATH", ""))
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv,
@@ -259,6 +260,7 @@ async def _run_exec(argv: list[str], timeout: float) -> tuple[int | None, str, s
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
+            env=env,
         )
     except (OSError, ValueError):
         raise

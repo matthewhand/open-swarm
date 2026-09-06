@@ -359,6 +359,7 @@ export interface LlmProfile {
   object: 'llm_profile'
   source: string
   owned_by: string
+  name?: string
   model?: string
   intelligence?: number
   speed?: number
@@ -1141,6 +1142,9 @@ export interface CliAgentsInfo {
   native_consensus: Record<string, string[]>
   catalog: Record<string, Record<string, unknown>>
   rail?: CliRailAgent[]
+  /** Argv table for list-models probes — not live model ids. */
+  list_models?: Record<string, string[]>
+  list_sessions?: Record<string, unknown>
 }
 
 export function fetchCliAgents(): Promise<CliAgentsInfo> {

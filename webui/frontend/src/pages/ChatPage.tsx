@@ -238,12 +238,14 @@ import {
 import { QueuedSendPane } from '../components/QueuedSendPane'
 import {
   discoverChatClis,
+  honestChatCliModels,
   isCliAgentContext,
   isCliBlueprintId,
   preferredChatCli,
   MANAGE_CLI_VALUE,
   MANAGE_CLI_HREF,
 } from '../lib/cliAgentContext'
+import { isHiddenRoutingLabel } from '../lib/routingPath'
 
 /** EXPERIMENTAL flags are read once per module load; see experimental/flags.ts. */
 const SHOW_MESSAGE_ACTIONS = isExperimentalEnabled('chat_message_actions')
@@ -698,20 +700,38 @@ const ChatPage = () => {
     enabled: Boolean(isCliAgent && currentCli),
     retry: 1,
   })
+  const cliModelProbe = useMemo(
+    () => honestChatCliModels(cliModelsQuery.data),
+    [cliModelsQuery.data],
+  )
   const availableCliModels = useMemo(() => {
-    const list = cliModelsQuery.data?.models ?? (cliQuery.data as any)?.list_models?.[currentCli] ?? []
-    const merged = list.length ? [...list] : ['default']
+    const merged = [...cliModelProbe.models]
     const saved = (persistedDropdown.model || '').trim()
-    if (saved && !merged.includes(saved)) merged.push(saved)
+    if (saved && !isHiddenRoutingLabel(saved) && !merged.includes(saved)) {
+      merged.push(saved)
+    }
     return merged
-  }, [cliModelsQuery.data, cliQuery.data, currentCli, persistedDropdown.model])
+  }, [cliModelProbe.models, persistedDropdown.model])
+  const cliModelWarning = useMemo(() => {
+    if (availableCliModels.length > 0) return cliModelProbe.warning
+    if (cliModelProbe.warning) return cliModelProbe.warning
+    if (cliModelsQuery.isError) return 'Model probe failed'
+    if (cliModelsQuery.isFetched && currentCli) return 'No models discovered'
+    return null
+  }, [
+    availableCliModels.length,
+    cliModelProbe.warning,
+    cliModelsQuery.isError,
+    cliModelsQuery.isFetched,
+    currentCli,
+  ])
 
   const currentCliModel = useMemo(() => {
     const fromParam = (searchParams.get('model') ?? '').trim()
     if (fromParam && availableCliModels.includes(fromParam)) return fromParam
     const saved = (persistedDropdown.model || '').trim()
     if (saved && availableCliModels.includes(saved)) return saved
-    return availableCliModels[0] || 'default'
+    return availableCliModels[0] || ''
   }, [searchParams, availableCliModels, persistedDropdown.model])
   const recordDropdownChange = useCallback(
     (kind: DropdownKind, fromLabel: string, toLabel: string) => {
@@ -2585,6 +2605,7 @@ const ChatPage = () => {
               selectedAgent={currentCli}
               models={availableCliModels}
               selectedModel={currentCliModel}
+              modelWarning={cliModelWarning}
               preferredEffort={persistedDropdown.effort}
               footerAction={{
                 id: MANAGE_CLI_VALUE,
