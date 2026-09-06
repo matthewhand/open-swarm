@@ -1,356 +1,337 @@
 # ADR-008: Optional 3D robot avatar theme family (Reachy-inspired)
 
-- **Status:** Proposed (look-only; no WebGL / no runtime change in this PR)
-- **Date:** 2026-09-04
+- **Status:** Accepted for Phase 0 (docs + disabled picker stub; no WebGL / no mesh runtime)
+- **Date:** 2026-09-06 (amends the 2026-09-04 look-only draft that landed via [#675](https://github.com/matthewhand/open-swarm/pull/675))
 - **Issue:** [#667](https://github.com/matthewhand/open-swarm/issues/667) (REQ-194)
-- **Related:** [#662](https://github.com/matthewhand/open-swarm/issues/662) (REQ-188C-3 one avatar-theme store), [#346](https://github.com/matthewhand/open-swarm/issues/346) (REQ-34 Blobs, closed), [#540](https://github.com/matthewhand/open-swarm/issues/540) (REQ-144 Django prefs), [ADR-001](../ADR-001-primary-ui.md), [ADR-002](./002-config-ownership.md)
-- **Inspiration (external):** [matthewhand/reachy-subconscious-expression-app](https://github.com/matthewhand/reachy-subconscious-expression-app) — cited from #667. A sibling look-only agent is auditing that repo. This ADR does **not** invent Reachy internals; see §6 **pending Reachy audit**.
-- **Supersedes:** none. Extends the Settings Rail theme family; does not replace Blobs / bland / custom faces.
+- **Reachy report:** [reachy-3d-avatar-inspiration.md](../reports/reachy-3d-avatar-inspiration.md)
+- **Related:** [#662](https://github.com/matthewhand/open-swarm/issues/662) (REQ-188C-3 one avatar-theme store — **closed**), [#346](https://github.com/matthewhand/open-swarm/issues/346) (REQ-34 Blobs, closed), [#540](https://github.com/matthewhand/open-swarm/issues/540) (REQ-144 Django prefs), [ADR-001](../ADR-001-primary-ui.md), [ADR-002](./002-config-ownership.md)
+- **Inspiration (external):** [matthewhand/reachy-subconscious-expression-app](https://github.com/matthewhand/reachy-subconscious-expression-app) — [PR #10](https://github.com/matthewhand/reachy-subconscious-expression-app/pull/10) cited on #667. Public corroboration: [pollen-robotics/reachy-mini-desktop-app](https://github.com/pollen-robotics/reachy-mini-desktop-app).
+- **Supersedes:** the 2026-09-04 draft’s **iframe-first** host path and **AnimationMixer / bone-name** rig. Those were parked as “pending Reachy audit.” The audit (PR #10 via #667) is now in the report.
 
-**Decision:** add an **optional** Settings Rail theme family `robot3d` (“3D robot”) that can play idle / listen / working / dance-style clips **without blocking chat**. Phase 1 hosts the viewer in an **iframe to an extractable package**, not a Three.js import in the SPA main bundle. Multiple body/head meshes may share clips only after they satisfy the **rig contract** (§4). Custom uploaded 2D faces still win. No Neon. No secrets.
+**Decision:** add an **optional** Settings Rail theme family `robot3d` (“3D robot”) that can play idle / listen / working / dance-style **pose clips** without blocking chat.
 
-This ADR is **Phase 0** of REQ-194. It maps today’s chrome and parks implement work. It does **not** `Fixes` #667 — later phases remain.
+1. **Theme key** = the existing Rail store `swarm_avatar_theme` (value `robot3d`). No second persist key for the theme. Combo pick is a **sub-key** only while the theme is `robot3d`.
+2. **Host path** = **lazy `import()` of an extractable pose-player** on the **chat header** (one WebGL context). Do **not** iframe Glance. Do **not** add `three` to the chat graph until `robot3d` is selected.
+3. **Playback** = baked `MiniPose` sequences (or a pose stream), **not** `THREE.AnimationMixer` skeletal clips. See the [Reachy report](../reports/reachy-3d-avatar-inspiration.md).
+4. **Mix-and-match** (Phase 2) = `MiniPose` + head **attach offsets**, not bone-name swap.
+5. Custom uploaded 2D `avatar_path` still wins. No Neon. No secrets.
 
-Evidence below is from `origin/main` `87da9c93` at writing. No secrets are documented. Use `${VAR}` names only.
+This ADR + the Reachy report are **Phase 0** of REQ-194. Phase 0 is complete here. Implement Phases 1–3 stay parked; ready-to-file follow-up bodies are in §10.
+
+Evidence below is from `origin/main` at writing (`869aace9` and this branch). No secrets are documented. Use `${VAR}` names only.
 
 ---
 
 ## Issue quote (REQ-194)
 
-**Intent:** Users can pick a 3D robot theme (not only Blobs / bland / upload) that feels alive like Reachy Mini’s 3D presence; later, swap body/head meshes without rewriting clips.
+**Intent:** Users can pick a 3D robot theme (not only Blobs / bland / Bee / upload) that feels alive like Reachy Mini’s 3D presence; later, swap body/head meshes without rewriting clips.
 
 **Success (phased, from #667):**
 
-1. **Phase 0 — ADRs:** Reachy report (stack, clip/rig contract, licensing) + open-swarm ADR (embed path, perf, theme settings key, event hooks).
+1. **Phase 0 — ADRs:** Reachy report (stack, clip/rig contract, licensing) + open-swarm ADR (embed path, perf, theme settings key, event hooks). **This PR.**
 2. **Phase 1 — One mesh:** Ship Reachy-like (or licensed) mesh + idle/working clips in SPA theme picker; chat never blocked on WebGL.
-3. **Phase 2 — Combos:** Document bone/attachment contract; ≥2 body × ≥2 head that play the same clips.
+3. **Phase 2 — Combos:** Document bone/attachment contract; ≥2 body × ≥2 head that play the same clips. *(Contract is MiniPose + sockets — see report §2.4.)*
 4. **Phase 3 — Status wire:** Map agent working/listen/error to animation states (optional mood later).
 
 **Constraints (from #667):** Respect Reachy/URDF/Three LICENSE+NOTICE. No secrets. No Neon. Prefer extractable viewer package over forking the whole subconscious app. Coordinate Settings Rail avatar theme (#662 one-store). SaaS N/A.
 
 ---
 
-## 1. Feasibility (what exists today)
+## 1. What changed vs the 2026-09-04 draft
 
-open-swarm already has a **Settings Rail avatar theme** (REQ-155 / closed #346) and a **second, leftover Agent Router pack store**. Neither is WebGL. The SPA `package.json` has no `three`, no model-viewer, no URDF loader.
-
-A 3D family is feasible as a **new optional key** on the Rail store — not as a rewrite of Blobs, and not as a silent merge into the Agent Router SVG packs. The expensive parts are isolation (chat must not wait on GL) and a **shared rig** so Phase 2 combos do not fork clips.
+| 2026-09-04 draft | After PR #10 / this amend |
+|---|---|
+| Sibling Reachy audit still pending | Report landed: [reachy-3d-avatar-inspiration.md](../reports/reachy-3d-avatar-inspiration.md) |
+| Iframe → extractable viewer as Phase 1 pick | **Lazy WebGL on chat header.** Iframe of Glance is **rejected**. Same-origin iframe of the *extracted* player is a fallback only if the lazy module pollutes the SPA |
+| Clips = AnimationMixer / bone names | Clips = **`MiniPose` frame lists** (or pose stream) |
+| Phase 2 = shared `bones[]` + guessed URDF names | Phase 2 = **attach offsets** + the same MiniPose fields |
+| Rail keys `blobs` / `bland` only | Also **`bee`**. `#662` is **closed** — one store |
+| Does not `Fixes` #667 | Phase 0 success line is satisfied; follow-ups in §10 |
 
 ---
 
-## 2. Today’s avatar map
+## 2. Feasibility (what exists today)
 
-There are **two** theme systems. #662 exists because they do not share a store. This ADR names both so implementers do not wire `robot3d` into the wrong one.
+open-swarm already has a **Settings Rail avatar theme** (`blobs` / `bland` / `bee`) on **one** persist key. Neither renderer is WebGL. The SPA `package.json` has no `three`, no R3F, no URDF loader.
 
-### 2.1 Settings Rail store (canonical for Grok chrome)
+A 3D family is feasible as a **new optional value** on that same Rail store — not as a rewrite of Blobs/Bee, and not as a merge into leftover Agent Router SVG packs.
+
+The expensive parts are (1) isolation so chat never waits on GL, (2) vendoring/baking meshes the inspiration app gitignores, (3) a **shared MiniPose socket** so Phase 2 combos do not fork clips.
+
+---
+
+## 3. Today’s avatar map
+
+`#662` closed: Settings → Rail → Avatar theme is the theme every Settings-reachable rail uses. One persist key. One picker.
+
+### 3.1 Settings Rail store (canonical)
 
 | Item | Value | Evidence |
 |---|---|---|
-| Keys | `blobs` (default), `bland`, legacy `default` → `bland` | `webui/frontend/src/lib/avatarTheme.ts` |
-| Persist | `localStorage.swarm_avatar_theme` | same file; `AVATAR_THEME_STORAGE_KEY` |
+| Keys | `blobs` (default), `bland`, `bee`, legacy `default` → `bland` | `webui/frontend/src/lib/avatarTheme.ts` |
+| Reserved (not selectable) | `robot3d` | `ROBOT3D_THEME_RESERVED`; omitted from `AVATAR_THEMES` until Phase 1 |
+| Persist | `localStorage.swarm_avatar_theme` | `AVATAR_THEME_STORAGE_KEY` |
 | Same-tab event | `swarm:set-avatar-theme` | `AVATAR_THEME_SET_EVENT` |
 | Default | `blobs`; storing Blobs **removes** the key | `saveAvatarTheme` / `defaultAvatarTheme` |
 | Settings picker | Settings sheet → **Rail** → “Avatar theme” | `SettingsSheet.tsx` `RailPane` + `AvatarThemePicker.tsx` |
 | Django twin | `/settings/` select `#os-avatar-theme` | `src/swarm/templates/settings_dashboard.html`; `src/swarm/static/js/chrome_avatar_theme.js` |
-| Tests | persist + labels | `avatarTheme.test.ts`; `tests/unit/test_req155_avatar_theme.py`; `e2e/settings-sheet.spec.ts` |
+| Tests | persist + labels | `avatarTheme.test.ts`; `tests/unit/test_req155_avatar_theme.py`; `e2e/settings-sheet.spec.ts`; `e2e/bee-avatar-theme.spec.ts` |
 
-Picker copy (`AvatarThemePicker.tsx`): “Blobs are per-agent shapes with eyes (default). Bland static uses identical grey circles. **Custom uploaded faces always win.**”
+Picker copy today: Default (static grey), Blobs (per-agent shapes + slit eyes), Bee (geometric brand marks, opt-in, never auto-applied). **Custom uploaded faces always win.**
 
-Django dashboard copy matches Blobs vs bland and says the choice stays in the browser and does not rewrite blueprints.
+`saveAvatarTheme('robot3d')` must keep falling back to `blobs` until Phase 1 adds the key. The Phase 0 stub is a **disabled** `<option>` plus an ADR link — it must not persist.
 
-### 2.2 How faces render on the rail and in chat
+### 3.2 How faces render on the rail and in chat
 
 Shared component: `webui/frontend/src/components/AgentAvatar.tsx` (Grok chrome — **not** `AgentSidebar/AgentAvatar.tsx`).
 
 Resolution order:
 
 1. **Custom `src`** (trimmed, non-empty, image not broken) → circular `<img>`, `data-agent-avatar="custom"`.
-2. Else **theme `blobs`** → `BlobAvatar` SVG, `data-avatar-theme="blobs"`, `data-eye-state` `active` \| `idle`.
-3. Else **theme `bland`** (and migrated `default`) → inline grey circle + silhouette data-URI (`DEFAULT_AGENT_AVATAR_SRC`).
+2. Else **theme `blobs`** → `BlobAvatar` SVG, `data-avatar-theme="blobs"`.
+3. Else **theme `bee`** → Bee SVG, `data-avatar-theme="bee"`.
+4. Else **theme `bland`** (and migrated `default`) → grey circle + silhouette.
 
 | Surface | Size | What it paints | File |
 |---|---|---|---|
 | Left-rail conversation row | `sm` | `AgentAvatar` with `src={agent.avatar_path}` | `AgentSidebar.tsx` |
-| Favourite tiles | `lg` | same, `src={live?.avatar_path}` | `AgentSidebar.tsx` |
-| Chat header (non-team) | `lg` | same, `src={selectedAgent?.avatar_path}`, `active` when streaming **or** WS `status === 'open'` | `ChatPage.tsx` |
-| Avatar-only rail (`width ≤ 96px`) | still `sm` faces | names hide; faces stay | `railResize.ts` `AVATAR_ONLY_THRESHOLD`; `data-avatar-only` |
+| Favourite tiles | `lg` | same | `AgentSidebar.tsx` |
+| Chat header (non-team) | `lg` | same; `active` when streaming **or** WS `status === 'open'` | `ChatPage.tsx` |
+| Avatar-only rail (`width ≤ 96px`) | still `sm` faces | names hide; faces stay | `railResize.ts` `AVATAR_ONLY_THRESHOLD` |
 
-Blobs (`blobAvatar.ts` + `BlobAvatar.tsx` + `index.css`):
-
-- Deterministic **shape + solid colour + idle eye rest** hashed from `agentId` (FNV-style). Shapes: hexagon, circle, teardrop, triangle, pill, cloud, roundedRect, diamond.
-- Idle: eyes parked. Active: CSS `@keyframes os-blob-wander` (slow, several-second period).
-- `prefers-reduced-motion: reduce` disables wander.
-- Chat header currently marks `active` whenever the websocket is `open`, so eyes wander for the whole connected session — not only while a reply streams. Phase 3 must not copy that as “listen” without an explicit remap.
-
-Bland: identical grey person-silhouette for every agent (`AgentAvatar.tsx` data-URI). REQ-6’s Bert-like SVG (`src/swarm/static/img/default-agent-avatar.svg`) is **not** this bland URI; Django library cards still use the Bert SVG. SPA chrome does not.
-
-### 2.3 Custom uploaded faces
-
-There is **no** Settings file-picker for faces. “Upload” in product copy means a **blueprint `avatar_path`** (or `avatar`) that the list API passes through:
-
-- `src/swarm/views/api_views.py` `_metadata_avatar_path` — empty/missing stays `None`; SPA owns the fallback.
-- `GET /v1/blueprints/` includes `avatar_path`.
-- ComfyUI generate (`src/swarm/utils/comfyui_client.py`) writes `{slug}_avatar.png` under `AVATAR_STORAGE_PATH` and returns `{AVATAR_URL_PREFIX}{filename}` (defaults `/avatars/`).
-- Django Blueprint Library “Generate Avatar” is the operator path (`blueprint_library_views.generate_avatar`).
-- Broken custom images fall back to the **current** theme (Blobs or bland), not a third art.
+Blobs: deterministic shape + colour hashed from `agentId`. `prefers-reduced-motion: reduce` disables wander. Chat header currently marks `active` whenever the websocket is `open`, so eyes wander for the whole connected session — not only while a reply streams. Phase 3 must not copy that as “listen” without an explicit remap.
 
 **Decision for 3D:** custom 2D `avatar_path` **still wins** over `robot3d`. Do not treat an arbitrary user glTF/URDF upload as Phase 1–2 (XSS / GPU / license risk). Combo picks are catalog ids, not free-form mesh URLs.
 
-### 2.4 What does **not** use the Rail theme
+### 3.3 What does **not** use the Rail theme
 
 | Surface | What it shows | Notes |
 |---|---|---|
-| Scale-out / team stacks | Coloured dots + pulse (`AvatarStack`) | REQ-66 / REQ-68. Not `AgentAvatar`. Do not spawn WebGL per stacked face. |
-| Grok chat **transcript** | No per-bubble face | `ChatPage` mounts `AgentAvatar` only in the header. |
-| Django operator rail | `os-agent-dot` colour marks | `agent_sidebar.js`; not Blobs. |
+| Scale-out / team stacks | Coloured dots + pulse (`AvatarStack`) | REQ-66 / REQ-68. Do not spawn WebGL per stacked face |
+| Grok chat **transcript** | No per-bubble face | Header only |
+| Django operator rail | `os-agent-dot` colour marks | Not Blobs |
 | Django library cards | custom img or Bert SVG | `blueprint_card.html` |
 
-### 2.5 Leftover Agent Router packs (do not confuse)
+### 3.4 Leftover Agent Router packs (do not confuse)
 
-`/agents` is still mounted (`App.tsx`) despite [ADR-001](../ADR-001-primary-ui.md) “SPA Chat only” and `webui/README.md` claiming `/` + `/chat` only.
-
-That page uses a **different** `AvatarTheme`: `chassis` \| `pixel` \| `glyph` \| `orb` \| `antenna` \| `cube` \| `mask` \| `beetle` \| `ghost` \| `crystal`, plus eye styles (`lens` / `googly` / …). Persist keys: `agent_avatar_theme`, `agent_avatar_theme_by_agent`, `agent_avatar_eyes`, `agent_avatar_eyes_by_agent` (`agent-store.ts`). Renderer: SVG `RobotAvatar.tsx` — pointer-track eyes, blink, CSS classes `robot-idle` / `robot-working` / `robot-error` / `robot-waiting`. Status type already exists: `AgentStatus = 'idle' \| 'working' \| 'waiting' \| 'error' \| 'happy'`. `AvatarMotion` is declared but unused (`_motion`).
-
-**Do not** add `robot3d` to this pack enum. After #662, one Rail store is the only picker; Router SVG packs either fold into that store or stay a leftover until `/agents` is destaged.
-
-### 2.6 Status signals the 3D viewer may later consume (Phase 3)
-
-Grok chat already has client-side hooks — **no new WS mood channel in Phase 1**.
-
-| Signal | Where | Suggested clip (Phase 3) |
-|---|---|---|
-| No stream; WS not failed | `ChatPage` `streamingMessage`, `status` | `idle` |
-| WS `open`, composer focused / awaiting user | WS status + focus (not wired as `listen` today) | `listen` |
-| Assistant streaming, or `tool_status` `running` | `chatWs.ts` `ToolStatus`; header stream timer | `working` |
-| WS `failed` / `tool_status` `error` | `chatWs.ts`; Chat header `statusLabel` | `error` |
-| Optional celebration | Agent Router `happy` only today | `dance` (opt-in, never auto-loop on every reply) |
-
-Inbound `type: "status"` frames exist on the consumer (`consumers.py`) as **text lines**, not a structured mood enum. Do not invent a server mood SoT until Phase 3 agrees a small event map.
+`/agents` is still mounted (`App.tsx`) despite [ADR-001](../ADR-001-primary-ui.md). That page historically had a second SVG pack enum (`chassis` / `pixel` / …). `#662` unified persist onto `swarm_avatar_theme`. **Do not** add `robot3d` to any leftover pack enum. The Rail picker is the only place the 3D family appears.
 
 ---
 
-## 3. Proposed theme family
+## 4. Theme settings key
 
-### 3.1 Settings key
-
-Add **one** Rail key:
+Add **one** Rail value (Phase 1; reserved in Phase 0):
 
 | Persist value | Picker label | Meaning |
 |---|---|---|
-| `robot3d` | 3D robot | Optional family. Viewer + catalog live behind this key. |
+| `robot3d` | 3D robot | Optional family. Viewer + catalog live behind this key |
 
-Keep `blobs` / `bland` / legacy `default`. Unknown values still fall back to `blobs` (`isAvatarTheme`).
+Keep `blobs` / `bland` / `bee` / legacy `default`. Unknown values still fall back to `blobs` (`isAvatarTheme`).
 
-**#662 coordination:** Phase 1 must extend `AVATAR_THEMES` in `avatarTheme.ts` **and** the Django `#os-avatar-theme` script so Settings ↔ Chat hops stay one key (`swarm_avatar_theme`). Do not introduce `swarm_avatar_theme_3d` or a second picker. Combo selection (Phase 2) is a **sub-key** only while `theme === robot3d`, e.g. `swarm_avatar_robot3d_combo` = `{ "body": "reachy-mini", "head": "reachy-mini" }` — ignored unless the theme is `robot3d`. After #540, both keys move to Django prefs with the rest of the UI prefs.
+**#662 coordination (done, still binding):**
 
-### 3.2 Presence slot vs tiles
+- Phase 1 extends `AVATAR_THEMES` in `avatarTheme.ts` **and** the Django `#os-avatar-theme` script so Settings ↔ Chat hops stay one key (`swarm_avatar_theme`).
+- Do **not** introduce `swarm_avatar_theme_3d` or a second picker.
+- Combo selection (Phase 2) is a **sub-key** only while `theme === robot3d`, e.g. `swarm_avatar_robot3d_combo` = `{ "body": "mini-full", "head": "mini-full" }` — ignored unless the theme is `robot3d`.
+- After #540, both keys move to Django prefs with the rest of the UI prefs; localStorage seed-once.
 
-| Slot | Phase 1 | Why |
-|---|---|---|
-| Chat header (`lg`) | **One** live 3D instance (the presence slot) | Matches Reachy-style “alive” chrome without N canvases |
-| Rail rows / fav tiles / avatar-only rail | 2D **poster** (static frame or Blobs-tinted stand-in) | `#497` rail can be 68px; WebGL per row would blow the budget |
-| Scale-out stacks | unchanged dots | Already a different widget |
-| Transcript bubbles | no face (unchanged) | Do not add GL to the message list |
-
-If WebGL fails, `prefers-reduced-motion` is reduce, or the iframe is still booting: show Blobs (or bland if that was the user’s last 2D theme). Chat chrome stays painted.
-
-### 3.3 Clip set (open-swarm names)
-
-Stable clip ids for the SPA ↔ viewer `postMessage` contract. **Reachy file names / mixer API = pending Reachy audit.**
-
-| Clip id | Loop | When (Phase 1 / 3) |
-|---|---|---|
-| `idle` | yes | Default; Phase 1 required |
-| `working` | yes | Phase 1 required (map from `streamingMessage` or leave a Settings “preview working” until Phase 3) |
-| `listen` | yes | Phase 3 (or Phase 1 if the extracted viewer already has it — **pending audit**) |
-| `dance` | no (or short loop, user/opt-in) | Phase 1 optional preview; Phase 3 never blocks send |
-| `error` | no / hold last | Phase 3 |
-
-Clip changes are **fire-and-forget**. The viewer crossfades; the composer and WS parser do not `await` a frame.
+Phase 0 stub: disabled option + link to this ADR (`ROBOT3D_ADR_HREF`). Django twin matches.
 
 ---
 
-## 4. Rig contract (required before Phase 2 catalog)
-
-Phase 1 may ship a **single** locked Reachy-like mesh that already plays `idle` / `working`. Phase 2 **must not** land a second body or head until a machine-checkable manifest passes.
-
-Open-swarm owns the contract. Reachy bone **strings** are filled in after the sibling audit — do not hard-code guessed Pollen / URDF names here.
-
-### 4.1 Manifest (normative shape)
-
-```ts
-/** Catalog entry. Unknown extra fields ignored. Missing required fields fail closed. */
-export interface Robot3dRigManifest {
-  schema: 1
-  id: string
-  kind: 'body' | 'head' | 'full'
-  /** License SPDX + NOTICE path inside the viewer package. No secrets. */
-  license: { spdx: string; notice: string }
-  /** 1.0 = 1 metre. Pending Reachy audit for authoring scale. */
-  units: 'meters'
-  /** Rest-pose height of a full robot, metres. Combos must match ±tolerance. */
-  restHeight: number
-  restHeightTolerance: number
-  /**
-   * Canonical bone names this mesh binds.
-   * Phase 1: copy the list from the Reachy audit (placeholder until then).
-   * Phase 2: every body/head combo must include this exact set (or a documented
-   * required subset + optional extras that clips do not target).
-   */
-  bones: string[]
-  /**
-   * Socket the head mesh attaches to. Body entries MUST export it.
-   * Head entries MUST be authored at this joint’s bind pose.
-   * Name: pending Reachy audit (do not invent `neck_link` / `HeadSocket` here).
-   */
-  headAttachment: {
-    bone: string
-    /** Local offset/rotation from that bone. */
-    offset: { x: number; y: number; z: number }
-    quaternion: { x: number; y: number; z: number; w: number }
-  }
-  clips: Partial<Record<'idle' | 'listen' | 'working' | 'dance' | 'error', {
-    loop: boolean
-    fadeMs: number
-    /** Package-relative clip id. Pending Reachy audit for source names. */
-    source: string
-  }>>
-}
-```
-
-### 4.2 Mix-and-match rules
-
-1. **One skeleton family.** Clips target **bone names**, not mesh topology. A head swap must not rename bones the clip already uses.
-2. **Body owns locomotion + arms + attachment socket.** Head owns face / antenna / visor verts only.
-3. **Shared bind-pose scale.** If `restHeight` differs by more than `restHeightTolerance`, reject the combo in the picker (fail closed, keep last valid combo or the Phase 1 full-body).
-4. **Clip completeness.** A combo is playable only if **both** parts (or the `full` mesh) declare every clip the viewer is asked to play. Missing `dance` is OK until that clip is requested; missing `idle` or `working` is not shippable for Phase 1.
-5. **No runtime retargeter** in Phase 1–2. If a mesh needs retargeting, it is a content bug, not a Three.js IK feature.
-6. **Validator** (Phase 2 implement): load manifests, assert bone set + `headAttachment.bone` + scale, refuse to list illegal pairs.
-
-### 4.3 What stays pending Reachy audit
-
-Fill these from the sibling Reachy report before Phase 1 mesh lock:
-
-- Exact engine (owner #667 claim: Three.js + URDF, paths `robot-3d/`, `robot_3d.js` — **unverified here**; this agent cannot see that repo).
-- Canonical `bones[]` and `headAttachment.bone`.
-- Authoring units and Reachy Mini rest height.
-- Whether dances are clip tracks, Mixamo, or procedural (subconscious / expression layer).
-- How body vs head are (or are not) already split in that app.
-- LICENSE / NOTICE / third-party model terms (Pollen Robotics, Three, URDF assets).
-- Recommended extract surface (which files become the viewer package vs app chrome to leave behind).
-
-Until that report lands, Phase 1 implementers treat the first mesh as a **full** `kind: 'full'` entry and do not advertise a combo UI.
-
----
-
-## 5. Embed WebGL in the SPA vs iframe to a viewer package
+## 5. Embed path
 
 #667: prefer an **extractable viewer package** over forking the subconscious app.
+PR #10 via #667: prefer **lazy WebGL on the chat hero**; do **not** iframe Glance.
 
 | Option | Verdict |
 |---|---|
-| **A. iframe → extractable viewer** (same-origin static) | **Pick for Phase 1.** Separate JS realm; can tear down on theme change; SPA bundle stays Three-free; chat input / WS parse cannot be blocked by GL compile. `postMessage` for `{ clip, combo, reducedMotion }`. |
-| **B. Lazy `import()` embed in the SPA** | Allowed **later** (Phase 2+ or a follow-up) if iframe overhead hurts the single header slot. Still code-split; still one context; same fallback. Do not add `three` to `webui/frontend/package.json` dependencies of the chat graph in Phase 1. |
-| **C. Fork the whole Reachy app into `webui/`** | Reject. Operator chrome + subconscious expression UI is out of scope. |
-| **D. Cross-origin hosted viewer** | Reject. Needs network + possible keys; #667 forbids secrets; offline `:8001` must work. |
-| **E. N WebGL contexts (one per rail tile)** | Reject. Breaks §7 budget. |
+| **A. Lazy `import()` of an extractable pose-player on the chat header** | **Pick for Phase 1.** Separate async chunk; SPA `package.json` chat graph stays Three-free until the user selects `robot3d`; one WebGL context; `play(clipId)` is fire-and-forget |
+| **B. Same-origin iframe of that extracted player only** | Allowed **fallback** if the lazy chunk still pollutes input latency or we need a hard realm teardown. Not the default. Still not Glance |
+| **C. Iframe Glance / the whole subconscious app** | **Reject.** Operator chrome + daemon + emotion-wheel is out of scope (PR #10) |
+| **D. Fork the whole Reachy app into `webui/`** | Reject |
+| **E. Cross-origin hosted viewer** | Reject. Network + possible keys; #667 forbids secrets; offline local host must work |
+| **F. N WebGL contexts (one per rail tile)** | Reject. Breaks §7 |
 
-Iframe rules:
+Presence vs tiles:
 
-- Served from the same Django origin as the SPA (`/static/…` or a baked viewer path). No third-party CDN API keys.
-- Sandbox: `allow-scripts`; document why `allow-same-origin` is or is not required after the Reachy audit (WebGL + workers).
-- First contentful chat paint must not wait on iframe `load`. Header shows the 2D fallback until `ready` is posted.
-- `visibilitychange` / unmount → `pause`. Theme switch away from `robot3d` → destroy the iframe (release the GL context).
-- `prefers-reduced-motion: reduce` → static poster, no clip loop.
-
----
-
-## 6. Reachy inspiration (pending sibling audit)
-
-| Claim | Source | This ADR |
+| Slot | Phase 1 | Why |
 |---|---|---|
-| Reachy Mini subconscious / dancing / animated presence is the **feel** target | Matthew / #667 | Design intent only |
-| That app’s WebUI already has Three.js + URDF (`robot-3d/`, `robot_3d.js`) and dances | #667 owner text | **Pending Reachy audit** — not verified from this checkout (repo 404 to this agent; different tree) |
-| Extract a viewer package; do not fork the whole app | #667 constraints | Adopted (§5) |
-| LICENSE + NOTICE must be respected | #667 | Phase 1 blocker; copy into the package |
+| Chat header (`lg`) | **One** live 3D instance (the presence slot) | Reachy-style “alive” chrome without N canvases |
+| Rail rows / fav tiles / avatar-only rail | 2D **poster** (static frame or last 2D theme) | Narrow rail; WebGL per row would blow the budget |
+| Scale-out stacks | unchanged dots | Different widget |
+| Transcript bubbles | no face | Do not add GL to the message list |
 
-Do not cite bone lists, clip file names, or Three versions as fact until the sibling Reachy ADR/report exists. When it does, amend this ADR (or a short addendum) rather than silently changing the manifest.
+Fallback: WebGL fail, `prefers-reduced-motion: reduce`, or chunk still booting → show Blobs (or the user’s last 2D theme). Chat chrome stays painted. First contentful chat paint must not wait on the dynamic import.
+
+Teardown: `visibilitychange` / unmount → `pause`. Theme switch away from `robot3d` → dispose the renderer (release the GL context). Reuse one player across agent switches; `play()` / combo message only.
 
 ---
 
-## 7. Perf budget (SPA on `:8001`)
+## 6. Event hooks (idle / listen / working)
 
-`:8001` is the native/oracle uvicorn+ASGI host that serves the SPA **and** the chat websocket (`docs/ORACLE_DEPLOY.md`, `docker-compose.dev.yml` comments). Implement PRs still must not **deploy** to the live host; the budget is what that process’s browsers will feel.
+Grok chat already has client-side signals — **no new WS mood channel in Phase 1**. Phase 1 may drive `idle` / `working` from these hooks (or a Settings “preview working”). Phase 3 makes the map canonical.
+
+Suggested helper (implement later, not in this PR):
+
+```ts
+export type Robot3dClipId = 'idle' | 'listen' | 'working' | 'dance' | 'error'
+
+export function robot3dClipFromChat(input: {
+  streaming: boolean
+  wsStatus: 'connecting' | 'open' | 'closed' | 'failed'
+  toolRunning: boolean
+  toolError: boolean
+  composerFocused: boolean
+}): Robot3dClipId {
+  if (input.wsStatus === 'failed' || input.toolError) return 'error'
+  if (input.streaming || input.toolRunning) return 'working'
+  if (input.wsStatus === 'open' && input.composerFocused) return 'listen'
+  return 'idle'
+}
+```
+
+| Signal | Where today | Clip |
+|---|---|---|
+| No stream; WS not failed | `ChatPage` `streamingMessage`, `status` | `idle` |
+| WS `open` + composer focused / awaiting user | WS status + focus (**not** a named `listen` flag today) | `listen` (Phase 3; do not treat “WS open” alone as listen — that is today’s Blob `active` bug) |
+| Assistant streaming, or `tool_status` `running` | `chatWs.ts` `ToolStatus`; header stream timer | `working` |
+| WS `failed` / `tool_status` `error` | `chatWs.ts`; Chat header `statusLabel` | `error` (Phase 3) |
+| Optional celebration | Agent Router `happy` only today | `dance` (opt-in, never auto-loop on every reply) |
+
+Inbound `type: "status"` frames on the consumer (`consumers.py`) are **text lines**, not a structured mood enum. Do not invent a server mood SoT until Phase 3 proves those lines are not enough.
+
+Clip changes are fire-and-forget. The player crossfades `MiniPose` sequences; the composer and WS parser do not `await` a frame.
+
+---
+
+## 7. Perf budget (local SPA; do not FF `:8001`)
+
+Implement PRs must not **deploy** to a live `:8001` host. The budget is what a local uvicorn+ASGI browser session will feel.
 
 | Budget | Cap |
 |---|---|
-| Main SPA JS | **0** Three/URDF/GLTF parsers unless `robot3d` is selected (then iframe/package only) |
-| WebGL contexts | **1** (header presence). Zero when theme is Blobs/bland or a custom 2D face is showing |
+| Main SPA JS | **0** Three/URDF/GLTF parsers unless `robot3d` is selected (then the lazy chunk / package only) |
+| WebGL contexts | **1** (header presence). Zero when theme is Blobs/bland/bee or a custom 2D face is showing |
 | Rail / fav / stack | No GL. Poster or existing 2D |
-| Chat first paint / send | Must succeed if the iframe is slow, blocked, or `webglcontextlost` |
+| Chat first paint / send | Must succeed if the chunk is slow, blocked, or `webglcontextlost` |
 | Frame rate | Idle ≤ 30 fps; pause when hidden; no work on `visibilityState === 'hidden'` |
-| Payload (Phase 1 target) | One mesh + idle/working: keep **small**; exact MB **pending Reachy audit**. If the extracted assets exceed a reasonable static budget, ship a decimated preview mesh — do not stream a research-size URDF on every header mount |
-| CPU vs composer | Viewer runs in the iframe; dropped frames must not stall `<input>` or `chatWs` parse |
-| Memory | Destroy iframe on theme-off; no leaked contexts across agent switches (reuse one iframe, `postMessage` combo change) |
-| A11y | Decorative (`aria-hidden`) like today’s faces; do not put a second live region on the header |
+| Payload (Phase 1) | One mesh + idle/working. Prefer a **decimated glTF**, not a research-size URDF+STL dump on every header mount. Exact MB after the chosen tag’s LICENSE check |
+| CPU vs composer | Dropped frames must not stall `<input>` or `chatWs` parse |
+| Memory | Dispose on theme-off; no leaked contexts across agent switches |
+| A11y | Decorative (`aria-hidden`) like today’s faces; no second live region on the header |
 
 No Neon. No new env secrets. Viewer config is public static + the Rail theme key.
 
 ---
 
-## 8. Phased success (implement parked)
+## 8. Rig contract (pointer)
+
+Normative `MiniPose`, clip JSON, mix-and-match rules, and `Robot3dRigManifest` live in the [Reachy report §2](../reports/reachy-3d-avatar-inspiration.md). This ADR does not re-guess Pollen bone strings.
+
+Phase 1 ships one `kind: 'full'` mesh that already plays `idle` / `working`. Phase 2 must not land a second body or head until the manifest validator passes.
+
+---
+
+## 9. Phased success
 
 ### Phase 0 — this PR
 
-- Map today’s themes and render path (done).
-- Pick iframe + extractable package, `robot3d` key, rig contract, perf budget.
-- Sibling Reachy report remains a **separate** deliverable; placeholders above stay until it merges.
+- Reachy report: stack, pose/clip contract, licensing.
+- This ADR: embed path, perf, theme key, event hooks.
+- Optional stub: disabled “3D robot (coming soon)” + ADR link on both pickers.
+- No mesh runtime.
 
-### Phase 1 — one Reachy-like mesh + idle/working
+### Phase 1 — one licensed mesh + idle/working
 
-Suggested implement Issue title: **REQ-194 Phase 1: `robot3d` theme + one licensed mesh (idle/working), chat never blocked**
-
-- Extend `isAvatarTheme` / Django `#os-avatar-theme` / e2e with `robot3d`.
-- Header presence iframe; rail posters.
+- Extend `isAvatarTheme` / Django `#os-avatar-theme` / e2e with selectable `robot3d`.
+- Header presence via lazy pose-player; rail posters.
 - Custom `avatar_path` still wins.
 - Fallback on GL failure / reduced motion.
-- Honor LICENSE+NOTICE from the audit.
-- Coordinate #662 (one store) — do not add a second persist key for the **theme**.
+- Honor LICENSE+NOTICE; extend root NOTICE if anything is vendored.
+- Bake/vendor assets (inspiration STLs are gitignored).
+- Still one persist key.
 
 ### Phase 2 — body/head combo catalog
 
-Suggested title: **REQ-194 Phase 2: robot3d catalog — ≥2 bodies × ≥2 heads on one rig**
-
-- Ship the validator + combo sub-key.
-- Same clips on every legal pair.
+- Validator + combo sub-key.
+- Same `MiniPose` clips on every legal pair.
 - No retargeter.
 
 ### Phase 3 — wire agent status / optional mood
 
-Suggested title: **REQ-194 Phase 3: map chat/WS status to robot3d clips (idle/listen/working/error)**
-
-- Map §2.6 signals; optional `dance` not on every completion.
+- Map §6; optional `dance` not on every completion.
 - Still no blocking `await` on clips.
-- Optional later: structured mood events — only if Phase 3 proves inbound `status` text is not enough.
 
 ---
 
-## 9. Follow-up implement Issues (titles only)
+## 10. Follow-up implement Issues (ready to file)
 
-Do not implement in this PR.
+This agent’s `gh` is read-only, so these are **not** opened automatically. File them as children of #667 (or standalone after #667 closes) using the bodies below.
 
-1. **REQ-194 Phase 1: `robot3d` theme + one licensed mesh (idle/working), chat never blocked**
-2. **REQ-194 Phase 2: robot3d catalog — ≥2 bodies × ≥2 heads on one rig**
-3. **REQ-194 Phase 3: map chat/WS status to robot3d clips (idle/listen/working/error)**
-4. **[#662](https://github.com/matthewhand/open-swarm/issues/662) one avatar-theme store** — include `robot3d` in that single key; fold or destage `/agents` SVG packs
-5. **Amend ADR-008 after Reachy audit** — fill §4 bone names, units, LICENSE, extract file list
-6. **[#540](https://github.com/matthewhand/open-swarm/issues/540) prefs** — migrate `swarm_avatar_theme` (+ combo sub-key) with other UI prefs; localStorage seed-once
+### 10.1 REQ-194 Phase 1
+
+**Title:** REQ-194 Phase 1: `robot3d` theme + one licensed mesh (idle/working), chat never blocked
+
+**Body:**
+
+Parent: #667 (REQ-194). Graph: [ADR-008](https://github.com/matthewhand/open-swarm/blob/main/docs/adr/008-3d-robot-avatar-theme.md), [Reachy report](https://github.com/matthewhand/open-swarm/blob/main/docs/reports/reachy-3d-avatar-inspiration.md), inspiration [PR #10](https://github.com/matthewhand/reachy-subconscious-expression-app/pull/10).
+
+**Intent:** Operators can opt into a 3D robot presence in the chat header without blocking send/paint.
+
+**Success:**
+
+1. `robot3d` is a real `swarm_avatar_theme` value (SPA + Django `#os-avatar-theme`). Default stays Blobs; Bee stays opt-in; custom `avatar_path` still wins.
+2. One extractable pose-player, lazy-loaded on the header only. Playback is baked `MiniPose` sequences for `idle` + `working` — not AnimationMixer, not a live robot daemon, not an iframe of Glance.
+3. Chat first paint / send succeeds if WebGL fails, `prefers-reduced-motion` is reduce, or the chunk is slow (2D fallback).
+4. LICENSE+NOTICE of the chosen Reachy/Pollen/Three/URDF tag copied into root NOTICE. Meshes vendored or baked (inspiration STLs are gitignored). No secrets. No Neon. No FF `:8001`.
+
+**Constraints:** One WebGL context. No Three on the main chat graph until selected. Coordinate the one-store key (closed #662). SaaS N/A.
+
+### 10.2 REQ-194 Phase 2
+
+**Title:** REQ-194 Phase 2: robot3d catalog — ≥2 bodies × ≥2 heads on one MiniPose rig
+
+**Body:**
+
+Parent: #667. Depends on Phase 1.
+
+**Intent:** Swap body/head without rewriting clips.
+
+**Success:**
+
+1. Machine-checkable `Robot3dRigManifest` (report §2.5): socket offsets, rest height ± tolerance, required `idle`/`working`.
+2. ≥2 bodies × ≥2 heads play the same baked MiniPose clips.
+3. Combo persisted in `swarm_avatar_robot3d_combo` **only** while theme is `robot3d`.
+4. Fail closed on illegal pairs. No runtime retargeter. No free-form mesh URLs.
+
+### 10.3 REQ-194 Phase 3
+
+**Title:** REQ-194 Phase 3: map chat/WS status to robot3d clips (idle/listen/working/error)
+
+**Body:**
+
+Parent: #667. Depends on Phase 1.
+
+**Intent:** The header robot tracks agent state the way Blobs track idle/active — without the “WS open == active” false listen.
+
+**Success:**
+
+1. Implement `robot3dClipFromChat` (ADR-008 §6) or equivalent. `listen` requires composer focus / awaiting user, not merely WS `open`.
+2. `working` from streaming or `tool_status` running. `error` from WS failed / tool error.
+3. Optional `dance` is opt-in and never auto-loops on every completion.
+4. Fire-and-forget; no new server mood SoT unless inbound `status` text is proven insufficient.
+
+### 10.4 Related (already filed)
+
+- **#540** prefs — migrate `swarm_avatar_theme` (+ combo sub-key) with other UI prefs; localStorage seed-once.
+- **#662** one store — **closed**. Phase 1 must not reopen a second key.
 
 ---
 
-## 10. Consequences
+## 11. Consequences
 
-- Operators: optional 3D presence in the chat header; Blobs remain the default; bland and custom 2D faces unchanged.
-- Implementers: no Three on the chat critical path; no N canvases; no combo UI before the rig validator; no secrets; no Neon.
-- `/agents` RobotAvatar packs stay a leftover until #662. Do not treat them as the 3D theme.
-- This PR: documentation only. **Addresses** #667 (Phase 0). Does not `Fixes` #667.
+- Operators: optional 3D presence in the chat header in a later PR; Blobs remain the default; bland, Bee, and custom 2D faces unchanged. Phase 0 shows a disabled “coming soon” row that links here.
+- Implementers: no Three on the chat critical path; no N canvases; no combo UI before the MiniPose validator; no Glance iframe; no secrets; no Neon; no FF `:8001`.
+- `/agents` leftover SVG packs stay leftover. Do not treat them as the 3D theme.
+- This PR: Reachy report + this ADR + disabled picker stub. **Fixes #667** as **Phase 0 only**. Phases 1–3 are the §10 follow-ups.

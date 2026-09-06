@@ -11,6 +11,8 @@ def test_req155_settings_dashboard_template_avatar_options():
     assert '<option value="bland">Default</option>' in content
     assert '<option value="blobs">Blobs</option>' in content
     assert '<option value="bee">Bee</option>' in content
+    assert '<option value="robot3d" disabled>3D robot (coming soon)</option>' in content
+    assert "docs/adr/008-3d-robot-avatar-theme.md" in content
 
 
 def test_req155_chrome_avatar_theme_script_defaults_to_blobs():
@@ -22,6 +24,7 @@ def test_req155_chrome_avatar_theme_script_defaults_to_blobs():
     assert 'return "blobs";' in content
     assert 'theme === "bland"' in content
     assert 'theme === "bee"' in content
+    assert "robot3d is reserved" in content
     assert 'localStorage.removeItem(KEY);' in content
 
 
@@ -34,6 +37,8 @@ def test_req155_frontend_avatar_theme_defaults():
     assert "defaultAvatarTheme(): AvatarTheme" in content
     assert "return 'blobs'" in content
     assert "'blobs', 'bland', 'default', 'bee'" in content
+    assert "ROBOT3D_THEME_RESERVED = 'robot3d'" in content
+    assert "008-3d-robot-avatar-theme.md" in content
 
 
 def test_req155_avatar_theme_picker_labels():
@@ -45,5 +50,8 @@ def test_req155_avatar_theme_picker_labels():
     assert ">Default<" in content
     assert ">Blobs<" in content
     assert ">Bee<" in content
+    assert "3D robot (coming soon)" in content
+    assert "disabled" in content
+    assert "ADR-008" in content
     assert "optional choices" in content
     assert "never auto-applied" in content

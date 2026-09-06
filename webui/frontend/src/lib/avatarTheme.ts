@@ -9,6 +9,11 @@
 export const AVATAR_THEME_STORAGE_KEY = 'swarm_avatar_theme'
 export const AVATAR_THEME_SET_EVENT = 'swarm:set-avatar-theme'
 
+/** Reserved REQ-194 key. Not in AVATAR_THEMES until Phase 1 ships the mesh. */
+export const ROBOT3D_THEME_RESERVED = 'robot3d'
+export const ROBOT3D_ADR_HREF =
+  'https://github.com/matthewhand/open-swarm/blob/main/docs/adr/008-3d-robot-avatar-theme.md'
+
 export const AVATAR_THEMES = ['blobs', 'bland', 'default', 'bee'] as const
 export type AvatarTheme = (typeof AVATAR_THEMES)[number]
 
