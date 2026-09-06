@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from typer.testing import CliRunner
@@ -43,15 +44,26 @@ def test_tui_once_renders_rail_and_placeholder(monkeypatch):
     assert "8001" not in result.stdout
 
 
-def test_tui_json_lists_seats(monkeypatch):
+def test_tui_json_lists_seats_and_kind_sections(monkeypatch):
     monkeypatch.setattr(
         "swarm.tui.cli.list_rail_agents",
-        lambda **_: [RailSeat(id="support", name="Support", kind="api", source="blueprints")],
+        lambda **_: [
+            RailSeat(id="support", name="Support", kind="api", source="blueprints"),
+            RailSeat(id="grok", name="Grok", kind="cli", source="cli-agents"),
+            RailSeat(id="team:office", name="Office", kind="team", source="team-rosters"),
+        ],
     )
     result = runner.invoke(app, ["tui", "--json"])
     assert result.exit_code == 0, result.stderr
-    assert '"object": "tui.rail"' in result.stdout
-    assert '"id": "support"' in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["object"] == "tui.rail"
+    assert [row["id"] for row in payload["data"]] == ["support", "grok", "team:office"]
+    # Wave 1b: sections bucket seat ids by kind, empty sections omitted.
+    assert payload["sections"] == {
+        "CLI": ["grok"],
+        "API": ["support"],
+        "Blueprint": ["team:office"],
+    }
 
 
 def test_tui_api_down_is_honest(monkeypatch):

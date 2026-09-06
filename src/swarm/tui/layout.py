@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from swarm.tui.client import RailSeat
+from swarm.tui.client import RailSeat, sectioned_seats
 
 CHAT_PLACEHOLDER = (
     "Chat pane — Wave 1 loads and sends on the selected agent's session.\n"
@@ -18,8 +18,11 @@ def render_scaffold(
 ) -> str:
     """Render Herdr-like chrome as text for ``--once`` / CI."""
     selected = _pick_selected(seats, selected_id)
-    rail_width = max(16, *(len(s.name) + 4 for s in seats)) if seats else 16
-    rail_width = min(rail_width, 28)
+    # Wave 1b: leave room for the kind section label + the seat indent.
+    section_labels = [label for label, _ in sectioned_seats(seats)]
+    content = [s.name for s in seats] + section_labels + ["AGENTS"]
+    rail_width = max(16, *(len(text) + 5 for text in content)) if content else 16
+    rail_width = min(rail_width, 30)
     chat_width = 48
     total = rail_width + chat_width + 3
 
@@ -57,9 +60,12 @@ def _rail_rows(seats: list[RailSeat], selected: str | None, width: int) -> list[
     if not seats:
         rows.append(_pad(" (none — API empty)", width))
         return rows
-    for seat in seats:
-        mark = ">" if seat.id == selected else " "
-        rows.append(_pad(f" {mark} {seat.name}", width))
+    # Wave 1b: kind sections CLI / API / Blueprint / Remote, empty omitted.
+    for label, group in sectioned_seats(seats):
+        rows.append(_pad(f" {label}", width))
+        for seat in group:
+            mark = ">" if seat.id == selected else " "
+            rows.append(_pad(f"  {mark} {seat.name}", width))
     return rows
 
 

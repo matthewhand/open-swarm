@@ -7,12 +7,15 @@ import pytest
 
 from swarm.tui.client import (
     DEFAULT_BASE_URL,
+    RAIL_KIND_SECTIONS,
     RailSeat,
     SwarmApiError,
     is_rail_seat,
     list_rail_agents,
+    rail_section,
     resolve_base_url,
     resolve_token,
+    sectioned_seats,
 )
 
 
@@ -84,15 +87,48 @@ def test_list_rail_agents_merges_and_dedupes():
                     "data": [{"id": "rakazo", "title": "Default Rakazo"}],
                 },
             )
+        if url.endswith("/v1/team-rosters/"):
+            return _response(
+                200,
+                {
+                    "object": "list",
+                    "data": [
+                        {"id": "research", "name": "Research", "members": []},
+                        {
+                            "id": "office",
+                            "name": "Office",
+                            "members": [{"id": "research", "kind": "team"}],
+                        },
+                    ],
+                },
+            )
+        if url.endswith("/v1/herdr-agents/"):
+            return _response(
+                200,
+                {
+                    "object": "list",
+                    "data": [{"id": 7, "name": "workbox", "kind": "herdr"}],
+                },
+            )
         raise AssertionError(url)
 
     seats = list_rail_agents(base_url="http://127.0.0.1:8000", token="test-token", getter=getter)
-    assert [s.id for s in seats] == ["support", "grok", "hermes"]
+    # research is a child team of office → only the root office roster surfaces.
+    assert [s.id for s in seats] == ["support", "grok", "hermes", "team:office", "herdr:workbox"]
     assert seats[0] == RailSeat(id="support", name="Support", kind="api", source="blueprints")
     assert seats[2].kind == "remote"
+    assert seats[3] == RailSeat(
+        id="team:office", name="Office", kind="team", source="team-rosters"
+    )
+    assert seats[4] == RailSeat(
+        id="herdr:workbox", name="workbox", kind="herdr", source="herdr-agents"
+    )
     assert any("/v1/blueprints/" in u for u in calls)
+    assert any("/v1/team-rosters/" in u for u in calls)
+    assert any("/v1/herdr-agents/" in u for u in calls)
     assert "poets" not in {s.id for s in seats}
     assert "rakazo" not in {s.id for s in seats}
+    assert "team:research" not in {s.id for s in seats}
 
 
 def test_list_rail_agents_connection_error_is_honest():
@@ -153,4 +189,50 @@ def test_list_rail_agents_uses_httpx_when_no_getter(monkeypatch):
     assert captured["urls"][0] == "http://127.0.0.1:8000/v1/blueprints/"
     assert any(str(u).endswith("/v1/cli-agents/") for u in captured["urls"])
     assert any(str(u).endswith("/v1/remotes/") for u in captured["urls"])
+    assert any(str(u).endswith("/v1/team-rosters/") for u in captured["urls"])
+    assert any(str(u).endswith("/v1/herdr-agents/") for u in captured["urls"])
     assert isinstance(captured["headers"], dict)
+
+
+def test_missing_team_and_herdr_catalogs_are_optional():
+    def getter(url: str, _headers: dict[str, str]) -> httpx.Response:
+        if url.endswith("/v1/blueprints/"):
+            return _response(200, {"object": "list", "data": []})
+        return _response(404, {"detail": "not found"})
+
+    # Blueprints alone never fabricates teams / herdr members.
+    assert list_rail_agents(getter=getter) == []
+
+
+# --- Wave 1b: kind sections CLI / API / Blueprint / Remote -----------------
+
+
+def test_rail_section_maps_kinds_to_four_sections():
+    assert rail_section("cli") == "CLI"
+    assert rail_section("api") == "API"
+    assert rail_section("blueprint") == "Blueprint"
+    assert rail_section("team") == "Blueprint"  # Team = Blueprint subtype
+    assert rail_section("remote") == "Remote"
+    assert rail_section("herdr") == "Remote"  # Herdr is a Remote implementation
+    assert rail_section("") == "Blueprint"  # catalog rail rows default
+
+
+def test_sectioned_seats_groups_and_omits_empty_sections():
+    seats = [
+        RailSeat(id="grok", name="Grok", kind="cli", source="cli-agents"),
+        RailSeat(id="support", name="Support", kind="api", source="blueprints"),
+        RailSeat(id="team:office", name="Office", kind="team", source="team-rosters"),
+        RailSeat(id="night", name="Night", kind="remote", source="remotes"),
+        RailSeat(id="herdr:workbox", name="workbox", kind="herdr", source="herdr-agents"),
+    ]
+    groups = sectioned_seats(seats)
+    assert [label for label, _ in groups] == ["CLI", "API", "Blueprint", "Remote"]
+    by_label = dict(groups)
+    assert [s.id for s in by_label["CLI"]] == ["grok"]
+    assert [s.id for s in by_label["API"]] == ["support"]
+    assert [s.id for s in by_label["Blueprint"]] == ["team:office"]
+    assert [s.id for s in by_label["Remote"]] == ["night", "herdr:workbox"]
+
+
+def test_rail_kind_sections_are_the_four_user_facing_kinds():
+    assert RAIL_KIND_SECTIONS == ("CLI", "API", "Blueprint", "Remote")

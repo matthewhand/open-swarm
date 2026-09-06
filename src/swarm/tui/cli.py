@@ -13,6 +13,7 @@ from swarm.tui.client import (
     SwarmApiError,
     list_rail_agents,
     resolve_base_url,
+    sectioned_seats,
 )
 from swarm.tui.layout import render_scaffold
 
@@ -104,6 +105,11 @@ def _non_interactive(
                 }
                 for seat in seats
             ],
+            # Wave 1b: kind sections CLI / API / Blueprint / Remote (empty omitted).
+            "sections": {
+                label: [s.id for s in group]
+                for label, group in sectioned_seats(seats)
+            },
         }
         typer.echo(json.dumps(payload, indent=2))
         return

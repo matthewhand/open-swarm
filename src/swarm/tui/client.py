@@ -59,6 +59,41 @@ def is_rail_seat(row: dict[str, Any]) -> bool:
     return row.get("rail") is True
 
 
+# Wave 1b: the rail groups seats under the four user-facing kind sections
+# (README "Kinds lock" / ADR-006). Teams are a Blueprint subtype and Herdr is
+# a Remote implementation (README "Team = Blueprint subtype"; ADR-011), so
+# their seats classify into Blueprint / Remote rather than extra headings.
+RAIL_KIND_SECTIONS: tuple[str, ...] = ("CLI", "API", "Blueprint", "Remote")
+
+_RAIL_SECTION_BY_KIND = {
+    "cli": "CLI",
+    "api": "API",
+    "blueprint": "Blueprint",
+    "team": "Blueprint",
+    "remote": "Remote",
+    "herdr": "Remote",
+}
+
+
+def rail_section(kind: str) -> str:
+    """Map a seat ``kind`` to its rail kind-section heading (Wave 1b)."""
+    return _RAIL_SECTION_BY_KIND.get((kind or "").strip().lower(), "Blueprint")
+
+
+def sectioned_seats(
+    seats: list[RailSeat],
+) -> list[tuple[str, list[RailSeat]]]:
+    """Group seats into the four kind sections; empty sections are omitted."""
+    buckets: dict[str, list[RailSeat]] = {}
+    for seat in seats:
+        buckets.setdefault(rail_section(seat.kind), []).append(seat)
+    return [
+        (label, buckets[label])
+        for label in RAIL_KIND_SECTIONS
+        if label in buckets
+    ]
+
+
 def _headers(token: str | None) -> dict[str, str]:
     headers = {"Accept": "application/json"}
     if token:
@@ -149,6 +184,51 @@ def _seats_from_remotes(payload: dict[str, Any]) -> list[RailSeat]:
     return seats
 
 
+def _seats_from_team_rosters(payload: dict[str, Any]) -> list[RailSeat]:
+    """Each saved roster is one team seat, namespaced ``team:<id>`` (SPA rail id).
+
+    Nested teams (a roster listed as a ``kind=team`` member of another roster)
+    are surfaced through their parent, exactly like the SPA rail's root teams.
+    """
+    rosters = [r for r in payload.get("data") or [] if isinstance(r, dict)]
+    child_ids = {
+        str(member.get("team_id") or member.get("id") or "").strip()
+        for roster in rosters
+        for member in roster.get("members") or []
+        if isinstance(member, dict) and str(member.get("kind") or "").strip() == "team"
+    }
+    seats: list[RailSeat] = []
+    for roster in rosters:
+        roster_id = str(roster.get("id") or "").strip()
+        if not roster_id or roster_id in child_ids:
+            continue
+        name = str(roster.get("name") or roster_id).strip() or roster_id
+        seats.append(
+            RailSeat(
+                id=f"team:{roster_id}",
+                name=name,
+                kind="team",
+                source="team-rosters",
+            )
+        )
+    return seats
+
+
+def _seats_from_herdr_agents(payload: dict[str, Any]) -> list[RailSeat]:
+    """Persisted Herdr members become rail seats ``herdr:<name>`` (SPA id)."""
+    seats: list[RailSeat] = []
+    for row in payload.get("data") or []:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        seats.append(
+            RailSeat(id=f"herdr:{name}", name=name, kind="herdr", source="herdr-agents")
+        )
+    return seats
+
+
 def _dedupe(seats: list[RailSeat]) -> list[RailSeat]:
     seen: set[str] = set()
     out: list[RailSeat] = []
@@ -169,8 +249,11 @@ def list_rail_agents(
 ) -> list[RailSeat]:
     """List AGENTS-rail seats from the running swarm-api.
 
-    ``GET /v1/blueprints/`` is required. ``/v1/cli-agents/`` and
-    ``/v1/remotes/`` merge when present. Teams / Herdr members are Wave 1.
+    ``GET /v1/blueprints/`` (rail filter) is required. ``/v1/cli-agents/``
+    ``.rail``, ``/v1/remotes/`` ``.configured``, ``/v1/team-rosters/`` and
+    ``/v1/herdr-agents/`` merge when present (Wave 1b parity with the SPA
+    AgentSidebar). Seats dedupe by id; teams keep their ``team:`` / ``herdr:``
+    rail ids so a roster never collides with a catalog seat of the same name.
     """
     base = resolve_base_url(base_url)
     auth = token if token is not None else resolve_token()
@@ -193,5 +276,13 @@ def list_rail_agents(
     remotes_payload = _optional_json(fetch, _url(base, "/v1/remotes/"), headers)
     if remotes_payload is not None:
         seats.extend(_seats_from_remotes(remotes_payload))
+
+    teams_payload = _optional_json(fetch, _url(base, "/v1/team-rosters/"), headers)
+    if teams_payload is not None:
+        seats.extend(_seats_from_team_rosters(teams_payload))
+
+    herdr_payload = _optional_json(fetch, _url(base, "/v1/herdr-agents/"), headers)
+    if herdr_payload is not None:
+        seats.extend(_seats_from_herdr_agents(herdr_payload))
 
     return _dedupe(seats)
