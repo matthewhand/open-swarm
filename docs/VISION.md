@@ -42,6 +42,9 @@ Open Swarm closes that gap on three axes:
 3. **Surface** — a **Grok-like WebUI** (rail, remotes, sessions) is
    first-class, and the same work is reachable as an OpenAI-compatible API
    (`/v1/chat/completions`, `/v1/responses`, `/v1/models`) and as `swarm-cli`.
+   The CLI TUI (`swarm-cli tui`, [REQ-111](https://github.com/matthewhand/open-swarm/issues/481)
+   / [ADR-012](./adr/012-swarm-cli-tui.md)) is another **client of that API**,
+   not a second runtime and not Herdr’s SSH TUI.
 
 The thesis: **you do not need one model, one CLI, or one harness to be best
 at everything.** You need a cheap inference seat to triage, a strong CLI or
@@ -171,6 +174,7 @@ SaaS product is claimed here.
 | Cross-conversation memory (mem0) | 🟡 | Wired, not validated against a live mem0 |
 | True **API** inference seat (no `BlueprintBase`) | 📋 | ADR-006 Phase 2; today’s “API” tab writes a blueprint |
 | Desktop zip (pywebview) | 📋 | [ADR-003](./adr/003-desktop-packaging.md) — no installer |
+| `swarm-cli tui` (REQ-111 / #481) | 🟡 | [ADR-012](./adr/012-swarm-cli-tui.md). Interactive client of the same API. Landed: `--once` ASCII dump (CI), Textual rail with kind sections, Bearer REST + honest API-down, `GET /chat/thread/` hydrate, REST SSE send + streaming, composer, `n`/`s` sessions. Wave 3b (WS cookie jar) decided-skip — REST SSE covers the SPA-chat seats. Wave 4a documented interactive front door + 4b `/` rail search/filter. |
 | Hosted Fly / public live demo | — | **Not claimed.** Deploy workflow exists; this doc does not sell a running cloud. |
 
 ### Proof the CLI path is real (not mocks)
@@ -209,6 +213,10 @@ network.
 - **Memory** — mem0 opt-in, not live-validated; `langmem` / `papr` are
   placeholders.
 - **Desktop** — ADR only; no installer.
+- **CLI TUI (#481)** — Waves 0–3a landed: `swarm-cli tui` is an interactive
+  rail + chat client of the same REST/SSE API (hydrate, send + stream,
+  sessions); `--once` dump stays for CI. Wave 3b (cookie jar) decided-skip in
+  [ADR-012](./adr/012-swarm-cli-tui.md). Not Herdr SSH.
 
 Do not treat [ROADMAP.md](../ROADMAP.md) as rewritten here. Granular rows
 stay on FEATURE_STATUS / ROADMAP.
@@ -221,7 +229,7 @@ stay on FEATURE_STATUS / ROADMAP.
 flowchart TB
   subgraph surfaces [First-class surfaces]
     UI["WebUI — Grok-like rail + chat"]
-    CLI_UX["swarm-cli"]
+    CLI_UX["swarm-cli + TUI"]
     CLIENT["OpenAI client — SDK, curl, Open WebUI"]
   end
   OS[Open Swarm]

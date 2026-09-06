@@ -227,7 +227,7 @@ def test_hover_to_here_keeps_later_messages_raw(stub_compact_llm):
 
 
 @pytest.mark.django_db
-def test_compact_endpoint_accepts_through_message_id():
+def test_compact_endpoint_accepts_through_message_id(stub_compact_llm):
     user = get_user_model().objects.create_user("compress-api", password="pw")
     from django.test import Client
 

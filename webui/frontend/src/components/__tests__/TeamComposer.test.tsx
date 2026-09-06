@@ -102,7 +102,7 @@ describe('TeamComposer first-launch overlay', () => {
     fireEvent.drop(dropZone, { dataTransfer: dt })
 
     const roster = await screen.findByRole('list', { name: /roster members/i })
-    expect(within(roster).getByText('jeeves')).toBeInTheDocument()
+    expect(within(roster).getByText('Jeeves')).toBeInTheDocument()
     expect(within(roster).getByText('API')).toBeInTheDocument()
     expect(within(roster).getByDisplayValue('default')).toBeInTheDocument()
   })

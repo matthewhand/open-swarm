@@ -60,6 +60,30 @@ def test_source_lock_shared_json_first_load_order():
 
 
 @pytest.fixture
+def isolate_thread_load_runtime(tmp_path, monkeypatch):
+    """JSON-first load must not see leftover cache or on-mode from other tests.
+
+    ``conversation_id_for`` is ``agt-{user.pk}-{agent}``. Django transactional
+    tests recycle pk=1, so a prior test's empty
+    ``IN_MEMORY_CONVERSATIONS[(1, cid)]`` (or REQ-171C-4 on-mode mint) makes
+    ``fetch_conversation`` return [] before JSON. Isolate both so this module
+    tests ts/edited, not session policy.
+    """
+    from swarm.consumers import IN_MEMORY_CONVERSATIONS, IN_MEMORY_UI_EVENTS
+    from swarm.core import agent_settings as settings_store
+
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+    IN_MEMORY_CONVERSATIONS.clear()
+    IN_MEMORY_UI_EVENTS.clear()
+    yield
+    IN_MEMORY_CONVERSATIONS.clear()
+    IN_MEMORY_UI_EVENTS.clear()
+    settings_store.reset_agent_settings_cache()
+
+
+@pytest.fixture
 def user(db):  # noqa: ARG001 — pytest django_db fixture
     return get_user_model().objects.create_user(username="thread-load-op", password="pw")
 
@@ -115,14 +139,25 @@ def _fetch_sync(user, conversation_id, agent="codey"):
 
 
 @pytest.mark.django_db
+def test_prior_test_may_leave_empty_memory_cache(user):
+    """Recycled pk=1 + ``agt-1-codey`` is the GitHub-only empty-fetch key."""
+    from swarm.consumers import IN_MEMORY_CONVERSATIONS
+
+    cid = chat_store.conversation_id_for(user, "codey")
+    cache_key = _conversation_cache_key(user, cid)
+    IN_MEMORY_CONVERSATIONS[cache_key] = []
+    assert IN_MEMORY_CONVERSATIONS[cache_key] == []
+
+
+@pytest.mark.django_db
 def test_fetch_conversation_keeps_json_ts_and_edited_and_matches_http(
-    client, user, tmp_path, monkeypatch
+    client, user, isolate_thread_load_runtime
 ):
     """JSON with ts+edited survives WS fetch; HTTP GET matches."""
-    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
     cid = _seed_json_with_ts_edited(user)
 
     fetched = _fetch_sync(user, cid)
+    assert fetched, "fetch_conversation returned no turns (cache/on-mode leak?)"
     assert fetched[0]["content"] == EDITED_CONTENT
     assert fetched[0]["ts"] == TS
     assert fetched[0]["edited"] is True
@@ -140,8 +175,7 @@ def test_fetch_conversation_keeps_json_ts_and_edited_and_matches_http(
 
 
 @pytest.mark.django_db
-def test_load_thread_prefers_json_over_stripped_db(user, tmp_path, monkeypatch):
-    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
+def test_load_thread_prefers_json_over_stripped_db(user, isolate_thread_load_runtime):
     cid = _seed_json_with_ts_edited(user, "jeeves")
     loaded = load_thread(
         user,
@@ -155,10 +189,9 @@ def test_load_thread_prefers_json_over_stripped_db(user, tmp_path, monkeypatch):
 
 
 @pytest.mark.django_db
-def test_cache_key_stays_composite_after_json_load(user, tmp_path, monkeypatch):
+def test_cache_key_stays_composite_after_json_load(user, isolate_thread_load_runtime):
     from swarm.consumers import IN_MEMORY_CONVERSATIONS
 
-    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path / "chats"))
     cid = _seed_json_with_ts_edited(user)
     _fetch_sync(user, cid)
     assert _conversation_cache_key(user, cid) in IN_MEMORY_CONVERSATIONS

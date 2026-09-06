@@ -222,7 +222,9 @@
       <h3 class="h6" id="herdr-remote-kind-heading">Herdr remote (Settings Remotes kind)</h3>
       <p class="os-meta mb-2">
         Add kind <code>herdr</code>. This is <strong>not</strong> an HTTP remote
-        like OpenMousBot / Hermes / Rakazo. <strong>Local Herdr</strong> talks to
+        like OpenMousBot / Hermes / Rakazo (those HTTP remotes store an
+        <code>api-key-env</code> name only — never a pasted token).
+        <strong>Local Herdr</strong> talks to
         Herdr on this host (no SSH; localhost URL only if you choose that).
         <strong>Remote Herdr</strong> is SSH-shaped: host + user, optional
         identity env-var name (path, never a private key) and SSH agent.

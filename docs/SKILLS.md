@@ -24,7 +24,7 @@ A skill is **any directory** that holds a `SKILL.md`. The walker is
 
 Bundled examples live at repo-root `skills/<name>/SKILL.md`
 (`conventional-commit`, `counting-lines`, `reviewing-code`,
-`writing-changelog`, `support-session-ownership`).
+`writing-changelog`, `support-session-ownership`, `self-update-pr`).
 
 List/detail over HTTP:
 

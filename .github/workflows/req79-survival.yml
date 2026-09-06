@@ -1,0 +1,72 @@
+name: REQ-79 Survival
+
+on:
+  pull_request:
+    paths:
+      - "src/swarm/core/self_update.py"
+      - "src/swarm/core/pr_opened.py"
+      - "src/swarm/core/blueprint_base.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/web_views.py"
+      - "skills/self-update-pr/SKILL.md"
+      - "scripts/prove_self_update.py"
+      - "docs/SELF_UPDATE.md"
+      - "docs/requirements/REQ-79.md"
+      - "tests/core/test_self_update.py"
+      - "tests/unit/test_req79_survival.py"
+      - "tests/views/test_req79_spa_hydrate.py"
+      - "tests/test_consumers.py"
+      - "webui/frontend/index.html"
+      - "webui/frontend/src/main.tsx"
+      - "webui/frontend/e2e/smoke.spec.ts"
+      - ".github/workflows/req79-survival.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/swarm/core/self_update.py"
+      - "src/swarm/core/pr_opened.py"
+      - "src/swarm/core/blueprint_base.py"
+      - "src/swarm/consumers.py"
+      - "src/swarm/views/web_views.py"
+      - "skills/self-update-pr/SKILL.md"
+      - "scripts/prove_self_update.py"
+      - "docs/SELF_UPDATE.md"
+      - "docs/requirements/REQ-79.md"
+      - "tests/core/test_self_update.py"
+      - "tests/unit/test_req79_survival.py"
+      - "tests/views/test_req79_spa_hydrate.py"
+      - "tests/test_consumers.py"
+      - "webui/frontend/index.html"
+      - "webui/frontend/src/main.tsx"
+      - "webui/frontend/e2e/smoke.spec.ts"
+      - ".github/workflows/req79-survival.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-79 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/core/test_self_update.py \
+            tests/unit/test_req79_survival.py \
+            tests/views/test_req79_spa_hydrate.py \
+            tests/test_consumers.py \
+            -k "self_update or req79 or cli_stdout_github_pr or cli_stdout_without_pr or unused_tools or spa_root or blueprint_session_notice"
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"
+
+      - name: Self-update harness (fixture, no live PR)
+        run: uv run python scripts/prove_self_update.py

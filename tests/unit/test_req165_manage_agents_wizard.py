@@ -7,6 +7,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WIZARD_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AddAgentWizard.tsx"
+BINDING_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentWorkspaceBinding.tsx"
+WORKSPACE_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "agentWorkspace.ts"
 SIDEBAR_TSX = REPO_ROOT / "webui" / "frontend" / "src" / "components" / "AgentSidebar.tsx"
 AGENT_EDITS_TS = REPO_ROOT / "webui" / "frontend" / "src" / "lib" / "agentEdits.ts"
 
@@ -24,12 +26,15 @@ def test_add_agent_wizard_manage_surface():
 
 
 def test_cli_folder_field_and_validation():
-    content = WIZARD_TSX.read_text(encoding="utf-8")
-    # REQ-167: Folder field and help text
-    assert 'data-testid="input-cli-folder"' in content
-    assert "Working directory for this CLI agent" in content
-    assert "isValidFolderPath" in content
-    assert "folder-error" in content
+    wizard = WIZARD_TSX.read_text(encoding="utf-8")
+    binding = BINDING_TSX.read_text(encoding="utf-8")
+    workspace = WORKSPACE_TS.read_text(encoding="utf-8")
+    # REQ-167 / REQ-166: Folder field lives on AgentWorkspaceBinding; wizard validates.
+    assert "AgentWorkspaceBinding" in wizard
+    assert 'data-testid="input-cli-folder"' in binding
+    assert "Working directory for this CLI agent" in workspace
+    assert "isValidFolderPath" in wizard
+    assert "folder-error" in binding
 
 
 def test_agent_edits_supports_folder_and_command():

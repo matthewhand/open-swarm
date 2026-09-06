@@ -44,9 +44,12 @@ def test_navbar_uses_one_cascading_picker_not_sibling_selects():
 
 
 def test_no_live_host_or_secrets_in_req200_surface():
+    import re
+
+    secret_key = re.compile(r"(?<![A-Za-z])sk-[A-Za-z0-9]{8,}")
     for path in (CHAT_PAGE, PICKER, PATH_LIB):
         text = path.read_text(encoding="utf-8")
         assert ":8001" not in text
-        assert "sk-" not in text
+        assert secret_key.search(text) is None, f"{path.name} looks like it embeds an API key"
         assert "OPENAI_API_KEY" not in text
         assert "localhost:8001" not in text

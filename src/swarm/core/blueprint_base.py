@@ -826,13 +826,15 @@ class BlueprintBase(ABC):
 
         role = normalize_agent_role(kwargs.pop("role", None) or role)
         mailbox_ctx = getattr(self, "_mailbox_context", None)
+        # REQ-79: unused tools must not crash Agent() — None becomes [].
+        tools = list(tools or [])
         if mailbox_ctx is not None:
             extra = mailbox_ctx.tool_objects()
-            tools = list(tools or []) + extra
+            tools = tools + extra
         lifecycle_ctx = getattr(self, "_lifecycle_context", None)
         if lifecycle_ctx is not None:
             extra = lifecycle_ctx.tool_objects()
-            tools = list(tools or []) + extra
+            tools = tools + extra
         agent = Agent(
             name=name,
             model=model_instance,

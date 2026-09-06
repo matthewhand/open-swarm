@@ -6,8 +6,8 @@ describe('isExperimentalEnabled', () => {
     localStorage.clear()
   })
 
-  it('defaults to ON when no preference is stored', () => {
-    expect(isExperimentalEnabled('command_palette')).toBe(true)
+  it('defaults command palette OFF and other experiments ON when no preference is stored', () => {
+    expect(isExperimentalEnabled('command_palette')).toBe(false)
     expect(isExperimentalEnabled('chat_message_actions')).toBe(true)
   })
 
@@ -24,8 +24,10 @@ describe('isExperimentalEnabled', () => {
     expect(isExperimentalEnabled('command_palette')).toBe(true)
   })
 
-  it('treats unknown values as ON', () => {
+  it('treats unknown command-palette values as OFF and other unknown values as ON', () => {
     localStorage.setItem('swarm_experimental_command_palette', 'maybe')
-    expect(isExperimentalEnabled('command_palette')).toBe(true)
+    expect(isExperimentalEnabled('command_palette')).toBe(false)
+    localStorage.setItem('swarm_experimental_chat_message_actions', 'maybe')
+    expect(isExperimentalEnabled('chat_message_actions')).toBe(true)
   })
 })

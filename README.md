@@ -8,7 +8,7 @@ Brand marks live under [`assets/brand/`](assets/brand/): **minimal** for the tab
 
 **Open Swarm** is a Grok-like WebUI and an OpenAI-compatible API that seats four kinds of agents — **CLI**, **API** (true inference), **Blueprint** (programmatic / openai-agents), and **Remote** (Hermes / OpenMousBot / Rakazo / Herdr) — and composes them with **handoff** and **agent-as-tool**. The same blueprint runs from `swarm-cli` and from `/v1/chat/completions`.
 
-**WebUI is first-class:** left rail + the selected agent’s chat. Other clients (SDK, curl, Open WebUI) hit the same seats at `/v1/chat/completions` and `/v1/responses`.
+**WebUI is first-class:** left rail + the selected agent’s chat. Other clients (SDK, curl, Open WebUI, and `swarm-cli tui` — the interactive terminal client of that same API, [REQ-111](https://github.com/matthewhand/open-swarm/issues/481)) hit the same seats at `/v1/chat/completions` and `/v1/responses`. `swarm-cli tui` opens an AGENTS rail + live chat (hydrate, send + stream, sessions) over the WebUI’s REST + SSE. Every client is one API — no second runtime, no remote Herdr SSH.
 
 AI enthusiasts juggle many frameworks; some combine CLIs and APIs, but still do not talk to **remote harnesses** (Hermes, OpenMousBot as remote, …). Open Swarm is a **Grok-agnostic** Grok-Bot-like UI **and** a bridge — task one place, coordinate across CLI, API, remotes, and local blueprints.
 

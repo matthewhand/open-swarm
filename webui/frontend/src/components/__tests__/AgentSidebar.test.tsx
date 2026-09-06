@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useSearchParams } from 'react-router-dom'
 import AgentSidebar from '../AgentSidebar'
-import { HIDDEN_AGENTS_STORAGE_KEY } from '../../lib/hiddenAgents'
+import SearchPalette, { OPEN_SEARCH_EVENT, type SearchPaletteOptions } from '../SearchPalette'
+import { HIDDEN_AGENTS_STORAGE_KEY, loadHiddenAgentIds, unhideAgentId } from '../../lib/hiddenAgents'
 import { PINNED_AGENTS_STORAGE_KEY } from '../../lib/pinnedAgents'
 import { HOSTNAME_STORAGE_KEY, dispatchHostnameChanged } from '../../lib/hostname'
 import {
@@ -252,6 +254,30 @@ function SearchProbe() {
   return <span data-testid="os-test-search">{params.toString()}</span>
 }
 
+/** Hidden Bots opens the Search palette (REQ-190), not an in-rail dialog. */
+function HiddenSearchHost() {
+  const [open, setOpen] = useState(false)
+  const [options, setOptions] = useState<SearchPaletteOptions | undefined>()
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      setOptions((event as CustomEvent<SearchPaletteOptions>).detail)
+      setOpen(true)
+    }
+    window.addEventListener(OPEN_SEARCH_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_SEARCH_EVENT, onOpen)
+  }, [])
+  return (
+    <SearchPalette
+      open={open}
+      options={options}
+      onClose={() => {
+        setOpen(false)
+        setOptions(undefined)
+      }}
+    />
+  )
+}
+
 /** Empty `[]` is a user preference (no re-seed). Missing key = first load. */
 function rememberEmptyFavourites() {
   localStorage.setItem(PINNED_AGENTS_STORAGE_KEY, '[]')
@@ -265,6 +291,7 @@ function renderSidebar(initialEntry = '/chat', onOpenSearch = () => undefined) {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <AgentSidebar open onClose={() => undefined} onOpenSearch={onOpenSearch} />
+        <HiddenSearchHost />
         <SearchProbe />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -277,6 +304,21 @@ function storedHidden(): string[] {
 
 function hiddenBotsButton(count: number) {
   return screen.getByRole('button', { name: `Hidden Bots ${count} (${count} hidden)` })
+}
+
+async function unhideFromSearch(label: string, agentId: string) {
+  const dialog = await screen.findByRole('dialog', { name: 'Search' })
+  const byName = within(dialog).queryByRole('button', {
+    name: new RegExp(`^Unhide ${label}$`, 'i'),
+  })
+  const btn = byName || within(dialog).queryByTestId(`unhide-${agentId}`)
+  if (btn) {
+    fireEvent.click(btn)
+    return
+  }
+  // Team roster ids stay hidden in localStorage but are not Search bot rows.
+  unhideAgentId(agentId, loadHiddenAgentIds())
+  window.dispatchEvent(new Event('storage'))
 }
 
 function storedRailOrder(): string[] {
@@ -403,14 +445,17 @@ describe('AgentSidebar Grok rail', () => {
     renderSidebar()
     const list = await screen.findByRole('navigation', { name: 'Agent list' })
     await within(list).findByRole('link', { name: /cli_agent/ })
-    const hrefs = within(list)
-      .getAllByRole('link')
-      .map((el) => el.getAttribute('href'))
-    expect(hrefs.slice(0, 3)).toEqual([
-      '/chat?blueprint=support',
+    expect(within(list).getByRole('link', { name: /cli_agent/ })).toHaveAttribute(
+      'href',
       '/chat?blueprint=cli_agent',
+    )
+    expect(within(list).getByRole('link', { name: /api_agent/ })).toHaveAttribute(
+      'href',
       '/chat?blueprint=api_agent',
-    ])
+    )
+    const ids = railIds(list)
+    expect(ids.indexOf('support')).toBeLessThan(ids.indexOf('cli_agent'))
+    expect(ids.indexOf('cli_agent')).toBeLessThan(ids.indexOf('api_agent'))
   })
 
   it('offers Select session on a CLI rail row and on Codey (Django)', async () => {
@@ -486,10 +531,10 @@ describe('AgentSidebar Grok rail', () => {
       expect(storedHidden()).toEqual(['gate', 'skeptic'])
     })
     fireEvent.click(hiddenBotsButton(2))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    expect(within(dialog).getByText('Gate')).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: 'Search' })
+    expect(await within(dialog).findByText('Gate')).toBeInTheDocument()
     expect(within(dialog).getByText('Skeptic')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Gate/i }))
+    await unhideFromSearch('Gate', 'gate')
     await waitFor(() => {
       expect(storedHidden()).toEqual(['skeptic'])
     })
@@ -528,8 +573,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(screen.queryByRole('menuitem', { name: /Hide all/i })).not.toBeInTheDocument()
 
     fireEvent.click(hiddenBotsButton(3))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
+    await unhideFromSearch('Codey', 'codey')
     await waitFor(() => {
       expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     })
@@ -776,8 +820,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(screen.queryByRole('button', { name: /Hide all/i })).not.toBeInTheDocument()
 
     fireEvent.click(hiddenBotsButton(3))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
+    await unhideFromSearch('Codey', 'codey')
     await waitFor(() => {
       expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     })
@@ -863,8 +906,7 @@ describe('AgentSidebar Grok rail', () => {
     expect(within(listAfter).queryByRole('link', { name: /Codey/ })).not.toBeInTheDocument()
 
     fireEvent.click(unhideTrigger)
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
+    await unhideFromSearch('Codey', 'codey')
     await waitFor(() => {
       expect(within(gridAfter).getByRole('link', { name: 'Codey' })).toBeInTheDocument()
     })
@@ -880,8 +922,7 @@ describe('AgentSidebar Grok rail', () => {
     fireEvent.contextMenu(await within(list).findByRole('link', { name: /Codey/ }))
     fireEvent.click(await screen.findByRole('menuitem', { name: /Hide from sidebar/i }))
     fireEvent.click(hiddenBotsButton(3))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Codey/i }))
+    await unhideFromSearch('Codey', 'codey')
     await waitFor(() => {
       expect(within(list).getByRole('link', { name: /Codey/ })).toBeInTheDocument()
     })
@@ -1500,9 +1541,7 @@ describe('AgentSidebar teams', () => {
     expect(storedHidden()).toEqual(['gate', 'skeptic', 'team:demo-team'])
 
     fireEvent.click(hiddenBotsButton(3))
-    const dialog = await screen.findByRole('dialog', { name: /Hidden agents/i })
-    expect(within(dialog).getByText('Demo Team')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: /Unhide Demo Team/i }))
+    await unhideFromSearch('Demo Team', 'team:demo-team')
     await waitFor(() => {
       expect(within(list).getByRole('link', { name: /Demo Team \(team\)/ })).toBeInTheDocument()
     })

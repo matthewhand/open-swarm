@@ -33,9 +33,9 @@ describe('REQ-190: Hidden Bots opens Search palette filtered to hidden', () => {
             status: 200,
             json: async () => ({
               data: [
-                { id: 'gate', name: 'Gate Agent', description: 'Safety gate', role: 'gate' },
-                { id: 'skeptic', name: 'Skeptic Agent', description: 'Reviewer', role: 'skeptic' },
-                { id: 'codey', name: 'Codey', description: 'Developer agent' },
+                { id: 'gate', name: 'Gate Agent', description: 'Safety gate', role: 'gate', rail: true },
+                { id: 'skeptic', name: 'Skeptic Agent', description: 'Reviewer', role: 'skeptic', rail: true },
+                { id: 'codey', name: 'Codey', description: 'Developer agent', rail: true },
               ],
             }),
           } as Response

@@ -32,14 +32,20 @@ class MockWebSocket {
 }
 
 let dockHeight = 72
-let resizeCallback: ResizeObserverCallback | null = null
+const resizeObservers: ResizeObserverCallback[] = []
+
+function fireResizeObservers() {
+  resizeObservers.forEach((cb) => {
+    cb([], {} as ResizeObserver)
+  })
+}
 
 class MockResizeObserver {
   constructor(cb: ResizeObserverCallback) {
-    resizeCallback = cb
+    resizeObservers.push(cb)
   }
   observe() {
-    resizeCallback?.([], this as unknown as ResizeObserver)
+    fireResizeObservers()
   }
   unobserve() {}
   disconnect() {}
@@ -120,7 +126,7 @@ describe('REQ #743: chat history never scrolls under floating composer', () => {
 
   beforeEach(() => {
     dockHeight = 72
-    resizeCallback = null
+    resizeObservers.length = 0
     MockWebSocket.instances = []
     window.HTMLElement.prototype.scrollIntoView = vi.fn()
     restoreRect = mockDockRect()
@@ -171,7 +177,7 @@ describe('REQ #743: chat history never scrolls under floating composer', () => {
 
     dockHeight = 148
     await act(async () => {
-      resizeCallback?.([], {} as ResizeObserver)
+      fireResizeObservers()
     })
 
     const scrollPane = screen.getByRole('log', { name: 'Conversation' })
@@ -195,7 +201,7 @@ describe('REQ #743: chat history never scrolls under floating composer', () => {
     expect(screen.getByTestId('composer-working-indicator')).toBeInTheDocument()
     dockHeight = 104
     await act(async () => {
-      resizeCallback?.([], {} as ResizeObserver)
+      fireResizeObservers()
     })
 
     const scrollPane = screen.getByRole('log', { name: 'Conversation' })

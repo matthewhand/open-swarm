@@ -32,6 +32,7 @@ Oracle from anything in this tree.
 | [REQ-66](./REQ-66.md) | [Scale-out rail — stacked avatars + session picker popup](https://github.com/matthewhand/open-swarm/issues/394) |
 | [REQ-67](./REQ-67.md) | [Role chrome is the badge only — no row fill/border](https://github.com/matthewhand/open-swarm/issues/396) |
 | [REQ-75](./REQ-75.md) | [Blueprint abstraction — roles/workflows, still CLI/API only](https://github.com/matthewhand/open-swarm/issues/420) |
+| [REQ-79](./REQ-79.md) | [Survival — CLI/API chat works; prove open-swarm can update itself](https://github.com/matthewhand/open-swarm/issues/424) |
 | [REQ-68](./REQ-68.md) | [Stacked avatars for teams and remotes (3 most recent, animate while working)](https://github.com/matthewhand/open-swarm/issues/398) |
 | [REQ-70](./REQ-70.md) | [Status/info as reconstructed UI metadata](https://github.com/matthewhand/open-swarm/issues/789) (parent [#407](https://github.com/matthewhand/open-swarm/issues/407)) |
 | [REQ-80](./REQ-80.md) | [Agent right pane — Routines (PR-merge trigger, history, Test run)](https://github.com/matthewhand/open-swarm/issues/432) |
@@ -43,6 +44,7 @@ Oracle from anything in this tree.
 | [REQ-106](./REQ-106.md) | [Bee brand mark — SVG favicon + multi-size app icons (colour + mono)](https://github.com/matthewhand/open-swarm/issues/470); surface split [minimal / geometric / cyber-swarm](https://github.com/matthewhand/open-swarm/issues/768) |
 | [REQ-107](./REQ-107.md) | [Team designer — optional Chief of Staff + how-to-use-the-team instructions](https://github.com/matthewhand/open-swarm/issues/475) |
 | [REQ-108](./REQ-108.md) | [Classifier roles — verdict via tool call + continue nudges](https://github.com/matthewhand/open-swarm/issues/476) |
+| [REQ-111](./REQ-111.md) | [swarm-cli TUI — Herdr-like rail + chat over the same API as WebUI](https://github.com/matthewhand/open-swarm/issues/481) |
 | [REQ-135](./REQ-135.md) | [Showoff demo agents — kind-clear names + team personas](https://github.com/matthewhand/open-swarm/issues/526) |
 | [REQ-136](./REQ-136.md) | [Launch spiel + 15–30s GIF — Grok-agnostic UI + multi-harness bridge](https://github.com/matthewhand/open-swarm/issues/529) |
 | [REQ-189](./REQ-189.md) | [Look-only — OMB+Rakazo local computer control → open-swarm adaptation](https://github.com/matthewhand/open-swarm/issues/645) |
