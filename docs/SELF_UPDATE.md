@@ -90,7 +90,7 @@ the PR remains the in-app CLI's job.
 
 ## Constraints
 
-- Own-diff. No Neon. No secrets / tokens in Issues or PRs.
-- No guessed LAN hosts. No feature-flag `:8001`.
+- Own-diff. No hosted-database SaaS. No secrets / tokens in Issues or PRs.
+- No guessed LAN hosts. No feature-flag preview listen port.
 - Do not bounce Hermes. Do not fold into #344.
 - Chat/session resume work already on `main` is reused, not rewritten.

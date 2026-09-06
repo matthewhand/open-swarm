@@ -13,8 +13,8 @@ You are running **inside open-swarm SPA chat** as a catalogued coding CLI
 ## Working directory
 
 Use the agent's **Folder** (the open-swarm checkout). Do not invent a LAN
-host or `:8001`. Do not write secrets or tokens into the PR, the Issue, or
-the chat.
+host or a preview listen port. Do not write secrets or tokens into the PR,
+the Issue, or the chat.
 
 ## Allowed change
 

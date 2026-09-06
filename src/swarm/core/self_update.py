@@ -8,7 +8,7 @@ This module is the wiring, not a live PR. It:
 * Probes whether *this process* can open a live PR — and stays honest when
   it cannot (Cursor cloud / missing ``gh`` / live flag off).
 
-Never invents a PR URL. Never prints tokens. No Neon. No ``:8001``.
+Never invents a PR URL. Never prints tokens. No hosted-database SaaS. No preview listen port.
 """
 
 from __future__ import annotations
