@@ -17,6 +17,8 @@ import AgentAvatar from '../components/AgentAvatar'
 import { ConfirmModal, TOAST_KIND_WS_DISCONNECT, useToast } from '../components/DaisyUI'
 import ThemeToggle from '../components/ThemeToggle'
 import { OPEN_SETTINGS_EVENT, openSettingsSheet } from '../components/SettingsSheet'
+import RateLimitStatusLine from '../components/RateLimitStatusLine'
+import { isRateLimitWait, type RateLimitWait } from '../lib/providerRateLimits'
 import { OPEN_TEAM_COMPOSER_EVENT } from '../components/TeamComposer'
 import {
   AGENT_DROPDOWNS_CHANGED_EVENT,
@@ -269,10 +271,19 @@ interface ChatMessage {
   kind?: 'prior_history'
   /** Persist/reload timestamp (ISO). Status/info chrome shows this. */
   ts?: string
+  /** REQ-88 — provider queue wait; click opens that provider's rate-limit fields. */
+  rateLimit?: RateLimitWait
 }
 
 function chatMessageFromThreadRow(
-  message: { role: string; content: string; edited?: boolean; kind?: string; ts?: string },
+  message: {
+    role: string
+    content: string
+    edited?: boolean
+    kind?: string
+    ts?: string
+    rate_limit?: RateLimitWait
+  },
   index: number,
 ): ChatMessage {
   const prOpened = parsePrOpened(message.content) ?? undefined
@@ -288,6 +299,7 @@ function chatMessageFromThreadRow(
     teammateTask,
     kind: prior ? 'prior_history' : undefined,
     ts: message.ts,
+    rateLimit: isRateLimitWait(message.rate_limit) ? message.rate_limit : undefined,
   }
 }
 
@@ -419,6 +431,14 @@ const ChatPage = () => {
           : selectedBlueprint
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const hasRateLimitWait = messages.some((row) => row.rateLimit)
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!hasRateLimitWait) return
+    setNowMs(Date.now())
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [hasRateLimitWait])
   const threadsRef = useRef(threads)
   threadsRef.current = threads
   const summaries = useMemo(
@@ -1366,6 +1386,7 @@ const ChatPage = () => {
               role: 'status',
               text: event.text,
               streaming: false,
+              rateLimit: event.rateLimit,
             })
             break
         }
@@ -2785,6 +2806,17 @@ const ChatPage = () => {
             }
             if (isStatusRole(message.role)) {
               const statusMs = parseCreatedAtMs(message.ts)
+              if (message.rateLimit) {
+                return (
+                  <RateLimitStatusLine
+                    key={message.key}
+                    wait={message.rateLimit}
+                    nowMs={nowMs}
+                    ts={message.ts}
+                    timeLabel={statusMs != null ? formatGapLabel(statusMs) : undefined}
+                  />
+                )
+              }
               return (
                 <p
                   key={message.key}

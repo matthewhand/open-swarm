@@ -214,6 +214,8 @@ function App() {
           definitionKind={settingsDetail?.definitionKind}
           definitionId={settingsDetail?.definitionId}
           initialAddRemote={settingsDetail?.addRemote}
+          initialProviderId={settingsDetail?.providerId}
+          focusRateLimits={settingsDetail?.focusRateLimits}
         />
         <AgentEditor
           isOpen={agentEditorOpen}

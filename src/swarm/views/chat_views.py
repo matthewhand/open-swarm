@@ -178,6 +178,40 @@ class ChatCompletionsView(APIView):
 
     # --- Internal Helper Methods (Unchanged) ---
 
+    async def _gate_provider_rate_limit(self, model_name, messages, blueprint_params):
+        """REQ-88: shared provider queue for API sends. Emits delay reason + seconds."""
+        first = {"value": None}
+
+        async def on_wait(decision):
+            if first["value"] is not None:
+                return
+            first["value"] = decision.public_dict()
+            logger.info(
+                "provider rate-limit wait reason=%s remaining_seconds=%s provider=%s",
+                first["value"].get("reason"),
+                first["value"].get("remaining_seconds"),
+                first["value"].get("provider"),
+            )
+
+        try:
+            from swarm.core.provider_rate_limit import format_cli_wait, gate_provider_send
+
+            decision = await gate_provider_send(
+                params=blueprint_params if isinstance(blueprint_params, dict) else None,
+                blueprint_id=str(model_name or ""),
+                model=str(model_name or ""),
+                messages=messages,
+                on_wait=on_wait,
+            )
+            if decision is not None and first["value"] is None:
+                first["value"] = decision.public_dict()
+            if first["value"]:
+                logger.info("%s", format_cli_wait(decision) if decision else first["value"])
+            return first["value"]
+        except Exception:
+            logger.debug("provider rate-limit gate skipped", exc_info=True)
+            return None
+
     async def _handle_non_streaming(
         self,
         blueprint_instance,
@@ -185,6 +219,7 @@ class ChatCompletionsView(APIView):
         request_id: str,
         model_name: str,
         user_id: str | None = None,
+        rate_limit_wait: dict | None = None,
     ) -> Response:
         """ Handles non-streaming requests. """
         logger.info(f"[ReqID: {request_id}] Processing non-streaming request for model '{model_name}'.")
@@ -219,6 +254,8 @@ class ChatCompletionsView(APIView):
 
             p_tok, c_tok, t_tok = usage_counts(messages, final_message.get("content"), model_name)
             response_payload = { "id": f"chatcmpl-{request_id}", "object": "chat.completion", "created": int(time.time()), "model": model_name, "choices": [{"index": 0, "message": final_message, "logprobs": None, "finish_reason": "stop"}], "usage": {"prompt_tokens": p_tok, "completion_tokens": c_tok, "total_tokens": t_tok}, "system_fingerprint": backend_fingerprint(model_name, backend_meta) }
+            if rate_limit_wait:
+                response_payload["rate_limit_wait"] = rate_limit_wait
             end_time = time.time()
             logger.info(f"[ReqID: {request_id}] Non-streaming request completed in {end_time - start_time:.2f}s.")
             return Response(response_payload, status=status.HTTP_200_OK)
@@ -246,6 +283,7 @@ class ChatCompletionsView(APIView):
         request_id: str,
         model_name: str,
         user_id: str | None = None,
+        rate_limit_wait: dict | None = None,
     ) -> StreamingHttpResponse:
         """ Handles streaming requests using SSE. """
         logger.info(f"[ReqID: {request_id}] Processing streaming request for model '{model_name}'.")
@@ -255,6 +293,8 @@ class ChatCompletionsView(APIView):
             backend_meta = None
             async_generator = None
             try:
+                if rate_limit_wait:
+                    yield f"data: {json.dumps({'object': 'open_swarm.rate_limit_wait', **rate_limit_wait})}\n\n"
                 logger.debug(f"[ReqID: {request_id}] Getting async generator from blueprint.run()...")
                 # user_id scopes memory per authenticated principal (not shared "default").
                 async_generator = blueprint_instance.run(messages, stream=True, user_id=user_id)
@@ -488,22 +528,38 @@ class ChatCompletionsView(APIView):
         except Exception:
             logger.debug("skill attach hook skipped", exc_info=True)
 
+        rate_limit_wait = await self._gate_provider_rate_limit(
+            model_name, messages, blueprint_params
+        )
+
         # --- Async fire-and-forget: return a queued handle immediately, run in a
         #     background worker, poll via GET /v1/responses/{id}. Reuses the
         #     Responses async machinery. (Streaming is always inline.) ---
         background = bool(request_data.get('background', False)) if isinstance(request_data, dict) else False
         if background and not stream:
-            return await self._handle_background_chat(request_id, model_name, messages, blueprint_params)
+            return await self._handle_background_chat(
+                request_id, model_name, messages, blueprint_params
+            )
 
         # --- Handle Streaming or Non-Streaming Response ---
         memory_user_id = getattr(self, "_owner_principal", None)
         if stream:
             return await self._handle_streaming(
-                blueprint_instance, messages, request_id, model_name, user_id=memory_user_id
+                blueprint_instance,
+                messages,
+                request_id,
+                model_name,
+                user_id=memory_user_id,
+                rate_limit_wait=rate_limit_wait,
             )
         else:
             return await self._handle_non_streaming(
-                blueprint_instance, messages, request_id, model_name, user_id=memory_user_id
+                blueprint_instance,
+                messages,
+                request_id,
+                model_name,
+                user_id=memory_user_id,
+                rate_limit_wait=rate_limit_wait,
             )
 
     async def _handle_background_chat(self, request_id: str, model_name: str, messages, params) -> Response:

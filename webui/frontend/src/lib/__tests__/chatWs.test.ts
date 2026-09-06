@@ -101,7 +101,20 @@ describe('parseChatWsMessage', () => {
     expect(parseChatWsMessage(raw)).toEqual({
       kind: 'status',
       text: 'Started a new grok session.',
+      rateLimit: undefined,
     })
+  })
+
+  it('parses a rate-limit countdown status line', () => {
+    const raw =
+      '<div id="message-list" hx-swap-oob="beforeend"><div class="chat-status-line os-chat-status os-chat-status--rate-limit" data-rate-limit="1" data-provider="cli:stub" data-rule="messages_per_minute" data-remaining="7" data-wait-until="1700000007000" data-field-id="rate-limits-cli-stub">Waiting for stub — messages per minute — 7s</div></div>'
+    const event = parseChatWsMessage(raw)
+    expect(event.kind).toBe('status')
+    if (event.kind !== 'status') return
+    expect(event.text).toMatch(/Waiting for stub/)
+    expect(event.rateLimit?.provider).toBe('cli:stub')
+    expect(event.rateLimit?.reason).toBe('messages_per_minute')
+    expect(event.rateLimit?.settings?.section).toBe('cli-agents')
   })
 
   it('parses an assistant-start append', () => {

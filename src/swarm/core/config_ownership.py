@@ -132,8 +132,22 @@ def looks_like_env_name(value: Any) -> bool:
     return isinstance(value, str) and bool(_ENV_NAME_RE.match(value.strip()))
 
 
+# REQ-88 numeric caps — "token" is a SECRET_KEY_NEEDLE, but these are not secrets.
+RATE_LIMIT_SAFE_KEYS: frozenset[str] = frozenset(
+    {
+        "rate_limits",
+        "messages_per_minute",
+        "requests_per_minute",
+        "tokens_per_minute",
+        "tokens_per_day",
+    }
+)
+
+
 def is_secret_key(key: str) -> bool:
     lowered = (key or "").lower()
+    if lowered in RATE_LIMIT_SAFE_KEYS:
+        return False
     return any(needle in lowered for needle in SECRET_KEY_NEEDLES)
 
 
@@ -228,7 +242,11 @@ _INVENTORY: tuple[dict[str, Any], ...] = (
         "ui": "pane",
         "secret_fields": ["api_key"],
         "env_twins": {"api_key": "(per-profile ${VAR})", "base_url": "OPENAI_BASE_URL"},
-        "notes": "Named profiles. api_key must be ${VAR}. CRUD via Settings → LLM profiles.",
+        "notes": (
+            "Named profiles. api_key must be ${VAR}. CRUD via Settings → LLM profiles. "
+            "Optional user-defined rate_limits (messages/requests/tokens per minute or day) "
+            "live on the profile — empty means unlimited. Local swarm_config, not Neon."
+        ),
     },
     {
         "key": "settings.default_llm_profile",
@@ -289,7 +307,10 @@ _INVENTORY: tuple[dict[str, Any], ...] = (
             "herdr.base_url": "HERDR_BASE_URL",
             "swarm.base_url": "SWARM_REMOTE_BASE_URL",
         },
-        "notes": "Opt-in catalog. Auth is env-name / ${VAR} only. Hybrid precedence for URLs.",
+        "notes": (
+            "Opt-in catalog. Auth is env-name / ${VAR} only. Hybrid precedence for URLs. "
+            "Optional user-defined rate_limits on the remote inference row (empty = unlimited)."
+        ),
     },
     {
         "key": "cli_agents",
@@ -300,7 +321,11 @@ _INVENTORY: tuple[dict[str, Any], ...] = (
         "ui": "pane",
         "secret_fields": [],
         "env_twins": {},
-        "notes": "Opt-in catalog (REQ-157). Empty until + Add. PATH discovery seeds suggestions only — never auth-check or store CLI secrets.",
+        "notes": (
+            "Opt-in catalog (REQ-157). Empty until + Add. PATH discovery seeds suggestions "
+            "only — never auth-check or store CLI secrets. Optional user-defined rate_limits "
+            "on the catalog row (empty = unlimited; no baked vendor quotas)."
+        ),
     },
     {
         "key": "agent_team",

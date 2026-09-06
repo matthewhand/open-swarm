@@ -1817,6 +1817,14 @@ html:not([data-theme="light"]) .os-composer__send,
   opacity: 0.85;
   white-space: nowrap;
 }
+.os-chat-status--rate-limit {
+  cursor: pointer;
+  color: color-mix(in srgb, var(--color-info) 70%, var(--color-base-content));
+}
+.os-chat-status--rate-limit:hover,
+.os-chat-status--rate-limit:focus-visible {
+  color: color-mix(in srgb, var(--color-info) 90%, var(--color-base-content));
+}
 
 /* REQ-71: structured PR-opened tool result is thread chrome, not a chat bubble. */
 .os-pr-opened-wrap {

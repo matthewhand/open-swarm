@@ -1,4 +1,9 @@
 import { parsePrOpened, type PrOpenedEvent } from './prOpened'
+import {
+  isRateLimitWait,
+  parseRateLimitWaitFromDataset,
+  type RateLimitWait,
+} from './providerRateLimits'
 import { parseSuggestions } from './suggestions'
 import { parseTeammateTask, type TeammateTaskEvent } from './teammateTask'
 
@@ -51,7 +56,11 @@ export type ChatWsEvent =
       name: string
       agentId?: string
     }
-  | { kind: 'status'; text: string }
+  | {
+      kind: 'status'
+      text: string
+      rateLimit?: RateLimitWait
+    }
   | { kind: 'pr_opened'; event: PrOpenedEvent }
   | { kind: 'teammate_task'; event: TeammateTaskEvent }
   | { kind: 'spa_hello'; spaVersion: string }
@@ -172,6 +181,15 @@ function parseToolJsonFrame(raw: string): ChatWsEvent | null {
       const suggestions = parseSuggestions(payload)
       return { kind: 'suggestions', suggestions }
     }
+    if (type === 'rate_limit_wait' || payload.object === 'open_swarm.rate_limit_wait') {
+      if (isRateLimitWait(payload)) {
+        return {
+          kind: 'status',
+          text: String(payload.text || ''),
+          rateLimit: payload,
+        }
+      }
+    }
   } catch {
     return null
   }
@@ -212,7 +230,11 @@ export function parseChatWsMessage(raw: string): ChatWsEvent {
       return { kind: 'user_echo', text: (child.textContent ?? '').trim() }
     }
     if (child?.classList.contains('chat-status-line')) {
-      return { kind: 'status', text: (child.textContent ?? '').trim() }
+      return {
+        kind: 'status',
+        text: (child.textContent ?? '').trim(),
+        rateLimit: parseRateLimitWaitFromDataset(child),
+      }
     }
     if (child?.classList.contains('os-interbot-hop')) {
       return parseInterbotHop(child)

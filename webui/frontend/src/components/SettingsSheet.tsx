@@ -8,6 +8,7 @@ import EnvOverrideBadge from './EnvOverrideBadge'
 import McpServersPane from './McpServersPane'
 import PluginsServersPane from './PluginsServersPane'
 import CliAgentsSettingsPane from './CliAgentsSettingsPane'
+import ProviderRateLimitFields from './ProviderRateLimitFields'
 import ImageGenPane from './ImageGenSettings'
 import SpeechPane from './SpeechSettings'
 import {
@@ -114,6 +115,9 @@ export interface OpenSettingsDetail {
   definitionId?: string
   /** Open the Remotes pane already on the add form (zero-remotes bind path). */
   addRemote?: boolean
+  /** REQ-88: jump to that provider's rate-limit fields. */
+  providerId?: string
+  focusRateLimits?: boolean
 }
 
 export function openSettingsSheet(detail?: OpenSettingsDetail): void {
@@ -129,6 +133,8 @@ export interface SettingsSheetProps {
   definitionKind?: DefinitionKind | null
   definitionId?: string | null
   initialAddRemote?: boolean
+  initialProviderId?: string | null
+  focusRateLimits?: boolean
 }
 
 /**
@@ -148,6 +154,8 @@ export default function SettingsSheet({
   definitionKind,
   definitionId,
   initialAddRemote = false,
+  initialProviderId = null,
+  focusRateLimits = false,
 }: SettingsSheetProps) {
   const { success } = useToast()
   const [section, setSection] = useState<SettingsSection>('retention')
@@ -191,6 +199,11 @@ export default function SettingsSheet({
     setBumpCompleted(loadBumpCompleted())
     if (initialSection) {
       setSection(initialSection)
+    } else if (initialProviderId) {
+      const kind = initialProviderId.split(':')[0]
+      if (kind === 'cli') setSection('cli-agents')
+      else if (kind === 'remote') setSection('remotes')
+      else setSection('llm-profiles')
     } else if (blueprintId) {
       setSection('blueprint')
       setSelectedBlueprintId(blueprintId)
@@ -199,7 +212,7 @@ export default function SettingsSheet({
         current === 'blueprint' || current === 'definition' ? 'retention' : current,
       )
     }
-  }, [isOpen, blueprintId, initialSection])
+  }, [isOpen, blueprintId, initialSection, initialProviderId])
 
   useEffect(() => {
     const onHostnameChanged = (event: Event) => {
@@ -431,7 +444,12 @@ export default function SettingsSheet({
               onSelect={setSelectedBlueprintId}
             />
           )}
-          {section === 'remotes' && <RemotesCatalogPane startAdding={initialAddRemote} />}
+          {section === 'remotes' && (
+            <RemotesCatalogPane
+              startAdding={initialAddRemote}
+              focusProviderId={focusRateLimits ? initialProviderId : null}
+            />
+          )}
           {section === 'retention' && <RetentionPane />}
           {section === 'hostname' && (
             <HostnamePane
@@ -440,9 +458,13 @@ export default function SettingsSheet({
               onSave={handleSaveHostname}
             />
           )}
-          {section === 'llm-profiles' && <LlmProfilesPane />}
+          {section === 'llm-profiles' && (
+            <LlmProfilesPane focusProviderId={focusRateLimits ? initialProviderId : null} />
+          )}
           {section === 'mcp' && <McpServersPane />}
-          {section === 'cli-agents' && <CliAgentsSettingsPane />}
+          {section === 'cli-agents' && (
+            <CliAgentsSettingsPane focusProviderId={focusRateLimits ? initialProviderId : null} />
+          )}
           {section === 'rail' && (
             <RailPane
               bumpCompleted={bumpCompleted}
@@ -811,7 +833,13 @@ function ModuleLink({
   )
 }
 
-function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) {
+function RemotesCatalogPane({
+  startAdding = false,
+  focusProviderId = null,
+}: {
+  startAdding?: boolean
+  focusProviderId?: string | null
+}) {
   const { success, error: toastError } = useToast()
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(startAdding)
@@ -992,6 +1020,10 @@ function RemotesCatalogPane({ startAdding = false }: { startAdding?: boolean }) 
                           <EnvOverrideBadge badge={remote.provenance.api_key} />
                         </div>
                       ) : null}
+                      <ProviderRateLimitFields
+                        providerKey={`remote:${remote.id}`}
+                        autoFocus={focusProviderId === `remote:${remote.id}`}
+                      />
                     </div>
                     <Button
                       type="button"
@@ -1610,7 +1642,11 @@ function SystemPane() {
   )
 }
 
-function LlmProfilesPane() {
+function LlmProfilesPane({
+  focusProviderId = null,
+}: {
+  focusProviderId?: string | null
+}) {
   const { success, error: toastError } = useToast()
   const profilesQuery = useQuery({
     queryKey: ['settings-llm-profiles'],
@@ -1740,6 +1776,23 @@ function LlmProfilesPane() {
                 {profile.source}
                 {profile.owned_by ? ` · ${profile.owned_by}` : ''}
               </span>
+              <ProviderRateLimitFields
+                providerKey={
+                  profile.source === 'cli'
+                    ? `cli:${profile.id}`
+                    : profile.source === 'remote'
+                      ? `remote:${profile.owned_by || profile.id}`
+                      : `llm:${profile.id}`
+                }
+                autoFocus={
+                  focusProviderId ===
+                  (profile.source === 'cli'
+                    ? `cli:${profile.id}`
+                    : profile.source === 'remote'
+                      ? `remote:${profile.owned_by || profile.id}`
+                      : `llm:${profile.id}`)
+                }
+              />
             </li>
           ))}
         </ul>

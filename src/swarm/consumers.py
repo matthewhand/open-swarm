@@ -151,6 +151,46 @@ def _conversation_cache_key(user, conversation_id):
     return (user_id, conversation_id)
 
 
+async def _gate_provider_rate_limit(consumer, params=None, blueprint_id=""):
+    """REQ-88: wait on the shared provider queue before a send (including test mode)."""
+    emitted = {"done": False}
+
+    async def on_wait(decision):
+        if emitted["done"]:
+            return
+        emitted["done"] = True
+        from swarm.core.provider_rate_limit import format_wait_text
+
+        meta = decision.public_dict()
+        text = format_wait_text(decision)
+        try:
+            await consumer.send(text_data=_rate_limit_status_html(text, meta))
+        except Exception:
+            logger.debug("rate-limit status send skipped", exc_info=True)
+        _record_status(
+            consumer,
+            text,
+            role="info",
+            kind="rate_limit",
+            rate_limit=meta,
+            ts=_message_ts(),
+        )
+
+    try:
+        from swarm.core.provider_rate_limit import gate_provider_send
+
+        messages = getattr(consumer, "messages", None) or []
+        return await gate_provider_send(
+            params=params if isinstance(params, dict) else None,
+            blueprint_id=str(blueprint_id or ""),
+            messages=messages,
+            on_wait=on_wait,
+        )
+    except Exception:
+        logger.debug("provider rate-limit gate skipped", exc_info=True)
+        return None
+
+
 async def _auto_compress_before_send(consumer, params=None, model_id=None):
     """REQ-87: compact older span when estimated tokens hit N% of known max."""
     try:
@@ -226,6 +266,27 @@ def _status_line_html(text: str) -> str:
     return (
         '<div id="message-list" hx-swap-oob="beforeend">'
         f'<div class="chat-status-line os-chat-status">{escape(text)}</div>'
+        "</div>"
+    )
+
+
+def _rate_limit_status_html(text: str, meta: dict) -> str:
+    """Clickable rate-limit countdown chrome (REQ-88). Not a model bubble."""
+    provider = escape(str(meta.get("provider") or ""))
+    rule = escape(str(meta.get("reason") or ""))
+    remaining = escape(str(meta.get("remaining_seconds") or 0))
+    wait_until = escape(str(meta.get("wait_until_ms") or ""))
+    field_id = ""
+    settings = meta.get("settings") if isinstance(meta.get("settings"), dict) else {}
+    if settings.get("field_id"):
+        field_id = escape(str(settings["field_id"]))
+    return (
+        '<div id="message-list" hx-swap-oob="beforeend">'
+        f'<div class="chat-status-line os-chat-status os-chat-status--rate-limit"'
+        f' data-rate-limit="1" data-provider="{provider}" data-rule="{rule}"'
+        f' data-remaining="{remaining}" data-wait-until="{wait_until}"'
+        f' data-field-id="{field_id}" role="button" tabindex="0">'
+        f"{escape(text)}</div>"
         "</div>"
     )
 
@@ -550,6 +611,7 @@ class DjangoChatConsumer(AsyncWebsocketConsumer):
 
     async def respond_with_blueprint(self, blueprint_id, contents_div_id, params=None):
         """Generate the assistant reply by running a discovered blueprint."""
+        await _gate_provider_rate_limit(self, params=params, blueprint_id=blueprint_id)
         # In test mode, skip slow blueprint instantiation and return canned output.
         if os.environ.get("SWARM_TEST_MODE"):
             from pathlib import Path as _Path
