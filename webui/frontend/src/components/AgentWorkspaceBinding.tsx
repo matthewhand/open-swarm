@@ -3,7 +3,6 @@ import { Badge } from './DaisyUI'
 import {
   API_REMOTE_WORKSPACE_LEAD,
   COMING_SOON_LABEL,
-  FOLDER_COMING_SOON_HELP,
   FOLDER_EMPTY_STATE,
   FOLDER_HELP,
   FOLDER_LABEL,
@@ -74,9 +73,6 @@ export default function AgentWorkspaceBinding({
         </div>
         <p className="text-[11px] leading-relaxed text-base-content/60" data-testid="workspace-kind-stub">
           {API_REMOTE_WORKSPACE_LEAD}
-        </p>
-        <p className="text-[11px] text-base-content/50" data-testid="workspace-folder-hint">
-          {FOLDER_COMING_SOON_HELP}
         </p>
       </section>
     )
