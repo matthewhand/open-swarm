@@ -1,0 +1,47 @@
+name: REQ-136 announce spiel + GIF
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "docs/ANNOUNCE.md"
+      - "docs/assets/readme/**"
+      - "docs/SHOWOFF_DEMO_AGENTS.md"
+      - "docs/SCREENSHOTS.md"
+      - "docs/requirements/REQ-136.md"
+      - "docs/requirements/README.md"
+      - "scripts/render_announce_gif.py"
+      - "tests/unit/test_req136_announce.py"
+      - ".github/workflows/req136-announce.yml"
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "docs/ANNOUNCE.md"
+      - "docs/assets/readme/**"
+      - "docs/SHOWOFF_DEMO_AGENTS.md"
+      - "docs/SCREENSHOTS.md"
+      - "docs/requirements/REQ-136.md"
+      - "docs/requirements/README.md"
+      - "scripts/render_announce_gif.py"
+      - "tests/unit/test_req136_announce.py"
+      - ".github/workflows/req136-announce.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-136 pytest (own-diff)
+        run: uv run pytest tests/unit/test_req136_announce.py

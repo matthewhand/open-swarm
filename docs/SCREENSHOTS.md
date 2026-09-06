@@ -90,11 +90,29 @@ Regenerate with:
 .venv/bin/python scripts/capture_user_journey.py --mobile
 ```
 
+## Announce / README media (`docs/assets/readme/`)
+
+Decided path for README heroes and the #456 kit. SoT:
+[docs/ANNOUNCE.md](./ANNOUNCE.md), [docs/assets/readme/README.md](./assets/readme/README.md).
+
+| File | What it shows | Used in | Captured | Status |
+| --- | --- | --- | --- | --- |
+| `assets/readme/announce-bridge.gif` | REQ-136 / #529 hero (~18s storyboard): Grok-agnostic UI + CLI/API/remote bridge. Spiel captions. Roster: Hermes Remote, OpenMousBot Remote, Antigravity CLI, OpenCode CLI, BA→Engineer→Tester | README.md, ANNOUNCE.md | 2026-09-06 | storyboard (live recapture later) |
+
+`cli.gif` / `api.gif` / `remotes.gif` / `combined.gif` are reserved for #456
+and are not checked in yet.
+
+Regenerate the storyboard:
+
+```bash
+uv run --with pillow python scripts/render_announce_gif.py
+```
+
 ## Demo animations (`docs/demo/`)
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `demo/cli-and-api.gif` | Animated terminal demo (~25s loop): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake) | README.md | 2026-08-18 | current |
+| `demo/cli-and-api.gif` | Animated terminal demo (~25s loop): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake) | README.md | 2026-08-18 | historical (CLI+API only) |
 
 Four scenes from real `SWARM_TEST_MODE` / curl / `--backend fake` captures under
 `docs/demo/captures/` (see `raw_*.txt`). Scene 2 uses documented

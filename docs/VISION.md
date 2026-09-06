@@ -47,6 +47,9 @@ remote when the work is native to that tool, and a blueprint when the
 topology must be enforced. Open Swarm is the place that wires those together
 without pretending they are the same kind.
 
+Announce spiel (Grok-agnostic UI + remote harness bridge):
+[ANNOUNCE.md](./ANNOUNCE.md) (REQ-136 / [#529](https://github.com/matthewhand/open-swarm/issues/529)).
+
 ---
 
 ## Kinds (Matthew lock)

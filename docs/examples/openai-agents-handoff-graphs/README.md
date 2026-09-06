@@ -18,11 +18,13 @@ from this **handoff graph** ([ADR-009](../../adr/009-peer-mailbox.md)). GitHub t
 Kind-base templates Support should subclass:
 [ADR-005](../../adr/005-kind-bases.md) (REQ-159 / #570).
 
-Announce spiel ([REQ-136 #529](https://github.com/matthewhand/open-swarm/issues/529)):
-AI enthusiasts juggle many frameworks; some combine CLIs and APIs, but still
-do not talk to **remote harnesses** (Hermes, OpenMousBot as remote, …).
-Open Swarm is a Grok-agnostic Grok-Bot-like UI **and** a bridge — task one
-place, coordinate across CLI, API, remotes, and local blueprints.
+Announce spiel SoT ([REQ-136 #529](https://github.com/matthewhand/open-swarm/issues/529)):
+[docs/ANNOUNCE.md](../../ANNOUNCE.md). Short form: AI enthusiasts juggle many
+frameworks; some combine CLIs and APIs, but still do not talk to **remote
+harnesses** (Hermes, OpenMousBot as remote, …). Open Swarm is a
+Grok-agnostic Grok-Bot-like UI **and** a bridge — task one place,
+coordinate across CLI, API, remotes, and local blueprints. Hero clip:
+[`docs/assets/readme/announce-bridge.gif`](../../assets/readme/announce-bridge.gif).
 
 Demo names follow [REQ-135 #526](https://github.com/matthewhand/open-swarm/issues/526)
 ([SHOWOFF_DEMO_AGENTS.md](../../SHOWOFF_DEMO_AGENTS.md)): Mode A encodes
@@ -177,6 +179,9 @@ git pull origin main
 
 Default dest is XDG `…/swarm/team_rosters.json`. Override with
 `--config-dir` if preview uses a non-default config tree.
+
+`scripts/seed_req156_demo.py` is the same path as
+`scripts/seed_demo_agents.py` (`--overwrite` = `--reset`).
 
 ```bash
 # See what would be added (no write)

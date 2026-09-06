@@ -11,8 +11,12 @@ agents. No secrets: URLs and keys stay placeholders / env. GitHub-only
 until an engineer seeds a live box.
 
 Announce GIF [#529](https://github.com/matthewhand/open-swarm/issues/529)
+([docs/ANNOUNCE.md](./ANNOUNCE.md), hero
+[`docs/assets/readme/announce-bridge.gif`](./assets/readme/announce-bridge.gif))
 and near-release media [#456](https://github.com/matthewhand/open-swarm/issues/456)
-should prefer **Mode A** names on harness rows.
+should prefer **Mode A** names on harness rows. The announce film also
+shows **OpenCode CLI** (`cli:opencode`) as a Mode A extra — not a default
+seed member.
 
 ---
 

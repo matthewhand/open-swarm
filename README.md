@@ -10,6 +10,14 @@ Brand marks live under [`assets/brand/`](assets/brand/): **minimal** for the tab
 
 **WebUI is first-class:** left rail + the selected agent’s chat. Other clients (SDK, curl, Open WebUI) hit the same seats at `/v1/chat/completions` and `/v1/responses`.
 
+AI enthusiasts juggle many frameworks; some combine CLIs and APIs, but still do not talk to **remote harnesses** (Hermes, OpenMousBot as remote, …). Open Swarm is a **Grok-agnostic** Grok-Bot-like UI **and** a bridge — task one place, coordinate across CLI, API, remotes, and local blueprints.
+
+<p align="center">
+  <img src="docs/assets/readme/announce-bridge.gif" alt="Storyboard: one Chief of Staff task coordinates Hermes Remote, OpenMousBot Remote, Antigravity CLI, OpenCode CLI, and a BA → Engineer → Tester blueprint" width="720"/>
+</p>
+
+Announce copy, storyboard, and recapture checklist: [docs/ANNOUNCE.md](docs/ANNOUNCE.md) (REQ-136 / [#529](https://github.com/matthewhand/open-swarm/issues/529)). Asset path for this hero and the later CLI / API / remotes / combined kit: [`docs/assets/readme/`](docs/assets/readme/README.md) ([#456](https://github.com/matthewhand/open-swarm/issues/456)).
+
 Direction: [docs/VISION.md](docs/VISION.md). Vocabulary: [docs/GLOSSARY.md](docs/GLOSSARY.md).
 
 ---
@@ -122,7 +130,7 @@ curl -sf http://localhost:8000/v1/chat/completions \
 
 `model` selects which seat / recipe handles the request. Streaming is supported. Full CLI reference: [USERGUIDE.md](./USERGUIDE.md). Remotes: [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md). Herdr: [docs/HERDR.md](docs/HERDR.md). CLI wrap / fusion (not the first team story): [docs/CLI_FUSION.md](docs/CLI_FUSION.md). MoA consensus (not the first team story): [docs/MOA.md](docs/MOA.md).
 
-A historical terminal loop (one blueprint as CLI + API) lives at [`docs/demo/cli-and-api.gif`](docs/demo/cli-and-api.gif). Fresh WebUI / remote / Team stills are a later media pass ([#456](https://github.com/matthewhand/open-swarm/issues/456)).
+A historical terminal loop (one blueprint as CLI + API) lives at [`docs/demo/cli-and-api.gif`](docs/demo/cli-and-api.gif). The announce hero (Grok-agnostic UI + remote harness bridge) is [`docs/assets/readme/announce-bridge.gif`](docs/assets/readme/announce-bridge.gif) ([#529](https://github.com/matthewhand/open-swarm/issues/529)). Extra CLI / API / remotes / combined clips for that same folder are a later #456 pass.
 
 ### Pinokio (local sideload)
 
@@ -138,6 +146,7 @@ Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=san
 
 ## Links
 
+- [docs/ANNOUNCE.md](docs/ANNOUNCE.md) — launch spiel + hero GIF (REQ-136 / #529)
 - [docs/VISION.md](docs/VISION.md) — where we are going (kinds, WebUI, remotes)
 - [docs/GLOSSARY.md](docs/GLOSSARY.md) — kinds, Team vs Profiles vs roster
 - [USERGUIDE.md](./USERGUIDE.md) — `swarm-cli` tasks
