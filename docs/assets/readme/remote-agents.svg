@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Remote agents  OpenMousBot poster frame</title>
+  <desc id="desc">Placeholder poster for a remote-agent demo. Label is OpenMousBot, never OMB. No secrets, no LAN IPs. Replace with a recorded GIF.</desc>
+  <rect width="640" height="360" rx="16" fill="#111111"/>
+  <rect x="0" y="0" width="176" height="360" rx="16" fill="#0b0b0b"/>
+  <rect x="176" y="0" width="16" height="360" fill="#0b0b0b"/>
+  <text x="20" y="32" fill="#EBA222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="700">AGENTS</text>
+  <rect x="12" y="48" width="152" height="36" rx="8" fill="#313131"/>
+  <circle cx="30" cy="66" r="7" fill="#22c55e"/>
+  <text x="44" y="71" fill="#f4f4f5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">OpenMousBot</text>
+  <text x="20" y="108" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Hermes Remote</text>
+  <text x="20" y="132" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Rakazo Remote</text>
+  <rect x="196" y="16" width="84" height="22" rx="11" fill="#1D2226" stroke="#22c55e" stroke-width="1"/>
+  <text x="238" y="32" text-anchor="middle" fill="#22c55e" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">REMOTE</text>
+  <text x="288" y="32" fill="#f4f4f5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="600">OpenMousBot Remote</text>
+  <rect x="220" y="64" width="380" height="44" rx="12" fill="#5a5a5a"/>
+  <text x="236" y="91" fill="#f4f4f5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">List agents on the placed remote.</text>
+  <rect x="220" y="122" width="380" height="112" rx="12" fill="#262626"/>
+  <text x="236" y="148" fill="#d4d4d8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">Another harness. Adapter, not a fifth kind.</text>
+  <text x="236" y="174" fill="#EBA222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">OpenMousBot · Hermes · Rakazo</text>
+  <text x="236" y="196" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Nested Open Swarm is a remote too.</text>
+  <text x="236" y="218" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Placeholder URL only. No live LAN.</text>
+  <rect x="220" y="300" width="380" height="36" rx="18" fill="#262626"/>
+  <text x="240" y="323" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Message OpenMousBot Remote&</text>
+  <text x="20" y="340" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10">POSTER · GIF pending · OpenMousBot not OMB</text>
+</svg>

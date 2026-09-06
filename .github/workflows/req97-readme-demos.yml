@@ -1,0 +1,45 @@
+name: REQ-97 README demo slots
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "docs/assets/readme/**"
+      - "docs/SCREENSHOTS.md"
+      - "docs/SHOWOFF_DEMO_AGENTS.md"
+      - "tests/unit/test_req97_readme_demos.py"
+      - ".github/workflows/req97-readme-demos.yml"
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "docs/assets/readme/**"
+      - "docs/SCREENSHOTS.md"
+      - "docs/SHOWOFF_DEMO_AGENTS.md"
+      - "tests/unit/test_req97_readme_demos.py"
+      - ".github/workflows/req97-readme-demos.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: REQ-97 pytest (own-diff)
+        run: |
+          uv run pytest \
+            tests/unit/test_req97_readme_demos.py \
+            tests/unit/test_req102_readme_rewrite.py \
+            tests/unit/test_req156_readme.py
+        env:
+          DJANGO_ALLOW_ASYNC_UNSAFE: "true"

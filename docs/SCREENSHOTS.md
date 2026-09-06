@@ -99,20 +99,33 @@ Decided path for README heroes and the #456 kit. SoT:
 | --- | --- | --- | --- | --- |
 | `assets/readme/announce-bridge.gif` | REQ-136 / #529 hero (~18s storyboard): Grok-agnostic UI + CLI/API/remote bridge. Spiel captions. Roster: Hermes Remote, OpenMousBot Remote, Antigravity CLI, OpenCode CLI, BA→Engineer→Tester | README.md, ANNOUNCE.md | 2026-09-06 | storyboard (live recapture later) |
 
-`cli.gif` / `api.gif` / `remotes.gif` / `combined.gif` are reserved for #456
-and are not checked in yet.
-
 Regenerate the storyboard:
 
 ```bash
 uv run --with pillow python scripts/render_announce_gif.py
 ```
 
+## README demo slots (`docs/assets/readme/`) — REQ-97 / #456
+
+Four compact README slots. **Posters now** (SVG). Live GIFs replace the same
+stems via [`docs/assets/readme/RECORDING.md`](./assets/readme/RECORDING.md).
+No secrets, no house stills, no live LAN IPs. Label **OpenMousBot**, never OMB.
+
+| File | What it shows | Used in | Captured | Status |
+| --- | --- | --- | --- | --- |
+| `assets/readme/cli-agents.svg` | Poster: Grok-like rail + **Grok CLI** chat (opencode / agy rows) | README.md | 2026-09-06 | poster (GIF pending) |
+| `assets/readme/api-agents.svg` | Poster: **LiteLLM API** owned thread / OpenAI-compat door | README.md | 2026-09-06 | poster (GIF pending) |
+| `assets/readme/remote-agents.svg` | Poster: **OpenMousBot** remote (Hermes / Rakazo rows) | README.md | 2026-09-06 | poster (GIF pending) |
+| `assets/readme/combined-team.svg` | Poster: **Demo Bridge** — CLI + API + remote handoff | README.md | 2026-09-06 | poster (GIF pending) |
+
+Reserved live-GIF names `cli.gif` / `api.gif` / `remotes.gif` / `combined.gif`
+are still the #456 contract for filmed loops and are not checked in yet.
+
 ## Demo animations (`docs/demo/`)
 
 | File | What it shows | Used in | Captured | Status |
 | --- | --- | --- | --- | --- |
-| `demo/cli-and-api.gif` | Animated terminal demo (~25s loop): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake) | README.md | 2026-08-18 | historical (CLI+API only) |
+| `demo/cli-and-api.gif` | Historical terminal loop (~25s): `swarm-cli list`, `launch zeus`, curl `/v1/*`, optional `moa --team` (fake). **Demoted** — not the Grok chrome / four-slot set | README.md (historical caption) | 2026-08-18 | historical |
 
 Four scenes from real `SWARM_TEST_MODE` / curl / `--backend fake` captures under
 `docs/demo/captures/` (see `raw_*.txt`). Scene 2 uses documented

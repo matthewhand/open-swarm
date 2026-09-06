@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Combined team  CLI + API + remote poster frame</title>
+  <desc id="desc">Placeholder poster for the differentiator: one team mixing CLI, API, and remote via handoff / agent-as-tool. No secrets, no LAN IPs. Replace with a recorded GIF.</desc>
+  <rect width="640" height="360" rx="16" fill="#111111"/>
+  <rect x="0" y="0" width="176" height="360" rx="16" fill="#0b0b0b"/>
+  <rect x="176" y="0" width="16" height="360" fill="#0b0b0b"/>
+  <text x="20" y="32" fill="#EBA222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="700">AGENTS</text>
+  <rect x="12" y="48" width="152" height="36" rx="8" fill="#313131"/>
+  <circle cx="24" cy="66" r="6" fill="#EBA222"/>
+  <circle cx="34" cy="66" r="6" fill="#4194eb"/>
+  <circle cx="44" cy="66" r="6" fill="#22c55e"/>
+  <text x="56" y="71" fill="#f4f4f5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Demo Bridge</text>
+  <text x="20" y="108" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Grok CLI</text>
+  <text x="20" y="132" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">LiteLLM API</text>
+  <text x="20" y="156" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">OpenMousBot</text>
+  <rect x="196" y="16" width="72" height="22" rx="11" fill="#1D2226" stroke="#EBA222" stroke-width="1"/>
+  <text x="232" y="32" text-anchor="middle" fill="#EBA222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700">TEAM</text>
+  <text x="276" y="32" fill="#f4f4f5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="600">CLI + API + remote</text>
+  <rect x="220" y="64" width="380" height="36" rx="12" fill="#5a5a5a"/>
+  <text x="236" y="87" fill="#f4f4f5" font-family="ui-sans-serif, system-ui, sans-serif" font-size="13">Ask the roster. Handoff, then tool.</text>
+  <rect x="220" y="112" width="380" height="168" rx="12" fill="#262626"/>
+  <text x="236" y="138" fill="#EBA222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="700">Chief of Staff</text>
+  <text x="236" y="158" fill="#d4d4d8" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Routing Grok CLI ’ LiteLLM API ’ OpenMousBot.</text>
+  <text x="236" y="186" fill="#EBA222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">handoff</text>
+  <text x="236" y="208" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Grok CLI keeps a native session.</text>
+  <text x="236" y="230" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">LiteLLM API answers on the owned thread.</text>
+  <text x="236" y="252" fill="#a1a1aa" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">OpenMousBot Remote stays on its harness.</text>
+  <text x="236" y="268" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">openai-agents graph sits in the Blueprint coordinator.</text>
+  <rect x="220" y="300" width="380" height="36" rx="18" fill="#262626"/>
+  <text x="240" y="323" fill="#71717a" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12">Message Demo Bridge&</text>
+  <text x="20" y="340" fill="#52525b" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10">POSTER · GIF pending · the differentiator</text>
+</svg>
