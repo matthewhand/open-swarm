@@ -52,6 +52,7 @@ Oracle from anything in this tree.
 | [REQ-170](./REQ-170.md) | [Stop listing blueprints as agents; redundant name/blueprint pairing](https://github.com/matthewhand/open-swarm/issues/595) |
 | [REQ-171A](./REQ-171A.md) | [Hydrate chat threads honestly — do not fail-open empty; hydrate remotes](https://github.com/matthewhand/open-swarm/issues/604) |
 | [REQ-171B](./REQ-171B.md) | [Add-agent CLI/API must create a rail-visible seat](https://github.com/matthewhand/open-swarm/issues/607) |
+| [REQ-171C](./REQ-171C.md) | [Wire Chat CLI/API model dropdowns to a real pin contract](https://github.com/matthewhand/open-swarm/issues/612) |
 
 ## Archived transcripts
 

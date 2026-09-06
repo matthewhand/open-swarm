@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
+  apiModelOptionsFromProfiles,
   discoverChatClis,
+  honestChatCliModels,
   isCliAgentContext,
   isCliBlueprintId,
   preferredChatCli,
@@ -68,6 +70,17 @@ describe('discoverChatClis', () => {
         configured: ['grok', 'my_custom_cli'],
         native_consensus: {},
         catalog: {},
+        rail: [
+          {
+            id: 'cli_agent',
+            object: 'cli.agent',
+            name: 'cli_agent',
+            cli: 'grok',
+            kind: 'cli',
+            description: 'Host CLI',
+            installed: true,
+          },
+        ],
       }),
     ).toEqual(['grok', 'my_custom_cli'])
   })
@@ -124,5 +137,50 @@ describe('preferredChatCli', () => {
 
   it('takes the first name when grok is absent', () => {
     expect(preferredChatCli(['claude', 'gemini'], '')).toBe('claude')
+  })
+})
+
+describe('honestChatCliModels', () => {
+  it('drops default / You and keeps live ids', () => {
+    expect(
+      honestChatCliModels({
+        models: ['grok-4.5', 'default', 'You', ''],
+        warning: undefined,
+      }),
+    ).toEqual({ models: ['grok-4.5'], warning: null })
+  })
+
+  it('keeps an empty probe empty and surfaces the warning', () => {
+    expect(
+      honestChatCliModels({
+        models: [],
+        warning: 'grok: CLI not installed (no \'grok\' on PATH)',
+      }),
+    ).toEqual({
+      models: [],
+      warning: "grok: CLI not installed (no 'grok' on PATH)",
+    })
+  })
+
+  it('does not invent default when the payload is missing', () => {
+    expect(honestChatCliModels(undefined)).toEqual({ models: [], warning: null })
+  })
+})
+
+describe('apiModelOptionsFromProfiles', () => {
+  it('lists profile ids and model fields, never default', () => {
+    expect(
+      apiModelOptionsFromProfiles(
+        [
+          { id: 'orchestration', name: 'User chat', model: 'gpt-4o' },
+          { id: 'default', name: 'Default' },
+        ],
+        ['auxiliary'],
+      ),
+    ).toEqual([
+      { id: 'orchestration', label: 'User chat' },
+      { id: 'gpt-4o', label: 'gpt-4o' },
+      { id: 'auxiliary', label: 'auxiliary' },
+    ])
   })
 })

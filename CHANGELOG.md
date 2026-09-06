@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **REQ-171C-3 Chat CLI/API model pin:** List-models and MCP help resolve on the same `which_cli` / `host_cli_path` as runs. `GET /v1/cli-agents/` exposes `installed` / `configured` / `rail`. Chat `params.model` reaches `apply_model` (flag before `-p`). Empty probes stay empty with a warning — no fake `default`. API Model lists LLM/profile ids; `/v1/models` stays blueprints. Fixes #612.
+
 ### Security
 - **One CLI session store + on-mode mint + Pi resume (C-H7 / REQ-171C-4):** Production Pi cmd no longer includes `--no-session` (smoke/verify only). Resume strips conflicting flags and assembled argv is locked for every catalog CLI. `resume_cli_session_id` reads chat JSON `cli_sessions` after sanitize — settings `cli_session_id` alone does not resume. On-mode GET `/chat/thread/` and WS `fetch_conversation` mint or refuse reuse before loading the old Django row; `allocate_task_session` persists an empty record. Fixes #613.
 - **Confine CLI/API write workdirs (C-H1 + C-H2 / REQ-171C-1):** Blank `params.workdir`/`cwd` on `cli_agent` / fusion / WS chat mints a marked per-run temp under `SWARM_WORKSPACES_DIR` (or uses #588 Folder when set). `CliAdapter.stream_run` is not given process CWD on that path. `cleanup_run_workdir` / prune require `.swarm-auto-run`; a user `workspaces/run-<hex>` without the marker is kept. Fixes #610.

@@ -330,7 +330,10 @@ def test_with_model_no_flag_known_returns_entry_unchanged():
 
 def test_with_model_pins_grok_dash_m():
     entry = cli_catalog.with_model("grok", "grok-4.5")
-    assert entry["cmd"][-2:] == ["-m", "grok-4.5"]
+    assert "-m" in entry["cmd"]
+    assert entry["cmd"][entry["cmd"].index("-m") + 1] == "grok-4.5"
+    prompt_at = next(i for i, part in enumerate(entry["cmd"]) if "{prompt}" in part)
+    assert entry["cmd"].index("-m") < prompt_at
 
 
 def test_with_model_does_not_mutate_catalog():

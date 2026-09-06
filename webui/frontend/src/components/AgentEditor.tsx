@@ -8,7 +8,6 @@ import {
   fetchCliAgents,
   fetchCliModels,
   fetchLlmProfiles,
-  fetchModels,
   fetchImageGenSettings,
   fetchRemotes,
   generateAgentAvatar,
@@ -29,6 +28,7 @@ import {
   saveAgentEdit,
   saveInferenceList,
 } from '../lib/agentEdits'
+import { apiModelOptionsFromProfiles } from '../lib/cliAgentContext'
 import { FOLDER_FORMAT_ERROR, isValidFolderPath } from '../lib/agentFolder'
 import type { InferenceSeat } from '../lib/inferenceList'
 import {
@@ -177,13 +177,6 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
     retry: 1,
   })
 
-  const modelsQuery = useQuery({
-    queryKey: ['settings-llm-profiles'],
-    queryFn: fetchModels,
-    enabled: Boolean(isOpen && agentKind === 'api'),
-    retry: 1,
-  })
-
   const remotesQuery = useQuery({
     queryKey: ['remotes-list'],
     queryFn: fetchRemotes,
@@ -220,9 +213,10 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
   }, [cliModelsQuery.data, catalogAgentIds])
 
   const availableApiModels = useMemo(() => {
-    const raw = modelsQuery.data?.data ?? []
-    return raw.filter((m) => !catalogAgentIds.has(m.id.toLowerCase()))
-  }, [modelsQuery.data, catalogAgentIds])
+    return apiModelOptionsFromProfiles(llmProfilesQuery.data?.profiles, [
+      llmProfilesQuery.data?.default_llm_profile ?? '',
+    ]).filter((row) => !catalogAgentIds.has(row.id.toLowerCase()))
+  }, [llmProfilesQuery.data, catalogAgentIds])
 
   useEffect(() => {
     if (!isOpen || !id) return
@@ -622,7 +616,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
             <div>
               <span className="text-sm font-semibold text-base-content/80">LLM override</span>
               <p className="text-xs text-base-content/60 mt-0.5" data-testid="default-llm-label">
-                Default would be: {availableClis[0] || 'CLI default'} / {availableCliModels[0] || 'default'}
+                Default would be: {availableClis[0] || 'CLI default'} / {availableCliModels[0] || 'none'}
               </p>
             </div>
 
@@ -720,7 +714,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
               <p className="text-xs text-base-content/60 mt-0.5" data-testid="default-llm-label">
                 Default would be:{' '}
                 {llmProfilesQuery.data?.default_llm_profile || 'orchestration'}
-                {availableApiModels.length > 0 ? ` / ${availableApiModels[0].id}` : ''}
+                {availableApiModels.length > 0 ? ` / ${availableApiModels[0].label}` : ''}
               </p>
             </div>
 
@@ -770,7 +764,7 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
                   <option value="">Default model</option>
                   {availableApiModels.map((model) => (
                     <option key={model.id} value={model.id}>
-                      {model.id}
+                      {model.label}
                     </option>
                   ))}
                 </select>

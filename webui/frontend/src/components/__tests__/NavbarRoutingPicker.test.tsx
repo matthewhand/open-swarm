@@ -148,6 +148,20 @@ describe('NavbarRoutingPicker (REQ-200)', () => {
     expect(screen.getByTestId('routing-sheet')).toBeInTheDocument()
   })
 
+  it('shows a probe warning instead of option default when models are empty', () => {
+    renderPicker({
+      models: [],
+      selectedModel: '',
+      modelWarning: "grok: CLI not installed (no 'grok' on PATH)",
+    })
+    fireEvent.click(screen.getByTestId('routing-pill-model'))
+    expect(screen.getByTestId('routing-model-warning')).toHaveTextContent(
+      "grok: CLI not installed (no 'grok' on PATH)",
+    )
+    expect(screen.queryByRole('menuitem', { name: 'default' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Default' })).not.toBeInTheDocument()
+  })
+
   it('opens nested menus toward inline-start in RTL', () => {
     document.documentElement.setAttribute('dir', 'rtl')
     renderPicker()

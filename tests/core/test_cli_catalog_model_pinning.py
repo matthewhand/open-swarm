@@ -20,11 +20,14 @@ def test_apply_model_replaces_existing_pin():
 
 
 def test_apply_model_appends_flag_when_absent():
-    # claude's default cmd has no --model; apply_model should append it.
+    # claude's default cmd has no --model; pin it before -p={prompt}.
     entry = c.catalog_entry("claude")
     assert "--model" not in entry["cmd"]
     out = c.apply_model(entry, "claude", "claude-test")
-    assert out["cmd"][-2:] == ["--model", "claude-test"]
+    assert "--model" in out["cmd"]
+    assert out["cmd"][out["cmd"].index("--model") + 1] == "claude-test"
+    prompt_at = next(i for i, part in enumerate(out["cmd"]) if "{prompt}" in part)
+    assert out["cmd"].index("--model") < prompt_at
 
 
 def test_apply_model_noop_for_cli_without_model_flag():

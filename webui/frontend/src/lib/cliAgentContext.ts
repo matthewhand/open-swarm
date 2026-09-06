@@ -7,7 +7,8 @@
  * - explicit `?cli=<name>` (the host CLI to run)
  */
 
-import type { CliAgentsInfo } from './api'
+import type { CliAgentsInfo, CliModelsResponse, LlmProfile } from './api'
+import { isHiddenRoutingLabel } from './routingPath'
 
 /** Last native-select item — navigates to the existing CLI manage path. */
 export const MANAGE_CLI_VALUE = '__manage_cli__'
@@ -74,4 +75,50 @@ export function preferredChatCli(names: string[], current?: string | null): stri
   if (trimmed) return trimmed
   if (names.includes('grok')) return 'grok'
   return names[0] ?? ''
+}
+
+/**
+ * Live list-models payload for the Chat CLI Model control (REQ-171C-3 / #612).
+ *
+ * Empty / failed probes stay empty. Never invent option ``default``.
+ * ``list_models`` argv tables from GET /v1/cli-agents/ are not model ids.
+ */
+export function honestChatCliModels(
+  payload?: Pick<CliModelsResponse, 'models' | 'warning'> | null,
+): { models: string[]; warning: string | null } {
+  const models: string[] = []
+  const seen = new Set<string>()
+  for (const raw of payload?.models ?? []) {
+    if (typeof raw !== 'string') continue
+    const id = raw.trim()
+    if (!id || isHiddenRoutingLabel(id) || seen.has(id)) continue
+    seen.add(id)
+    models.push(id)
+  }
+  const warning = (payload?.warning ?? '').trim()
+  if (models.length === 0) {
+    return { models: [], warning: warning || null }
+  }
+  return { models, warning: warning || null }
+}
+
+/** LLM / profile ids for the API Model control — never /v1/models blueprint ids. */
+export function apiModelOptionsFromProfiles(
+  profiles: Array<Pick<LlmProfile, 'id' | 'name' | 'model'>> | null | undefined,
+  extraIds: string[] = [],
+): Array<{ id: string; label: string }> {
+  const out: Array<{ id: string; label: string }> = []
+  const seen = new Set<string>()
+  const push = (id: string, label?: string) => {
+    const trimmed = id.trim()
+    if (!trimmed || isHiddenRoutingLabel(trimmed) || seen.has(trimmed)) return
+    seen.add(trimmed)
+    out.push({ id: trimmed, label: (label || trimmed).trim() || trimmed })
+  }
+  for (const profile of profiles ?? []) {
+    if (profile.id) push(profile.id, profile.name || profile.id)
+    if (profile.model) push(profile.model)
+  }
+  for (const extra of extraIds) push(extra)
+  return out
 }

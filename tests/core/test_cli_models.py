@@ -125,10 +125,39 @@ def test_unknown_cli_warns_empty_list():
 
 
 def test_missing_cli_warns_empty_list(monkeypatch):
-    monkeypatch.setattr("swarm.core.cli_models.shutil.which", lambda exe: None)
+    monkeypatch.setattr("swarm.core.cli_catalog.which_cli", lambda exe: None)
     result = list_models("claude")
     assert result.models == []
     assert "not installed" in (result.warning or "")
+
+
+def test_stripped_path_probe_finds_user_local_grok(tmp_path, monkeypatch):
+    """Daphne-stripped PATH still resolves ~/.local/bin/grok (C-H5)."""
+    home = tmp_path / "home"
+    local_bin = home / ".local" / "bin"
+    local_bin.mkdir(parents=True)
+    grok = local_bin / "grok"
+    grok.write_text("#!/bin/sh\n")
+    grok.chmod(0o755)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", str(empty))
+
+    from swarm.core.cli_models import _resolve_executable
+
+    assert _resolve_executable("grok") == str(grok)
+
+    async def fake_run(argv, timeout):
+        assert argv[0] == str(grok)
+        assert argv[1:] == ["models"]
+        return 0, "grok-4.5\n", ""
+
+    import asyncio
+
+    result = asyncio.run(probe_list_models("grok", run_exec=fake_run))
+    assert result.models == ["grok-4.5"]
+    assert result.warning is None
 
 
 def test_timeout_does_not_hang(monkeypatch):

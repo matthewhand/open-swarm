@@ -1383,6 +1383,12 @@ button.os-agent-row {
 .os-routing-menu__empty {
   opacity: 0.6;
 }
+.os-routing-menu__warning {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--color-warning) 85%, var(--color-base-content));
+}
 .os-routing-picker--narrow {
   max-width: min(18rem, 58vw);
 }

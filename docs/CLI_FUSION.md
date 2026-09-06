@@ -367,7 +367,16 @@ curl -sf http://localhost:8000/v1/cli-agents/models
 
 `GET /v1/cli-agents/` and `GET /v1/config-options/` also expose the argv table
 (`list_models`) so Settings / #358 can auto-pick without guessing flags. The
-catalog GET does **not** run the probe.
+catalog GET does **not** run the probe. Live probes
+(`GET /v1/cli-agents/<cli>/models` and MCP `--help`) resolve the binary with
+`which_cli` on `host_cli_path` — the same PATH CLI runs use — so a
+Daphne-stripped `PATH=/usr/bin:/bin` still finds `~/.local/bin/grok`. Empty or
+failed probes return `{models: [], warning}` (HTTP 200). Chat does not invent a
+`default` option from that.
+
+The catalog GET body includes host discovery the SPA already reads:
+`installed` / `configured` / `discovered` / `rail`. Tests must use that payload,
+not a stub that omits those keys.
 
 **Per-CLI model flag.** When a request (or an inference profile) pins a specific
 model, the catalog rewrites the CLI's command using that CLI's model flag:
@@ -377,11 +386,17 @@ model, the catalog rewrites the CLI's command using that CLI's model flag:
 | `gemini` | `-m` |
 | `claude` | `--model` |
 | `opencode` | `--model` |
+| `agy` | `--model` |
+| `grok` | `-m` |
 
 `cli_catalog.apply_model` replaces an already-pinned model in place (rather than
 duplicating the flag) and is a no-op for CLIs with no known model flag or no
-`cmd`; `with_model` returns a catalog entry pinned to a model (with an optional
-larger `timeout` for slower "pro" tiers).
+`cmd`; new flags sit **before** `-p` / `{prompt}`. `with_model` returns a
+catalog entry pinned to a model (with an optional larger `timeout` for slower
+"pro" tiers). Chat send `params.model` (or Agent Router `cli_model`) reaches
+`apply_overrides` → `apply_model` for CLIs in `MODEL_FLAG`. The API Model
+control lists LLM/profile ids from `/v1/llm-profiles/`; `/v1/models` stays an
+honest OpenAI blueprint envelope.
 
 These panelists run at **full capability** — they can read, write, and run
 commands. The one real hazard of fanning several write-capable agents out in
