@@ -55,6 +55,7 @@ def test_four_poster_stems_exist():
 
 
 def test_readme_embeds_four_demo_slots_in_order():
+    """REQ-97b — the live GIF table replaced the SVG posters on README."""
     text = _readme()
     assert "## Demos" in text
     # Pitch, then demos, then how to run.
@@ -63,20 +64,22 @@ def test_readme_embeds_four_demo_slots_in_order():
     how_to = text.find("## WebUI (start here)")
     assert 0 <= pitch < demos < how_to
 
-    for stem in STEMS:
-        rel = f"docs/assets/readme/{stem}.svg"
+    for stem in GIF_STEMS:
+        rel = f"docs/demo/{stem}.gif"
         assert rel in text, f"README must embed {rel}"
         target = (README.parent / rel).resolve()
         assert target.is_file(), f"README embed does not resolve: {rel}"
 
-    assert "CLI agents" in text
-    assert "API agents" in text
-    assert "Remote agents" in text
+    assert "CLI Agent" in text or "CLI agents" in text
+    assert "API Agent" in text or "API agents" in text
+    assert "Remote Agent" in text or "Remote agents" in text
     assert "OpenMousBot" in text
-    assert "Combined team" in text
+    assert "Combined Team" in text or "Combined team" in text
     assert "CLI + API + remote" in text
-    assert "docs/assets/readme/RECORDING.md" in text
     assert "docs/SHOWOFF_DEMO_AGENTS.md" in text
+
+
+GIF_STEMS = ("cli-agent", "api-agent", "remote-agent", "combined-team")
 
 
 def test_readme_demo_copy_says_openmousbot_not_omb():
