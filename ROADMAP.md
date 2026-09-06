@@ -139,6 +139,10 @@ remount them; SPA↔Django parity is **rejected** as a v1 goal.
   - [x] **REQ-163 Phase 0** — virtualized chat ADR ([ADR-004](./docs/adr/004-virtualized-chat-history.md)): pick `@tanstack/react-virtual` ≥ 3.14; fallback MIT Virtuoso; Query stays the data layer
   - [ ] **REQ-163 Phase 1** — virtualize ChatPage `displayItems` (no API pagination)
   - [ ] **REQ-163 Phase 2** — cursor-paginate `GET /chat/thread/` + `useInfiniteQuery` load-older
+  - [x] **REQ-194 Phase 0** — 3D robot avatar ADRs ([ADR-008](./docs/adr/008-3d-robot-avatar-theme.md), [Reachy report](./docs/reports/reachy-3d-avatar-inspiration.md)): MiniPose playback, lazy header WebGL, one Rail key; disabled picker stub
+  - [ ] **REQ-194 Phase 1** — `robot3d` + one licensed mesh (idle/working); chat never blocked
+  - [ ] **REQ-194 Phase 2** — ≥2 body × ≥2 head on one MiniPose rig
+  - [ ] **REQ-194 Phase 3** — map chat/WS status to idle/listen/working/error
   - [ ] ~~Replace Django template pages page-by-page~~ — **superseded by ADR-001**
 
 ### 3.2 Memory integration (mem0 / letta / langmem)

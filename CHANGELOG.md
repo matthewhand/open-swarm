@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **REQ-194 Phase 0 3D robot avatar ADRs:** Reachy-style report (Three/URDF pose mirror, `MiniPose` clip contract, LICENSE+NOTICE) plus [ADR-008](docs/adr/008-3d-robot-avatar-theme.md) (lazy header WebGL, one `swarm_avatar_theme` key, idle/listen/working hooks). Settings Rail / Django pickers show a disabled **3D robot (coming soon)** row with an ADR link. No mesh runtime, no Three on the chat graph, no Neon, no `:8001`. Fixes #667 (Phase 0 only).
 - **REQ-191 role-agent Mode A/B tip + contract:** [ADR-010](docs/adr/010-role-agent-invocation-modes.md) names Mode A (human chat = configure/discuss, full thread) vs Mode B (as-tool/handoff = caller context + latest message). SPA Chat shows a dismissable DaisyUI tip on the pane when the selected agent has a role; role-less seats skip it. Esc/X hide the tip and leave chat mounted. Dismiss persists in `localStorage` and `/v1/preferences/` extras (`role_agent_tip_dismissed`; #540). Mode B runtime wiring is deferred to a child Issue. Does not revive first-load keybinding overlay chrome (#571/#577). Fixes #648.
 
 ### Fixed

@@ -9,6 +9,7 @@
   function readTheme() {
     try {
       var stored = localStorage.getItem(KEY);
+      // robot3d is reserved (ADR-008 / REQ-194) and is not a persistable value yet.
       if (stored === "bland" || stored === "default") return "bland";
       if (stored === "bee") return "bee";
       if (stored === "blobs") return "blobs";
