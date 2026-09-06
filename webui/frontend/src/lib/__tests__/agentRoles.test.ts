@@ -3,6 +3,7 @@ import { AGENT_EDITS_KEY, saveAgentEdit } from '../agentEdits'
 import type { Blueprint } from '../api'
 import {
   ROLE_CHIEF_OF_STAFF,
+  agentHasRole,
   agentRole,
   applyBlueprintAssignment,
   assignableBlueprints,
@@ -59,6 +60,9 @@ describe('agentRoles', () => {
     expect(agentRole({ id: 'skeptic', name: 'Skeptic' })).toBe('skeptic')
     expect(agentRole({ id: 'cos', name: 'Chief of Staff' })).toBe('chief_of_staff')
     expect(agentRole(codey)).toBe('default')
+    expect(agentHasRole({ id: 'support', name: 'Support' })).toBe(true)
+    expect(agentHasRole({ id: 'gate', name: 'Safety' })).toBe(true)
+    expect(agentHasRole(codey)).toBe(false)
   })
 
   it('honours a persisted role override from the agent editor', () => {

@@ -193,6 +193,13 @@ import { formatGapLabel, parseCreatedAtMs } from '../lib/chatTime'
 import { workingLabel } from '../lib/chatBubble'
 import { isExperimentalEnabled } from '../experimental/flags'
 import { ChatMessageActions } from '../experimental/ChatMessageActions'
+import { RoleAgentTip } from '../components/RoleAgentTip'
+import {
+  hydrateRoleAgentTipDismissed,
+  persistRoleAgentTipDismissed,
+  isRoleAgentTipDismissed,
+  shouldShowRoleAgentTip,
+} from '../lib/roleAgentTip'
 import { agentRole, exampleRoleAgents, isChiefOfStaff, isExampleRole } from '../lib/agentRoles'
 import { assignedBlueprintId, AGENT_EDITS_CHANGED_EVENT, editedAgentLabel, loadAgentEdit, loadInferenceList } from '../lib/agentEdits'
 import { buildSkillParams, parseComposerSkillNames } from '../lib/skills'
@@ -375,6 +382,7 @@ const ChatPage = () => {
   const [slashDismissed, setSlashDismissed] = useState(false)
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [recentSlashIds, setRecentSlashIds] = useState<string[]>(() => getRecentSlashIds())
+  const [roleTipDismissed, setRoleTipDismissed] = useState(isRoleAgentTipDismissed)
   const [dynamicSkills, setDynamicSkills] = useState<{ name: string; description?: string }[]>([])
   const [skillCatalog, setSkillCatalog] = useState<SkillRecord[]>([])
   const [openSkillName, setOpenSkillName] = useState<string | null>(null)
@@ -594,6 +602,33 @@ const ChatPage = () => {
               id: selectedBlueprint,
               name: fallbackAgentName,
             })
+  const showRoleTip = shouldShowRoleAgentTip({
+    teamId: teamFromUrl,
+    remoteId: remoteFromUrl,
+    dismissed: roleTipDismissed,
+    agent: {
+      id: selectedBlueprint,
+      name: selectedAgentName,
+      role: selectedAgent?.role,
+    },
+  })
+  const dismissRoleTip = useCallback(() => {
+    void persistRoleAgentTipDismissed()
+    setRoleTipDismissed(true)
+  }, [])
+  useEffect(() => {
+    if (!showRoleTip) return
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (document.querySelector('[role="dialog"], .modal-open, [data-testid="search-palette"]')) {
+        return
+      }
+      e.preventDefault()
+      dismissRoleTip()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showRoleTip, dismissRoleTip])
   const notifyCtxRef = useRef({
     agentId: activeChatAgentId,
     agentName: selectedAgentName,
@@ -974,6 +1009,12 @@ const ChatPage = () => {
       if (!server) return
       setContextStrategy(parseContextStrategy(server.context_strategy))
       setCullTriggerPct(parseCullTriggerPct(server.context_cull_trigger_pct))
+    })
+  }, [])
+
+  useEffect(() => {
+    void hydrateRoleAgentTipDismissed().then((dismissed) => {
+      if (dismissed) setRoleTipDismissed(true)
     })
   }, [])
 
@@ -2256,6 +2297,11 @@ const ChatPage = () => {
         setReplyTarget(null)
         return
       }
+      if (showRoleTip) {
+        event.preventDefault()
+        dismissRoleTip()
+        return
+      }
       if (input.length > 0) {
         event.preventDefault()
         setInput('')
@@ -2649,6 +2695,8 @@ const ChatPage = () => {
           </div>
         </div>
       </header>
+
+      {showRoleTip ? <RoleAgentTip onDismiss={dismissRoleTip} /> : null}
 
       <span role="status" aria-live="polite" aria-atomic="true" aria-label="Connection status" className="sr-only">
         {statusLabel}

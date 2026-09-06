@@ -1399,6 +1399,12 @@ button.os-agent-row {
 .os-runtime-banner-wrap {
   padding: 0.5rem 0.75rem 0;
 }
+.os-role-agent-tip {
+  padding: 0.5rem 0.75rem 0;
+}
+.os-role-agent-tip__alert {
+  padding: 0.65rem 0.75rem;
+}
 .os-runtime-banner {
   padding: 0.65rem 0.75rem;
 }
