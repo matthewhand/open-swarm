@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -18,6 +20,8 @@ from swarm.tui.client import (
     resolve_base_url,
     resolve_token,
     sectioned_seats,
+    sendable_model,
+    stream_assistant,
 )
 
 
@@ -439,3 +443,108 @@ def test_fetch_thread_http_error_is_named():
 
     with pytest.raises(SwarmApiError, match="503"):
         fetch_thread(agent="grok", getter=getter)
+
+
+# --- Wave 2b: send + stream via POST /v1/chat/completions (REST SSE) --------
+
+
+def _sse_response(sse_text: str, *, status: int = 200, headers: dict[str, str] | None = None) -> httpx.Response:
+    request = httpx.Request(
+        "POST", "http://127.0.0.1:8000/v1/chat/completions"
+    )
+    merged = {"content-type": "text/event-stream"}
+    merged.update(headers or {})
+    return httpx.Response(status, text=sse_text, headers=merged, request=request)
+
+
+def _ok_chunk(content: str) -> str:
+    payload = {
+        "object": "chat.completion.chunk",
+        "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}}],
+    }
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+def test_sendable_model_is_blueprint_seats_only():
+    assert sendable_model(RailSeat(id="support", name="Support", kind="api", source="blueprints")) == "support"
+    assert sendable_model(RailSeat(id="grok", name="Grok", kind="cli", source="cli-agents")) is None
+    assert sendable_model(RailSeat(id="team:o", name="O", kind="team", source="team-rosters")) is None
+    assert sendable_model(RailSeat(id="night", name="N", kind="remote", source="remotes")) is None
+    assert sendable_model(RailSeat(id="herdr:w", name="w", kind="herdr", source="herdr-agents")) is None
+
+
+def test_stream_assistant_parses_sse_deltas_and_body():
+    captured: dict[str, object] = {}
+
+    def poster(url: str, body: dict, headers: dict[str, str]) -> httpx.Response:
+        captured["url"] = url
+        captured["body"] = body
+        captured["headers"] = headers
+        return _sse_response(_ok_chunk("hel") + _ok_chunk("lo") + "data: [DONE]\n\n")
+
+    deltas = stream_assistant(
+        model="support",
+        messages=[{"role": "user", "content": "hi"}],
+        token="tok-9",
+        poster=poster,
+    )
+    assert deltas == ["hel", "lo"]
+    assert captured["url"].endswith("/v1/chat/completions")
+    assert captured["body"] == {
+        "model": "support",
+        "messages": [{"role": "user", "content": "hi"}],
+        "stream": True,
+    }
+    assert captured["headers"]["Authorization"] == "Bearer tok-9"
+    assert captured["headers"]["Content-Type"] == "application/json"
+
+
+def test_stream_assistant_surfaces_mid_stream_error():
+    error_event = json.dumps({"error": {"message": "model overloaded", "type": "api_error"}})
+
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        return _sse_response(f"data: {error_event}\n\ndata: [DONE]\n\n")
+
+    with pytest.raises(SwarmApiError, match="model overloaded"):
+        stream_assistant(model="support", messages=[], poster=poster)
+
+
+def test_stream_assistant_ignores_side_channel_events():
+    side = json.dumps({"object": "open_swarm.rate_limit_wait", "wait": 1})
+
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        return _sse_response(f"data: {side}\n\n" + _ok_chunk("ok") + "data: [DONE]\n\n")
+
+    assert stream_assistant(model="support", messages=[], poster=poster) == ["ok"]
+
+
+def test_stream_assistant_without_done_is_honest_truncation():
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        return _sse_response(_ok_chunk("partial"))
+
+    with pytest.raises(SwarmApiError, match=r"without \[DONE\]"):
+        stream_assistant(model="support", messages=[], poster=poster)
+
+
+def test_stream_assistant_transport_error_is_honest():
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    with pytest.raises(SwarmApiError, match="API unreachable"):
+        stream_assistant(model="support", messages=[], poster=poster)
+
+
+def test_stream_assistant_auth_error_is_named():
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        return _sse_response("", status=401, headers={"content-type": "application/json"})
+
+    with pytest.raises(SwarmApiError, match="auth"):
+        stream_assistant(model="support", messages=[], token="bad", poster=poster)
+
+
+def test_stream_assistant_http_error_is_named():
+    def poster(_url: str, _body: dict, _headers: dict[str, str]) -> httpx.Response:
+        return _sse_response("", status=503, headers={"content-type": "application/json"})
+
+    with pytest.raises(SwarmApiError, match="503"):
+        stream_assistant(model="support", messages=[], poster=poster)

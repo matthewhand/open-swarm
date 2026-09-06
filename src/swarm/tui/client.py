@@ -6,6 +6,7 @@ local agents when the API is down.
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ BASE_URL_ENV = "SWARM_API_BASE"
 TOKEN_ENV_NAMES = ("API_AUTH_TOKEN", "SWARM_API_KEY")
 
 GETTER = Callable[[str, dict[str, str]], httpx.Response]
+# POST /v1/chat/completions — body is JSON-serialisable (Wave 2b SSE send).
+POSTER = Callable[[str, dict[str, Any], dict[str, str]], httpx.Response]
 
 
 class SwarmApiError(RuntimeError):
@@ -379,6 +382,97 @@ def fetch_thread(
     if not isinstance(payload, dict):
         raise SwarmApiError(f"API returned a non-object at {url}")
     return _thread_from_payload(payload, agent)
+
+
+# --- Wave 2b: send + stream via POST /v1/chat/completions (REST SSE) --------
+
+
+def sendable_model(seat: RailSeat) -> str | None:
+    """REST ``model`` for a rail seat, else None (honest unsupported).
+
+    ``/v1/chat/completions`` runs **blueprint** seats (the same recipe id the
+    WebUI / curl use). CLI-tool, team and remote/Herder rows are not blueprint
+    models over REST v1 — those seats send over the SPA websocket (Wave 3b),
+    so the TUI reports them as unsupported instead of inventing a model.
+    """
+    if seat.source == "blueprints" and seat.id:
+        return seat.id
+    return None
+
+
+def stream_assistant(
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    base_url: str | None = None,
+    token: str | None = None,
+    timeout: float = 120.0,
+    poster: POSTER | None = None,
+) -> list[str]:
+    """POST ``/v1/chat/completions`` (stream) and return assistant deltas.
+
+    Same Bearer contract as every other REST client (Wave 1c). SSE is parsed
+    line by line: OpenAI ``choices[].delta.content`` chunks, a mid-stream
+    ``{"error": ...}`` event, or ``[DONE]``. A transport failure, 401/403,
+    HTTP error, or server error event is an explicit ``SwarmApiError`` — never
+    a fake local reply.
+    """
+    base = resolve_base_url(base_url)
+    auth = token if token is not None else resolve_token()
+    headers = _headers(auth)
+    headers["Content-Type"] = "application/json"
+
+    def default_poster(url: str, body: dict[str, Any], hdrs: dict[str, str]) -> httpx.Response:
+        with httpx.Client(timeout=timeout) as client:
+            return client.post(url, json=body, headers=hdrs)
+
+    post = poster or default_poster
+    url = f"{base}/v1/chat/completions"
+    body: dict[str, Any] = {"model": model, "messages": messages, "stream": True}
+    try:
+        response = post(url, body, headers)
+    except httpx.HTTPError as exc:
+        raise SwarmApiError(_transport_error_message(url, exc)) from exc
+    if response.status_code in _SESSION_GATED_STATUSES:
+        raise SwarmApiError(_auth_failure_message(response.status_code, auth is not None))
+    if response.status_code >= 400:
+        raise SwarmApiError(f"API error {response.status_code} at {url}")
+    try:
+        return _parse_sse_deltas(response)
+    except httpx.HTTPError as exc:
+        # A reset / read error while streaming is still an honest API-down.
+        raise SwarmApiError(_transport_error_message(url, exc)) from exc
+
+
+def _parse_sse_deltas(response: httpx.Response) -> list[str]:
+    """Accumulate assistant content from a ``text/event-stream`` body."""
+    deltas: list[str] = []
+    for line in response.iter_lines():
+        line = (line or "").strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[len("data:"):].strip()
+        if data == "[DONE]":
+            return deltas
+        try:
+            event = json.loads(data)
+        except ValueError:
+            continue  # keepalive / unknown frame
+        if not isinstance(event, dict):
+            continue
+        error = event.get("error")
+        if isinstance(error, dict):
+            # Any error event is fatal — never return partial deltas as success.
+            raise SwarmApiError(str(error.get("message") or "stream error"))
+        for choice in event.get("choices") or []:
+            if not isinstance(choice, dict):
+                continue
+            delta = choice.get("delta") or choice.get("message") or {}
+            content = delta.get("content")
+            if isinstance(content, str) and content:
+                deltas.append(content)
+    # Stream ended without [DONE] — treat as an honest transport truncation.
+    raise SwarmApiError("SSE stream ended without [DONE]")
 
 
 def list_rail_agents(
