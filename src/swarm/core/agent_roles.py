@@ -174,6 +174,12 @@ def is_chief_of_staff(role: Any) -> bool:
     return normalize_agent_role(role) == ROLE_CHIEF_OF_STAFF
 
 
+def can_manage_agent_lifecycle(role: Any) -> bool:
+    """True for Support / CoS — the only roles that get create/archive tools (REQ-154)."""
+    canonical = normalize_agent_role(role)
+    return canonical == ROLE_SUPPORT or canonical == ROLE_CHIEF_OF_STAFF or is_chief_of_staff(role)
+
+
 def role_css_class(role: Any) -> str:
     """Return ``os-agent-role-<canonical>`` for a role value."""
     return ROLE_CSS_CLASSES[normalize_agent_role(role)]

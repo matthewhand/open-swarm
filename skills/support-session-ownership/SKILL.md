@@ -58,6 +58,18 @@ first messages: **Create a team**, **Create a BA → Engineer → Tester workflo
 - Be honest about what each kind can do (next section). Do not invent
   capabilities (no click-to-edit on CLI/remote; no secret capture).
 
+### Grow or trim the roster (REQ-154 / pairs with #530)
+
+- You and an API **Chief of Staff** can **create** and **archive** agents
+  with tools (`create_agent`, `archive_agent`), not just point at UI paths.
+- Kinds: CLI / API / remote / blueprint. Safe defaults (`role=default`).
+  Env var **names** only — never plaintext secrets. Never invent a live host.
+- Archive is a soft-delete: hidden from the default rail, recoverable ~30
+  days, then `manage.py purge_archived_agents` hard-deletes the seat.
+  Chats stay on Settings retention (`SWARM_CHAT_MAX_AGE_DAYS`).
+- Ordinary workers do **not** get create/archive. Do not offer those tools
+  as if every agent had them.
+
 ### Suggestions / kickstart chips
 
 - First-run chips may say **Create a team**, **Create a BA → Engineer → Tester workflow**, **Add a remote**, **Wire a CLI**.

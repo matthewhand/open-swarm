@@ -829,6 +829,10 @@ class BlueprintBase(ABC):
         if mailbox_ctx is not None:
             extra = mailbox_ctx.tool_objects()
             tools = list(tools or []) + extra
+        lifecycle_ctx = getattr(self, "_lifecycle_context", None)
+        if lifecycle_ctx is not None:
+            extra = lifecycle_ctx.tool_objects()
+            tools = list(tools or []) + extra
         agent = Agent(
             name=name,
             model=model_instance,

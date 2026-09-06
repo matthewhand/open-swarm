@@ -482,6 +482,17 @@ class ChatCompletionsView(APIView):
             )
         except Exception:
             logger.exception("Failed to install peer mailbox tools")
+        try:
+            from swarm.core.agent_lifecycle import install_lifecycle_for_runtime
+
+            install_lifecycle_for_runtime(
+                blueprint_instance,
+                caller_id=str(model_name or ""),
+                user=getattr(request, "user", None),
+                params=blueprint_params if isinstance(blueprint_params, dict) else {},
+            )
+        except Exception:
+            logger.exception("Failed to install Support/CoS lifecycle tools")
 
         # Only after confirming existence, enforce permission check result
         if not access_granted:

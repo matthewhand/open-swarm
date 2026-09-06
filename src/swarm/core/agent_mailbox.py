@@ -722,6 +722,12 @@ def context_from_runtime(
     archived = set()
     if isinstance(raw_archived, list):
         archived.update(str(item).strip() for item in raw_archived if str(item).strip())
+    try:
+        from swarm.core.agent_lifecycle import catalog_archived_ids
+
+        archived.update(catalog_archived_ids())
+    except Exception:
+        logger.debug("mailbox catalog archived_ids unavailable", exc_info=True)
 
     if "mailbox_acl" in params or "acl" in params:
         acl = AclPolicy.from_raw(params.get("mailbox_acl") or params.get("acl"))

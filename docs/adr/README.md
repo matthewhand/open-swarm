@@ -10,7 +10,7 @@
 | [ADR-006](./006-api-vs-blueprint-kinds.md) | Separate API (inference seat) from Blueprint (programmatic) — REQ-193 |
 | [ADR-007](./007-local-computer-control.md) | Local computer control — adapt OMB + Rakazo (REQ-189 / #645) |
 | [ADR-008](./008-3d-robot-avatar-theme.md) | Optional 3D robot avatar theme family (Reachy-inspired; REQ-194 / #667). Report: [reachy-3d-avatar-inspiration.md](../reports/reachy-3d-avatar-inspiration.md) |
-| [ADR-009](./009-peer-mailbox.md) | Peer mailbox — team graph + relationship edges, not a global mesh (REQ-153 / #561) |
+| [ADR-009](./009-peer-mailbox.md) | Peer mailbox — team graph + relationship edges, not a global mesh (REQ-153 / #561). Archived catalog flag is fed by REQ-154. |
 | [ADR-010](./010-role-agent-invocation-modes.md) | Role-agent Mode A (human chat / wide context) vs Mode B (as-tool / caller context) — tip this PR; Mode B wiring deferred (REQ-191 / #648) |
 
 ADR-006 **amends** ADR-005’s `ApiKindBase` slot: user-facing kinds become CLI | API | Blueprint | Remote.

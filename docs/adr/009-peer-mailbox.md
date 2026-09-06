@@ -77,7 +77,7 @@ Edges are **undirected**. v1 pairs: team↔agent, team↔team. Agent↔agent is 
 
 **ACL entries** live on XDG `agent_mailbox_acl.json` (never `teams.json`): `{kind: agent|team|role, id}` plus `mode: whitelist|blacklist` per agent or role. Empty blacklist = no extra cut. Empty whitelist = nobody, except Support/CoS default **allow-all**. REST: `/v1/mailbox-acl/`.
 
-**Hidden** = `UserPreference.hidden_agents`. **Archived** = explicit catalog flag / `archived_ids` (REQ-154 soft-delete can feed this). Distinct tool errors.
+**Hidden** = `UserPreference.hidden_agents`. **Archived** = catalog flag (`archived` + `archived_at` on custom-library / remotes rows; REQ-154 `archive_agent` feeds `catalog_archived_ids()` into this mailbox). Distinct tool errors.
 
 **Tenant:** `send_message` writes the target thread under the caller’s `chat_store` `user_key` only.
 
@@ -99,7 +99,7 @@ Not a second Neon inbox. Not a local demo-port webhook.
 * openai-agents `handoff` / `as_tool` topology (REQ-156)
 * CLI↔CLI / remote↔remote / cross-kind allowlist (later)
 * ACL management UI — shipped in REQ-162 / #573 (Agent Editor + `/v1/mailbox-acl/`)
-* Soft-delete purge (REQ-154 / #562)
+* Soft-delete + ~30d purge — shipped as REQ-154 / [#562](https://github.com/matthewhand/open-swarm/issues/562) (`docs/AGENT_LIFECYCLE.md`)
 
 ---
 
