@@ -80,8 +80,8 @@ blueprint final partial — REQ-171A-2) and again on disconnect (idempotent
 replace). Status and edit frames still save immediately.
 
 Reload (`GET /chat/thread/?agent=`) and websocket reconnect
-(`fetch_conversation`) share one load order — JSON first, then Django
-`ChatMessage` backfill when the file is missing (`swarm.core.thread_load`).
+(`fetch_conversation`) share one load order — JSON first, then DB backfill
+(Django `ChatMessage` rows) when the file is missing (`swarm.core.thread_load`).
 JSON is the source of truth, so `ts` and `edited` survive both hydrate and
 reconnect. The WS in-memory cache stays keyed by `(user_id, conversation_id)`.
 On-mode mint (REQ-171C-4) still runs before any row load. Retention (counts,

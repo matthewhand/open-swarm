@@ -60,14 +60,14 @@ def test_source_lock_shared_json_first_load_order():
 
 
 @pytest.fixture
-def user(db):
+def user(db):  # noqa: ARG001 — pytest django_db fixture
     return get_user_model().objects.create_user(username="thread-load-op", password="pw")
 
 
 @pytest.fixture
 def client(user):
     c = Client()
-    c.login(username="thread-load-op", password="pw")
+    assert c.login(username=user.username, password="pw")
     return c
 
 
