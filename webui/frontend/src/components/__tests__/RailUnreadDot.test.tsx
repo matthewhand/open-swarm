@@ -18,8 +18,8 @@ describe('REQ-210: Unread blue dot (replaces timestamp) + Mark as unread', () =>
             ok: true,
             json: async () => ({
               data: [
-                { id: 'codey', name: 'Codey', role: 'default' },
-                { id: 'stewie', name: 'Stewie', role: 'default' },
+                { id: 'codey', name: 'Codey', role: 'default', rail: true },
+                { id: 'stewie', name: 'Stewie', role: 'default', rail: true },
               ],
             }),
           } as Response)

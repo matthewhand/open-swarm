@@ -4,7 +4,7 @@ import { Button, Modal, Select } from './DaisyUI'
 import { fetchBlueprints, type Blueprint } from '../lib/api'
 import { catalogLabel } from '../lib/supportAgent'
 import { assignedTeamBlueprintId, saveTeamEdit } from '../lib/teamEdits'
-import { fetchTeamRosters } from '../lib/teamRosters'
+import { fetchTeamRosters, parseTeamRosters } from '../lib/teamRosters'
 import { openSettingsSheet } from './SettingsSheet'
 import PersonaRoster from './PersonaRoster'
 import { declaredRosterForTeam } from '../lib/declaredRoster'
@@ -64,7 +64,7 @@ export default function TeamEditor({
     () => blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS,
     [blueprintsQuery.data],
   )
-  const rosterTeam = teamsQuery.data?.find((team) => team.id === id)
+  const rosterTeam = parseTeamRosters(teamsQuery.data ?? []).find((team) => team.id === id)
 
   useEffect(() => {
     if (!isOpen || !id) return

@@ -261,7 +261,9 @@ export default function TeamComposer({ isOpen, onClose }: TeamComposerProps) {
     setStatus(null)
   }
 
-  const savedRosters = rostersQuery.data?.data ?? []
+  const savedRosters = Array.isArray(rostersQuery.data)
+    ? rostersQuery.data
+    : rostersQuery.data?.data ?? []
 
   return (
     <Modal

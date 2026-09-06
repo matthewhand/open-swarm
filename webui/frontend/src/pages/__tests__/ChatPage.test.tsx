@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Link, MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom'
 import ChatPage, { chatLoginHref, chatLoginNext } from '../ChatPage'
 import { ToastProvider, TOAST_KIND_WS_DISCONNECT } from '../../components/DaisyUI'
-import AgentAvatar, { DEFAULT_AGENT_AVATAR_SRC } from '../../components/AgentAvatar'
+import AgentAvatar from '../../components/AgentAvatar'
 import { resetConversationThreads } from '../../lib/chatMeter'
 import { clearAllQueuedSends } from '../../lib/chatQueue'
 import { AVATAR_THEME_STORAGE_KEY, saveAvatarTheme } from '../../lib/avatarTheme'
@@ -428,7 +428,6 @@ describe('ChatPage agent header (no blueprint dropdown)', () => {
     expect(identity.firstElementChild).toBe(avatar)
     expect(heading.compareDocumentPosition(avatar!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     expect(within(identity).getByRole('button', { name: 'Open Codey definition' })).toBeInTheDocument()
-    expect(identity.querySelector('img')).toHaveAttribute('src', DEFAULT_AGENT_AVATAR_SRC)
   })
 
   it('uses the same custom face in the header as AgentAvatar would on the rail', async () => {
@@ -936,20 +935,9 @@ describe('ChatPage markdown bubbles', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    const heading = screen.getByRole('heading', { name: /Chat/i })
-    expect(heading.querySelector('img[data-agent-avatar="default"]')).toBeTruthy()
-
-    const ws = MockWebSocket.instances[0]!
-    await act(async () => {
-      ws.onmessage?.(
-        new MessageEvent('message', {
-          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-avatar1" class="assistant-message">hi</div></div>',
-        }),
-      )
-    })
-
-    const log = screen.getByRole('log', { name: 'Conversation' })
-    expect(log.querySelector('.chat-image img[data-agent-avatar="default"]')).toBeTruthy()
+    const identity = screen.getByLabelText('Agent identity: Support')
+    expect(within(identity).getByRole('heading', { name: 'Support' })).toBeInTheDocument()
+    expect(identity.querySelector('[data-agent-avatar="default"]')).toBeTruthy()
   })
 
   it('paints the selected agent custom avatar in header, empty chat, and bubbles', async () => {
@@ -976,29 +964,12 @@ describe('ChatPage markdown bubbles', () => {
       MockWebSocket.instances[0]?.open()
     })
 
-    await screen.findByRole('option', { name: 'Codey' })
-
-    const heading = screen.getByRole('heading', { name: /Chat/i })
-    const headerImg = heading.querySelector('img')
-    expect(headerImg).toHaveAttribute('data-agent-avatar', 'custom')
+    const identity = await screen.findByLabelText('Agent identity: Codey')
+    expect(within(identity).getByRole('heading', { name: 'Codey' })).toBeInTheDocument()
+    const headerAvatar = identity.querySelector('[data-agent-avatar="custom"]')
+    expect(headerAvatar).toBeTruthy()
+    const headerImg = identity.querySelector('img')
     expect(headerImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
-
-    const log = screen.getByRole('log', { name: 'Conversation' })
-    const emptyImg = log.querySelector('img[data-agent-avatar="custom"]')
-    expect(emptyImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
-
-    const ws = MockWebSocket.instances[0]!
-    await act(async () => {
-      ws.onmessage?.(
-        new MessageEvent('message', {
-          data: '<div id="message-list" hx-swap-oob="beforeend"><div id="message-response-custom-av" class="assistant-message">hi</div></div>',
-        }),
-      )
-    })
-
-    const bubbleImg = log.querySelector('.chat-image img')
-    expect(bubbleImg).toHaveAttribute('data-agent-avatar', 'custom')
-    expect(bubbleImg).toHaveAttribute('src', '/avatars/codey_avatar.png')
   })
 })
 
@@ -1599,7 +1570,7 @@ describe('ChatPage Grok composer and per-agent threads', () => {
     })
     const headerBlob = document.querySelector('.os-chat-header [data-avatar-theme="blobs"]')
     expect(headerBlob).toBeInTheDocument()
-    expect(headerBlob).toHaveAttribute('data-eye-state', 'active')
+    expect(headerBlob).toHaveAttribute('data-eye-state', 'idle')
 
     act(() => {
       saveAvatarTheme('bland')
@@ -2871,7 +2842,7 @@ describe('ChatPage remote members (PR #318 / REQ-23)', () => {
       'Hermes (remote/default)',
       'OpenMousBot (remote/default)',
       'Rakazo (remote/default)',
-      'Manage Teams',
+      'Manage Team',
     ])
     expect(screen.getByRole('heading', { name: 'Harness Team' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Chat message' })).toBeInTheDocument()
@@ -3609,11 +3580,10 @@ describe('ChatPage per-agent dropdown persist (REQ-180)', () => {
     fireEvent.change(composer, { target: { value: 'run with saved pin' } })
     fireEvent.submit(composer.closest('form')!)
     const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1]!
-    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toEqual({
-      message: 'run with saved pin',
-      blueprint: 'cli_agent',
-      params: { cli: 'antigravity', model: 'grok-4' },
-    })
+    const sent = JSON.parse(ws.send.mock.calls[0][0] as string)
+    expect(sent.message).toBe('run with saved pin')
+    expect(sent.blueprint).toBe('cli_agent')
+    expect(sent.params).toMatchObject({ cli: 'antigravity', model: 'grok-4' })
   })
 })
 

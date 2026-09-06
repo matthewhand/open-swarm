@@ -119,7 +119,7 @@ import {
 import { agentLabel, defaultBlueprintId, isSupportAgent } from '../lib/supportAgent'
 import { AGENT_CHAT_SESSIONS_EVENT } from '../lib/agentChatSessions'
 import { formatRailTimestamp, getRowLastMessage } from '../lib/chatTime'
-import { fetchTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
+import { fetchTeamRosters, parseTeamRosters, teamHideId, type TeamRoster } from '../lib/teamRosters'
 import { fetchConfiguredRemotes, remoteDisplayName, remoteHideId, type RemoteEntry } from '../lib/remotesCatalog'
 import { configuredRemotes } from '../lib/remotes'
 import RemoteSessionsPopup from './RemoteSessionsPopup'
@@ -590,7 +590,13 @@ export default function AgentSidebar({
   }, [])
 
   useEffect(() => {
-    const onChange = () => setSessionTick((n) => n + 1)
+    const onChange = () => {
+      setSessionTick((n) => n + 1)
+      // Search Hidden Bots unhides in localStorage and fires `storage` (same tab).
+      if (hasHiddenAgentsStorage()) {
+        setHiddenIds(loadHiddenAgentIds())
+      }
+    }
     window.addEventListener(SCALE_OUT_SESSIONS_EVENT, onChange)
     window.addEventListener(AGENT_CHAT_SESSIONS_EVENT, onChange)
     window.addEventListener(AGENT_CONVERSATION_EVENT, onChange)
@@ -650,7 +656,7 @@ export default function AgentSidebar({
     retry: 1,
   })
   const catalog = blueprintsQuery.data?.data ?? EMPTY_BLUEPRINTS
-  const teams = teamsQuery.data ?? []
+  const teams = parseTeamRosters(teamsQuery.data ?? [])
   const remotes = remotesQuery.data ?? []
   const agents = useMemo<SidebarAgent[]>(() => {
     const fromBlueprints = railSeatAgents(catalog)

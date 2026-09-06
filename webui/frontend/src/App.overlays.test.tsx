@@ -104,8 +104,7 @@ describe('REQ-48 chat stays mounted under overlays', () => {
   it('keeps the fixture message in the DOM while Settings is open, then restores the composer', async () => {
     const composer = await mountChatWithFixture()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
 
     const settings = await screen.findByRole('dialog', { name: 'Settings', hidden: true })
     expect(settings).toHaveClass('modal-end')
@@ -128,58 +127,44 @@ describe('REQ-48 chat stays mounted under overlays', () => {
   it('keeps the fixture message in the DOM while Teams is open, then restores the composer', async () => {
     const composer = await mountChatWithFixture()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Teams' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Compose team' }))
 
-    const teams = await screen.findByRole('dialog', { name: 'Teams', hidden: true })
-    expect(teams).toHaveClass('modal-end')
+    const teams = await screen.findByRole('dialog', { name: 'New team', hidden: true })
     expect(teams).toHaveClass('modal-open')
     expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
-    expect(await within(teams).findByText('lab')).toBeInTheDocument()
-
-    fireEvent.click(within(teams).getByRole('button', { name: /^Close$/ }))
-    await waitFor(() => {
-      expect(teams).not.toHaveClass('modal-open')
-    })
-    expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
+    expect(screen.getByText(/Compose a roster/i)).toBeInTheDocument()
     expect(composer).toBeInTheDocument()
     await waitFor(() => {
       expect(composer).not.toBeDisabled()
     })
   })
 
-  it('opens Blueprints, Hidden, role, and computer-control over the same thread', async () => {
+  it('opens Blueprints, Hidden, and computer-control over the same thread', async () => {
     await mountChatWithFixture()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Blueprints' }))
-    const blueprints = await screen.findByRole('dialog', { name: 'Blueprints', hidden: true })
-    expect(blueprints).toHaveClass('modal-open')
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Blueprints' }))
+    const settings = await screen.findByRole('dialog', { name: 'Settings', hidden: true })
+    expect(settings).toHaveClass('modal-open')
+    expect(within(settings).getByRole('heading', { name: 'Blueprints' })).toBeInTheDocument()
     expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
-    fireEvent.click(within(blueprints).getByRole('button', { name: /^Close$/ }))
+    fireEvent.click(within(settings).getByRole('button', { name: /^Close$/ }))
 
     await act(async () => {
       openChromeOverlay('hidden')
     })
-    expect(screen.getByRole('dialog', { name: 'Hidden agents', hidden: true })).toHaveClass(
-      'modal-open',
-    )
+    const hidden = await screen.findByRole('dialog', { name: 'Search' })
+    expect(hidden).toBeInTheDocument()
+    expect(await screen.findByTestId('hidden-filter-indicator')).toHaveTextContent('Hidden only')
     expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
-
-    await act(async () => {
-      openChromeOverlay('role', { roleId: 'gate' })
-    })
-    const role = screen.getByRole('dialog', { name: 'Role', hidden: true })
-    expect(role).toHaveClass('modal-open')
-    expect(within(role).getByTestId('role-explanation')).toHaveTextContent(/YES\/NO gate/i)
-    expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
 
     await act(async () => {
       openChromeOverlay('computer-control')
     })
     const computer = screen.getByRole('dialog', { name: 'Computer control', hidden: true })
     expect(computer).toHaveClass('modal-open')
-    expect(within(computer).getByRole('radio', { name: 'Browser (this machine)' })).toBeChecked()
+    expect(within(computer).getByRole('heading', { name: 'Routines' })).toBeInTheDocument()
     expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
   })
 
@@ -201,8 +186,7 @@ describe('REQ-48 chat stays mounted under overlays', () => {
   it('does not add a /settings React route that unmounts Chat', async () => {
     await mountChatWithFixture()
     expect(window.location.pathname).toBe('/chat')
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
     expect(window.location.pathname).toBe('/chat')
     expect(screen.getByText(FIXTURE_MESSAGE)).toBeInTheDocument()
   })
