@@ -243,21 +243,90 @@ def test_chat_herdr_prompt_then_read():
     from swarm.core.remote_teams import chat_herdr
 
     calls = []
+    cfg = {"remotes": {"herdr": {"herdr_mode": "local"}}}
 
     def fake_run(argv, **kwargs):
-        calls.append(argv)
+        calls.append(list(argv))
 
         class P:
             returncode = 0
-            stdout = "ok output" if "read" in argv else '{"ok":true}'
+            if "read" in argv:
+                stdout = "ok output"
+            elif "get" in argv:
+                stdout = '{"result":{"state":"idle"}}'
+            else:
+                stdout = '{"type":"agent_prompted"}'
             stderr = ""
         return P()
 
-    with patch("swarm.core.remote_teams.herdr_bin", return_value="/usr/bin/herdr"):
-        text = chat_herdr("do the thing", target="w7:p1", timeout_ms=1000, runner=fake_run)
+    text = chat_herdr(
+        "do the thing",
+        target="w7:p1",
+        timeout_ms=1000,
+        runner=fake_run,
+        config=cfg,
+    )
     assert text == "ok output"
-    assert any("prompt" in c for c in calls)
-    assert any("read" in c for c in calls)
+    assert calls == [
+        ["herdr", "agent", "get", "w7:p1"],
+        [
+            "herdr",
+            "agent",
+            "prompt",
+            "w7:p1",
+            "do the thing",
+            "--wait",
+            "--until",
+            "idle",
+            "--timeout",
+            "1000",
+        ],
+        ["herdr", "agent", "read", "w7:p1", "--source", "recent", "--format", "text"],
+    ]
+    assert calls[1].count("--until") == 1
+    assert "--remote" not in calls[1]
+
+
+def test_herdr_list_agents_uses_from_remote_config_exact_argv():
+    from swarm.core.remote_teams import herdr_list_agents
+
+    calls = []
+    cfg = {"remotes": {"herdr": {"herdr_mode": "local"}}}
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+
+        class P:
+            returncode = 0
+            stdout = '{"result":{"agents":[{"pane_id":"w3:p1","agent":"grok"}]}}'
+            stderr = ""
+        return P()
+
+    rows = herdr_list_agents(runner=fake_run, config=cfg)
+    assert rows == [{"pane_id": "w3:p1", "agent": "grok"}]
+    assert calls == [["herdr", "agent", "list"]]
+    assert "--remote" not in calls[0]
+
+
+def test_chat_herdr_blocked_does_not_prompt():
+    from swarm.core.remote_teams import chat_herdr
+
+    calls = []
+    cfg = {"remotes": {"herdr": {"herdr_mode": "local"}}}
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+
+        class P:
+            returncode = 0
+            stdout = '{"result":{"state":"blocked"}}'
+            stderr = ""
+        return P()
+
+    with pytest.raises(RuntimeError, match="blocked"):
+        chat_herdr("nope", target="w3:p1", timeout_ms=1000, runner=fake_run, config=cfg)
+    assert calls == [["herdr", "agent", "get", "w3:p1"]]
+    assert all("prompt" not in argv for argv in calls)
 
 
 def test_chat_remote_parses_openai_payload():

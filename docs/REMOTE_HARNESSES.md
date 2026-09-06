@@ -114,6 +114,8 @@ swarm-cli remotes operate hermes --op send --prompt "status"
 swarm-cli remotes operate omb --op list
 swarm-cli remotes operate omb --op send --prompt "hello" --target <botId>
 swarm-cli remotes operate rakazo --op list
+swarm-cli remotes operate herdr --op list
+swarm-cli remotes operate herdr --op send --target w3:p1 --prompt HERDR_PING_OK
 ```
 
 REST: `POST /v1/remotes/<id>/operate/` `{"op":"list"}` or `{"op":"send","prompt":"…","target":"…"}`.

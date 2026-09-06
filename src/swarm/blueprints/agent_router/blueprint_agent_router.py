@@ -852,8 +852,9 @@ Remember to provide a clear, unified response to the user, even when multiple ag
             override = ""
         override = override[:120]
         if framework == "herdr" or transport == "herdr":
+            herdr_config = getattr(self, "_config", None)
             try:
-                live = await asyncio.to_thread(herdr_list_agents)
+                live = await asyncio.to_thread(herdr_list_agents, config=herdr_config)
             except Exception as exc:
                 yield {
                     "content": f"**Herdr** is not reachable (`{exc}`).\nInstall `herdr` on PATH and keep `herdr status` running.",
@@ -876,7 +877,9 @@ Remember to provide a clear, unified response to the user, even when multiple ag
                 }
                 return
             try:
-                text = await asyncio.to_thread(chat_herdr, prompt, target=target)
+                text = await asyncio.to_thread(
+                    chat_herdr, prompt, target=target, config=herdr_config
+                )
             except Exception as exc:
                 yield {
                     "content": f"[Herdr {target}] {exc}",

@@ -1207,14 +1207,15 @@ def _extract_version(payload: Any) -> Any:
     return None
 
 
-def _herdr_cli_health(spec: RemoteSpec, timeout: float) -> HealthResult:  # noqa: ARG001
+def _herdr_cli_health(spec: RemoteSpec, timeout: float, config: dict[str, Any] | None = None) -> HealthResult:  # noqa: ARG001
     """Health via local herdr or SSH hop (never a guessed host)."""
-    from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
+    from swarm.herdr.client import HerdrClient
+    from swarm.herdr.remote import resolve_herdr_mode
     from swarm.herdr.ssh import SSHNotConfiguredError
 
     mode = resolve_herdr_mode(spec)
     try:
-        client = herdr_client_from_spec(spec)
+        client = HerdrClient.from_remote_config(config)
         payload = client.workspace_list()
     except SSHNotConfiguredError as exc:
         return HealthResult(remote="herdr", ok=False, state="UNKNOWN", detail=str(exc))
@@ -1240,13 +1241,13 @@ def _herdr_cli_health(spec: RemoteSpec, timeout: float) -> HealthResult:  # noqa
     )
 
 
-def _herdr_health(spec: RemoteSpec, timeout: float) -> HealthResult | None:
+def _herdr_health(spec: RemoteSpec, timeout: float, config: dict[str, Any] | None = None) -> HealthResult | None:
     """SSH or local-CLI health. None means fall through to localhost HTTP."""
     from swarm.herdr.remote import uses_local_http_health
 
     if uses_local_http_health(spec):
         return None
-    return _herdr_cli_health(spec, timeout)
+    return _herdr_cli_health(spec, timeout, config)
 
 
 def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeout: float = _DEFAULT_TIMEOUT_S) -> HealthResult:
@@ -1260,7 +1261,7 @@ def check_health(remote_id: str, *, config: dict[str, Any] | None = None, timeou
         return HealthResult(remote=spec.id, ok=False, state="UNKNOWN", detail="remote not added")
 
     if spec.id == "herdr":
-        herdr_health = _herdr_health(spec, timeout)
+        herdr_health = _herdr_health(spec, timeout, config)
         if herdr_health is not None:
             return herdr_health
 
@@ -1765,10 +1766,10 @@ def _swarm_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> O
     )
 
 
-def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
+def _herdr_list(spec: RemoteSpec, timeout: float, config: dict[str, Any] | None = None) -> OperateResult:
+    from swarm.herdr.client import HerdrClient
     from swarm.herdr.remote import (
         LIST_PATH,
-        herdr_client_from_spec,
         members_from_http_list,
         resolve_herdr_mode,
         uses_local_http_health,
@@ -1812,7 +1813,7 @@ def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
 
     mode = resolve_herdr_mode(spec)
     try:
-        client = herdr_client_from_spec(spec)
+        client = HerdrClient.from_remote_config(config)
         members = client.discover_members()
     except SSHNotConfiguredError as exc:
         return OperateResult(remote="herdr", op="list", ok=False, detail=str(exc))
@@ -1828,9 +1829,9 @@ def _herdr_list(spec: RemoteSpec, timeout: float) -> OperateResult:
     )
 
 
-def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> OperateResult:  # noqa: ARG001
-    from swarm.herdr.client import HerdrBlockedError, extract_prompt_type
-    from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
+def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float, config: dict[str, Any] | None = None) -> OperateResult:  # noqa: ARG001
+    from swarm.herdr.client import HerdrBlockedError, HerdrClient, extract_prompt_type
+    from swarm.herdr.remote import resolve_herdr_mode
     from swarm.herdr.ssh import SSHNotConfiguredError
 
     if not prompt.strip():
@@ -1844,7 +1845,7 @@ def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> O
         )
     mode = resolve_herdr_mode(spec)
     try:
-        client = herdr_client_from_spec(spec)
+        client = HerdrClient.from_remote_config(config)
         payload = client.agent_prompt(target.strip(), prompt)
     except SSHNotConfiguredError as exc:
         return OperateResult(remote="herdr", op="send", ok=False, detail=str(exc))
@@ -1862,9 +1863,10 @@ def _herdr_send(spec: RemoteSpec, prompt: str, target: str, timeout: float) -> O
     )
 
 
-def _herdr_interrogate(spec: RemoteSpec, target: str, timeout: float) -> OperateResult:  # noqa: ARG001
+def _herdr_interrogate(spec: RemoteSpec, target: str, timeout: float, config: dict[str, Any] | None = None) -> OperateResult:  # noqa: ARG001
     """Inspect one CLI/pane Herdr manages (agent get) over local or SSH hop."""
-    from swarm.herdr.remote import herdr_client_from_spec, resolve_herdr_mode
+    from swarm.herdr.client import HerdrClient
+    from swarm.herdr.remote import resolve_herdr_mode
     from swarm.herdr.ssh import SSHNotConfiguredError
 
     if not (target or "").strip():
@@ -1876,7 +1878,7 @@ def _herdr_interrogate(spec: RemoteSpec, target: str, timeout: float) -> Operate
         )
     mode = resolve_herdr_mode(spec)
     try:
-        client = herdr_client_from_spec(spec)
+        client = HerdrClient.from_remote_config(config)
         payload = client.agent_get(target.strip())
     except SSHNotConfiguredError as exc:
         return OperateResult(remote="herdr", op="interrogate", ok=False, detail=str(exc))
@@ -1929,10 +1931,10 @@ def operate(
             return OperateResult(remote=rid, op=action, ok=False, detail="remote not added")
         if rid == "herdr":
             if action == "list":
-                return _herdr_list(spec, timeout)
+                return _herdr_list(spec, timeout, config)
             if action == "interrogate":
-                return _herdr_interrogate(spec, target, timeout)
-            return _herdr_send(spec, prompt, target, timeout)
+                return _herdr_interrogate(spec, target, timeout, config)
+            return _herdr_send(spec, prompt, target, timeout, config)
         if not spec.base_url:
             return OperateResult(remote=rid, op=action, ok=False, detail="base_url is empty")
         if _looks_like_forbidden_llm_proxy(spec.base_url):

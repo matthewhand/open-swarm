@@ -27,6 +27,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from swarm.core.remotes import RemoteError
 from swarm.herdr.client import HerdrCLIError, HerdrClient
 from swarm.models import HerdrAgent
 from swarm.permissions import HasValidTokenOrSession
@@ -39,8 +40,17 @@ HERDR_API_PERMISSIONS = [HasValidTokenOrSession] if ENABLE_API_AUTH else [AllowA
 
 
 def herdr_client(remote: str = "") -> HerdrClient:
-    """Factory so tests can patch the CLI wrapper (never a live TUI in CI)."""
-    return HerdrClient(remote=remote)
+    """Same client Settings operate uses when ``remotes.herdr`` is configured.
+
+    Explicit ``?remote=`` still prefixes ``herdr --remote``. Missing remotes
+    card falls back to localhost (no ``--remote``). Tests patch this factory.
+    """
+    if (remote or "").strip():
+        return HerdrClient(remote=remote)
+    try:
+        return HerdrClient.from_remote_config()
+    except RemoteError:
+        return HerdrClient(remote="")
 
 
 def _lookup_agent(lookup: str) -> HerdrAgent | None:
