@@ -1295,11 +1295,18 @@ class TestBlueprintSelection:
         seen: dict = {}
         real = sug.run_suggestions
 
-        def wrap(*, mode, messages=None, agents=None, suggest_fn=None):
+        def wrap(*, mode, messages=None, agents=None, suggest_fn=None, consumer_id=None):
             seen["mode"] = mode
             seen["messages"] = messages
             seen["agents"] = agents
-            return real(mode=mode, messages=messages, agents=agents, suggest_fn=suggest_fn)
+            seen["consumer_id"] = consumer_id
+            return real(
+                mode=mode,
+                messages=messages,
+                agents=agents,
+                suggest_fn=suggest_fn,
+                consumer_id=consumer_id,
+            )
 
         monkeypatch.setattr(sug, "run_suggestions", wrap)
 
