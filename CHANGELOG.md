@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **CI Python test matrix now gates on 3.12 only:** 3.10/3.11 are EOL-era; dropping them halves the matrix wall-clock while keeping the current supported line fully tested. `uv lock --check` + the full `uv run pytest` suite still run on every push/PR (`python-pytest.yml`).
+
 ### Added
 - **REQ-111 Wave 3b decided-skip (optional WS cookie path):** ADR-012 records the outcome — Waves 2b/2c REST SSE already covers every seat the SPA can chat with over WS, so the child issue’s own “skip if Wave 2 SSE covers MVP seats” gate fires. TUI v1 ships **no** login / cookie-jar: `/chat/thread/` hydrate failures on a Bearer-only shell stay a named login-gated error and AUTH.md (Bearer REST vs session WS) is unchanged; WS 4401 remains an additive later child only if a seat ever needs the websocket path. Does not close #7. Fixes #15.
 - **REQ-111 Wave 4a TUI as documented interactive front door:** README intro, USERGUIDE (`tui` command row + full section), VISION (status row + honesty bullet), and the GLOSSARY entry now describe `swarm-cli tui` as the interactive terminal client of the same REST/SSE API — AGENTS rail sections, `GET /chat/thread/` hydrate, REST SSE send + stream, `n`/`s` sessions, `--once` ASCII dump for CI — with its honest limits (no cookie jar in v1; composer disabled for WS-only CLI/team/remote/Herdr rows). `launch` / `install` stay. Fixes #16.

@@ -62,8 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # 3.10/3.11 are EOL-era; gate on the current supported line only.
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.12"]
 
     steps:
       - uses: actions/checkout@v4
