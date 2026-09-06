@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from typer.testing import CliRunner
 
 from swarm.core.swarm_cli import app
@@ -9,13 +11,18 @@ from swarm.tui.client import RailSeat, SwarmApiError
 
 runner = CliRunner(mix_stderr=False)
 
+# Rich/Click help can color each hyphen, so "--once" is not contiguous in raw stdout.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
+
 
 def test_tui_help_lists_command():
     result = runner.invoke(app, ["tui", "--help"])
     assert result.exit_code == 0
-    assert "same HTTP API" in result.stdout or "REQ-111" in result.stdout
-    assert "--once" in result.stdout
-    assert "--base-url" in result.stdout
+    stdout = _ANSI_RE.sub("", result.stdout)
+    assert "same HTTP API" in stdout or "REQ-111" in stdout
+    assert "--once" in stdout
+    assert "--interactive" in stdout
+    assert "--base-url" in stdout
 
 
 def test_tui_once_renders_rail_and_placeholder(monkeypatch):
