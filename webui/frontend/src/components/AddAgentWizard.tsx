@@ -14,7 +14,15 @@ import {
 import { OPENMOUSBOT_LABEL } from '../lib/remotesCatalog'
 import { loadAgentEdit, saveAgentEdit } from '../lib/agentEdits'
 import { FOLDER_FORMAT_ERROR, isValidFolderPath } from '../lib/agentFolder'
+import {
+  GITHUB_REPO_FORMAT_ERROR,
+  emptyWorkspaceFields,
+  isValidGithubRepo,
+  loadAgentWorkspace,
+  type AgentWorkspaceFields,
+} from '../lib/agentWorkspace'
 import { saveAgentSettings } from '../lib/agentSettings'
+import AgentWorkspaceBinding from './AgentWorkspaceBinding'
 import { RemoteSelect } from './RemoteSelect'
 import { configuredRemotes } from '../lib/remotes'
 import { remotesListForSelect, saveAgentRemoteBinding } from '../lib/agentRemote'
@@ -35,13 +43,14 @@ export interface ManageAgentItem {
   name: string
   command?: string
   folder?: string
+  githubRepo?: string
   description?: string
   prompt?: string
   isCustom: boolean
 }
 
 /**
- * REQ-184 / REQ-109 / REQ-164 / REQ-165 / REQ-167: Add agent popup wizard.
+ * REQ-184 / REQ-109 / REQ-164 / REQ-165 / REQ-167 / REQ-166: Add agent popup wizard.
  *
  * - Tabs: CLI | API | Remote (with OpenMousBot product naming).
  * - Under each tab: shows existing list (empty state when none) AND create/edit fields on the same view.
@@ -69,8 +78,11 @@ export default function AddAgentWizard({
   const [cliName, setCliName] = useState('')
   const [cliCommand, setCliCommand] = useState('')
   const [cliFolder, setCliFolder] = useState('')
+  const [cliGithubRepo, setCliGithubRepo] = useState('')
+  const [cliWorkspacesEnabled, setCliWorkspacesEnabled] = useState(false)
   const [cliDescription, setCliDescription] = useState('')
   const [folderError, setFolderError] = useState<string | null>(null)
+  const [repoError, setRepoError] = useState<string | null>(null)
 
   // API fields
   const [apiName, setApiName] = useState('')
@@ -117,10 +129,13 @@ export default function AddAgentWizard({
   const resetFormFields = () => {
     setError(null)
     setFolderError(null)
+    setRepoError(null)
     setSubmitting(false)
     setCliName('')
     setCliCommand('')
     setCliFolder('')
+    setCliGithubRepo('')
+    setCliWorkspacesEnabled(false)
     setCliDescription('')
     setApiName('')
     setApiDescription('')
@@ -144,6 +159,7 @@ export default function AddAgentWizard({
     setSelectedKind(kind)
     setError(null)
     setFolderError(null)
+    setRepoError(null)
     if (mode === 'edit') {
       resetFormFields()
       setMode('create')
@@ -175,6 +191,7 @@ export default function AddAgentWizard({
           name,
           command,
           folder,
+          githubRepo: edits.githubRepo || '',
           description: item.description,
           isCustom: true,
         })
@@ -194,6 +211,7 @@ export default function AddAgentWizard({
         name,
         command: command || (item.installed ? 'installed' : 'not on PATH'),
         folder,
+        githubRepo: edits.githubRepo || '',
         description: item.description,
         isCustom: false,
       })
@@ -213,6 +231,7 @@ export default function AddAgentWizard({
           name,
           command,
           folder,
+          githubRepo: edits.githubRepo || '',
           description: item.description,
           isCustom: false,
         })
@@ -271,13 +290,17 @@ export default function AddAgentWizard({
   const handleStartEdit = (agent: ManageAgentItem) => {
     setError(null)
     setFolderError(null)
+    setRepoError(null)
     setEditingAgentId(agent.id)
     setEditingAgentName(agent.name)
     setMode('edit')
     if (selectedKind === 'cli') {
+      const stored = loadAgentWorkspace(agent.id)
       setCliName(agent.name)
       setCliCommand(agent.command || '')
-      setCliFolder(agent.folder || '')
+      setCliFolder(agent.folder || stored.folder)
+      setCliGithubRepo(agent.githubRepo || stored.githubRepo)
+      setCliWorkspacesEnabled(stored.workspacesEnabled)
       setCliDescription(agent.description || '')
     } else if (selectedKind === 'api') {
       setApiName(agent.name)
@@ -329,6 +352,10 @@ export default function AddAgentWizard({
       setFolderError(FOLDER_FORMAT_ERROR)
       return
     }
+    if (selectedKind === 'cli' && cliGithubRepo.trim() && !isValidGithubRepo(cliGithubRepo)) {
+      setRepoError(GITHUB_REPO_FORMAT_ERROR)
+      return
+    }
 
     setSubmitting(true)
 
@@ -337,6 +364,7 @@ export default function AddAgentWizard({
         const name = cliName.trim()
         const command = cliCommand.trim()
         const folder = cliFolder.trim()
+        const githubRepo = cliGithubRepo.trim()
         const description = cliDescription.trim()
         if (!name) throw new Error('Agent name is required')
         if (!command) throw new Error('CLI command or binary is required')
@@ -364,6 +392,8 @@ ${folderComment}`
             name,
             command,
             folder,
+            githubRepo,
+            workspacesEnabled: false,
           })
           await saveAgentSettings(created.id, { folder })
 
@@ -377,6 +407,8 @@ ${folderComment}`
             name,
             command,
             folder,
+            githubRepo,
+            workspacesEnabled: false,
           })
           await saveAgentSettings(editingAgentId, { folder })
 
@@ -735,6 +767,7 @@ ${folderComment}`
                             ? agent.command || 'CLI'
                             : agent.description || 'API Assistant'}
                           {agent.folder ? ` · ${agent.folder}` : ''}
+                          {agent.githubRepo ? ` · ${agent.githubRepo}` : ''}
                         </p>
                       </div>
                     </div>
@@ -831,39 +864,31 @@ ${folderComment}`
                     data-testid="input-cli-command"
                   />
                 </div>
-                {/* REQ-167: CLI Folder workspace field */}
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-base-content/80">
-                    Folder <span className="text-xs font-normal text-base-content/60">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={`input input-sm input-bordered w-full font-mono text-xs ${
-                      folderError ? 'input-error' : ''
-                    }`}
-                    placeholder="/path/to/working/directory or ./project"
-                    value={cliFolder}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setCliFolder(val)
-                      if (val && !isValidFolderPath(val)) {
-                        setFolderError(FOLDER_FORMAT_ERROR)
-                      } else {
-                        setFolderError(null)
-                      }
-                    }}
-                    aria-label="Folder"
-                    data-testid="input-cli-folder"
-                  />
-                  <span className="block text-[11px] text-base-content/60">
-                    Working directory for this CLI agent
-                  </span>
-                  {folderError ? (
-                    <span className="block text-xs text-error" data-testid="folder-error">
-                      {folderError}
-                    </span>
-                  ) : null}
-                </div>
+                <AgentWorkspaceBinding
+                  kind="cli"
+                  value={{
+                    folder: cliFolder,
+                    githubRepo: cliGithubRepo,
+                    workspacesEnabled: cliWorkspacesEnabled,
+                  }}
+                  folderError={folderError}
+                  repoError={repoError}
+                  onChange={(next: AgentWorkspaceFields) => {
+                    setCliFolder(next.folder)
+                    setCliGithubRepo(next.githubRepo)
+                    setCliWorkspacesEnabled(false)
+                    if (next.folder && !isValidFolderPath(next.folder)) {
+                      setFolderError(FOLDER_FORMAT_ERROR)
+                    } else {
+                      setFolderError(null)
+                    }
+                    if (next.githubRepo && !isValidGithubRepo(next.githubRepo)) {
+                      setRepoError(GITHUB_REPO_FORMAT_ERROR)
+                    } else {
+                      setRepoError(null)
+                    }
+                  }}
+                />
                 <div className="space-y-1">
                   <label className="block text-xs font-medium text-base-content/80">
                     Description (optional)
@@ -926,6 +951,11 @@ ${folderComment}`
                     data-testid="input-api-prompt"
                   />
                 </div>
+                <AgentWorkspaceBinding
+                  kind="api"
+                  value={emptyWorkspaceFields()}
+                  onChange={() => undefined}
+                />
               </>
             ) : null}
 
@@ -975,6 +1005,11 @@ ${folderComment}`
                     data-testid="input-remote-key"
                   />
                 </div>
+                <AgentWorkspaceBinding
+                  kind="remote"
+                  value={emptyWorkspaceFields()}
+                  onChange={() => undefined}
+                />
               </>
             ) : null}
 
@@ -993,7 +1028,7 @@ ${folderComment}`
                 variant="primary"
                 size="sm"
                 loading={submitting}
-                disabled={Boolean(folderError)}
+                disabled={Boolean(folderError || repoError)}
                 data-testid="submit-create-agent"
               >
                 {mode === 'edit'

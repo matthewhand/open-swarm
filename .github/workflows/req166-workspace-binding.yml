@@ -1,0 +1,77 @@
+name: REQ-166 workspace binding Phase 0
+
+on:
+  pull_request:
+    paths:
+      - "webui/frontend/src/lib/agentWorkspace.ts"
+      - "webui/frontend/src/lib/agentEdits.ts"
+      - "webui/frontend/src/lib/agentFolder.ts"
+      - "webui/frontend/src/lib/__tests__/agentWorkspace.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentEdits.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentFolder.test.ts"
+      - "webui/frontend/src/components/AgentWorkspaceBinding.tsx"
+      - "webui/frontend/src/components/AddAgentWizard.tsx"
+      - "webui/frontend/src/components/AgentEditor.tsx"
+      - "webui/frontend/src/components/__tests__/AgentWorkspaceBinding.test.tsx"
+      - "webui/frontend/src/components/__tests__/AddAgentWizard.test.tsx"
+      - "webui/frontend/src/components/__tests__/AgentEditor.test.tsx"
+      - "tests/unit/test_req166_workspace_binding.py"
+      - ".github/workflows/req166-workspace-binding.yml"
+  push:
+    branches: [main]
+    paths:
+      - "webui/frontend/src/lib/agentWorkspace.ts"
+      - "webui/frontend/src/lib/agentEdits.ts"
+      - "webui/frontend/src/lib/agentFolder.ts"
+      - "webui/frontend/src/lib/__tests__/agentWorkspace.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentEdits.test.ts"
+      - "webui/frontend/src/lib/__tests__/agentFolder.test.ts"
+      - "webui/frontend/src/components/AgentWorkspaceBinding.tsx"
+      - "webui/frontend/src/components/AddAgentWizard.tsx"
+      - "webui/frontend/src/components/AgentEditor.tsx"
+      - "webui/frontend/src/components/__tests__/AgentWorkspaceBinding.test.tsx"
+      - "webui/frontend/src/components/__tests__/AddAgentWizard.test.tsx"
+      - "webui/frontend/src/components/__tests__/AgentEditor.test.tsx"
+      - "tests/unit/test_req166_workspace_binding.py"
+      - ".github/workflows/req166-workspace-binding.yml"
+
+jobs:
+  own-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python deps
+        run: uv sync --all-extras
+
+      - name: Pytest REQ-166 source lock
+        run: uv run pytest tests/unit/test_req166_workspace_binding.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: webui/frontend
+        run: npm ci
+
+      - name: Vitest REQ-166 suite
+        working-directory: webui/frontend
+        run: |
+          npx vitest run \
+            src/lib/__tests__/agentWorkspace.test.ts \
+            src/lib/__tests__/agentEdits.test.ts \
+            src/lib/__tests__/agentFolder.test.ts \
+            src/components/__tests__/AgentWorkspaceBinding.test.tsx \
+            src/components/__tests__/AddAgentWizard.test.tsx \
+            src/components/__tests__/AgentEditor.test.tsx

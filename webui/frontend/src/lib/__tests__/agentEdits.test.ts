@@ -46,6 +46,16 @@ describe('agentEdits', () => {
     expect(loadAgentEdit('cli_agent')).toEqual({})
   })
 
+  it('persists GitHub repo bind chrome on the agent record', () => {
+    saveAgentEdit('cli_agent', { githubRepo: '  acme/app  ', workspacesEnabled: true })
+    expect(loadAgentEdit('cli_agent')).toEqual({
+      githubRepo: 'acme/app',
+      workspacesEnabled: true,
+    })
+    saveAgentEdit('cli_agent', { githubRepo: '', workspacesEnabled: false })
+    expect(loadAgentEdit('cli_agent')).toEqual({})
+  })
+
   it('persists attached skills on the agent record', () => {
     saveAgentEdit('chatbot', { skills: [' conventional-commit ', 'writing-changelog'] })
     expect(loadAgentEdit('chatbot')).toEqual({
