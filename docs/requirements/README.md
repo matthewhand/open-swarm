@@ -32,6 +32,7 @@ Oracle from anything in this tree.
 | [REQ-66](./REQ-66.md) | [Scale-out rail — stacked avatars + session picker popup](https://github.com/matthewhand/open-swarm/issues/394) |
 | [REQ-67](./REQ-67.md) | [Role chrome is the badge only — no row fill/border](https://github.com/matthewhand/open-swarm/issues/396) |
 | [REQ-75](./REQ-75.md) | [Blueprint abstraction — roles/workflows, still CLI/API only](https://github.com/matthewhand/open-swarm/issues/420) |
+| [REQ-79](./REQ-79.md) | [Survival — CLI/API chat works; prove open-swarm can update itself](https://github.com/matthewhand/open-swarm/issues/424) |
 | [REQ-68](./REQ-68.md) | [Stacked avatars for teams and remotes (3 most recent, animate while working)](https://github.com/matthewhand/open-swarm/issues/398) |
 | [REQ-70](./REQ-70.md) | [Status/info as reconstructed UI metadata](https://github.com/matthewhand/open-swarm/issues/789) (parent [#407](https://github.com/matthewhand/open-swarm/issues/407)) |
 | [REQ-80](./REQ-80.md) | [Agent right pane — Routines (PR-merge trigger, history, Test run)](https://github.com/matthewhand/open-swarm/issues/432) |

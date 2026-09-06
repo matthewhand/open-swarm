@@ -1014,6 +1014,59 @@ class TestBlueprintSelection:
                 assert passed.get("agent") == "cli_agent"
 
     @pytest.mark.asyncio
+    async def test_cli_stdout_github_pr_emits_view_pr_card(self, consumer, monkeypatch):
+        """REQ-79: a real GitHub PR URL in CLI stdout becomes REQ-71 chrome."""
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.messages = [{"role": "user", "content": "open a pr"}]
+        consumer.active_agent = "cli_agent"
+        consumer.conversation_id = "conv-self-update"
+        url = "https://github.com/matthewhand/open-swarm/pull/416"
+
+        async def fake_run(messages, **kwargs):
+            yield {"messages": [{"role": "assistant", "content": f"Opened {url}"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+        instance._params = {}
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock) as mock_send:
+                await consumer.respond_with_blueprint("cli_agent", "message-response-pr")
+
+        frames = [
+            call.kwargs.get("text_data") or call.args[0]
+            for call in mock_send.await_args_list
+        ]
+        assert any(url in frame for frame in frames)
+        pr_json = [f for f in frames if '"type": "pr_opened"' in f or '"type":"pr_opened"' in f]
+        assert pr_json
+        assert url in pr_json[0]
+        events = [row for row in consumer.ui_events if row.get("kind") == "pr_opened"]
+        assert events
+        assert url in events[0]["content"]
+        assert all(row.get("kind") != "pr_opened" for row in consumer.messages)
+
+    @pytest.mark.asyncio
+    async def test_cli_stdout_without_pr_url_does_not_invent_card(self, consumer, monkeypatch):
+        monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
+        consumer.messages = [{"role": "user", "content": "hello"}]
+
+        async def fake_run(messages, **kwargs):
+            yield {"messages": [{"role": "assistant", "content": "Opened a PR (no url)"}]}
+
+        instance = MagicMock()
+        instance.run = fake_run
+        instance._params = {}
+
+        with patch("swarm.views.utils.get_blueprint_instance", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = instance
+            with patch.object(consumer, "send", new_callable=AsyncMock):
+                await consumer.respond_with_blueprint("cli_agent", "message-response-nopr")
+
+        assert not any(row.get("kind") == "pr_opened" for row in consumer.ui_events)
+
+    @pytest.mark.asyncio
     async def test_receive_new_cli_session_notice_before_assistant_start(
         self, consumer, tmp_path, monkeypatch
     ):
