@@ -10,7 +10,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import httpx
 
@@ -269,6 +269,116 @@ def _dedupe(seats: list[RailSeat]) -> list[RailSeat]:
         seen.add(seat.id)
         out.append(seat)
     return out
+
+
+# --- Wave 2a: hydrate one seat's real transcript (GET /chat/thread/) --------
+
+
+@dataclass(frozen=True)
+class ThreadMessage:
+    """One stored transcript turn as the SPA would render it."""
+
+    role: str
+    content: str
+    ts: str | None = None
+    edited: bool = False
+
+
+@dataclass(frozen=True)
+class AgentThread:
+    """Hydrated transcript for one rail seat (Wave 2a)."""
+
+    agent_id: str
+    conversation_id: str
+    messages: list[ThreadMessage]
+    kind: str = ""
+    editable: bool = False
+    session_missing: bool = False
+
+
+# ``GET /chat/thread/`` is ``@login_required`` (session cookie), so a Bearer
+# client sees a redirect or an auth failure — never a fake empty thread.
+_SESSION_GATED_STATUSES = frozenset({301, 302, 303, 307, 401, 403})
+
+
+def _login_page(response: httpx.Response) -> bool:
+    return "html" in (response.headers.get("content-type") or "").lower()
+
+
+def _thread_from_payload(payload: dict[str, Any], agent: str) -> AgentThread:
+    messages: list[ThreadMessage] = []
+    for row in payload.get("messages") or []:
+        if not isinstance(row, dict):
+            continue
+        content = row.get("content")
+        if isinstance(content, list):  # parts array — not a v1 transcript row
+            content = ""
+        ts = row.get("ts") or row.get("timestamp")
+        messages.append(
+            ThreadMessage(
+                role=str(row.get("role") or "").strip(),
+                content=str(content or ""),
+                ts=str(ts).strip() if ts else None,
+                edited=row.get("edited") is True,
+            )
+        )
+    return AgentThread(
+        agent_id=str(payload.get("agent_id") or agent),
+        conversation_id=str(payload.get("conversation_id") or agent),
+        messages=messages,
+        kind=str(payload.get("kind") or ""),
+        editable=payload.get("editable") is True,
+        session_missing=payload.get("session_missing") is True,
+    )
+
+
+def fetch_thread(
+    *,
+    agent: str,
+    base_url: str | None = None,
+    token: str | None = None,
+    timeout: float = 8.0,
+    getter: GETTER | None = None,
+) -> AgentThread:
+    """Hydrate a seat's real transcript — same endpoint as the SPA (Wave 2a).
+
+    ``GET /chat/thread/?agent=<id>`` with no ``conversation_id``, so the server
+    resolves the user's default thread for the agent (session switching is
+    Wave 3a). A transport failure, an HTTP error, or a session-gated status is
+    an explicit ``SwarmApiError`` — a first miss never falls open to a fake
+    empty thread. ``GET /chat/thread/`` is ``@login_required``: a Bearer token
+    does not authenticate it (the TUI cookie jar lands in Wave 3b).
+    """
+    base = resolve_base_url(base_url)
+    auth = token if token is not None else resolve_token()
+    headers = _headers(auth)
+
+    def default_getter(url: str, hdrs: dict[str, str]) -> httpx.Response:
+        with httpx.Client(timeout=timeout) as client:
+            return client.get(url, headers=hdrs)
+
+    fetch = getter or default_getter
+    url = f"{base}/chat/thread/?agent={quote(agent)}"
+    try:
+        response = fetch(url, headers)
+    except httpx.HTTPError as exc:
+        raise SwarmApiError(_transport_error_message(url, exc)) from exc
+    if response.status_code in _SESSION_GATED_STATUSES or _login_page(response):
+        raise SwarmApiError(
+            "Chat hydrate is login-gated: GET /chat/thread/ needs a browser "
+            f"session cookie (status {response.status_code} at {url}). Bearer "
+            "sends (Wave 2b) but does not authenticate this endpoint; the TUI "
+            "cookie jar lands in Wave 3b. No fake empty thread is shown."
+        )
+    if response.status_code >= 400:
+        raise SwarmApiError(f"API error {response.status_code} at {url}")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise SwarmApiError(f"API returned non-JSON at {url}") from exc
+    if not isinstance(payload, dict):
+        raise SwarmApiError(f"API returned a non-object at {url}")
+    return _thread_from_payload(payload, agent)
 
 
 def list_rail_agents(

@@ -1,10 +1,15 @@
-"""REQ-111 Wave 1a/1b: interactive Textual chrome for ``swarm-cli tui``.
+"""REQ-111 Wave 2a: interactive Textual chrome with a real transcript pane.
 
 Renders the AGENTS rail on the left (grouped under kind sections CLI / API /
-Blueprint / Remote) and a placeholder chat pane on the right. Keyboard:
-``j``/``k`` (or arrows) move between seats, ``Enter`` selects, ``q`` quits.
-Kind-section headers are decoration only — cursor movement skips them so the
-selection always rests on a real seat (Wave 1b).
+Blueprint / Remote) and the selected seat's chat pane on the right. Selecting a
+seat (Enter or the initial selection) hydrates that agent's real thread from
+``GET /chat/thread/`` — the same endpoint the SPA reads (REQ-171A-4 / #604).
+Hydrate failures are explicit (never a fake empty thread); a previously loaded
+thread for the same seat is kept and shown as offline cache.
+
+Keyboard: ``j``/``k`` (or arrows) move between seats, ``Enter`` selects, ``q``
+quits. Kind-section headers are decoration only — cursor movement skips them
+(Wave 1b). Wave 2b adds send (REST SSE) and Wave 2c the composer.
 
 Textual stays an optional ``[tui]`` extra: this module is only imported from
 the interactive branch of ``swarm.tui.cli``, so the Wave 0 ``--once`` ASCII
@@ -13,19 +18,29 @@ dump keeps working on a plain install.
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import ListItem, ListView, Static
 
-from swarm.tui.client import RailSeat, sectioned_seats
-
-CHAT_BODY = (
-    "Chat pane — Wave 1 loads and sends on the selected agent's session.\n"
-    "This is a placeholder. No messages are invented."
+from swarm.tui.client import (
+    GETTER,
+    AgentThread,
+    RailSeat,
+    SwarmApiError,
+    fetch_thread,
+    sectioned_seats,
 )
+
 EMPTY_RAIL = "No seats — API returned none (honest)."
+EMPTY_THREAD = " No messages yet for this seat — Wave 2b adds send (REST SSE)."
+HYDRATE_LOADING = " Loading transcript…"
 FOOTER = " j/k or \u2191/\u2193 move \u00b7 Enter select \u00b7 q quit \u00b7 --once for the ASCII dump (CI)"
+
+_ROLE_LABELS = {"user": "you", "assistant": "assistant"}
 
 
 class _SeatItem(ListItem):
@@ -92,10 +107,10 @@ class _SectionListView(ListView):
 
 
 class TuiApp(App[None]):
-    """Two-pane chrome: left rail grouped by kind section, right placeholder."""
+    """Two-pane chrome: left rail grouped by kind section, right live thread."""
 
     TITLE = "Open Swarm TUI"
-    SUB_TITLE = "REQ-111 Wave 1b rail parity \u2014 list only, no send"
+    SUB_TITLE = "REQ-111 Wave 2a hydrate \u2014 list + transcript, no send"
     CSS = """
     #chrome { height: 1fr; }
     #rail-box { width: 36; border-right: solid $primary; }
@@ -123,6 +138,8 @@ class TuiApp(App[None]):
         *,
         base_url: str = "",
         selected_id: str | None = None,
+        getter: GETTER | None = None,
+        token: str | None = None,
     ) -> None:
         super().__init__()
         self._seats = list(seats)
@@ -133,6 +150,11 @@ class TuiApp(App[None]):
         ]
         self._selected_id = _initial_selected(self._display_seats, selected_id)
         self.selected_id = self._selected_id
+        # Wave 2a: hydrate uses the same client contract (env token); ``getter``
+        # lets headless tests inject mocked HTTP responses.
+        self._getter = getter
+        self._token = token
+        self._cache: dict[str, AgentThread] = {}
 
     # -- composition ---------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -142,7 +164,7 @@ class TuiApp(App[None]):
                 yield self._rail_list()
             with Vertical(id="chat-box"):
                 yield Static(self._chat_heading(), id="chat-title")
-                yield Static(CHAT_BODY, id="chat-body")
+                yield Static(HYDRATE_LOADING, id="chat-body")
         yield Static(FOOTER, id="footer")
 
     def _rail_list(self) -> _SectionListView:
@@ -184,6 +206,9 @@ class TuiApp(App[None]):
         target = self._selected_display_index() if self._seats else None
         if target is not None:
             self._list_view.index = target
+        initial = _seat_by_id(self._seats, self._selected_id)
+        if initial is not None:
+            self._hydrate(initial)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not self._seats:
@@ -194,7 +219,64 @@ class TuiApp(App[None]):
         self._selected_id = seat.id
         self.selected_id = seat.id
         self.query_one("#chat-title", Static).update(self._chat_heading(seat))
-        self.query_one("#chat-body", Static).update(CHAT_BODY)
+        self._hydrate(seat)
+
+    # -- hydrate (Wave 2a) --------------------------------------------------
+    def _hydrate(self, seat: RailSeat) -> None:
+        """Kick an exclusive net worker; the newest selection wins races."""
+        self._set_chat_body(HYDRATE_LOADING)
+        self.run_worker(
+            self._hydrate_coro(seat),
+            name=f"hydrate-{seat.id}",
+            group="net",
+            exclusive=True,
+        )
+
+    async def _hydrate_coro(self, seat: RailSeat) -> None:
+        try:
+            thread = await asyncio.to_thread(self._fetch_thread, seat.id)
+        except SwarmApiError as exc:
+            self._show_hydrate_failure(seat, exc)
+            return
+        self._cache[seat.id] = thread
+        if seat.id != self._selected_id:
+            return  # a newer selection superseded this worker
+        if thread.session_missing:
+            self._set_chat_body(
+                _render_thread(thread, seat.name)
+                + "\n\n [!] requested session is missing on the server"
+            )
+        else:
+            self._set_chat_body(_render_thread(thread, seat.name))
+
+    def _fetch_thread(self, seat_id: str) -> AgentThread:
+        return fetch_thread(
+            agent=seat_id,
+            base_url=self._base_url or None,
+            token=self._token,
+            getter=self._getter,
+        )
+
+    def _show_hydrate_failure(self, seat: RailSeat, exc: BaseException) -> None:
+        """REST failure is explicit; a non-empty cache is kept (not fail-open)."""
+        if seat.id != self._selected_id:
+            return  # a newer selection superseded this worker
+        cached = self._cache.get(seat.id)
+        if cached is not None and cached.messages:
+            self._set_chat_body(
+                _render_thread(cached, seat.name)
+                + f"\n\n [!] offline cache shown — refresh failed: {exc}"
+            )
+        elif cached is not None:
+            self._set_chat_body(
+                EMPTY_THREAD + f"\n\n [!] refresh failed: {exc}"
+            )
+        else:
+            self._set_chat_body(f" [!] could not load {seat.name}'s thread: {exc}")
+
+    def _set_chat_body(self, text: str) -> None:
+        with suppress(Exception):  # widget not mounted yet — next hydrate overwrites
+            self.query_one("#chat-body", Static).update(text)
 
     # -- helpers ------------------------------------------------------------
     def _chat_heading(self, seat: RailSeat | None = None) -> str:
@@ -202,6 +284,24 @@ class TuiApp(App[None]):
         if seat is None:
             return " Chat \u2014 none selected"
         return f" Chat \u2014 {seat.name} ({seat.kind} \u00b7 {seat.source})"
+
+
+def _render_thread(thread: AgentThread, seat_name: str | None = None) -> str:
+    """Plain-text transcript render (v1 — Wave 2c adds inline streaming)."""
+    assistant = seat_name or "assistant"
+    lines: list[str] = []
+    for message in thread.messages:
+        label = _ROLE_LABELS.get(message.role, message.role or "note")
+        if label == "assistant":
+            label = assistant
+        edited = " (edited)" if message.edited else ""
+        text = message.content.replace("\r", "")
+        if message.ts:
+            lines.append(f" [{message.ts}] {label}{edited}: {text}")
+        else:
+            lines.append(f" {label}{edited}: {text}")
+    body = "\n".join(lines)
+    return body if body else EMPTY_THREAD
 
 
 def _initial_selected(seats: list[RailSeat], selected_id: str | None) -> str | None:
@@ -228,15 +328,24 @@ def run_tui_app(
     *,
     base_url: str = "",
     selected_id: str | None = None,
+    getter: GETTER | None = None,
+    token: str | None = None,
 ) -> None:
     """Blocking entry point used by the interactive ``swarm-cli tui`` path."""
-    TuiApp(seats, base_url=base_url, selected_id=selected_id).run()
+    TuiApp(
+        seats,
+        base_url=base_url,
+        selected_id=selected_id,
+        getter=getter,
+        token=token,
+    ).run()
 
 
 __all__ = [
-    "CHAT_BODY",
     "EMPTY_RAIL",
+    "EMPTY_THREAD",
     "FOOTER",
+    "HYDRATE_LOADING",
     "TuiApp",
     "run_tui_app",
     "sectioned_seats",

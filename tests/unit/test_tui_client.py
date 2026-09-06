@@ -8,8 +8,10 @@ import pytest
 from swarm.tui.client import (
     DEFAULT_BASE_URL,
     RAIL_KIND_SECTIONS,
+    AgentThread,
     RailSeat,
     SwarmApiError,
+    fetch_thread,
     is_rail_seat,
     list_rail_agents,
     rail_section,
@@ -330,3 +332,110 @@ def test_sectioned_seats_groups_and_omits_empty_sections():
 
 def test_rail_kind_sections_are_the_four_user_facing_kinds():
     assert RAIL_KIND_SECTIONS == ("CLI", "API", "Blueprint", "Remote")
+
+
+# --- Wave 2a: fetch_thread hydrate via GET /chat/thread/ --------------------
+
+_THREAD_URL = "http://127.0.0.1:8000/chat/thread/?agent=grok"
+
+
+def _thread_response(
+    status: int,
+    payload=None,
+    *,
+    content_type: str = "application/json",
+    url: str = _THREAD_URL,
+) -> httpx.Response:
+    request = httpx.Request("GET", url)
+    if content_type != "application/json":
+        return httpx.Response(status, headers={"content-type": content_type}, request=request)
+    return httpx.Response(status, json=payload if payload is not None else {}, request=request)
+
+
+def test_fetch_thread_parses_messages_and_meta():
+    payload = {
+        "agent_id": "grok",
+        "conversation_id": "agt-7-grok",
+        "kind": "cli",
+        "editable": False,
+        "session_missing": False,
+        "messages": [
+            {"role": "user", "content": "hi", "ts": "2026-09-06T09:00:00Z"},
+            {"role": "assistant", "content": "yo", "edited": True},
+        ],
+    }
+
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _thread_response(200, payload)
+
+    thread = fetch_thread(agent="grok", getter=getter)
+    assert isinstance(thread, AgentThread)
+    assert thread.conversation_id == "agt-7-grok"
+    assert thread.kind == "cli"
+    assert thread.editable is False
+    assert [(m.role, m.content) for m in thread.messages] == [
+        ("user", "hi"),
+        ("assistant", "yo"),
+    ]
+    assert thread.messages[0].ts == "2026-09-06T09:00:00Z"
+    assert thread.messages[1].edited is True
+
+
+def test_fetch_thread_empty_transcript_is_honest_not_error():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _thread_response(200, {"conversation_id": "agt-7-grok", "messages": []})
+
+    thread = fetch_thread(agent="grok", getter=getter)
+    assert thread.messages == []
+
+
+def test_fetch_thread_uses_default_thread_and_bearer():
+    captured: list[str] = []
+    headers_seen: dict[str, str] = {}
+
+    def getter(url: str, headers: dict[str, str]) -> httpx.Response:
+        captured.append(url)
+        headers_seen.update(headers)
+        return _thread_response(200, {"conversation_id": "c", "messages": []})
+
+    fetch_thread(agent="grok", token="tok-123", getter=getter)
+    # No session concept yet: no conversation_id is sent — server default wins.
+    assert "conversation_id" not in captured[0]
+    assert captured[0].startswith("http://127.0.0.1:8000/chat/thread/?agent=grok")
+    assert headers_seen["Authorization"] == "Bearer tok-123"
+
+
+def test_fetch_thread_session_gated_302_html_is_named():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _thread_response(302, content_type="text/html")
+
+    with pytest.raises(SwarmApiError) as exc:
+        fetch_thread(agent="grok", getter=getter)
+    message = str(exc.value)
+    assert "login-gated" in message
+    assert "session cookie" in message
+    assert "Wave 3b" in message
+
+
+def test_fetch_thread_session_gated_401_is_named():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _thread_response(401, {"detail": "nope"})
+
+    with pytest.raises(SwarmApiError, match="session cookie"):
+        fetch_thread(agent="grok", getter=getter)
+
+
+def test_fetch_thread_transport_error_is_honest():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    with pytest.raises(SwarmApiError, match="API unreachable"):
+        fetch_thread(agent="grok", getter=getter)
+
+
+def test_fetch_thread_http_error_is_named():
+    def getter(_url: str, _headers: dict[str, str]) -> httpx.Response:
+        return _thread_response(503, {"detail": "down"})
+
+    with pytest.raises(SwarmApiError, match="503"):
+        fetch_thread(agent="grok", getter=getter)
