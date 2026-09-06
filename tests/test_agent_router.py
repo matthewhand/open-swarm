@@ -540,7 +540,12 @@ def test_route_specialist_honors_cli_backend_param(client, monkeypatch):
     )
     assert pinned.status_code == 200
     assert captured["name"] == "grok"
-    assert captured["cmd"][-2:] == ["-m", "grok-4.5"]
+    # apply_model pins -m before -p so the prompt cannot swallow the flag.
+    assert "-m" in captured["cmd"]
+    flag_at = captured["cmd"].index("-m")
+    assert captured["cmd"][flag_at : flag_at + 2] == ["-m", "grok-4.5"]
+    assert "-p={prompt}" in captured["cmd"]
+    assert flag_at < captured["cmd"].index("-p={prompt}")
 
     monkeypatch.setattr("swarm.core.cli_adapter.CliAdapter.from_config", FakeAdapter.from_config)
     response = client.post(
