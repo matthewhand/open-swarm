@@ -79,6 +79,9 @@ class AclEntry:
     kind: AclEntryKind
     id: str
 
+    def as_dict(self) -> dict[str, str]:
+        return {"kind": self.kind, "id": self.id}
+
     @classmethod
     def from_raw(cls, raw: Any) -> "AclEntry | None":
         if isinstance(raw, str) and raw.strip():
@@ -98,10 +101,22 @@ class AclEntry:
 
 @dataclass(frozen=True)
 class AclPolicy:
-    """Per-agent (or per-role) whitelist / blacklist. Empty blacklist = no extra cut."""
+    """Per-agent (or per-role) whitelist XOR blacklist.
+
+    Empty blacklist = no extra cut. Empty whitelist = nobody, except
+    ``allow_all`` (Support / CoS default whitelist-everything).
+    """
 
     mode: AclMode = "blacklist"
     entries: tuple[AclEntry, ...] = ()
+    allow_all: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "allow_all": self.allow_all,
+            "entries": [entry.as_dict() for entry in self.entries],
+        }
 
     @classmethod
     def from_raw(cls, raw: Any) -> "AclPolicy":
@@ -117,7 +132,10 @@ class AclPolicy:
             for entry in (AclEntry.from_raw(item) for item in (raw.get("entries") or []))
             if entry is not None
         )
-        return cls(mode=mode, entries=entries)  # type: ignore[arg-type]
+        allow_all = raw.get("allow_all") is True
+        if mode == "whitelist" and not entries and allow_all:
+            return cls(mode="whitelist", entries=(), allow_all=True)
+        return cls(mode=mode, entries=entries, allow_all=False)  # type: ignore[arg-type]
 
 
 @dataclass
@@ -232,16 +250,29 @@ def _entry_matches(entry: AclEntry, peer: Peer) -> bool:
 
 
 def apply_acl(ids: set[str], catalog: dict[str, Peer], policy: AclPolicy | None) -> set[str]:
-    """REQ-162 hook: whitelist ∩ / blacklist −. Empty policy is a no-op."""
-    if policy is None or not policy.entries:
+    """REQ-162: whitelist ∩ / blacklist −.
+
+    Empty blacklist is a no-op. Empty whitelist denies everyone unless
+    ``allow_all`` (Support / CoS default).
+    """
+    if policy is None:
+        return ids
+    if policy.mode == "whitelist":
+        if not policy.entries:
+            return ids if policy.allow_all else set()
+        return {
+            ident
+            for ident in ids
+            if ident in catalog
+            and any(_entry_matches(entry, catalog[ident]) for entry in policy.entries)
+        }
+    if not policy.entries:
         return ids
     matched = {
         ident
         for ident in ids
         if ident in catalog and any(_entry_matches(entry, catalog[ident]) for entry in policy.entries)
     }
-    if policy.mode == "whitelist":
-        return matched
     return ids - matched
 
 
@@ -403,7 +434,7 @@ class MailboxContext:
         if target_id not in self.discoverable_ids(kind=V1_KIND):
             raise PeerMailboxError(
                 ERROR_NOT_DISCOVERABLE,
-                f"Agent {target_id!r} is outside this caller's team/relationship graph.",
+                f"Agent {target_id!r} is outside this caller's team/relationship graph or ACL.",
             )
 
     def send(self, agent_id: str, content: str) -> dict[str, Any]:
@@ -692,7 +723,12 @@ def context_from_runtime(
     if isinstance(raw_archived, list):
         archived.update(str(item).strip() for item in raw_archived if str(item).strip())
 
-    acl = AclPolicy.from_raw(params.get("mailbox_acl") or params.get("acl"))
+    if "mailbox_acl" in params or "acl" in params:
+        acl = AclPolicy.from_raw(params.get("mailbox_acl") or params.get("acl"))
+    else:
+        from swarm.core.agent_mailbox_acl import resolve_acl_policy
+
+        acl = resolve_acl_policy(str(caller_id or "").strip(), role).policy
     return MailboxContext(
         caller_id=str(caller_id or "").strip(),
         caller_kind=kind,

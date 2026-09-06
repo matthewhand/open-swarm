@@ -54,6 +54,7 @@ import { rememberGeneratedAvatar } from '../lib/agentAvatars'
 import { defaultAvatarPrompt, isImageGenConfigured, parseImageGenSettings } from '../lib/imageGenSettings'
 import AgentAvatar from './AgentAvatar'
 import { openSettingsSheet } from './SettingsSheet'
+import MailboxAclEditor from './MailboxAclEditor'
 
 /** Window event so the rail hover-edit and tests can open the agent editor. */
 export const OPEN_AGENT_EDITOR_EVENT = 'swarm:open-agent-editor'
@@ -427,6 +428,8 @@ export default function AgentEditor({ isOpen, onClose, agentId }: AgentEditorPro
             it.
           </p>
         </div>
+
+        {id ? <MailboxAclEditor agentId={id} role={role} /> : null}
 
         <div className="space-y-1">
           <Select

@@ -26,7 +26,7 @@ No secrets. No Neon. GitHub-only docs (no local demo-port seed).
 
 **Visibility (Matthew 2026-09-04):** when a bot is on a **team**, list/send is **only other members of that team**. A **relationship** between team↔agent or team↔team makes members mutually discoverable across that edge — not a global mesh.
 
-**ACL (v1.1 model, hooks in v1):** Support allow-all (same-kind); others start at team ∪ edges; optional whitelist / blacklist entries of kind agent | team | role. Full UI is [#573](https://github.com/matthewhand/open-swarm/issues/573).
+**ACL (REQ-162 / #573):** Support allow-all (same-kind); others start at team ∪ edges; per-agent or per-role **whitelist XOR blacklist**. Entries target **agent** (rail/roster id), **team** (roster id → every member), or **role** (canonical role). Agent Editor toggles the mode and add/removes entries — no config-file hunting. Empty Support whitelist stays allow-all.
 
 **Constraints:** Align with teams CoS. No Neon. No secrets in Issues.
 
@@ -75,7 +75,7 @@ effective = discoverable
 
 Edges are **undirected**. v1 pairs: team↔agent, team↔team. Agent↔agent is reserved (would become a silent mesh).
 
-**ACL entries** (data model now; UI later): `{kind: agent|team|role, id}` plus `mode: whitelist|blacklist` per caller. Empty blacklist = no extra cut.
+**ACL entries** live on XDG `agent_mailbox_acl.json` (never `teams.json`): `{kind: agent|team|role, id}` plus `mode: whitelist|blacklist` per agent or role. Empty blacklist = no extra cut. Empty whitelist = nobody, except Support/CoS default **allow-all**. REST: `/v1/mailbox-acl/`.
 
 **Hidden** = `UserPreference.hidden_agents`. **Archived** = explicit catalog flag / `archived_ids` (REQ-154 soft-delete can feed this). Distinct tool errors.
 
@@ -98,11 +98,11 @@ Not a second Neon inbox. Not a local demo-port webhook.
 
 * openai-agents `handoff` / `as_tool` topology (REQ-156)
 * CLI↔CLI / remote↔remote / cross-kind allowlist (later)
-* ACL management UI (REQ-162 / #573)
+* ACL management UI — shipped in REQ-162 / #573 (Agent Editor + `/v1/mailbox-acl/`)
 * Soft-delete purge (REQ-154 / #562)
 
 ---
 
 ## Code
 
-`swarm.core.agent_mailbox`, `swarm.core.agent_relationships`. Wired on Chat WS + `/v1/chat/completions` for API-kind runs. Tests: `tests/core/test_agent_mailbox.py`, `tests/core/test_agent_relationships.py`. Own-diff CI: `.github/workflows/req153-mailbox.yml`.
+`swarm.core.agent_mailbox`, `swarm.core.agent_relationships`, `swarm.core.agent_mailbox_acl`. Wired on Chat WS + `/v1/chat/completions` for API-kind runs. Tests: `tests/core/test_agent_mailbox.py`, `tests/core/test_agent_relationships.py`, `tests/core/test_agent_mailbox_acl.py`. Own-diff CI: `.github/workflows/req153-mailbox.yml`, `.github/workflows/req162-mailbox-acl.yml`.

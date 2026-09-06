@@ -211,6 +211,44 @@ def test_acl_whitelist_limits_peers():
     assert ids == {"support"}
 
 
+def test_empty_whitelist_hides_everyone_for_workers():
+    acl = AclPolicy(mode="whitelist", entries=())
+    ids = {row["id"] for row in _ctx("pat", acl=acl).list_peers()["agents"]}
+    assert ids == set()
+    denied = _ctx("pat", acl=acl).send("support", "hi")
+    assert denied["ok"] is False
+    assert denied["error"] == ERROR_NOT_DISCOVERABLE
+
+
+def test_support_empty_whitelist_allow_all():
+    acl = AclPolicy(mode="whitelist", entries=(), allow_all=True)
+    ids = {row["id"] for row in _ctx("support", acl=acl).list_peers()["agents"]}
+    assert ids == {"pat", "cos", "ada", "ivy"}
+
+
+def test_acl_team_entry_matches_roster_members():
+    acl = AclPolicy(mode="whitelist", entries=(AclEntry(kind="team", id="office"),))
+    ids = {row["id"] for row in _ctx("support", acl=acl).list_peers()["agents"]}
+    assert ids == {"pat", "cos"}
+    assert "ada" not in ids
+
+
+def test_acl_blacklist_role_hides_matching_peers():
+    acl = AclPolicy(mode="blacklist", entries=(AclEntry(kind="role", id="chief_of_staff"),))
+    ids = {row["id"] for row in _ctx("pat", acl=acl).list_peers()["agents"]}
+    assert "cos" not in ids
+    assert "support" in ids
+
+
+def test_send_message_enforces_whitelist():
+    acl = AclPolicy(mode="whitelist", entries=(AclEntry(kind="agent", id="support"),))
+    ok = _ctx("pat", acl=acl).send("support", "need a hand")
+    assert ok["ok"] is True
+    blocked = _ctx("pat", acl=acl).send("cos", "secret")
+    assert blocked["ok"] is False
+    assert blocked["error"] == ERROR_NOT_DISCOVERABLE
+
+
 def test_send_redacts_secrets_in_store_and_logs(tmp_path, caplog):
     ctx = _ctx("pat", user_key="u1", chat_base_dir=tmp_path)
     secret = "sk-abcdefghijklmnopqrstuvwxyz123456"

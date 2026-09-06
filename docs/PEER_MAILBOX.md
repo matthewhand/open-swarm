@@ -23,10 +23,20 @@ Hidden Bots are omitted and `send_message` fails with `target_hidden`. Archived 
 
 Tool logs run through `redact_sensitive_data`. Key-shaped payloads are not stored raw.
 
-## ACL (hooks now, UI later)
+## ACL (REQ-162 / #573)
 
-Effective discoverability = team ∪ edges ∩ (whitelist / ¬blacklist), with Support/CoS default allow-all. Entry kinds: agent, team, role. Full allow/deny UI is [#573](https://github.com/matthewhand/open-swarm/issues/573).
+Effective discoverability = team ∪ edges ∩ (whitelist / ¬blacklist), with Support/CoS default **whitelist everything** (allow-all). Mode is XOR: a caller is either on a whitelist or a blacklist, toggled in the Agent Editor.
+
+**Entry kinds** (documented on `GET /v1/mailbox-acl/` and in the editor):
+
+| Kind | Matches |
+|------|---------|
+| `agent` | One catalogued rail / roster agent id |
+| `team` | Every member of that composition roster |
+| `role` | Every peer whose canonical role matches (`support`, `gate`, `skeptic`, `chief_of_staff`, `engineer`, `suggestions`, `default`) |
+
+Per-agent overrides beat per-role policies. Empty blacklist = no extra cut. Empty whitelist = nobody, except Support/CoS allow-all. `list_agents` and `send_message` both apply the effective ACL.
 
 ## Code
 
-`swarm.core.agent_mailbox`, `swarm.core.agent_relationships` (`agent_relationships.json` next to `team_rosters.json`). GitHub-only docs. No Neon. No secrets.
+`swarm.core.agent_mailbox`, `swarm.core.agent_relationships` (`agent_relationships.json`), `swarm.core.agent_mailbox_acl` (`agent_mailbox_acl.json`) next to `team_rosters.json`. Agent Editor + `/v1/mailbox-acl/`. GitHub-only docs. No Neon. No secrets.

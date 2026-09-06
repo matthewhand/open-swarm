@@ -116,6 +116,11 @@ from swarm.views.remotes_api import (
     RemotesListView,
 )
 from swarm.views.agent_settings_api import AgentSettingsAPIView, AgentTaskSessionAPIView
+from swarm.views.mailbox_acl_api import (
+    MailboxAclAgentAPIView,
+    MailboxAclRoleAPIView,
+    MailboxAclStoreAPIView,
+)
 from swarm.views.routines_api import (
     AgentRoutineDetailAPIView,
     AgentRoutinesAPIView,
@@ -378,6 +383,29 @@ urlpatterns = [
     path("v1/herdr-agents/discover/", HerdrDiscoverAPIView.as_view(), name="herdr-agents-discover"),
     path("v1/herdr-agents/<str:agent_id>", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail-no-slash"),
     path("v1/herdr-agents/<str:agent_id>/", HerdrAgentDetailAPIView.as_view(), name="herdr-agents-api-detail"),
+    # REQ-162: peer-mailbox ACL (whitelist XOR blacklist; Support allow-all).
+    path("v1/mailbox-acl", MailboxAclStoreAPIView.as_view(), name="mailbox-acl-store-no-slash"),
+    path("v1/mailbox-acl/", MailboxAclStoreAPIView.as_view(), name="mailbox-acl-store"),
+    path(
+        "v1/mailbox-acl/agents/<str:agent_id>",
+        MailboxAclAgentAPIView.as_view(),
+        name="mailbox-acl-agent-no-slash",
+    ),
+    path(
+        "v1/mailbox-acl/agents/<str:agent_id>/",
+        MailboxAclAgentAPIView.as_view(),
+        name="mailbox-acl-agent",
+    ),
+    path(
+        "v1/mailbox-acl/roles/<str:role>",
+        MailboxAclRoleAPIView.as_view(),
+        name="mailbox-acl-role-no-slash",
+    ),
+    path(
+        "v1/mailbox-acl/roles/<str:role>/",
+        MailboxAclRoleAPIView.as_view(),
+        name="mailbox-acl-role",
+    ),
     # REQ-65: agent-scoped settings (new chat per task). Not global Settings.
     path("v1/agents/<str:agent_id>/settings", AgentSettingsAPIView.as_view(), name="agent-settings-api-no-slash"),
     path("v1/agents/<str:agent_id>/settings/", AgentSettingsAPIView.as_view(), name="agent-settings-api"),
