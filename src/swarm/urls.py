@@ -83,6 +83,7 @@ from swarm.views.mcp_plugins_api import (
     McpPluginsView,
 )
 from swarm.views.llm_profiles_api import LlmProfilesView
+from swarm.views.rate_limits_api import RateLimitsView
 from swarm.views.preferences_api import UserPreferencesView
 from swarm.views.library_api import LibraryAPIView, LibraryDetailAPIView
 from swarm.views.responses_views import (
@@ -251,6 +252,8 @@ urlpatterns = [
     path("v1/cli-sessions/hop/", CliSessionHopAPIView.as_view(), name="cli-sessions-hop"),
     path("v1/llm-profiles", LlmProfilesView.as_view(), name="llm-profiles-api-no-slash"),
     path("v1/llm-profiles/", LlmProfilesView.as_view(), name="llm-profiles-api"),
+    path("v1/rate-limits", RateLimitsView.as_view(), name="rate-limits-api-no-slash"),
+    path("v1/rate-limits/", RateLimitsView.as_view(), name="rate-limits-api"),
     path("v1/config-ownership", ConfigOwnershipView.as_view(), name="config-ownership-api-no-slash"),
     path("v1/config-ownership/", ConfigOwnershipView.as_view(), name="config-ownership-api"),
     path(

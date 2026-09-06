@@ -459,6 +459,8 @@ describe('SettingsSheet', () => {
     renderSheet()
     fireEvent.click(screen.getByRole('button', { name: 'Show LLM profiles' }))
     expect(await screen.findByRole('list', { name: 'Configured LLM profiles' })).toBeInTheDocument()
+    expect(await screen.findByTestId('rate-limits-llm-gpt-4o-mini')).toBeInTheDocument()
+    expect(screen.getByTestId('rate-limits-llm-gpt-4o-mini').textContent).not.toMatch(/Django/i)
     expect(await screen.findByText('Overrides env DEFAULT_LLM')).toBeInTheDocument()
     const defaultSelect = await screen.findByLabelText('Default')
     expect(defaultSelect).toHaveValue('gpt-5.6-terra')

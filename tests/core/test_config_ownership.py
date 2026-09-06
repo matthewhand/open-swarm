@@ -123,6 +123,25 @@ def test_write_paths_for_webui_sections(tmp_path: Path, monkeypatch):
     assert "sk-" not in path.read_text(encoding="utf-8")
 
 
+def test_rate_limit_token_fields_are_not_treated_as_secrets(tmp_path):
+    path = _cfg(tmp_path, {"llm": {}, "cli_agents": {"stub": {"cmd": ["echo"]}}})
+    own.persist_webui_section(
+        "cli_agents",
+        upsert={
+            "stub": {
+                "cmd": ["echo"],
+                "rate_limits": {"tokens_per_minute": 100, "messages_per_minute": 1},
+            }
+        },
+        config_path=path,
+    )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["cli_agents"]["stub"]["rate_limits"]["tokens_per_minute"] == 100
+    assert data["cli_agents"]["stub"]["cmd"] == ["echo"]
+    assert own.is_secret_key("tokens_per_minute") is False
+    assert own.is_secret_key("api_key") is True
+
+
 def test_badges_and_force_env(monkeypatch):
     monkeypatch.delenv("SWARM_CONFIG_FORCE_ENV", raising=False)
     monkeypatch.setenv("DEFAULT_LLM", "from-env")

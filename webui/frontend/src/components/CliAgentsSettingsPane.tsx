@@ -11,8 +11,13 @@ import {
   saveHopPrefs,
   type HopMode,
 } from '../lib/sessionHopPrefs'
+import ProviderRateLimitFields from './ProviderRateLimitFields'
 
-export default function CliAgentsSettingsPane() {
+export default function CliAgentsSettingsPane({
+  focusProviderId = null,
+}: {
+  focusProviderId?: string | null
+} = {}) {
   const { success, error: toastError } = useToast()
   const queryClient = useQueryClient()
   const configQuery = useQuery({
@@ -118,6 +123,10 @@ export default function CliAgentsSettingsPane() {
                 <p className="truncate text-xs text-base-content/60">
                   {(data[cliName]?.cmd || []).join(' ') || '—'}
                 </p>
+                <ProviderRateLimitFields
+                  providerKey={`cli:${cliName}`}
+                  autoFocus={focusProviderId === `cli:${cliName}`}
+                />
               </div>
               <Button
                 type="button"

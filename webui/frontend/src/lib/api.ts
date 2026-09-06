@@ -417,6 +417,51 @@ export function patchLlmProfiles(
   return apiPatch<LlmProfilesSettings>('/v1/llm-profiles/', body)
 }
 
+/** GET/PATCH /v1/rate-limits/ — user-defined provider caps (local config, not Neon). */
+export type RateLimitRuleKey =
+  | 'messages_per_minute'
+  | 'requests_per_minute'
+  | 'tokens_per_minute'
+  | 'tokens_per_day'
+
+export type RateLimitRules = Record<RateLimitRuleKey, number | null>
+
+export interface ProviderRateLimitRow {
+  id: string
+  kind: 'cli' | 'llm' | 'remote' | string
+  name: string
+  object: 'provider_rate_limits'
+  rules: RateLimitRules
+  settings?: {
+    section?: string
+    provider_id?: string
+    focus?: string
+    field_id?: string
+  }
+}
+
+export interface RateLimitsPayload {
+  object: 'provider_rate_limits'
+  data: ProviderRateLimitRow[]
+  rules?: RateLimitRuleKey[]
+  note?: string
+  saved?: RateLimitRules
+  provider?: string
+  persisted_to?: string
+  warnings?: string[]
+}
+
+export function fetchRateLimits(): Promise<RateLimitsPayload> {
+  return apiGet<RateLimitsPayload>('/v1/rate-limits/')
+}
+
+export function patchRateLimits(
+  provider: string,
+  rules: Partial<RateLimitRules>,
+): Promise<RateLimitsPayload> {
+  return apiPatch<RateLimitsPayload>('/v1/rate-limits/', { provider, rules })
+}
+
 export function fetchTeams(): Promise<ListResponse<Team>> {
   return apiGet<ListResponse<Team>>('/v1/teams/')
 }

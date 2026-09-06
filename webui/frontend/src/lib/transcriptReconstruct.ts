@@ -7,6 +7,7 @@
  */
 
 import { asTranscriptRole, isStatusRole, type ChatTranscriptRole } from './chatStatus'
+import { isRateLimitWait, type RateLimitWait } from './providerRateLimits'
 
 export type TranscriptTurn = {
   role?: string
@@ -18,6 +19,7 @@ export type TranscriptTurn = {
   edited?: boolean
   kind?: string
   seq?: number
+  rate_limit?: RateLimitWait
 }
 
 export type UiEvent = TranscriptTurn
@@ -28,6 +30,7 @@ export type ReconstructedMessage = {
   ts?: string
   edited?: boolean
   kind?: 'prior_history'
+  rate_limit?: RateLimitWait
 }
 
 function seqOf(row: TranscriptTurn, fallback: number): number {
@@ -69,6 +72,7 @@ function toMessage(row: TranscriptTurn): ReconstructedMessage | null {
   if (row.edited === true) out.edited = true
   const ts = tsOf(row)
   if (ts) out.ts = ts
+  if (isRateLimitWait(row.rate_limit)) out.rate_limit = row.rate_limit
   return out
 }
 
