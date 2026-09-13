@@ -746,6 +746,16 @@ const ChatPage = () => {
         })),
   )
 
+  const supportSelected = Boolean(
+    !teamFromUrl &&
+      !remoteFromUrl &&
+      (isSupportJourneyConsumer(selectedBlueprint) ||
+        isSupportAgent({
+          id: selectedBlueprint || SUPPORT_AGENT_ID,
+          name: selectedAgentName,
+        })),
+  )
+
   const isApiAgent = Boolean(
     !teamFromUrl &&
       !remoteFromUrl &&
@@ -1592,6 +1602,7 @@ const ChatPage = () => {
     }
     ws.onclose = (event: CloseEvent) => {
       if (wsRef.current === ws) wsRef.current = null
+      setAwaitingAssistant(false)
       const rejected = event.code === WS_AUTH_REQUIRED_CODE
       setAuthRejected(rejected)
       setStatus(opened ? 'closed' : 'failed')
@@ -1704,7 +1715,7 @@ const ChatPage = () => {
     if (pinnedToBottomRef.current) {
       scrollTranscriptToBottom(scrollBoxRef.current, listEndRef.current)
     }
-  }, [messages, composerInsetPx, newBeforeKey])
+  }, [messages, composerInsetPx, newBeforeKey, awaitingAssistant])
 
   useEffect(() => {
     if (!activeChatAgentId || seatUnread) return
@@ -2145,15 +2156,8 @@ const ChatPage = () => {
   }, [plusOpen])
 
   const streamingMessage = messages.find((message) => message.streaming)
+  const isWorking = Boolean(streamingMessage) || awaitingAssistant
   const chipsDisabled = status !== 'open'
-  const supportSelected =
-    !teamFromUrl &&
-    !remoteFromUrl &&
-    (isSupportJourneyConsumer(selectedBlueprint) ||
-      isSupportAgent({
-        id: selectedBlueprint || SUPPORT_AGENT_ID,
-        name: selectedAgentName,
-      }))
   const supportJourneyChips =
     supportSelected && messages.length === 0 ? supportJourneyKickstart() : []
   const showSupportJourneyChips = supportJourneyChips.length > 0
@@ -2169,7 +2173,7 @@ const ChatPage = () => {
       setSuggestionChips([])
       return
     }
-    if (!threadReady || streamingMessage || teamFromUrl) return
+    if (!threadReady || isWorking || teamFromUrl) return
     const agent = agentIdFromBlueprint(selectedBlueprint)
     if (!agent) return
     let cancelled = false
@@ -2183,7 +2187,7 @@ const ChatPage = () => {
   }, [
     useSuggestions,
     threadReady,
-    streamingMessage,
+    isWorking,
     teamFromUrl,
     selectedBlueprint,
     messages.length,
@@ -2223,10 +2227,10 @@ const ChatPage = () => {
         })
       }
     }
-    if (isCliAgent && activeChatAgentId) {
-      notifyCliRunState(activeChatAgentId, Boolean(streamingMessage))
+    if (activeChatAgentId) {
+      notifyCliRunState(activeChatAgentId, isWorking)
     }
-  }, [streamingMessage, activeChatAgentId, messages, selectedAgentName, isCliAgent])
+  }, [streamingMessage, awaitingAssistant, isWorking, activeChatAgentId, messages, selectedAgentName, isCliAgent])
 
   useEffect(() => {
     if (generationIsInFlight(messages, awaitingAssistant) || status !== 'open') return
@@ -2631,8 +2635,8 @@ const ChatPage = () => {
               <AgentAvatar
                 src={selectedAgent?.avatar_path}
                 agentId={agentIdFromBlueprint(selectedBlueprint)}
-                active={Boolean(streamingMessage)}
-                status={streamingMessage ? 'working' : 'idle'}
+                active={isWorking}
+                status={isWorking ? 'working' : 'idle'}
                 size="lg"
                 gl
                 className="os-chat-header__avatar shrink-0"
@@ -3194,6 +3198,41 @@ const ChatPage = () => {
             )
           })}
           </>
+        )}
+        {awaitingAssistant && !streamingMessage && (
+          <div
+            className="os-chat-message os-chat-message--assistant group/osrow flex flex-col gap-1 items-start my-2"
+            role="status"
+            aria-live="polite"
+            aria-label={workingTip}
+          >
+            <div className="flex items-center gap-2.5 py-1 px-1">
+              <div
+                className="os-composer-working os-inline-working"
+                data-testid="composer-working-indicator"
+                role="status"
+                aria-live="polite"
+                aria-label={workingTip}
+              >
+                <span className="tooltip tooltip-right os-composer-working__tip" data-tip={workingTip}>
+                  <span className="os-composer-working__avatar os-inline-working__avatar">
+                    <AgentAvatar
+                      src={selectedAgent?.avatar_path}
+                      agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
+                      active={true}
+                      status="working"
+                      size="xs"
+                      className="shrink-0"
+                    />
+                  </span>
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-2 text-xs text-base-content/70 italic">
+                <span>{workingTip || 'Thinking…'}</span>
+                <span className="loading loading-dots loading-xs opacity-70" />
+              </span>
+            </div>
+          </div>
         )}
         <div ref={listEndRef} />
         </div>
