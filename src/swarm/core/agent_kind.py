@@ -1,4 +1,4 @@
-"""Classify chat agents as API, CLI, or remote (REQ-49 / REQ-203).
+"""Classify chat agents as API, CLI, remote, or blueprint (REQ-49 / REQ-203).
 
 API-agent threads are owned by Open Swarm and may be edited in place.
 CLI and remote sessions are owned outside swarm — no edit.
@@ -14,9 +14,29 @@ from typing import Literal
 
 from swarm.core.remote_harness import is_remote_impl_id
 
-AgentKind = Literal["api", "cli", "remote"]
+AgentKind = Literal["api", "cli", "remote", "blueprint"]
 
-_VALID_KINDS = frozenset({"api", "cli", "remote"})
+_VALID_KINDS = frozenset({"api", "cli", "remote", "blueprint"})
+
+# Rail seat ``api_agent`` is a first-class API kind row (LiteLLM / chatbot),
+# not a discoverable blueprint package. Websocket chat already maps it to
+# ``chatbot``; REST ``/v1/chat/completions`` must use the same recipe so a
+# Bearer/curl client can complete an API-agent turn.
+API_AGENT_RAIL_ID = "api_agent"
+API_AGENT_BLUEPRINT_ID = "chatbot"
+
+
+def resolve_chat_blueprint_id(model_or_agent_id: str | None) -> str:
+    """Blueprint id that actually runs a chat turn for ``model_or_agent_id``.
+
+    ``api_agent`` (rail / starter API seat) → ``chatbot``. Every other id is
+    returned stripped as-is (including ``cli_agent``, ``support``,
+    ``software_dev``).
+    """
+    raw = (model_or_agent_id or "").strip()
+    if raw.lower() == API_AGENT_RAIL_ID:
+        return API_AGENT_BLUEPRINT_ID
+    return raw
 
 
 def classify_agent_kind(
@@ -24,10 +44,10 @@ def classify_agent_kind(
     *,
     explicit: str | None = None,
 ) -> AgentKind:
-    """Return ``api``, ``cli``, or ``remote`` for an agent id / source.
+    """Return ``api``, ``cli``, ``remote``, or ``blueprint`` for an agent id / source.
 
     Explicit kind (from a roster or fixture) wins when it is one of the
-    three user-facing values. Remote **impl** ids (``herdr``, ``hermes``,
+    four user-facing values. Remote **impl** ids (``herdr``, ``hermes``,
     ``omb``, ``rakazo``) also classify as ``remote`` — not a fifth kind.
 
     Otherwise source-style prefixes are used:
@@ -43,6 +63,8 @@ def classify_agent_kind(
     text = (raw or "").strip().lower()
     if text.startswith("cli:"):
         return "cli"
+    if text.startswith("blueprint:"):
+        return "blueprint"
     if (
         text.startswith("remote:")
         or text.startswith("placeholder:remote:")
@@ -58,5 +80,8 @@ def can_edit_agent_messages(
     *,
     explicit: str | None = None,
 ) -> bool:
-    """True only for API-agent threads (REQ-49)."""
-    return classify_agent_kind(raw, explicit=explicit) == "api"
+    """True for API threads (edit in place) and CLI threads (edit restarts
+    the provider session — the caller must clear ``cli_sessions`` and say so).
+    Remote threads stay read-only (REQ-49).
+    """
+    return classify_agent_kind(raw, explicit=explicit) in ("api", "cli", "blueprint")

@@ -561,6 +561,10 @@ class BlueprintBase(ABC):
         from swarm.core.slash_commands import slash_registry
         return slash_registry
 
+    def get_navbar_items(self=None) -> list[dict]:
+        """Returns metadata for navbar items contributed by this blueprint."""
+        return []
+
     def get_llm_profile(self, profile_name: str) -> dict:
         """Returns the resolved LLM profile dict (with LITELLM_* overrides applied).
 
@@ -642,8 +646,9 @@ class BlueprintBase(ABC):
         api_mode = os.getenv("SWARM_LLM_API_MODE", api_mode)
         model_name = os.getenv("LITELLM_MODEL") or os.getenv("DEFAULT_LLM") or profile_data.get("model")
         provider = profile_data.get("provider", "openai")
-        # LiteLLM is OpenAI-compatible; keep using the OpenAI client.
-        if provider == "litellm":
+        # OpenAI-compatible gateways (LiteLLM, Ollama, …) keep the OpenAI client.
+        from swarm.core.llm_provider import is_openai_chat_provider
+        if is_openai_chat_provider(provider):
             provider = "openai"
         client_kwargs = { "api_key": profile_data.get("api_key"), "base_url": profile_data.get("base_url") }
         filtered_kwargs = {k: v for k, v in client_kwargs.items() if v is not None}

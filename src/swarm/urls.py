@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import HttpResponse
 from django.urls import path, re_path
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import RedirectView
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -45,6 +46,7 @@ from swarm.views.agent_router_views import (
     agent_delegations_view,
     create_designed_agent,
     delete_designed_agent,
+    list_designed_agents,
     delegate_agent_view,
     get_agent_info,
     get_agent_status_view,
@@ -309,8 +311,10 @@ urlpatterns = [
     path("marketplace/github/blueprints/", MarketplaceGitHubBlueprintsView.as_view(), name="marketplace-github-blueprints"),
     path("marketplace/github/mcp-configs/", MarketplaceGitHubMCPConfigsView.as_view(), name="marketplace-github-mcp-configs"),
     # Slash + no-slash twins (same pattern as /v1/responses and /v1/blueprints).
-    path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
-    path("v1/chat/completions/", ChatCompletionsView.as_view(), name="chat_completions_slash"),
+    # csrf_exempt on as_view() so ASGI/Daphne keeps the flag (DRF session CSRF
+    # still applies to cookie clients; Bearer is exempt — Issue #136).
+    path("v1/chat/completions", csrf_exempt(ChatCompletionsView.as_view()), name="chat_completions"),
+    path("v1/chat/completions/", csrf_exempt(ChatCompletionsView.as_view()), name="chat_completions_slash"),
     # OpenAI Responses API (MVP) — normalizes `input`/`instructions` to messages
     # and reuses the same blueprint-resolution + run path as chat completions.
     # Slash + no-slash twins (same pattern as /v1/blueprints and /v1/teams).
@@ -373,6 +377,7 @@ urlpatterns = [
     path("v1/agents/remote-launch/", launch_remote_framework, name="launch_remote_framework"),
     path("v1/agents/quickstarts/", generate_agent_quickstarts, name="generate_agent_quickstarts"),
     path("v1/agents/design/", create_designed_agent, name="create_designed_agent"),
+    path("v1/agents/designs/", list_designed_agents, name="list_designed_agents"),
     path("v1/agents/design/<str:agent_id>/", delete_designed_agent, name="delete_designed_agent"),
     path("v1/agents/<str:agent_id>/", get_agent_info, name="get_agent_info"),
     path("v1/agents/<str:agent_id>/send/", send_to_agent, name="send_to_agent"),

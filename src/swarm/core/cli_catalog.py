@@ -14,7 +14,7 @@ is ``which`` / ``stat`` only — never ``auth_check``, never a login probe,
 never a network call.
 
 Known catalog names (agy is the antigravity CLI): grok, agy, claude, gemini,
-codex, opencode, pi.
+codex, opencode, pi, omp, qwen.
 
 Each entry runs the CLI **one-shot, non-interactive, auto-approve** (full
 capability) — the flag that matters is the auto-approve one, without which the
@@ -32,6 +32,10 @@ Known per-CLI gotchas are encoded here so the defaults *just run* (verified live
 * **opencode** has no usable default model in ``run`` mode (its built-in default
   errors as "not supported"), so an explicit ``--model`` is required. The value
   below is account/version-specific — run ``opencode models`` to pick one.
+* **omp** (Oh My Pi) needs a durable ``~/.omp/agent/models.yml`` overlay to map
+  ``litellm/orchestration`` to the host LiteLLM OpenAI-compatible base (often
+  ``http://127.0.0.1:4010/v1``). Env ``OPENAI_BASE_URL`` alone is insufficient.
+  Stdin must stay closed in print mode (``CliAdapter`` uses ``DEVNULL``).
 * **agy** treats ``-p`` / ``--print`` as a flag that *consumes the next argv
   token as the prompt*. ``agy -p --output-format json 'hi'`` errors with
   ``-p took "--output-format" as its prompt``. Attach the prompt to the flag
@@ -157,10 +161,31 @@ CATALOG: dict[str, dict[str, Any]] = {
     },
     "opencode": {
         # --model: opencode's built-in default errors as "not supported"; an
-        # explicit model is required. This value is account/version-specific —
-        # run `opencode models` to pick one available to you.
+        # explicit model is required. Prefer LAN LiteLLM via host opencode
+        # provider (`litellm/orchestration` on .30:8000). Run `opencode models`
+        # to pick another available id if needed.
         # --model before `--` so a positional prompt cannot turn it into text.
-        "cmd": ["opencode", "run", "--model", "opencode/big-pickle", "--", "{prompt}"],
+        "cmd": ["opencode", "run", "--model", "litellm/orchestration", "--", "{prompt}"],
+        "parse": "text",
+        "mode": "write",
+        "timeout": 240,
+    },
+    "omp": {
+        # Oh My Pi non-interactive print mode. -p/--print does not consume the
+        # prompt; the message is positional after `--`. Pin LiteLLM
+        # orchestration via ~/.omp/agent/models.yml (provider litellm ->
+        # OpenAI-compatible base, often :4010/v1). --auto-approve skips tool
+        # prompts. CliAdapter closes stdin (DEVNULL) — required to avoid
+        # readPipedInput hang.
+        "cmd": [
+            "omp",
+            "-p",
+            "--model",
+            "litellm/orchestration",
+            "--auto-approve",
+            "--",
+            "{prompt}",
+        ],
         "parse": "text",
         "mode": "write",
         "timeout": 240,
@@ -175,6 +200,20 @@ CATALOG: dict[str, dict[str, Any]] = {
         "parse": "text",
         "mode": "write",
         "timeout": 240,
+    },
+    "qwen": {
+        # Qwen Code (gemini-cli fork) one-shot. The positional `query` after
+        # `--` does NOT reach the CLI (it reports "No input provided"); use
+        # the protected -p=<prompt> form (matches gemini; -p is deprecated
+        # but functional). --yolo auto-approves all tools. JSON output is an
+        # ARRAY of claude-style events whose FINAL element is the result —
+        # parsed via the -1 list index supported by _extract_json_path.
+        # timeout None: interactive ws turns run unbounded (stop button kills
+        # the process group); set a number in cli_agents to re-arm a limit.
+        "cmd": ["qwen", "--output-format", "json", "--yolo", "-p={prompt}"],
+        "parse": "json:.-1.result",
+        "mode": "write",
+        "timeout": None,
     },
 }
 
@@ -229,6 +268,11 @@ DEFAULT_EXPORT_NOTES = (
 # (google-antigravity/antigravity-cli#602).
 AGY_CONVERSATIONS_STORE = "agy_conversations"
 DEFAULT_AGY_CONVERSATIONS_DIR = "~/.gemini/antigravity-cli/conversations"
+# Qwen Code persists each session as ``<projects>/<escaped-cwd>/chats/<sid>.jsonl``
+# (claude-style JSONL; every event carries sessionId + cwd). The escaped dir
+# name is the session's cwd, non-alphanumerics → ``-``.
+QWEN_SESSIONS_STORE = "qwen_sessions"
+DEFAULT_QWEN_PROJECTS_DIR = "~/.qwen/projects"
 
 SESSION: dict[str, dict[str, Any]] = {
     "grok": {
@@ -293,6 +337,19 @@ SESSION: dict[str, dict[str, Any]] = {
             "List: ``opencode session list --format json`` ({id, title, updated})."
         ),
     },
+    "omp": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 2,  # after `omp -p` → `omp -p --resume <id> …`
+        "resume_strip": ["--no-session", "--continue", "-c"],
+        "session_id_paths": [".session", ".id"],
+        "list_capability": LIST_CAPABILITY_PASTE_ONLY,
+        "notes": (
+            "omp -p --resume <id|path> (also -r). --continue/-c is last session — "
+            "do not use it here. Smoke/verify injects --no-session (ephemeral); "
+            "production cmd does not. List is paste-only — no verified "
+            "non-interactive list argv."
+        ),
+    },
     "agy": {
         "resume_argv": ["--conversation", "{session_id}"],
         "resume_insert": 1,
@@ -320,12 +377,30 @@ SESSION: dict[str, dict[str, Any]] = {
             "List is paste-only — no verified non-interactive list argv."
         ),
     },
+    "qwen": {
+        "resume_argv": ["--resume", "{session_id}"],
+        "resume_insert": 1,
+        "resume_strip": ["--continue", "-c"],
+        "session_id_paths": [".session_id"],
+        "list_store": QWEN_SESSIONS_STORE,
+        "list_store_dir": DEFAULT_QWEN_PROJECTS_DIR,
+        "list_capability": LIST_CAPABILITY_WORKS,
+        "notes": (
+            "qwen --resume <uuid> (also -r). -c/--continue is most-recent and "
+            "--session-id names a NEW session — do not use either to resume. "
+            "JSON output is an event array; every event carries session_id and "
+            "the final result event is authoritative (last match wins). "
+            "List works via the provider store: ~/.qwen/projects/<escaped-cwd>/"
+            "chats/<sid>.jsonl (id + mtime + first user text + cwd)."
+        ),
+    },
 }
 
 # Flags injected only on smoke/verify probes. Production catalog cmds must
 # stay resumable (Pi --no-session would cancel --session).
 SMOKE_FLAGS: dict[str, list[str]] = {
     "pi": ["--no-session"],
+    "omp": ["--no-session"],
 }
 
 for _policy in SESSION.values():
@@ -495,14 +570,16 @@ CLI_TRAITS: dict[str, dict[str, float]] = {
     "gemini":   {"intelligence": 0.60, "speed": 0.92, "cost": 0.90},
     "codex":    {"intelligence": 0.75, "speed": 0.60, "cost": 0.50},
     "opencode": {"intelligence": 0.55, "speed": 0.65, "cost": 0.75},
+    "omp":      {"intelligence": 0.60, "speed": 0.70, "cost": 0.80},
     "pi":       {"intelligence": 0.70, "speed": 0.70, "cost": 0.70},
+    "qwen":     {"intelligence": 0.62, "speed": 0.85, "cost": 0.85},
 }
 
 # First-class sidebar CLIs — always listed like remote FRAMEWORKS (OpenMausBot),
 # even when the designer has not created a `kind=cli` record. Other catalog
 # CLIs stay available in the backend picker / designer.
 # Grok rail verify rows use ``{name}_agent`` ids (grok_agent, agy_agent, …).
-SIDEBAR_CLIS: tuple[str, ...] = ("grok", "agy", "opencode", "pi")
+SIDEBAR_CLIS: tuple[str, ...] = ("grok", "agy", "opencode", "omp", "pi", "qwen")
 
 CLI_SIDEBAR: dict[str, dict[str, str]] = {
     "grok": {
@@ -526,12 +603,26 @@ CLI_SIDEBAR: dict[str, dict[str, str]] = {
         "color": "#a78bfa",
         "icon": "⌨️",
     },
+    "omp": {
+        "name": "OMP",
+        "specialty": "Oh My Pi CLI",
+        "description": "Host omp CLI one-shot (-p + litellm/orchestration).",
+        "color": "#f472b6",
+        "icon": "◈",
+    },
     "pi": {
         "name": "Pi",
         "specialty": "Pi CLI",
         "description": "Host pi CLI in non-interactive print mode (-p).",
         "color": "#fb923c",
         "icon": "π",
+    },
+    "qwen": {
+        "name": "Qwen",
+        "specialty": "Qwen Code CLI",
+        "description": "Host qwen CLI one-shot (JSON event array, --yolo auto-approve).",
+        "color": "#14b8a6",
+        "icon": "◈",
     },
 }
 
@@ -580,12 +671,19 @@ def with_native_consensus(name: str, n: int = 2) -> dict[str, Any] | None:
 #   gemini    ``gemini --list-models``  (JSON; early-exit, no REPL)
 #   codex     ``codex debug models``    (raw catalog JSON)
 #   opencode  ``opencode models``       (already documented in this catalog)
+#   agy       ``agy models``            (tab-separated id<TAB>label lines; a
+#                                       spinner banner goes to stderr, stdout
+#                                       parses as plain lines)
+# qwen: deliberately absent — its current build rejects ``--list-models``
+# ("Unknown arguments") and has no models subcommand, so there is nothing
+# honest to probe; dropdown falls back to the empty + warning path.
 LIST_MODELS: dict[str, list[str]] = {
     "grok": ["grok", "models"],
     "claude": ["claude", "models"],
     "gemini": ["gemini", "--list-models"],
     "codex": ["codex", "debug", "models"],
     "opencode": ["opencode", "models"],
+    "agy": ["agy", "models"],
 }
 
 # List-models probes must stay cheap and never hang a Settings / #358 caller.
@@ -610,8 +708,10 @@ MODEL_FLAG: dict[str, str] = {
     "gemini": "-m",        # verified live (gemini 0.45): -m gemini-3-pro-preview
     "claude": "--model",   # claude -p --model <name>
     "opencode": "--model", # opencode run --model <name>
+    "omp": "--model",      # omp -p --model <provider/id>
     "agy": "--model",      # agy --model <name>
     "grok": "-m",          # grok -m/--model <id> (verified: grok-4.6, grok-4.5)
+    "qwen": "-m",          # qwen -m/--model <id> (verified live: gateway slug auxiliary)
 }
 
 # Suggested model ids for the Agent Router CLI-model dropdown. The UI always
@@ -629,7 +729,8 @@ CLI_MODELS: dict[str, list[str]] = {
     ],
     "gemini": ["gemini-3-flash-preview", "gemini-3-pro-preview"],
     "claude": ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
-    "opencode": ["opencode/big-pickle"],
+    "opencode": ["litellm/orchestration"],
+    "omp": ["litellm/orchestration"],
 }
 
 

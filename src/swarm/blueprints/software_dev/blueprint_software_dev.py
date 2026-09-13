@@ -16,6 +16,31 @@ Deterministic grammar (no LLM — same idea as ``remote_harness``)::
 Structured params: ``seat``, ``action``, ``issue``, ``feasibility``,
 ``path``, ``content``, ``work``, ``tests``, ``visual``, ``deviations``.
 
+Workspace/context params (``workdir``, ``cwd``, ``remote_workdir``,
+``ssh_host`` / ``ssh_user`` / ``ssh_port`` / ``ssh_identity_env``,
+``issue``, ``feasibility``, …) do **not** force the deterministic seat
+router. Only ``seat`` / ``action`` (or an explicit grammar verb /
+``SWARM_TEST_MODE``) select that path. Freeform and Issue-first user
+text go to ``Runner.run(coordinator)`` so CoS can call
+``consult_engineer`` / ``consult_skeptic`` (as_tool) and handoffs.
+Structured multi-turn (``quote`` then a later freeform turn) remains
+supported.
+
+Tip quirk (Issue #150): ``bool(self._params)`` treated any non-empty
+params — including workdir-only — as deterministic and skipped Runner.
+Chatty Commander #854 worked around that by omitting ``params.workdir``.
+That workaround is no longer required.
+
+**FS-locality (Issue #148):** ``read_file`` / ``list_files`` /
+``write_file`` default to the **API-host filesystem**. A local
+``params.workdir`` on ubuntu-max (:8002) cannot see ubuntu-gtx paths
+such as ``~/chatty-commander``. Point ``params.workdir`` at
+``user@host:path`` / ``ssh://user@host/path``, or set
+``params.remote_workdir`` (plus ``ssh_host`` / ``ssh_user`` when the
+path is bare). Identity is an env-var *name* for a key *path* — never
+a private key. Local ``..`` / absolute escapes out of the workspace
+root are still refused.
+
 Config block ``software_dev`` (optional)::
 
     {"software_dev": {"talk_to": "cos"}}
@@ -25,10 +50,14 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 from typing import Any, ClassVar
 
 from swarm.blueprints.common import cli_fusion_support as support
+from swarm.blueprints.software_dev.workspace import (
+    WORKDIR_CONTEXT_KEYS,
+    WorkspaceBackend,
+    resolve_workspace,
+)
 from swarm.blueprints.software_dev.roles import (
     COS_INSTRUCTIONS,
     ENGINEER_INSTRUCTIONS,
@@ -52,6 +81,29 @@ from swarm.core.classifier_verdict import attach_classifier_tools
 
 logger = logging.getLogger(__name__)
 
+# Params that select the deterministic seat/action router (Issue 136 e2e).
+# Workspace/context keys must not appear here — workdir-only used to skip
+# Runner via ``bool(self._params)`` (Issue #150 / Chatty Commander #854).
+_ROUTING_PARAM_KEYS: frozenset[str] = frozenset({"seat", "action"})
+
+# Grammar verbs that stay on the deterministic seat router (no LLM).
+_DETERMINISTIC_ACTIONS: frozenset[str] = frozenset(
+    ("status", "quote", "implement", "write", "review", "unblock", "verdict")
+)
+
+# Freeform / Issue-first: live CoS Runner (consult_engineer / consult_skeptic).
+ACTION_CHAT = "chat"
+
+
+def params_select_router(params: dict[str, Any] | None) -> bool:
+    """True only when params explicitly select seat/action routing.
+
+    ``workdir`` / ``remote_workdir`` / other non-empty context params
+    do not trip this gate.
+    """
+    blob = params or {}
+    return any(str(blob.get(key) or "").strip() for key in _ROUTING_PARAM_KEYS)
+
 
 class SoftwareDevBlueprint(BlueprintBase):
     """CoS talk-to + engineer + skeptic, wired as openai-agents as-tool."""
@@ -71,7 +123,14 @@ class SoftwareDevBlueprint(BlueprintBase):
         "aliases": ["software-dev", "software_dev_team"],
         "workflow": "as_tool",
         "required_mcp_servers": [],
-        "env_vars": [],
+        "env_vars": [
+            "SWARM_SOFTWARE_DEV_WORKDIR",
+            "SWARM_SOFTWARE_DEV_REMOTE_WORKDIR",
+            "SWARM_SOFTWARE_DEV_SSH_HOST",
+            "SWARM_SOFTWARE_DEV_SSH_USER",
+            "SWARM_SOFTWARE_DEV_SSH_PORT",
+            "SWARM_SOFTWARE_DEV_SSH_IDENTITY",
+        ],
         "agents": [
             {"name": "coding-requirements-gate", "role": "chief_of_staff", "seat": "cos"},
             {"name": "engineer", "role": "engineer", "seat": "engineer"},
@@ -86,26 +145,31 @@ class SoftwareDevBlueprint(BlueprintBase):
         self._params: dict[str, Any] = {}
         self._agents: dict[str, Any] = {}
         self.context = SoftwareDevContext()
-        self._workspace: Path | None = None
+        self._workspace_cache: WorkspaceBackend | None = None
+        # Tests inject a stub SSH runner (never from client params).
+        self._workspace_runner = None
 
     def set_params(self, params: dict[str, Any] | None) -> None:
-        self._params = dict(params or {})
+        new = dict(params or {})
+        old = self._params
+        self._params = new
+        if any(old.get(key) != new.get(key) for key in WORKDIR_CONTEXT_KEYS):
+            self._workspace_cache = None
+            self._agents = {}
 
     def _cfg(self) -> dict[str, Any]:
         block = (self._config or {}).get("software_dev") or {}
         return block if isinstance(block, dict) else {}
 
-    def _workspace_root(self) -> Path:
-        if self._workspace is not None:
-            return self._workspace
-        raw = self._params.get("workdir") or self._cfg().get("workdir")
-        if raw:
-            root = Path(str(raw))
-        else:
-            root = Path(os.environ.get("SWARM_SOFTWARE_DEV_WORKDIR") or Path.cwd() / ".software_dev_ws")
-        root.mkdir(parents=True, exist_ok=True)
-        self._workspace = root
-        return root
+    def _workspace(self) -> WorkspaceBackend:
+        if self._workspace_cache is not None:
+            return self._workspace_cache
+        self._workspace_cache = resolve_workspace(
+            self._params,
+            self._cfg(),
+            runner=self._workspace_runner,
+        )
+        return self._workspace_cache
 
     def _make_agent(self, name: str, instructions: str, tools: list[Any], **kwargs: Any):
         try:
@@ -119,40 +183,30 @@ class SoftwareDevBlueprint(BlueprintBase):
     def _build_tools(self) -> dict[str, Any]:
         """Seat-isolated callables. Skeptic never writes; engineer is gated."""
         ctx = self.context
-        root = self._workspace_root()
+        workspace = self._workspace()
 
         def read_file(path: str) -> str:
             rel = path.strip() or "."
-            target = (root / rel).resolve()
-            if not str(target).startswith(str(root.resolve())):
-                return f"ERROR: path escapes workspace: {path}"
-            if not target.is_file():
-                return f"ERROR: not a file: {path}"
-            text = target.read_text(encoding="utf-8")
-            ctx.reads.append(rel)
+            text = workspace.read_file(rel)
+            if not text.startswith("ERROR:"):
+                ctx.reads.append(rel)
             return text
 
         def list_files(directory: str = ".") -> str:
-            target = (root / directory).resolve()
-            if not str(target).startswith(str(root.resolve())):
-                return f"ERROR: path escapes workspace: {directory}"
-            if not target.is_dir():
-                return f"ERROR: not a directory: {directory}"
-            ctx.reads.append(directory)
-            return "\n".join(sorted(p.name for p in target.iterdir()))
+            text = workspace.list_files(directory)
+            if not text.startswith("ERROR:"):
+                ctx.reads.append(directory)
+            return text
 
         def write_file(path: str, content: str) -> str:
             ok, reason = ctx.engineer_gate(payload=f"{path}\n{content}")
             if not ok:
                 return reason
             rel = path.strip()
-            target = (root / rel).resolve()
-            if not str(target).startswith(str(root.resolve())):
-                return f"ERROR: path escapes workspace: {path}"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
-            ctx.writes.append(rel)
-            return f"OK: wrote {rel} ({len(content)} bytes)"
+            result = workspace.write_file(rel, content)
+            if result.startswith("OK:"):
+                ctx.writes.append(rel)
+            return result
 
         def implement(task: str) -> str:
             ok, reason = ctx.engineer_gate(payload=task)
@@ -316,25 +370,27 @@ class SoftwareDevBlueprint(BlueprintBase):
             )
             cos.tools = list(getattr(cos, "tools", None) or [])
             if hasattr(engineer, "as_tool"):
-                cos.tools.append(
-                    engineer.as_tool(
-                        tool_name="consult_engineer",
-                        tool_description=(
-                            "Use the engineer seat as a tool. Engineer is blocked "
-                            "without a quoted Issue + feasibility."
-                        ),
+                for tool_name in ("consult_engineer", "engineer"):
+                    cos.tools.append(
+                        engineer.as_tool(
+                            tool_name=tool_name,
+                            tool_description=(
+                                "Use the engineer seat as a tool. Engineer is blocked "
+                                "without a quoted Issue + feasibility."
+                            ),
+                        )
                     )
-                )
             if hasattr(skeptic, "as_tool"):
-                cos.tools.append(
-                    skeptic.as_tool(
-                        tool_name="consult_skeptic",
-                        tool_description=(
-                            "Use the skeptic seat as a tool for look-only "
-                            "PASS/FAIL review. Skeptic does not write code."
-                        ),
+                for tool_name in ("consult_skeptic", "skeptic"):
+                    cos.tools.append(
+                        skeptic.as_tool(
+                            tool_name=tool_name,
+                            tool_description=(
+                                "Use the skeptic seat as a tool for look-only "
+                                "PASS/FAIL review. Skeptic does not write code."
+                            ),
+                        )
                     )
-                )
             try:
                 from agents import handoff
 
@@ -406,9 +462,9 @@ class SoftwareDevBlueprint(BlueprintBase):
             return SEAT_ENGINEER, "implement", rest
         if head in ("review", "verdict"):
             return SEAT_SKEPTIC, "review", rest
-        if extract_quoted_issue(text):
-            return SEAT_COS, "quote", text
-        return SEAT_COS, "status", text
+        # Issue-first bodies and other non-grammar prompts are live CoS turns.
+        # Mapping them to quote/status used to skip Runner.run (Issue #150).
+        return SEAT_COS, ACTION_CHAT, text
 
     def _status_text(self) -> str:
         agents = self._build_agents()
@@ -417,12 +473,15 @@ class SoftwareDevBlueprint(BlueprintBase):
         for tool in getattr(coord, "tools", []) or []:
             tool_names.append(getattr(tool, "name", None) or getattr(tool, "__name__", ""))
         handoffs = getattr(coord, "handoffs", None) or []
+        workspace = self._workspace()
         return (
             "software_dev team (custom blueprint, not extra Grok seats)\n"
             f"talk-to: CoS / coding-requirements-gate\n"
             f"seats: {', '.join(SEATS)}\n"
             f"wiring: openai-agents as_tool ({', '.join(str(n) for n in tool_names) or 'none'})\n"
             f"handoffs: {len(handoffs)}\n"
+            f"workspace: {workspace.label()}\n"
+            f"{workspace.locality_note()}\n"
             "engineer blocked without quoted Issue + feasibility\n"
             "skeptic look-only; text-only PASS/FAIL; does not write code\n"
             "hygiene: placeholders only; skeptic FAILs on a leak"
@@ -467,13 +526,10 @@ class SoftwareDevBlueprint(BlueprintBase):
         agents = self._build_agents()
         seat, action, text = self._parse(messages)
         test_mode = os.environ.get("SWARM_TEST_MODE", "").lower() in ("1", "true", "yes")
-        deterministic = test_mode or bool(self._params) or action in (
-            "status",
-            "quote",
-            "implement",
-            "write",
-            "review",
-            "unblock",
+        deterministic = (
+            test_mode
+            or params_select_router(self._params)
+            or action in _DETERMINISTIC_ACTIONS
         )
 
         if deterministic:
@@ -511,8 +567,10 @@ class SoftwareDevBlueprint(BlueprintBase):
 
 # Re-export for tests that import policy helpers via the blueprint package.
 __all__ = [
+    "ACTION_CHAT",
     "SoftwareDevBlueprint",
     "engineer_may_start",
     "extract_quoted_issue",
+    "params_select_router",
     "seat_tool_policy",
 ]

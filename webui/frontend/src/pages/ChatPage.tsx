@@ -50,8 +50,10 @@ import { useRailChrome } from '../components/RailChrome'
 import { ComputerControlStub } from '../components/ComputerControlStub'
 import { NavbarRoutingPicker, type RoutingPathChange } from '../components/NavbarRoutingPicker'
 import { ChatMessageBubble } from '../components/ChatMessageBubble'
-import { SkillPopup } from '../components/SkillPopup'
 import ReadAloudButton from '../components/ReadAloudButton'
+import { SkillPopup } from '../components/SkillPopup'
+import MessageRowActions from '../components/MessageRowActions'
+import CliSessionSwitcher from '../components/CliSessionSwitcher'
 import { SystemPreloadPill } from '../components/SystemPreloadPill'
 import { CompactSummaryCard } from '../components/CompactSummaryCard'
 import { ComposerSlashPopup } from '../components/ComposerSlashPopup'
@@ -159,6 +161,7 @@ import {
   teamHideId,
   teamThreadId,
 } from '../lib/teamRosters'
+import { defaultSessionForTeam } from '../lib/sessionPicker'
 import { fetchConfiguredRemotes, remoteDisplayName, remoteHideId } from '../lib/remotesCatalog'
 import {
   ADD_REMOTE_VALUE,
@@ -224,6 +227,19 @@ import {
   type DropdownKind,
 } from '../lib/chatStatus'
 import { insertCliSessionNotice } from '../lib/chatTranscript'
+import { ChatNewRule } from '../components/ChatLogMarkers'
+import {
+  countableChatCount,
+  effectiveUnreadWatermark,
+  firstUnreadMessageKey,
+} from '../lib/chatLog'
+import { loadLastRead, saveLastRead } from '../lib/chatLastRead'
+import {
+  UNREAD_CHANGED_EVENT,
+  isAgentUnread,
+  loadUnreadAgentIds,
+  markAgentRead,
+} from '../lib/unreadAgents'
 import { fetchAgentSuggestions, shouldShowSuggestionChips } from '../lib/suggestions'
 import {
   isSupportJourneyConsumer,
@@ -440,6 +456,18 @@ const ChatPage = () => {
           : selectedBlueprint
 
   const messages = useMemo(() => threads[threadKey] ?? [], [threads, threadKey])
+  const [unreadIds, setUnreadIds] = useState<string[]>(() => loadUnreadAgentIds())
+  const seatUnread = Boolean(activeChatAgentId && isAgentUnread(activeChatAgentId, unreadIds))
+  const newBeforeKey = useMemo(() => {
+    if (!seatUnread || !activeChatAgentId) return null
+    const stored = loadLastRead(activeChatAgentId, conversationId)
+    const watermark = effectiveUnreadWatermark(
+      true,
+      stored?.messageCount ?? null,
+      countableChatCount(messages),
+    )
+    return firstUnreadMessageKey(messages, watermark)
+  }, [seatUnread, activeChatAgentId, conversationId, messages])
   const hasRateLimitWait = messages.some((row) => row.rateLimit)
   const [nowMs, setNowMs] = useState(() => Date.now())
   useEffect(() => {
@@ -905,13 +933,29 @@ const ChatPage = () => {
     }
   }, [searchParams, setSearchParams])
 
+  // #169: remember which team already got the seat default, so roster
+  // re-renders never clobber an explicit later pick (All members / a member).
+  const teamDefaultedRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (teamFromUrl && sessionFromUrl) {
       setMemberTarget(sessionFromUrl)
+      teamDefaultedRef.current = teamFromUrl
       return
     }
-    setMemberTarget(ALL_MEMBERS_TARGET)
-  }, [teamFromUrl, sessionFromUrl])
+    if (!teamFromUrl) {
+      teamDefaultedRef.current = null
+      setMemberTarget(ALL_MEMBERS_TARGET)
+      return
+    }
+    // #169: default the send-target to the chat pane's nominated seat — the
+    // configured Chief of Staff, else the first roster member ("First") — the
+    // same REQ-130 policy the sidebar picker uses. An explicit pick wins.
+    if (teamDefaultedRef.current === teamFromUrl) return
+    if (!selectedTeam) return
+    teamDefaultedRef.current = teamFromUrl
+    setMemberTarget(defaultSessionForTeam(selectedTeam)?.memberId ?? ALL_MEMBERS_TARGET)
+  }, [teamFromUrl, sessionFromUrl, selectedTeam])
 
   // #794: persist the selected swarm conversation (CLI or Django) so remount
   // and rail browse-back restore the same id — not the prior default.
@@ -1186,7 +1230,7 @@ const ChatPage = () => {
     }
     setEditingKey(null)
     setAgentKind(classifyAgentKind(selectedBlueprint))
-    setMessagesEditable(canEditAgentMessages(selectedBlueprint) && !selectedCli)
+    setMessagesEditable(canEditAgentMessages(selectedBlueprint) && !remoteFromUrl)
     userKeyCounterRef.current = 0
     if (fresh) {
       // New empty session — do not restore a prior transcript.
@@ -1383,6 +1427,58 @@ const ChatPage = () => {
           needsApproval: true,
           concerned: true,
         })
+        return
+      }
+      if (event.kind === 'cli_session_update') {
+        // Live qwen/CLI provider session activity (inside OR outside open-swarm).
+        const ownThread =
+          Boolean(event.conversationId) &&
+          event.conversationId === conversationIdRef.current
+        if (ownThread && event.events.length > 0) {
+          setThreads((prev) => {
+            const current = prev[threadKey] ?? []
+            const additions: ChatMessage[] = []
+            if (event.events.some((row) => row.role === 'user')) {
+              additions.push({
+                key: `cliext-${Date.now()}-head`,
+                role: 'status',
+                text: `${event.cli} session updated outside open-swarm (live).`,
+                streaming: false,
+              })
+            }
+            event.events.forEach((row, idx) => {
+              if (row.role === 'user' || row.role === 'assistant') {
+                additions.push({
+                  key: `cliext-${Date.now()}-${idx}`,
+                  role: row.role,
+                  text: row.text,
+                  streaming: false,
+                })
+              } else {
+                additions.push({
+                  key: `cliext-tool-${Date.now()}-${idx}`,
+                  role: 'status',
+                  text: row.text,
+                  streaming: false,
+                })
+              }
+            })
+            return { ...prev, [threadKey]: [...current, ...additions] }
+          })
+        }
+        if (event.state === 'completed') {
+          const lastText = [...event.events]
+            .reverse()
+            .find((row) => row.role === 'assistant')?.text
+          const { agentId: notifyAgentId, agentName: notifyAgentName } = notifyCtxRef.current
+          maybeNotifyAgentTurn({
+            agentId: event.agentId || notifyAgentId || event.cli,
+            agentName: notifyAgentName,
+            snippet: lastText || '',
+            selectedAgentId: notifyAgentId,
+            tabHidden: typeof document !== 'undefined' ? document.hidden : false,
+          })
+        }
         return
       }
       setThreads((prev) => {
@@ -1587,10 +1683,34 @@ const ChatPage = () => {
   }, [])
 
   useEffect(() => {
+    const onUnread = () => setUnreadIds(loadUnreadAgentIds())
+    window.addEventListener(UNREAD_CHANGED_EVENT, onUnread)
+    window.addEventListener('storage', onUnread)
+    return () => {
+      window.removeEventListener(UNREAD_CHANGED_EVENT, onUnread)
+      window.removeEventListener('storage', onUnread)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (newBeforeKey) {
+      const marker = scrollBoxRef.current?.querySelector('[data-testid="chat-new-divider"]')
+      if (marker) {
+        marker.scrollIntoView({ block: 'center', inline: 'nearest' })
+        pinnedToBottomRef.current = false
+        return
+      }
+    }
     if (pinnedToBottomRef.current) {
       scrollTranscriptToBottom(scrollBoxRef.current, listEndRef.current)
     }
-  }, [messages, composerInsetPx])
+  }, [messages, composerInsetPx, newBeforeKey])
+
+  useEffect(() => {
+    if (!activeChatAgentId || seatUnread) return
+    if (!pinnedToBottomRef.current) return
+    saveLastRead(activeChatAgentId, conversationId, countableChatCount(messages))
+  }, [activeChatAgentId, conversationId, messages, seatUnread])
 
   useEffect(() => {
     const wasOpen = prevStatusRef.current === 'open'
@@ -1647,7 +1767,6 @@ const ChatPage = () => {
   }, [status, authRejected, signInHref, addToast, dismissByKind, reconnect])
 
   const hasSendableDraft = input.trim().length > 0
-  const canSend = status === 'open' && hasSendableDraft
 
   const sendText = useCallback(
     (text: string): boolean => {
@@ -1705,8 +1824,19 @@ const ChatPage = () => {
             : newChatPerTask
               ? { new_session: messages.length === 0 }
               : undefined
+      // #849: an explicit dropdown pick (persisted cli/model or ?cli=/?model=)
+      // is the operator's latest word — do not let the REQ-69 seat list rotate
+      // them back onto a CLI they did not choose. Seats only drive turns the
+      // user left open.
+      const explicitCliPick = Boolean(
+        (searchParams.get('cli') ?? '').trim() || (persistedDropdown.cli || '').trim(),
+      )
+      const explicitModelPick = Boolean(
+        (searchParams.get('model') ?? '').trim() || (persistedDropdown.model || '').trim(),
+      )
+      const seatsDeferred = explicitCliPick || explicitModelPick
       const inferenceParams =
-        inferenceKeys.length > 0
+        !seatsDeferred && inferenceKeys.length > 0
           ? {
               inference_list: inferenceKeys,
               ...(inferenceIndex !== undefined ? { inference_index: inferenceIndex, scale_out: true } : {}),
@@ -1724,15 +1854,14 @@ const ChatPage = () => {
           inferenceParams ||
           pluginParams ||
           folderParams ||
-          Object.keys(skillParams).length
-            ? {
-                ...cliParams,
-                ...inferenceParams,
-                ...supportParams,
-                ...pluginParams,
-                ...folderParams,
-                ...skillParams,
-              }
+          Object.keys(skillParams).length              ? {
+                  ...cliParams,
+                  ...inferenceParams,
+                  ...supportParams,
+                  ...pluginParams,
+                  ...folderParams,
+                  ...skillParams,
+                }
             : undefined,
         ),
       )
@@ -1746,6 +1875,7 @@ const ChatPage = () => {
       currentCli,
       currentCliModel,
       persistedDropdown.model,
+      persistedDropdown.cli,
       persistedDropdown.api,
       isApiAgent,
       searchParams,
@@ -1759,7 +1889,18 @@ const ChatPage = () => {
   const submitUserText = useCallback(
     (text: string) => {
       const trimmed = text.trim()
-      if (!trimmed || status !== 'open') return
+      if (!trimmed) return
+      // REQ-845 / #167: never drop a typed message on a closed/connecting socket. Keep
+      // it in the per-conversation queue; the drain effect sends it on reopen.
+      if (status !== 'open') {
+        queued.enqueue(trimmed)
+        addToast({
+          type: 'info',
+          title: 'Queued',
+          message: 'Chat is reconnecting — your message will send when the socket is back.',
+        })
+        return
+      }
       // REQ-171A-3 / #603: queue before assistant_start, not only while
       // streaming. REQ-90 / #447 owns the pane chrome; this only closes
       // the pre-start double-{message} race.
@@ -1770,7 +1911,7 @@ const ChatPage = () => {
       setAwaitingAssistant(true)
       if (!sendText(trimmed)) setAwaitingAssistant(false)
     },
-    [awaitingAssistant, messages, queued, sendText, status],
+    [addToast, awaitingAssistant, messages, queued, sendText, status],
   )
 
   useEffect(() => {
@@ -1804,11 +1945,22 @@ const ChatPage = () => {
         ws.send(buildChatWsEditFrame(turnIndex, nextText))
       }
       try {
-        await patchAgentMessage(agentIdFromBlueprint(selectedBlueprint), {
-          index: turnIndex,
-          content: nextText,
-          conversation_id: conversationIdRef.current,
-        })
+        const patched = await patchAgentMessage(
+          agentIdFromBlueprint(selectedBlueprint),
+          {
+            index: turnIndex,
+            content: nextText,
+            conversation_id: conversationIdRef.current,
+          },
+        )
+        if (patched.cli_session_reset) {
+          addToast({
+            type: 'info',
+            title: 'CLI session restarted',
+            message:
+              'A message was edited and the CLI session cannot rewind. The next message starts a fresh session.',
+          })
+        }
       } catch {
         addToast({
           type: 'error',
@@ -1822,7 +1974,7 @@ const ChatPage = () => {
 
   const handleSend = (event: FormEvent) => {
     event.preventDefault()
-    if (!canSend) return
+    if (!hasSendableDraft) return
     const quotePrefix = replyTarget ? (replyTarget.speaker ? `> **${replyTarget.speaker}**: ` : `> `) : ''
     const textToSend = replyTarget
       ? `${quotePrefix}${replyTarget.text.replace(/\r\n/g, '\n').split('\n').join('\n> ')}\n\n${input}`
@@ -2332,7 +2484,7 @@ const ChatPage = () => {
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      if (status === 'open' && input.trim().length > 0) {
+      if (input.trim().length > 0) {
         const quotePrefix = replyTarget ? (replyTarget.speaker ? `> **${replyTarget.speaker}**: ` : `> `) : ''
         const textToSend = replyTarget
           ? `${quotePrefix}${replyTarget.text.replace(/\r\n/g, '\n').split('\n').join('\n> ')}\n\n${input}`
@@ -2553,28 +2705,32 @@ const ChatPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs h-auto p-1 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case shrink-0"
-            aria-label="Session token usage"
-            data-testid="token-meter-button"
-            onClick={() => setTokenDiagOpen(true)}
-          >
-            <div
-              className="h-1 w-14 overflow-hidden rounded-full bg-base-300"
-              role="meter"
-              aria-label="Tokens in context"
-              aria-valuemin={0}
-              aria-valuemax={meterMax}
-              aria-valuenow={tokenCount}
+          {/* Token visibility: only when using API agents (swarm owns the numbers).
+              For remote, CLI, and non-API agent types, the token counter must not exist in the top navbar. */}
+          {isApiAgent && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs h-auto p-1 gap-1.5 font-normal text-inherit hover:bg-base-300/40 normal-case shrink-0"
+              aria-label="Session token usage"
+              data-testid="token-meter-button"
+              onClick={() => setTokenDiagOpen(true)}
             >
               <div
-                className="h-full rounded-full bg-base-content/45"
-                style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
-              />
-            </div>
-            <span className="tabular-nums whitespace-nowrap text-xs">{formatMeterLabel(tokenCount, contextMax)}</span>
-          </button>
+                className="h-1 w-14 overflow-hidden rounded-full bg-base-300"
+                role="meter"
+                aria-label="Tokens in context"
+                aria-valuemin={0}
+                aria-valuemax={meterMax}
+                aria-valuenow={tokenCount}
+              >
+                <div
+                  className="h-full rounded-full bg-base-content/45"
+                  style={{ width: `${Math.max(tokenCount > 0 ? 4 : 0, tokenPct)}%` }}
+                />
+              </div>
+              <span className="tabular-nums whitespace-nowrap text-xs">{formatMeterLabel(tokenCount, contextMax)}</span>
+            </button>
+          )}
           {showEmptyRemoteChrome ? (
             <button
               type="button"
@@ -2687,6 +2843,13 @@ const ChatPage = () => {
               onChange={applyCliRoutingChange}
             />
           ) : null}
+          {isCliAgent && currentCli ? (
+            <CliSessionSwitcher
+              agentId={selectedBlueprint}
+              cli={currentCli}
+              agentName={selectedAgentName}
+            />
+          ) : null}
           <div
             className="flex items-center gap-2"
             role="toolbar"
@@ -2696,16 +2859,7 @@ const ChatPage = () => {
               agentId={activeChatAgentId}
               agentName={selectedAgentName}
             />
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm btn-square"
-              aria-label="Compose team"
-              aria-haspopup="dialog"
-              title="Compose team"
-              onClick={() => window.dispatchEvent(new CustomEvent(OPEN_TEAM_COMPOSER_EVENT))}
-            >
-              <Users className="h-4 w-4" aria-hidden="true" />
-            </button>
+            {/* #182: Compose team moved to the rail footer, above Plugins. */}
             <ThemeToggle />
             <button
               type="button"
@@ -2740,11 +2894,16 @@ const ChatPage = () => {
               ? 'cli'
               : agentKind
         }
-        data-messages-editable={messagesEditable && !isCliAgent && agentKind !== 'remote' ? 'true' : 'false'}
+        data-messages-editable={messagesEditable && agentKind !== 'remote' ? 'true' : 'false'}
         data-composer-inset={composerInsetPx}
         tabIndex={0}
         onScroll={(e) => {
-          pinnedToBottomRef.current = isPinnedToTranscriptBottom(e.currentTarget, composerInsetPx)
+          const atBottom = isPinnedToTranscriptBottom(e.currentTarget, composerInsetPx)
+          pinnedToBottomRef.current = atBottom
+          if (atBottom && seatUnread && activeChatAgentId) {
+            setUnreadIds(markAgentRead(activeChatAgentId))
+            saveLastRead(activeChatAgentId, conversationId, countableChatCount(messages))
+          }
         }}
       >
         <div className="os-chat-messages space-y-1 flex-1" data-testid="chat-messages-container">
@@ -2895,20 +3054,59 @@ const ChatPage = () => {
             const messageIndex = messages.findIndex((row) => row.key === message.key)
             const canEditThis =
               messagesEditable &&
-              !selectedCli &&
               !message.streaming &&
               (message.role === 'user' || message.role === 'assistant')
+            const isStreamingAssistant = message.role === 'assistant' && Boolean(message.streaming)
+            const bubbleAvatar =
+              message.role === 'assistant' ? (
+                isStreamingAssistant ? (
+                  <div
+                    className="os-composer-working os-inline-working"
+                    data-testid="composer-working-indicator"
+                    role="status"
+                    aria-live="polite"
+                    aria-label={workingTip}
+                  >
+                    <span
+                      className="tooltip tooltip-right os-composer-working__tip"
+                      data-tip={workingTip}
+                    >
+                      <span className="os-composer-working__avatar os-inline-working__avatar">
+                        <AgentAvatar
+                          src={selectedAgent?.avatar_path}
+                          agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
+                          active={true}
+                          status="working"
+                          size="xs"
+                          className="shrink-0"
+                        />
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <AgentAvatar
+                    src={selectedAgent?.avatar_path}
+                    agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
+                    active={false}
+                    status="idle"
+                    size="xs"
+                    className="shrink-0"
+                  />
+                )
+              ) : undefined
             const rawOffset = rawOffsetForMessage(messages, message.key)
             const showStartMarker =
               contextMeta.start_offset > 0 && rawOffset === contextMeta.start_offset
             return (
               <div
                 key={message.key}
+                className="group/osrow"
                 onContextMenu={(e) => {
                   if (message.role === 'system') return
                   handleBubbleContextMenu(e, message)
                 }}
               >
+                {newBeforeKey === message.key ? <ChatNewRule /> : null}
                 {showStartMarker ? (
                   <div
                     className="my-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-base-content/50"
@@ -2927,6 +3125,7 @@ const ChatPage = () => {
                   text={message.text}
                   streaming={message.streaming}
                   edited={message.edited}
+                  avatar={bubbleAvatar}
                   skillCatalog={skillCatalog}
                   onOpenSkill={setOpenSkillName}
                   onRemoveCard={() =>
@@ -2936,6 +3135,7 @@ const ChatPage = () => {
                   }
                   canEdit={canEditThis}
                   canCompress={
+                    (isApiAgent || agentKind === 'blueprint') &&
                     !message.streaming &&
                     (message.role === 'user' || message.role === 'assistant') &&
                     rawOffsetForMessage(messages, message.key) >= 0
@@ -2973,21 +3173,23 @@ const ChatPage = () => {
                     />
                   ))}
                 </ChatMessageBubble>
-                {message.role === 'assistant' && !message.streaming && message.text.trim() ? (
-                  <ReadAloudButton text={message.text} />
+                {message.role === 'assistant' && !message.streaming && (message.text.trim() || retryEnabled) ? (
+                  <MessageRowActions text={message.text}>
+                    {message.text.trim() ? <ReadAloudButton text={message.text} /> : null}
+                    {SHOW_MESSAGE_ACTIONS && (
+                      <ChatMessageActions
+                        text={message.text}
+                        onRetry={
+                          retryEnabled
+                            ? () => {
+                                sendText(lastUserTextRef.current)
+                              }
+                            : undefined
+                        }
+                      />
+                    )}
+                  </MessageRowActions>
                 ) : null}
-                {SHOW_MESSAGE_ACTIONS && message.role === 'assistant' && !message.streaming && (
-                  <ChatMessageActions
-                    text={message.text}
-                    onRetry={
-                      retryEnabled
-                        ? () => {
-                            sendText(lastUserTextRef.current)
-                          }
-                        : undefined
-                    }
-                  />
-                )}
               </div>
             )
           })}
@@ -3016,24 +3218,17 @@ const ChatPage = () => {
               onChoose={chooseSuggestion}
             />
           ) : null}
-          {streamingMessage ? (
+          {status !== 'open' ? (
             <div
-              className="os-composer-working"
-              data-testid="composer-working-indicator"
-              role="status"
+              className="os-conn-status"
+              data-testid="chat-conn-status"
               aria-live="polite"
-              aria-label={workingTip}
             >
-              <span className="tooltip tooltip-top os-composer-working__tip" data-tip={workingTip}>
-                <span className="os-composer-working__avatar">
-                  <AgentAvatar
-                    src={selectedAgent?.avatar_path}
-                    agentId={teamFromUrl || agentIdFromBlueprint(selectedBlueprint)}
-                    active={true}
-                    size="xs"
-                    className="shrink-0"
-                  />
-                </span>
+              <span className="os-conn-status__dot" aria-hidden="true" />
+              <span className="os-conn-status__label">
+                {authRejected
+                  ? 'Sign in to chat — your draft is kept locally.'
+                  : 'Chat is offline — you can keep typing; sends will queue until it reconnects.'}
               </span>
             </div>
           ) : null}
@@ -3134,7 +3329,6 @@ const ChatPage = () => {
                     value={input}
                     onChange={handleInputChange}
                     onKeyDown={handleComposerKeyDown}
-                    disabled={status !== 'open'}
                     aria-label="Chat message"
                     aria-haspopup="listbox"
                     aria-expanded={isSlashOpen}
@@ -3230,7 +3424,8 @@ const ChatPage = () => {
               <Reply className="h-4 w-4 opacity-70" aria-hidden="true" />
               Reply
             </button>
-            {(contextMenu.message.role === 'user' || contextMenu.message.role === 'assistant') &&
+            {(isApiAgent || agentKind === 'blueprint') &&
+            (contextMenu.message.role === 'user' || contextMenu.message.role === 'assistant') &&
             !contextMenu.message.streaming ? (
               <button
                 type="button"
