@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import quote
 import sys
 
 import pytest
@@ -259,6 +260,42 @@ def test_old_compressions_are_not_copied(tmp_path, monkeypatch):
     assert any(m.get("kind") == PRIOR_HISTORY_KIND for m in result["messages"])
 
 
+def test_select_imports_qwen_provider_transcript_and_folder(tmp_path, monkeypatch):
+    import swarm.core.cli_session_stores as stores
+    from swarm.core.cli_session_select import select_cli_session
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+    monkeypatch.setattr(
+        stores,
+        "read_provider_transcript",
+        lambda cli, sid, store_dir=None: {
+            "turns": [
+                {"role": "user", "content": "run the tests"},
+                {"role": "assistant", "content": "Running now."},
+            ],
+            "cwd": "/home/dev/proj",
+            "git_branch": "feat/x",
+        },
+    )
+    # NOTE: select imports the reader from the stores module namespace,
+    # so patching stores.read_provider_transcript takes effect.
+    res = select_cli_session(
+        "u9",
+        "cli_agent",
+        "qwen",
+        session_id="sid-9",
+        title="tests",
+        base_dir=tmp_path,
+    )
+    assert res["same_session"] is False
+    assert res["import"] == "full"
+    assert res["folder"] == "/home/dev/proj"
+    assert res["git_branch"] == "feat/x"
+    assert any(m.get("content") == "run the tests" for m in res["messages"])
+    assert any(m.get("content") == "Running now." for m in res["messages"])
+
+
 def test_rejects_secret_shaped_paste(tmp_path, monkeypatch):
     monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
     try:
@@ -497,3 +534,112 @@ def test_select_rejects_bad_folder(tmp_path):
             folder=str(tmp_path / "missing"),
             base_dir=tmp_path,
         )
+
+
+def test_select_explicit_sid_empty_chat_forces_reimport(tmp_path, monkeypatch):
+    """#139: bound sid + empty/notice-only chat must not same_session import=none."""
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+    # Notice-only: status chrome is not a visible model turn.
+    chat_store.save(
+        "u1",
+        "cli_agent",
+        [{"role": "status", "content": "Started a new echo session. No prior context."}],
+        conversation_id="cur",
+        cli_sessions={"echo": "sid-1"},
+        base_dir=tmp_path,
+    )
+
+    import swarm.core.cli_session_stores as stores
+
+    def fake_read(cli, sid):
+        assert cli == "echo" and sid == "sid-1"
+        return {
+            "turns": [
+                {"role": "user", "content": "hello from provider"},
+                {"role": "assistant", "content": "provider reply"},
+            ]
+        }
+
+    monkeypatch.setattr(stores, "read_provider_transcript", fake_read)
+    again = select_cli_session(
+        "u1",
+        "cli_agent",
+        "echo",
+        session_id="sid-1",
+        from_conversation_id="cur",
+        base_dir=tmp_path,
+    )
+    assert again["same_session"] is False
+    assert again["import"] == "full"
+    texts = [str(m.get("content") or "") for m in again.get("messages") or []]
+    assert any("hello from provider" in t for t in texts)
+    assert any("provider reply" in t for t in texts)
+
+
+def test_select_forwards_folder_into_resolve(tmp_path, monkeypatch):
+    """#139: row.folder from SPA must reach resolve_session_cwd on select."""
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+    folder = tmp_path / "ws"
+    folder.mkdir()
+    captured: dict = {}
+
+    import swarm.core.agent_folder as agent_folder
+
+    real = agent_folder.resolve_session_cwd
+
+    def wrap(*, agent_id, raw):
+        captured["agent_id"] = agent_id
+        captured["raw"] = raw
+        return real(agent_id=agent_id, raw=raw)
+
+    monkeypatch.setattr(agent_folder, "resolve_session_cwd", wrap)
+    res = select_cli_session(
+        "u1",
+        "cli_agent",
+        "echo",
+        session_id="sid-folder",
+        folder=str(folder),
+        base_dir=tmp_path,
+    )
+    assert res["same_session"] is False
+    assert captured.get("raw") == str(folder)
+
+
+
+def test_select_imports_grok_provider_transcript_real_reader(tmp_path, monkeypatch):
+    """Non-qwen reader path: grok chat_history.jsonl -> select import=full."""
+    monkeypatch.setenv("SWARM_CHAT_DIR", str(tmp_path))
+    monkeypatch.setenv("SWARM_AGENT_SETTINGS_PATH", str(tmp_path / "agent_settings.json"))
+    settings_store.reset_agent_settings_cache()
+
+    sid = "01a0849e-006a-70f1-ba75-603ac2aeb6d1"
+    store = tmp_path / "grok-sessions"
+    sess = store / quote("/home/dev/proj", safe="") / sid
+    sess.mkdir(parents=True)
+    lines = [
+        {"type": "user", "content": [{"type": "text", "text": "hydrate me"}], "prompt_index": 0},
+        {"type": "assistant", "content": "hydrated from grok"},
+    ]
+    (sess / "chat_history.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in lines) + "\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("SWARM_GROK_SESSIONS_DIR", str(store))
+
+    res = select_cli_session(
+        "u-grok",
+        "cli_agent",
+        "grok",
+        session_id=sid,
+        title="hydrate",
+        base_dir=tmp_path,
+    )
+    assert res["same_session"] is False
+    assert res["import"] == "full"
+    assert res["folder"] == "/home/dev/proj"
+    texts = [str(m.get("content") or "") for m in res.get("messages") or []]
+    assert any("hydrate me" in t for t in texts)
+    assert any("hydrated from grok" in t for t in texts)

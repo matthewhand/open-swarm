@@ -30,8 +30,10 @@ export function compactedCardCopyText(opts: {
   const main = (opts.text || '').trim()
   if (!opts.compacted?.length) return main
   const originals = opts.compacted
-    .map((line) => `[${line.agent || line.role}]: ${line.text}`)
+    .filter((line) => (line.text || '').trim())
+    .map((line) => `[${line.agent || line.role}]: ${(line.text || '').trim()}`)
     .join('\n\n')
+  if (!originals) return main
   return main ? `${main}\n\n---\n${originals}` : originals
 }
 

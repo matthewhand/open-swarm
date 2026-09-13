@@ -5,6 +5,7 @@ import {
   fetchCliSessions,
   filterCliSessions,
   formatActivityAge,
+  latestCliActivityMs,
   looksLikeSessionId,
   sanitizeCliSessionId,
   selectCliSession,
@@ -142,3 +143,54 @@ describe('CLI session Folder cwd (REQ-167)', () => {
     expect(postSpy.mock.calls[0][1]).not.toHaveProperty('folder')
   })
 })
+
+describe('latestCliActivityMs (#67)', () => {
+  it('returns the newest updated_at across sessions and recent', () => {
+    expect(
+      latestCliActivityMs({
+        sessions: [{ updated_at: '2026-09-05T12:00:00Z' }, { updated_at: '2026-09-06T12:00:00Z' }],
+        recent: [{ updated_at: '2026-09-04T12:00:00Z' }],
+      }),
+    ).toBe(Date.parse('2026-09-06T12:00:00Z'))
+  })
+
+  it('returns null when nothing usable exists', () => {
+    expect(latestCliActivityMs(null)).toBeNull()
+    expect(latestCliActivityMs({ sessions: [], recent: [] })).toBeNull()
+    expect(latestCliActivityMs({ sessions: [{ updated_at: 'bogus' }] })).toBeNull()
+  })
+})
+
+
+describe('cliSessions #139 folder on select', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    localStorage.removeItem(AGENT_EDITS_KEY)
+  })
+
+  it('explicit folder option wins over agent edit (#139 hydrate)', async () => {
+    saveAgentEdit('cli_agent', { folder: '/home/dev/tool' })
+    const postSpy = vi.spyOn(api, 'apiPost').mockResolvedValue({
+      object: 'cli_session_select',
+      agent_id: 'cli_agent',
+      cli: 'qwen',
+      conversation_id: 'c1',
+      cli_session_id: 'sess-1',
+      messages: [],
+      status: 'ok',
+      collapsed_prior: false,
+      import: 'full',
+    } as any)
+    await selectCliSession({
+      agentId: 'cli_agent',
+      cli: 'qwen',
+      sessionId: 'sess-1',
+      folder: '/home/dev/from-row',
+    })
+    expect(postSpy).toHaveBeenCalledWith(
+      '/v1/cli-sessions/select/',
+      expect.objectContaining({ folder: '/home/dev/from-row', session_id: 'sess-1' }),
+    )
+  })
+})
+

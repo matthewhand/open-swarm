@@ -16,6 +16,7 @@ import { SystemPreloadPill } from './SystemPreloadPill'
 import { SkillChip } from './SkillChip'
 import SupportCreatedBlueprintCard from './SupportCreatedBlueprintCard'
 import { splitSkillRefs, type SkillInfo } from '../lib/skills'
+import { formatBubbleTime } from '../lib/bubbleTheme'
 
 export interface ChatMessageBubbleProps {
   role: 'user' | 'assistant' | 'system' | 'status'
@@ -37,6 +38,9 @@ export interface ChatMessageBubbleProps {
   onOpenSkill?: (name: string) => void
   /** REQ-213: view-only hide for compacted system pills. */
   onRemoveCard?: () => void
+  /** ISO timestamp for feed-theme meta; omitted when unknown. */
+  ts?: string
+  avatar?: ReactNode
 }
 
 function selectionIsActive(): boolean {
@@ -160,6 +164,8 @@ export function ChatMessageBubble({
   skillCatalog,
   onOpenSkill,
   onRemoveCard,
+  ts,
+  avatar,
 }: ChatMessageBubbleProps) {
   const startFromHere = contextStrategy === 'cull'
   const contextActionLabel = startFromHere ? 'Start context from here' : 'Compress to here'
@@ -205,20 +211,33 @@ export function ChatMessageBubble({
   }
 
   const speaker = role === 'user' ? 'You' : agentName
+  const timeLabel = formatBubbleTime(ts)
 
   return (
     <div
       className={`chat group ${role === 'user' ? 'chat-end' : 'chat-start'}`}
       data-message-role={role}
+      data-speaker={speaker}
+      data-ts={ts || undefined}
       aria-label={`${speaker} message`}
     >
-      {edited ? (
-        <div className="chat-header text-xs opacity-60">
+      {avatar ? (
+        <div className="chat-image avatar shrink-0" data-testid="chat-avatar">
+          {avatar}
+        </div>
+      ) : null}
+      <div className="chat-header os-bubble-meta text-xs opacity-60" data-speaker={speaker}>
+        {timeLabel ? (
+          <time className="os-bubble-time" dateTime={ts} data-testid="bubble-time">
+            {timeLabel}
+          </time>
+        ) : null}
+        {edited ? (
           <span className="font-normal opacity-70" data-testid="edited-hint">
             edited
           </span>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       {editing ? (
         <div className="chat-bubble bg-base-200 text-base-content w-full max-w-xl">
           <Textarea
@@ -247,7 +266,7 @@ export function ChatMessageBubble({
         <div
           className={`chat-bubble select-text ${
             role === 'user' ? 'bg-neutral text-neutral-content' : 'bg-base-200 text-base-content'
-          } ${canEdit && !streaming ? 'cursor-pointer' : ''}`}
+          }`}
           data-testid="chat-bubble"
           onClick={handleBubbleClick}
         >

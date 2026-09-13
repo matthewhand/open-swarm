@@ -37,7 +37,9 @@ import { cycleSessionMode as nextSessionMode, normalizeSessionMode, type Session
 import {
   AVATAR_THEME_STORAGE_KEY,
   AVATAR_THEME_SET_EVENT,
+  AVATAR_THEMES_ENABLED_EVENT,
   dispatchAvatarTheme,
+  stripDisabledAvatarThemes,
 } from './avatarTheme'
 
 interface AgentStoreState {
@@ -345,17 +347,35 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
       saveStored('agent_avatar_eyes_by_agent', looks.eyes)
       let hiddenAgentIds = state.hiddenAgentIds
       let favouriteIds = state.favouriteIds
-      let selectedAgentId = state.selectedAgentId
+      const selectedAgentId = state.selectedAgentId
       try {
-        const hiddenUnset = localStorage.getItem('agent_hidden_ids') === null
-        const layoutStale = localStorage.getItem('agent_sidebar_starters') !== STARTER_LAYOUT
-        if (hiddenUnset || layoutStale) {
-          hiddenAgentIds = hideAllExceptStarters(updated.map((a) => a.agent_id))
-          favouriteIds = [...STARTER_IDS]
-          selectedAgentId = STARTER_SUPPORT_ID
-          saveStored('agent_hidden_ids', hiddenAgentIds)
-          saveStored('agent_favourite_ids', favouriteIds)
-          localStorage.setItem('agent_sidebar_starters', STARTER_LAYOUT)
+        // Clean up legacy abandoned starter layout auto-hiding
+        if (localStorage.getItem('agent_sidebar_starters')) {
+          localStorage.removeItem('agent_sidebar_starters')
+          const storedHidden = localStorage.getItem('agent_hidden_ids')
+          if (storedHidden) {
+            try {
+              const parsed = JSON.parse(storedHidden)
+              if (Array.isArray(parsed) && parsed.length > 50) {
+                localStorage.removeItem('agent_hidden_ids')
+                hiddenAgentIds = []
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          const storedFavs = localStorage.getItem('agent_favourite_ids')
+          if (storedFavs) {
+            try {
+              const favs = JSON.parse(storedFavs)
+              if (Array.isArray(favs) && favs.length === STARTER_IDS.length && favs.every((id: string) => (STARTER_IDS as readonly string[]).includes(id))) {
+                localStorage.removeItem('agent_favourite_ids')
+                favouriteIds = []
+              }
+            } catch {
+              /* ignore */
+            }
+          }
         }
       } catch {
         /* storage unavailable */
@@ -585,11 +605,6 @@ export const useAgentStore = create<AgentStoreState>((set) => ({
       const favouriteIds = state.favouriteIds.filter((id) => !hiddenAgentIds.includes(id))
       saveStored('agent_hidden_ids', hiddenAgentIds)
       saveStored('agent_favourite_ids', favouriteIds)
-      try {
-        localStorage.setItem('agent_sidebar_starters', STARTER_LAYOUT)
-      } catch {
-        /* storage unavailable */
-      }
       const selectedHidden = state.selectedAgentId
         ? hiddenAgentIds.includes(state.selectedAgentId)
         : true
@@ -858,7 +873,18 @@ if (typeof window !== 'undefined') {
       }
     }
   }
+  /** REQ-841: rewrite per-agent packs that are no longer installed. */
+  const onEnabledThemesSet = (event: Event) => {
+    const detail = (event as CustomEvent<AvatarTheme[]>).detail
+    if (!Array.isArray(detail) || detail.length === 0) return
+    const byAgent = useAgentStore.getState().avatarThemeByAgent
+    const next = stripDisabledAvatarThemes(byAgent, detail)
+    if (next === byAgent) return
+    saveStored('agent_avatar_theme_by_agent', next)
+    useAgentStore.setState({ avatarThemeByAgent: next })
+  }
   window.addEventListener(AVATAR_THEME_SET_EVENT, onAvatarThemeSet)
+  window.addEventListener(AVATAR_THEMES_ENABLED_EVENT, onEnabledThemesSet)
   window.addEventListener('storage', onStorage)
 }
 

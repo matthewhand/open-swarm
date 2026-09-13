@@ -1,7 +1,14 @@
 # Open Swarm
 
+<p align="center">
+  <img src="assets/brand/project-banner.svg" alt="Open Swarm — CLI, API, Remote, Team, and Blueprint worker bees" width="920"/>
+</p>
+
 <div align="center">
-<img src="assets/brand/bee-mark.svg" alt="Open Swarm bee mark" width="96"/>
+<img src="assets/readme/cli-agents.svg" alt="CLI agents — Grok / OpenCode / agy poster" width="320"/>
+<img src="assets/readme/api-agents.svg" alt="API agents — OpenAI-compatible owned thread poster" width="320"/>
+<img src="assets/readme/remote-agents.svg" alt="Remote agents — OpenMousBot poster" width="320"/>
+<img src="assets/readme/combined-team.svg" alt="Combined team — CLI plus API plus OpenMousBot poster" width="320"/>
 </div>
 
 Brand marks live under [`assets/brand/`](assets/brand/): **minimal** for the tab favicon and PWA icons, **geometric** for in-app WebUI chrome, and **cyber-swarm** for marketing / website fanfare ([#768](https://github.com/matthewhand/open-swarm/issues/768)).
@@ -47,8 +54,11 @@ cp .env.example .env          # set OPENAI_API_KEY, API_AUTH_TOKEN, DJANGO_SECRE
 cp swarm_config.example.json swarm_config.json   # optional local SoT; secrets stay ${VAR} in .env
 make frontend                 # builds webui/frontend/dist/
 docker compose up --build     # API + local Postgres (not Neon / not SQLite)
-# open http://localhost:8000
+# open http://localhost:8000   # greenfield compose/swarm-api default
 ```
+
+> **Ports (LAN honesty):** On a greenfield `docker compose` / `swarm-api` checkout the Open Swarm ASGI + WebUI listen on **`:8000`**. On some fleet hosts (e.g. ubuntu-max `10.0.0.30`) **`:8000` is LiteLLM** (OpenAI-compatible `/v1`), Open Swarm uvicorn is typically **`:8002`**, and a tip **vite** SPA preview may historically be on **`:8001`** (often absent). Do not curl LiteLLM for Django session/CSRF or `/v1/agents/` — use the swarm HTTP port. CSRF / login examples: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Tip vs dirty tree / `PYTHONPATH`: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#tip-vs-dirty-live-tree).
+
 
 Compose’s durable DB is the `postgres` service. Set `DATABASE_URL` for any
 cloud Postgres. Neon is test/CI only — [docs/DATABASE.md](docs/DATABASE.md).
@@ -135,11 +145,13 @@ uv run swarm-cli launch cli_agent --message "What CLIs can you see?"
 # Blueprint kind — same recipe as an OpenAI `model` id
 uv run swarm-cli launch codey --message "Explain this repo's structure"
 
-# Remote kind — catalog is empty until you add one (OpenMousBot / Hermes / Rakazo / Herdr)
+# Remote kind — fresh install catalog is empty until Settings +Add (OpenMousBot / Hermes / Rakazo / Herdr).
+# A populated live host may already list remotes; tip defaults stay empty-until-Add.
 uv run swarm-cli remotes
 # uv run swarm-cli remotes place <id>
 
-# OpenAI-compatible door (after the WebUI / compose steps above)
+# OpenAI-compatible door (after the WebUI / compose steps above).
+# Greenfield compose/swarm-api → :8000. Fleet hosts where LiteLLM owns :8000 → swarm is usually :8002.
 curl -sf http://localhost:8000/v1/models | jq .
 curl -sf http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -161,6 +173,11 @@ Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=san
 
 ---
 
+
+### Fleet dual trees (ubuntu-gtx / `.36`)
+
+Some fleet boxes keep **both** `~/open-swarm` (public clone path from this README) and `~/open-swarm-private` (private SoT mirror). On ubuntu-gtx (`10.0.0.36`) the listening `manage.py` / ASGI process has historically been **`~/open-swarm`**, while `~/open-swarm-private` may exist at a different tip and not be the running tree. **Deploy / docs SoT for this private repo is `open-swarm-private` (`*-private`).** Confirm which path the listening process `cwd` is before editing or restarting.
+
 ## Links
 
 - [docs/ANNOUNCE.md](docs/ANNOUNCE.md) — launch spiel + hero GIF (REQ-136 / #529)
@@ -171,6 +188,7 @@ Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=san
 - [docs/AUTH.md](docs/AUTH.md) · [CONFIGURATION.md](./CONFIGURATION.md) (`swarm_config.example.json`)
 - [FEATURE_STATUS.md](./FEATURE_STATUS.md) · [ROADMAP.md](./ROADMAP.md)
 - [docs/DEVELOPER.md](docs/DEVELOPER.md) — gateway, `/v1/responses`, dated history, contribution pointers
+- [docs/diagrams/](docs/diagrams/README.md) — visual architecture stack, taxonomy tree, lifecycle state machine, and delegation sequence diagrams
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 Recipes and pattern diagrams stay in [docs/EXAMPLES.md](docs/EXAMPLES.md) and [docs/ORCHESTRATION_PATTERNS.md](docs/ORCHESTRATION_PATTERNS.md) — they are not the front door.

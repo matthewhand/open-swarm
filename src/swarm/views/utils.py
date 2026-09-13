@@ -7,6 +7,11 @@ from django.conf import settings
 from swarm.blueprints.dynamic_team.blueprint_dynamic_team import DynamicTeamBlueprint
 
 # Assuming the discovery functions are correctly located now
+from swarm.core.agent_kind import (
+    API_AGENT_BLUEPRINT_ID,
+    API_AGENT_RAIL_ID,
+    resolve_chat_blueprint_id,
+)
 from swarm.core.blueprint_discovery import (
     apply_blueprint_aliases,
     discover_blueprints,
@@ -130,6 +135,18 @@ def _load_all_blueprint_metadata_sync():
     )
     blueprint_classes = apply_blueprint_aliases(blueprint_classes)
 
+    # Rail API seat is not a package; advertise the same recipe websocket uses
+    # so GET /v1/models lists ``api_agent`` and POST model=api_agent resolves.
+    if (
+        API_AGENT_BLUEPRINT_ID in blueprint_classes
+        and API_AGENT_RAIL_ID not in blueprint_classes
+    ):
+        info = dict(blueprint_classes[API_AGENT_BLUEPRINT_ID])
+        meta = dict(info.get("metadata") or {})
+        meta = {**meta, "name": API_AGENT_RAIL_ID}
+        info["metadata"] = meta
+        blueprint_classes[API_AGENT_RAIL_ID] = info
+
     # Merge dynamic teams as blueprints
     dyn = load_dynamic_registry()
     for team_id, meta in dyn.items():
@@ -146,13 +163,23 @@ def _load_all_blueprint_metadata_sync():
     _blueprint_meta_cache = blueprint_classes
     return blueprint_classes
 
+def get_available_blueprints_sync():
+    """Sync blueprint metadata map — safe inside an already-running event loop.
+
+    Prefer this from sync helpers invoked by async chat turns. The
+    ``@sync_to_async`` wrapper below must be *awaited* (or driven via
+    ``async_to_sync`` only from a thread with no running loop).
+    """
+    global _blueprint_meta_cache
+    if _blueprint_meta_cache is None:
+        _load_all_blueprint_metadata_sync()
+    return _blueprint_meta_cache
+
+
 @sync_to_async
 def get_available_blueprints():
      """Asynchronously retrieves available blueprint classes."""
-     global _blueprint_meta_cache
-     if _blueprint_meta_cache is None:
-          _load_all_blueprint_metadata_sync()
-     return _blueprint_meta_cache
+     return get_available_blueprints_sync()
 
 # --- Blueprint Instance Loading ---
 # Removed _load_blueprint_class_sync
@@ -166,6 +193,7 @@ async def get_blueprint_instance(blueprint_id: str, params: dict = None):
     logger.debug(f"Getting instance for blueprint: {blueprint_id} with params: {params}")
 
     available_blueprint_classes = await get_available_blueprints()
+    blueprint_id = resolve_chat_blueprint_id(blueprint_id)
 
     if not isinstance(available_blueprint_classes, dict) or blueprint_id not in available_blueprint_classes:
         logger.error(f"Blueprint ID '{blueprint_id}' not found in available blueprint classes.")
@@ -200,8 +228,11 @@ def validate_model_access(user, model_name):
      """Synchronous permission check."""
      logger.debug(f"Validating access for user '{user}' to model '{model_name}'...")
      try:
-         available = async_to_sync(get_available_blueprints)()
-         is_available = model_name in available
+         # Never async_to_sync(@sync_to_async) here: chat views already call this
+         # via sync_to_async, and nested thread_sensitive scheduling deadlocks
+         # the single ASGI worker (agent_router / poets prove hangs).
+         available = get_available_blueprints_sync()
+         is_available = resolve_chat_blueprint_id(model_name) in available
          logger.debug(f"Model '{model_name}' availability: {is_available}")
          return is_available
      except Exception as e:

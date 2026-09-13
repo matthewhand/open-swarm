@@ -69,7 +69,18 @@ EXPECTED_RESUME_ARGV = {
         "--session",
         SID,
         "--model",
-        "opencode/big-pickle",
+        "litellm/orchestration",
+        "--",
+        PROMPT,
+    ],
+    "omp": [
+        "omp",
+        "-p",
+        "--resume",
+        SID,
+        "--model",
+        "litellm/orchestration",
+        "--auto-approve",
         "--",
         PROMPT,
     ],
@@ -83,6 +94,15 @@ EXPECTED_RESUME_ARGV = {
         "--approve",
         "--",
         PROMPT,
+    ],
+    "qwen": [
+        "qwen",
+        "--resume",
+        SID,
+        "--output-format",
+        "json",
+        "--yolo",
+        f"-p={PROMPT}",
     ],
 }
 
@@ -153,3 +173,12 @@ def test_strip_resume_conflicts_drops_continue_and_no_session():
         "--",
         "hi",
     ]
+
+
+def test_omp_smoke_flags_are_ephemeral_only():
+    cmd = catalog_entry("omp")["cmd"]
+    assert "--no-session" not in cmd
+    assert smoke_flags("omp") == ["--no-session"]
+    smoked = apply_smoke_flags("omp", cmd)
+    assert "--no-session" in smoked
+    assert smoked.index("--no-session") < smoked.index("--")

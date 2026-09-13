@@ -71,6 +71,11 @@ def test_bad_prompt_mode_rejected():
         CliAgentConfig(name="x", cmd=["cat", "{prompt}"], prompt_mode="bogus")
 
 
+def test_from_config_treats_null_timeout_as_default():
+    adapter = CliAdapter.from_config("echo", _echo_cfg(timeout=None))
+    assert adapter.config.timeout == 180.0
+
+
 # --------------------------------------------------------------------------- #
 # Run: happy paths
 # --------------------------------------------------------------------------- #
@@ -524,3 +529,14 @@ async def test_stream_run_early_aclose_terminates_child(tmp_path):
     except ProcessLookupError:
         pass
     pytest.fail(f"child pid={pid} still alive after stream_run.aclose()")
+
+
+def test_null_timeout_coerces_to_default():
+    """JSON null timeout must not become None (float+NoneType on stream)."""
+    from swarm.core.cli_adapter import CliAdapter, DEFAULT_TIMEOUT
+
+    adapter = CliAdapter.from_config(
+        "qwenish",
+        {"cmd": [PY, "-c", "print(1)", "{prompt}"], "timeout": None},
+    )
+    assert adapter.config.timeout == float(DEFAULT_TIMEOUT)
