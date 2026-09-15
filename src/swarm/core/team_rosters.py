@@ -24,7 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from swarm.core.agent_roles import CANONICAL_ROLES, normalize_agent_role
-from swarm.core.paths import ensure_swarm_directories_exist, get_user_config_dir_for_swarm
+from swarm.core.paths import (
+    ensure_swarm_directories_exist,
+    get_user_config_dir_for_swarm,
+)
 from swarm.core.team_cos import apply_cos_fields, find_member
 
 logger = logging.getLogger(__name__)
