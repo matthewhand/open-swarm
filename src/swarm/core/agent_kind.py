@@ -85,8 +85,9 @@ def can_edit_agent_messages(
     *,
     explicit: str | None = None,
 ) -> bool:
-    """True for API threads (edit in place) and CLI threads (edit restarts
-    the provider session — the caller must clear ``cli_sessions`` and say so).
-    Remote threads stay read-only (REQ-49).
+    """True for API/blueprint threads only (REQ-49): edit-in-place is an
+    API-seat capability. CLI and remote threads stay read-only — CLI sessions
+    cannot resync a mid-session transcript and remote harnesses own their
+    history.
     """
-    return classify_agent_kind(raw, explicit=explicit) in ("api", "cli", "blueprint")
+    return classify_agent_kind(raw, explicit=explicit) in ("api", "blueprint")
