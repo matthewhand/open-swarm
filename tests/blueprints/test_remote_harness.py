@@ -109,6 +109,10 @@ async def test_runner_failure_fallback_is_short(bp, monkeypatch):
         raise RuntimeError("coordinator exploded with a very long detail string" * 40)
 
     monkeypatch.setattr("agents.Runner.run", boom)
+    # tests/api/conftest sets SWARM_TEST_MODE module-level and never restores
+    # it; once it leaks into os.environ the harness's deterministic branch
+    # (test_mode-gated) takes over and asserts on the wrong code path.
+    monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
     out = await _ask(bp, "tell me something interesting")
     # No bound remote ⇒ just the short honest line — never the full
     # multi-remote health dump or a raw stack dump (DEBUG may append the
@@ -125,6 +129,7 @@ async def test_runner_failure_fallback_bound_shows_only_bound_health(bp, monkeyp
         raise RuntimeError("boom detail " * 60)
 
     monkeypatch.setattr("agents.Runner.run", boom)
+    monkeypatch.delenv("SWARM_TEST_MODE", raising=False)
     monkeypatch.setattr(
         "swarm.blueprints.remote_harness.blueprint_remote_harness._health_tool",
         lambda name="": "hermes: DOWN — tcp timeout",

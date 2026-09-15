@@ -47,6 +47,11 @@ ADAPTER_NAME_FIELD: dict[str, dict[str, str]] = {
         "path": "delimiter",
         "notes": "One-shot argv/stdin prompt; no message objects.",
     },
+    "cli:omp": {
+        "name_field": "stripped",
+        "path": "delimiter",
+        "notes": "One-shot argv/stdin prompt; no message objects.",
+    },
     "cli:claude": {
         "name_field": "stripped",
         "path": "delimiter",
@@ -68,6 +73,11 @@ ADAPTER_NAME_FIELD: dict[str, dict[str, str]] = {
         "notes": "One-shot argv/stdin prompt; no message objects.",
     },
     "cli:pi": {
+        "name_field": "stripped",
+        "path": "delimiter",
+        "notes": "One-shot argv/stdin prompt; no message objects.",
+    },
+    "cli:qwen": {
         "name_field": "stripped",
         "path": "delimiter",
         "notes": "One-shot argv/stdin prompt; no message objects.",

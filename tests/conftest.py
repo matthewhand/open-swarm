@@ -18,6 +18,28 @@ def isolate_swarm_chat_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_app_config():
+    """Snapshot/restore the Django AppConfig ``config`` around every test.
+
+    ``config_ownership.refresh_app_config`` mirrors every persist call into the
+    process-global ``AppConfig.config`` (ADR-002 §3.1) — correct for the live
+    server, but a test persisting a tmp_path swarm_config.json would otherwise
+    poison every later blueprint's config discovery in the same process
+    (order-dependent failures like the sandbox/AsyncOpenAI api_key crash).
+    """
+    try:
+        from django.apps import apps
+
+        app = apps.get_app_config("swarm") if apps.ready else None
+    except Exception:
+        app = None
+    saved = getattr(app, "config", None)
+    yield
+    if app is not None:
+        app.config = saved
+
+
+@pytest.fixture(autouse=True)
 def isolate_custom_blueprint_registry():
     """Keep leftover custom-blueprint POSTs from poisoning empty-list / matrix tests.
 
