@@ -16,30 +16,29 @@
 }
 .os-api-composer .os-composer__send { flex-shrink: 0; }
 .os-api-usage { min-width: 0; }
-.os-api-usage__toggle {
+.os-api-usage__summary {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: 100%;
+  justify-content: flex-end;
+  gap: 0.25rem;
   min-width: 0;
-  padding: 0.5rem 0.85rem;
-  border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
-  background: transparent;
+  padding: 0 0.65rem;
   color: color-mix(in srgb, var(--color-base-content) 65%, transparent);
-  font-size: 0.75rem;
-  text-align: left;
-  cursor: pointer;
-}
-.os-api-usage__toggle > svg { flex-shrink: 0; }
-.os-api-usage__toggle > strong {
-  min-width: 0;
-  margin-left: auto;
-  font-weight: 500;
+  font-size: 0.65rem;
   font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.os-api-usage__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 .os-api-usage__toggle:hover { color: var(--color-base-content); }
 .os-api-usage__toggle:focus-visible,

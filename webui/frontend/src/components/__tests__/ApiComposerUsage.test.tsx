@@ -13,7 +13,9 @@ function expand() { fireEvent.click(screen.getByRole('button', { name: 'Context 
 describe('API composer usage disclosure', () => {
   it('shows readable context tokens and expands with labelled reply usage', () => {
     render(<ApiComposerUsage usage={sample} />)
-    expect(screen.getByRole('button', { name: 'Context window usage' })).toHaveTextContent('Context16k tokens')
+    expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('16k tokens')
+    expect(screen.getByRole('button', { name: 'Context window usage' })).toHaveTextContent('')
+    expect(screen.getByRole('button', { name: 'Context window usage' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('region', { name: 'Token usage details' })).toBeNull()
     expand()
     expect(screen.getByRole('region', { name: 'Token usage details' })).toHaveTextContent('Context used16k tokensLast reply320 tokens')
@@ -40,7 +42,7 @@ describe('API composer usage disclosure', () => {
 
   it('handles unavailable usage without presenting a zero estimate', () => {
     render(<ApiComposerUsage usage={null} />)
-    expect(screen.getByRole('button', { name: 'Context window usage' })).toHaveTextContent('Not yet measured')
+    expect(screen.getByTestId('composer-usage-toggle')).toHaveTextContent('')
     expand()
     expect(screen.getByText(/after your conversation is measured/)).toBeVisible()
     expect(screen.queryByRole('progressbar')).toBeNull()

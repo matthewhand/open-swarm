@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Gauge } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { formatUsageTokens, type ContextUsage } from '../lib/contextUsage'
 import './apiComposerUsage.css'
 
@@ -59,15 +59,15 @@ export function ApiComposerUsage({ usage, onOpenDetail }: {
           </> : <p className="os-api-usage__note">Usage will appear here after your conversation is measured.</p>}
         </section>
       ) : null}
-      <button ref={toggle} type="button" className="os-api-usage__toggle"
-        data-testid={usage ? 'context-usage-badge' : 'composer-usage-toggle'}
+      <div className="os-api-usage__summary" data-testid={usage ? 'context-usage-badge' : 'composer-usage-toggle'}>
+        {usage ? <span>{number(used)} tokens</span> : null}
+        <button ref={toggle} type="button" className="os-api-usage__toggle"
+        title={open ? 'Hide token usage' : 'Show token usage'}
         aria-label="Context window usage" aria-expanded={open} aria-controls={open ? id : undefined}
         onClick={() => setOpen(value => !value)}>
-        <Gauge size={14} aria-hidden="true" />
-        <span>{usage ? 'Context' : 'Token usage'}</span>
-        <strong>{usage ? `${number(used)} tokens` : 'Not yet measured'}</strong>
         <Chevron size={14} aria-hidden="true" />
-      </button>
+        </button>
+      </div>
     </div>
   )
 }
