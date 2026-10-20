@@ -27,7 +27,7 @@ import {
  * Message action/reaction row (#70 / REQ-103 / REQ-869 / #578 / #850).
  *
  * ChatPage mounts this beside ChatMessageBubble inside `group/osrow`.
- * Combines Edit, Reply, Copy, Read Aloud, Retry, Raw Response, and context actions on one line.
+ * Combines message controls in a row that wraps to fit narrow chat panes.
  *
  * #505 / REQ-907: when the bubble theme declares `actionRowPlacement: 'overlay'`
  * (IRC) the caller passes `overlay` and the row renders out of flow — absolutely
@@ -279,7 +279,7 @@ export default function MessageRowActions({
       data-testid="os-message-row-actions"
       data-always-visible={alwaysVisible ? 'true' : undefined}
       data-activated={activated ? 'true' : undefined}
-      className={`flex flex-row items-center gap-1 transition-opacity motion-reduce:transition-none${
+      className={`flex flex-row flex-wrap items-center gap-1 transition-opacity motion-reduce:transition-none${
         alwaysVisible
           ? ' os-actions-always-visible pointer-events-auto'
           : ' opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none group-hover/osrow:md:opacity-100 group-hover/osrow:md:pointer-events-auto group-focus-within/osrow:md:opacity-100 group-focus-within/osrow:md:pointer-events-auto'
