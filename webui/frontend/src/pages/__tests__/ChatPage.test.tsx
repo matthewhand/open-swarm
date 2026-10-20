@@ -3433,7 +3433,7 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
     const badge = screen.getByTestId('context-usage-badge')
     expect(badge).toBeInTheDocument()
 
-    fireEvent.click(badge)
+    fireEvent.click(screen.getByRole('button', { name: 'Context window usage' }))
     fireEvent.click(screen.getByRole('button', { name: 'More details' }))
     expect(await screen.findByTestId('token-diagnostics-modal')).toBeInTheDocument()
     expect(screen.getByText('Session Token Diagnostics')).toBeInTheDocument()

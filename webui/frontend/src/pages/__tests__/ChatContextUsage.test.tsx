@@ -107,7 +107,7 @@ describe('ChatPage context-window usage (#215)', () => {
     })
     const badge = screen.getByTestId('context-usage-badge')
     expect(badge).toHaveTextContent('16k tokens')
-    fireEvent.click(badge)
+    fireEvent.click(screen.getByRole('button', { name: 'Context window usage' }))
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '128000')
   })
 
