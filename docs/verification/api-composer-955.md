@@ -19,6 +19,12 @@ Local verification on Windows, 2026-10-21:
 - Visually inspected the real inventory-demo conversation at 401 × 605 pixels.
   The existing server usage endpoint supplied 107 context tokens and 76 last-reply
   tokens; the model did not report its context limit and no capacity was invented.
+- The local full backend attempt stopped after 119 passing tests on
+  `test_minted_conversation_resumes_across_turns[agy]`: the Windows asyncio event
+  loop raised `NotImplementedError` while creating a subprocess transport.
+  No backend or backend-test files changed in this PR. This local attempt is not
+  a full backend pass; the Linux Python suites and separate Windows process gate
+  run in CI before merge.
 
 The new browser regression tests use synthetic inference and usage responses;
 they demonstrate UI behavior, not a new model or harness compatibility claim.
