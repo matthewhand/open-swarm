@@ -215,6 +215,7 @@ describe('ChatPage REQ-121 start context from here', () => {
       )
     })
     fireEvent.click(screen.getByTestId('context-usage-badge'))
+    fireEvent.click(screen.getByRole('button', { name: 'More details' }))
     expect(await screen.findByTestId('token-diagnostics-modal')).toBeInTheDocument()
     expect(await screen.findByTestId('diag-context-strategy')).toHaveTextContent('Cull')
     expect(screen.getByTestId('diag-last-context-event')).toHaveTextContent('None yet')
