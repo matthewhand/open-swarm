@@ -219,7 +219,7 @@ export default function MessageRowActions({
 
   const reactionButton = onAddReaction ? (
     <div
-      className={`dropdown dropdown-end ${reactionPickerOpen ? 'dropdown-open dropdown-bottom' : 'dropdown-top'}`}
+      className={`os-message-reactions dropdown dropdown-end ${reactionPickerOpen ? 'dropdown-open dropdown-bottom' : 'dropdown-top'}`}
     >
       <button
         type="button"

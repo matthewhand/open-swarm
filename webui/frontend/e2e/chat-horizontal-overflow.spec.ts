@@ -29,8 +29,12 @@ for (const width of [320, 375, 401, 768, 1280]) {
         })
       })).toBe(true)
     }
-    // Keyboard focus also reveals the desktop hover controls.
-    await conversation.getByTestId('message-reply-action').last().press('Enter')
+    // A closed reaction palette must not intercept the message or its controls.
+    await conversation.getByText('The fictional inventory reorder costs $54.').hover()
+    await conversation.getByTestId('message-reply-action').last().click()
     await expect(page.getByTestId('composer-reply-strip')).toContainText('fictional inventory')
+    const reactions = conversation.getByTestId('message-add-reaction').last()
+    await reactions.click()
+    await expect(conversation.getByRole('button', { name: 'React with 👍' }).last()).toBeVisible()
   })
 }
