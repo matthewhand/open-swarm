@@ -3577,10 +3577,9 @@ button.os-agent-row {
    broke the shared baseline. `height` (not `min-height`) pins it on purpose:
    a taller child now overflows symmetrically instead of growing the band. */
 .os-chat-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
   /* #445: no clip here. The header used to set `overflow: hidden` to keep long
      titles from escaping, which also clipped the routing flyout to its first
      row — the flyout is an absolutely-positioned child of `.os-routing-picker`
@@ -3683,30 +3682,26 @@ button.os-agent-row {
   transform: translateX(-50%);
 }
 
-/* #1676: the foreground agent's avatar + name ride a CENTERED floating pill
-   that is SEPARATED from the top navbar band. The header stays the #560 flex
-   row (lead | controls) at `--os-top-chrome-h`, so the right-side icons keep
-   their original vertical seat. The pill is absolutely positioned just under
-   the header's bottom edge and does not participate in header layout — it
-   cannot push the band taller or drop the controls. */
+/* The agent badge shares the navbar's centreline. Its middle track centres
+   it in the space left between the rail toggle and navbar controls, naturally
+   shifting it left of the pane centre without overlapping either neighbour.
+   The fixed chrome height keeps the rail and navbar baselines unchanged. */
 .os-chat-header__identity {
-  /* Lead slot only (rail toggle). Identity moved into the floating pill. */
+  /* Lead slot only (rail toggle). The badge has its own middle track. */
   max-width: 100%;
 }
 .os-chat-header__controls {
-  /* Stay end-flushed in the flex header; never share a track with the pill. */
+  /* Keep the controls in their own right-hand track. */
   margin-left: auto;
 }
 
-/* The pill itself. Out of header flow. Theme tokens only (AGENTS.md). */
+/* The badge retains its pill styling inside the available navbar space. */
 .os-agent-pill {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 0.5rem);
-  transform: translateX(-50%);
+  position: relative;
+  justify-self: center;
   z-index: 20;
   width: max-content;
-  max-width: min(26rem, calc(100% - 2rem));
+  max-width: min(26rem, 100%);
   gap: 0.5rem;
   /* #1765: the horizontal inset is ASYMMETRIC on purpose (right >= left).
      The left inset butts against the avatar — a hard-edged, opaque disc whose
