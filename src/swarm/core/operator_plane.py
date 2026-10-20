@@ -17,7 +17,7 @@ limit. There is no calendar window: usage is unbounded until reset.
 
 The store file lives next to the routines file (or
 ``SWARM_OPERATOR_PLANE_PATH``). Checkout is atomic on this host via a
-process thread lock plus ``flock``. It is not a multi-host distributed
+process thread lock plus an OS-backed file lock. It is not a multi-host distributed
 claim.
 """
 
@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import fcntl
 import json
 import logging
 import os
@@ -36,6 +35,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from filelock import FileLock
 
 from swarm.core.schedule_triggers import reject_secrets
 
@@ -371,28 +372,20 @@ def _locked_read() -> dict[str, Any]:
     if not path.is_file():
         return _empty()
     lock_path = path.with_name(path.name + ".lock")
-    with _thread_lock, open(lock_path, "a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            return copy.deepcopy(_read_store(path))
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    with _thread_lock, FileLock(lock_path):
+        return copy.deepcopy(_read_store(path))
 
 
 def _locked_update(mutator):
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_name(path.name + ".lock")
-    with _thread_lock, open(lock_path, "a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    with _thread_lock, FileLock(lock_path):
+        data = _read_store(path)
         try:
-            data = _read_store(path)
-            try:
-                return mutator(data)
-            finally:
-                _atomic_write(path, data)
+            return mutator(data)
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _atomic_write(path, data)
 
 
 def _public_budget(row: dict[str, Any]) -> dict[str, Any]:

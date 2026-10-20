@@ -98,7 +98,7 @@ def load_skill(skill_dir: Path) -> Skill:
     md = skill_dir / SKILL_FILE
     if not md.is_file():
         raise FileNotFoundError(f"no {SKILL_FILE} in {skill_dir}")
-    skill = parse_skill_md(md.read_text(), name_hint=skill_dir.name)
+    skill = parse_skill_md(md.read_text(encoding="utf-8"), name_hint=skill_dir.name)
     skill.path = skill_dir
     skill.assets = sorted(
         p.name for p in skill_dir.iterdir() if p.is_file() and p.name != SKILL_FILE

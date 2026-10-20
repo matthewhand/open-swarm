@@ -1,227 +1,133 @@
-# Operating Swarm (OS)
-> Treat external harnesses and peer instances as one common abstraction.
+# Operating Swarm
 
-<p align="center">
-  <img src="assets/brand/operating-swarm-hero-diagram.svg" alt="Operating Swarm Architecture Overview" width="750" />
-</p>
+Operating Swarm runs Python agent workflows and connects model APIs, local agent CLIs and external harnesses through a shared service. Use its terminal commands, OpenAI-style HTTP endpoints or React WebUI.
 
-**Operating Swarm (OS)** is a provider-agnostic agent operating layer and harness. It runs its own native agentic execution (`os-core`), connects to external harnesses (`os-adapter-hermes`, `os-adapter-truforge`), and peers with other Operating Swarm instances (`os-peer`). Sessions persist while switching providers, harnesses, or OS nodes. OS is **not only a UI, wrapper, gateway, adapter, or supervisor.**
+**Experimental alpha.** Source is ahead of the published package. A model-and-tool workflow has been exercised through the CLI, API and WebUI. This does not establish that every bundled recipe or remote integration works. See the dated [verification report](docs/verification-2026-10-20.md).
 
-Three interfaces sit on that core: **OS WebUI** (`os-webui`), **OS CLI** (`os-cli`, shortcut `os`), and the OpenAI-compatible **OS API** (`os-api`). A fourth, optional surface is the desktop tray **`os-marchy-systray`** — it lists your bots grouped by rig/team and connects to a local OS (auto-detected) or a remote instance ([#1306](https://github.com/matthewhand/open-swarm-private/issues/1306)). Umbrella repository: **`operating-swarm`**. Python import path remains `swarm`.
+The project began as a derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm). It now uses the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) for agents, tools and handoffs. This is an independent project, not an OpenAI product. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-It seats four kinds of agents — **CLI**, **API** (true inference), **Blueprint** (programmatic / openai-agents), and **Remote** — and composes them with **handoff** and **agent-as-tool**. The same blueprint runs from `os-cli` and from `/v1/chat/completions`.
+## Architecture
 
-**WebUI is first-class:** left rail + the selected agent’s chat. Other clients (SDK, curl, Open WebUI, and `os-cli tui` — the interactive terminal client of that same API, [REQ-111](https://github.com/matthewhand/open-swarm/issues/481)) hit the same seats at `/v1/chat/completions` and `/v1/responses`.
+The Python import is `swarm`. Django provides configuration, authentication and persisted conversations. Blueprint classes implement workflows: `ApiKindBase` runs an Agents SDK graph, CLI adapters launch host processes, and remote adapters call an external harness's protocol. Team rosters compose these capabilities. The API and WebUI share this backend.
 
-<div align="center">
-<img src="assets/readme/cli-agents.gif" alt="CLI agents — Grok-like rail, native CLI seats" width="320"/>
-<img src="assets/readme/api-agents.gif" alt="API agents — OpenAI-compatible owned thread" width="320"/>
-<img src="assets/readme/remote-agents.gif" alt="Remote agents — OpenMousBot / Hermes in the same rail" width="320"/>
-<img src="assets/readme/combined-team.gif" alt="Combined team — CLI plus API plus remote in one pane" width="320"/>
-</div>
+Blueprints run through the CLI and API; they do not ship separate webpages. The WebUI is shared product chrome.
 
-Brand marks live under [`assets/brand/`](assets/brand/): **minimal** for the tab favicon and PWA icons, **geometric** for in-app WebUI chrome, and **cyber-swarm** for marketing / website fanfare ([#768](https://github.com/matthewhand/open-swarm/issues/768)).
+Terminology is still being consolidated: code uses `api`, `cli`, `remote` and `team` bases, while older documents call programmatic workflows “blueprints.” A model profile selects an inference endpoint. Wrapping a CLI or remote does not inject the SDK into that external process. Context transfer and resume depend on the adapter; universal cross-harness continuity is not established.
 
-<p align="center">
-  <img src="docs/assets/readme/announce-bridge.gif" alt="Storyboard: one Chief of Staff task coordinates Hermes Remote, OpenMousBot Remote, Antigravity CLI, OpenCode CLI, and a BA → Engineer → Tester blueprint" width="720"/>
-</p>
+## Install current source
 
-Announce copy, storyboard, and recapture checklist: [docs/ANNOUNCE.md](docs/ANNOUNCE.md) (REQ-136 / [#529](https://github.com/matthewhand/open-swarm/issues/529)) — **Grok-agnostic** chrome plus a CLI/API/remote harness bridge. Asset path for this hero and the later CLI / API / remotes / combined kit: [`docs/assets/readme/`](docs/assets/readme/README.md) ([#456](https://github.com/matthewhand/open-swarm/issues/456)).
-
-Direction: [docs/VISION.md](docs/VISION.md). Vocabulary: [docs/GLOSSARY.md](docs/GLOSSARY.md).
-
-## Demos
-
-Compact walkthroughs of Operating Swarm's core agent capabilities — from individual CLI, API, and Remote seats to a unified team combining all three in one flow.
-
-| Kind / Story | What it demonstrates | Preview |
-|---|---|---|
-| **CLI Agent** | Host executable running in a native terminal session (`grok`, `agy`, `opencode`) | ![CLI Agent Demo](docs/demo/cli-agent.gif) |
-| **API Agent** | True inference seat queried directly via the OpenAI-compatible HTTP completions API | ![API Agent Demo](docs/demo/api-agent.gif) |
-| **Remote Agent** | External agentic harnesses (**OpenMousBot**, **Hermes**, **Rakazo**, **Herdr**) | ![Remote Agent Demo](docs/demo/remote-agent.gif) |
-| **Combined Team** | The Operating Swarm differentiator: one flow coordinating **CLI + API + Remote** via openai-agents handoff | ![Combined Team Demo](docs/demo/combined-team.gif) |
-
-> A historical terminal loop (one blueprint as CLI + API) is preserved at [`docs/demo/cli-and-api.gif`](docs/demo/cli-and-api.gif).
-
----
-
-## What's new (2026-09, on `main`)
-
-- **Provider/model namespace safety.** API-profile ids and CLI model ids are **different namespaces**; a single validator (`swarm/core/model_namespace.py`) ensures no seat or picker ever offers/applies a model its provider cannot run — e.g. an API slug is never passed to `agy --model`, and the opencode picker hides the app-only `opencode/*` tier.
-- **Browser / computer control.** Sandbox `sandbox_browser_*` tools (navigate / click / type / snapshot / screenshot) run Playwright + Chromium **inside** the agent's sandbox over a persistent CDP port, with a **live sandbox display** (VM id/status/preview, credential env-var name) in the UI ([#1200](https://github.com/matthewhand/open-swarm-private/issues/1200), [#1201](https://github.com/matthewhand/open-swarm-private/issues/1201)).
-- **Client-side WebGPU provider** (experimental, OFF by default). A flag-gated in-browser provider with a Web Worker generate protocol, resumable model download + integrity + cache management ([#1288](https://github.com/matthewhand/open-swarm-private/issues/1288)).
-- **Desktop systray.** `os-marchy-systray` — bots in the system tray, grouped by rig/team, local auto-detect or a remote OS instance ([#1306](https://github.com/matthewhand/open-swarm-private/issues/1306)).
-- **Hack code font.** [Hack](https://sourcefoundry.org/hack/) is self-hosted and is the default **code-block** font; also selectable in Settings → Aesthetics. Provider dropdowns use brand SVG icons ([#1249](https://github.com/matthewhand/open-swarm-private/issues/1249)).
-- **Rigs.** Teams rebranded to **Rigs** with an OpenRig topology view; **`role@rig`** qualified addresses (sections = dynamic rigs, teams = static rigs) ([#1222](https://github.com/matthewhand/open-swarm-private/issues/1222), [#1224](https://github.com/matthewhand/open-swarm-private/issues/1224)).
-- **Chat polish.** Navbar Agent & Session pickers, agent-config sidepane, per-agent composer drafts (typed text survives agent switches), live WS rendering, bounded streaming with a configurable fallback base URL, configurable agent LLM timeout.
-- **Remote ask-user bridge.** A remote agent can ask a question mid-turn and resume after your answer (TrueForge pauses resume via `user.tool_response`) ([#1307](https://github.com/matthewhand/open-swarm-private/issues/1307)).
-
-Letta's dedicated remote was **removed** (Letta migrates to a plain OpenAI-compatible **API** profile) ([#1332](https://github.com/matthewhand/open-swarm-private/issues/1332)).
-
----
-
-## WebUI (start here)
-
-Product chrome is the Grok-like SPA: rail, remotes, sessions, Settings sheet. `/` and `/chat` are that chrome. Django trailing-slash pages (`/blueprint-library/`, `/settings/`, `/sessions/`, …) stay the operator dump — not the pitch.
+Use **Python 3.12 or 3.13**, [uv](https://docs.astral.sh/uv/), and **Node.js 24+** for the WebUI. Linux/WSL is the reference environment for the full backend suite. The local workflow below was also exercised on Windows. Bash syntax:
 
 ```bash
 git clone https://github.com/matthewhand/operating-swarm.git
 cd operating-swarm
-uv sync --all-extras
-cp .env.example .env          # set OPENAI_API_KEY, API_AUTH_TOKEN, DJANGO_SECRET_KEY
-cp swarm_config.example.json swarm_config.json   # optional local SoT; secrets stay ${VAR} in .env
-make frontend                 # builds webui/frontend/dist/
-docker compose up --build     # API + local Postgres (not Neon / not SQLite)
-# open http://localhost:8000   # greenfield compose/os-api default
+uv sync --locked --extra tui
+export SWARM_CONFIG_DIR="$PWD/.runtime/config"
+export SWARM_USER_DATA_DIR="$PWD/.runtime/data"
+export SWARM_CONFIG_PATH="$PWD/.runtime/swarm_config.json"
+mkdir -p "$SWARM_CONFIG_DIR"
+cp docs/examples/inventory-config.json "$SWARM_CONFIG_PATH"
+export OPENAI_BASE_URL="https://api.openai.com/v1"
+export OPENAI_MODEL="YOUR_MODEL_ID"
+read -rsp 'Model API key: ' OPENAI_API_KEY; echo
+export OPENAI_API_KEY
+export API_AUTH_TOKEN="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export DJANGO_DEBUG=true
 ```
 
-> **Ports:** On a standard `docker compose` / `os-api` setup, the Operating Swarm ASGI + WebUI listen on **`:8000`**. If an upstream LLM gateway or proxy already binds **`:8000`**, OS can be run on an alternate port (such as **`:8002`**). Ensure client API and session calls target the OS server port. For configuration details, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Choose a model accessible to your account. For an already running Ollama server, use `OPENAI_BASE_URL=http://127.0.0.1:11434/v1`, an installed tool-capable model's exact name, and `OPENAI_API_KEY=ollama` (a local placeholder). Support varies by model. This review used an existing OpenAI-compatible gateway; discovering an Ollama model was not a completed Ollama workflow test.
 
+PowerShell environment setup after cloning and syncing:
 
-Compose’s durable DB is the `postgres` service. Set `DATABASE_URL` for any
-cloud Postgres. Neon is test/CI only — [docs/DATABASE.md](docs/DATABASE.md).
-
-Without `dist/`, `/` falls back to Django templates. Rebuild after SPA pulls. Auth: [docs/AUTH.md](docs/AUTH.md) (websocket needs a session cookie; bearer does not auth WS).
-
----
-
-## Short history
-
-- **2024-12** — Started as a derivative of OpenAI’s experimental [Swarm](https://github.com/openai/swarm); Django REST API the same week.
-- **2026-02** — First git tag `0.0.1` (no GitHub Release, no PyPI `0.0.1`).
-- **2026-04** — React Web UI.
-- **2026-06** — MoA, CLI fusion, `/v1/responses`. Last **published** cut: **v0.5.4** (2026-06-19). PyPI summary still says “Orchestrating AI Agent Swarms with Django.”
-- **2026-07+** — Remotes, Team handoff rosters, Herdr, Grok-like WebUI chrome — **on `main`, not in 0.5.4**.
-- **2026-09** — Kinds lock: CLI | API | Blueprint | Remote. Team = Blueprint subtype. WebUI first-class. Built on the [openai-agents SDK](https://github.com/openai/openai-agents-python).
-- **2026-09 (late)** — Provider/model namespace safety, browser control + live sandbox display, experimental client-side WebGPU provider, `os-marchy-systray`, Rigs + `role@rig`, Hack code font, per-agent composer drafts. See **What's new** above.
-
----
-
-## Kinds (locked)
-
-Four user-facing kinds. **Team is not a fifth kind.**
-
-| Kind | Meaning |
-|---|---|
-| **CLI** | Host executable (`grok`, `agy`, `claude`, `gemini`, `opencode`, …). Native session. |
-| **API** | **True inference seat** — OpenAI-compatible chat completions (base URL / model / key-env). Not a graph. |
-| **Blueprint** | **Programmatic recipe** — openai-agents handoffs, MoA, custom Python. May *use* inference underneath; the seat is the recipe. Same id via CLI and API only — blueprints do not ship a webpage. The Grok-like WebUI is the product chrome. |
-| **Remote** | Another agentic harness. Implementations: **Hermes**, **OpenMousBot**, **Rakazo**, **Herdr**, **TrueForge** (and nested Operating Swarm / OS instance). Variants are adapters, not extra kinds. Herdr is SSH-shaped, not another HTTP remote. (Letta's dedicated remote was removed — Letta is an OpenAI-compatible **API** profile now.) |
-
-**Team** = a **Blueprint subtype**: a roster plus openai-agents **handoff / agent-as-tool** so CLI, API, Blueprint, and Remote members can see and talk. Do not call `/v1/teams` aliases a Team — those are **Profiles** (LLM-profile aliases).
-
-**Honest mid-flight ([#652](https://github.com/matthewhand/open-swarm/issues/652) / [ADR-006](docs/adr/006-api-vs-blueprint-kinds.md)):** on `main` today, stored `api` is still the leftover “not CLI, not remote” bucket (mostly recipes). There is not yet a first-class “wire this endpoint” seat. Target: rename those seats to `blueprint`, then introduce a true `api` inference seat. Prefer the four names above in new copy.
-
----
-
-## Why openai-agents
-
-The differentiator is a **programmatic graph** — not “let chat figure it out,” and not “many concurrent seats” (Grok Bot / Rakazo / OpenMousBot). openai-agents **handoff / agent-as-tool** can enforce a forced BA → Engineer → Tester sequence, or a circular Skeptic punt-back.
-
-**Limit (up front):** that graph runs **inside Blueprint seats** (today’s leftover `api` bucket). We **cannot inject** openai-agents into **CLI** or **Remote** harnesses — those **stay native** sessions. Cross-kind teams still work: a Blueprint coordinator can sit with a Grok CLI and a Hermes Remote.
-
-### Two ways to build a team
-
-**Under the hood** a team/workflow is a **Python blueprint class** ([ADR-005](docs/adr/005-kind-bases.md)). That is the power-user path.
-
-**Happy path:** ask **Support** in natural language. Underspecified “create a team” is Socratic; “Create a BA → Engineer → Tester workflow” drafts immediately. You do **not** write Python. **Add as agent** or **Save as blueprint** persists the draft. Code stays hidden unless you choose **View / edit code**. The product bootstraps more of itself this way (REQ-158 / #567 / #440). Guided path + checklist (GitHub-only): [docs/SUPPORT_NL_BLUEPRINTS.md](docs/SUPPORT_NL_BLUEPRINTS.md).
-
-Mermaid, kind bases, and the `:8001` seed live on [docs/DEVELOPER.md](docs/DEVELOPER.md). Worked configs: [docs/examples/openai-agents-handoff-graphs/](docs/examples/openai-agents-handoff-graphs/README.md) (REQ-156 / #564). Demo roster names (Mode A kind-clear vs Mode B personas): [docs/SHOWOFF_DEMO_AGENTS.md](docs/SHOWOFF_DEMO_AGENTS.md) (REQ-135 / #526). Kind-base ADR: [ADR-005](docs/adr/005-kind-bases.md) (REQ-159 / #570).
-
----
-
-## Install (version honesty)
-
-| Source | Fact |
-|---|---|
-| **`main` (this repo)** | Current product: WebUI chrome, remotes, Team rosters, four-kind lock. Prefer clone. |
-| **PyPI `open-swarm`** | Latest **0.5.4** (2026-06-19). Same as GitHub Release **v0.5.4**. In-tree stub at [`packaging/open-swarm-alias/`](packaging/open-swarm-alias/) ([#296](https://github.com/matthewhand/open-swarm-private/issues/296)) will be the next PyPI `open-swarm` (deprecation alias → `os-core`); that upload waits until `os-core` is on PyPI. |
-| **PyPI / `pyproject.toml` summary** | Still “Orchestrating AI Agent Swarms with Django.” Classifier is **Alpha**. That published wheel does **not** include Grok chrome, remotes catalog, or combined-team work landed after June. |
-| **GitHub Release title** | `v0.5.4 — django_chat resolves its LLM profile` — historical; not the 2026-09 pitch. |
-
-```bash
-# What main actually runs
-git clone https://github.com/matthewhand/operating-swarm.git
-cd operating-swarm
-uv sync --all-extras
+```powershell
+$env:SWARM_CONFIG_DIR = "$PWD/.runtime/config"
+$env:SWARM_USER_DATA_DIR = "$PWD/.runtime/data"
+$env:SWARM_CONFIG_PATH = "$PWD/.runtime/swarm_config.json"
+New-Item -ItemType Directory -Force $env:SWARM_CONFIG_DIR | Out-Null
+Copy-Item docs/examples/inventory-config.json $env:SWARM_CONFIG_PATH
+$env:OPENAI_BASE_URL = 'https://api.openai.com/v1'
+$env:OPENAI_MODEL = 'YOUR_MODEL_ID'
+$key = Read-Host 'Model API key' -AsSecureString
+$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', $key).Password
+$env:API_AUTH_TOKEN = uv run python -c 'import secrets; print(secrets.token_urlsafe(32))'
+$env:DJANGO_DEBUG = 'true'
 ```
 
-`pip install open-swarm` is the June 2026 cut. Do not expect this README’s kinds or WebUI from that wheel.
+All state stays in Git-ignored `.runtime/`. These are localhost development settings. Shared deployment needs production Django settings, a secret key, allowed hosts, authentication and a database plan: [deployment](docs/DEPLOYMENT.md), [auth](docs/AUTH.md), [databases](docs/DATABASE.md). Native development defaults to SQLite; Compose provisions Postgres. Docker, Pinokio and desktop installers were not exercised in this review.
 
-Python >= 3.10. Node >= 22 only if you build the WebUI.
+## A practical model-and-tool workflow
 
----
-
-## Run from the operator CLI / API
+The bundled `inventory_demo` calculates a reorder plan from fictional stock. Its `stock_report` tool computes quantities and cost locally; the model calls it and explains the result. It does not place orders or require shell access.
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+uv run os-cli launch inventory_demo --message "What should we reorder, and what will it cost?"
+```
 
-# CLI kind — discover installed agentic CLIs
-uv run os-cli cli-agents --init --write --check-auth
-uv run os-cli launch cli_agent --message "What CLIs can you see?"
+Expected: **9 notebooks (36) and 6 folders (18), total 54**. A plausible answer alone is not tool-execution evidence. The WebUI displays `stock_report` when it completes. [Blueprint source](src/swarm/blueprints/inventory_demo/blueprint_inventory_demo.py).
 
-# Blueprint kind — same recipe as an OpenAI `model` id
-uv run os-cli launch codey --message "Explain this repo's structure"
+`os-cli` and `os` are the same command. Bare invocation opens the optional TUI (`--extra tui`). `os-api` starts the server. There is no `os-webui` executable: the server serves the built React application.
 
-# Remote kind — fresh install catalog is empty until Settings +Add (OpenMousBot / Hermes / Rakazo / Herdr).
-# A populated live host may already list remotes; tip defaults stay empty-until-Add.
-uv run os-cli remotes
-# uv run os-cli remotes place <id>
+## API and WebUI
 
-# OpenAI-compatible door (after the WebUI / compose steps above).
-# Standard compose/os-api listens on :8000.
-curl -sf http://localhost:8000/v1/models | jq .
-curl -sf http://localhost:8000/v1/chat/completions \
+From the same configured terminal:
+
+```bash
+uv run python -m django migrate --settings=swarm.settings --noinput
+npm --prefix webui/frontend ci
+npm --prefix webui/frontend run build
+uv run os-api --host 127.0.0.1 --port 8000
+```
+
+Open [localhost:8000](http://127.0.0.1:8000), select `inventory_demo`, and ask the reorder question. The local development preview establishes a browser session; websocket authentication uses a session cookie, not an HTTP bearer header. Follow [AUTH.md](docs/AUTH.md) for shared deployment.
+
+In another terminal with the same `API_AUTH_TOKEN`:
+
+```bash
+curl -fsS http://127.0.0.1:8000/v1/models \
+  -H "Authorization: Bearer $API_AUTH_TOKEN"
+curl -fsS http://127.0.0.1:8000/v1/chat/completions \
+  -H "Authorization: Bearer $API_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer ${API_AUTH_TOKEN}" \
-  -d '{"model": "cli_agent", "messages": [{"role":"user","content":"ping"}]}' | jq .
+  -d '{"model":"inventory_demo","messages":[{"role":"user","content":"What should we reorder, and what will it cost?"}]}'
 ```
 
-`model` selects which seat / recipe handles the request. Streaming is supported. Full CLI reference: [USERGUIDE.md](./USERGUIDE.md). Remotes: [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md). Herdr: [docs/HERDR.md](docs/HERDR.md). CLI wrap / fusion (not the first team story): [docs/CLI_FUSION.md](docs/CLI_FUSION.md). MoA consensus (not the first team story): [docs/MOA.md](docs/MOA.md).
+`model` selects a Swarm recipe/seat, not the upstream model. Chat completions supports SSE with `stream:true`. `/v1/responses` accepts `model` and `input`. These are compatibility surfaces, not full OpenAI API parity. Unknown models return 404; malformed messages return 400. With a token configured, missing/incorrect HTTP credentials are rejected. Stop with Ctrl+C; preserve operator data when resetting a demo.
 
-### Pinokio (local sideload)
+## Integration limits
 
-Operating Swarm is **not** in the Pinokio public catalog. In Pinokio, add the git URL only (Download from URL / sideload) — do not search Discover:
+Adapters require a separately installed, reachable and authenticated service. `os-cli remotes` lists configured instances. [Remote protocols](docs/REMOTE_HARNESSES.md). Health, listing and completed inference are different verification levels.
 
+| Integration | Review finding |
+|---|---|
+| AnythingLLM, OpenMousBot, TrueForge | Configured instances answered health/list calls. Send results are in the report. |
+| Hermes | One instance answered health/list; a submitted turn timed out. Completed inference not established. |
+| Rakazo, Herdr, nested Swarm | Configured targets unavailable; no working inference claim. |
+| Open WebUI | Service alive; listing rejected credentials (401). Another instance was down. |
+| Flowise, n8n, Tencent Octop, OpenMuse | No configured instance exercised. Tests/catalog entries are not live proof. |
+| Letta | Dedicated remote removed. An old local config still contains it; API-profile compatibility not verified here. |
+
+MCP client/server modes, memory backends, sandbox browsers, desktop/tray surfaces, TUI interaction, all CLI providers, cross-kind context transfer and installers have not all been exercised. Historical GIFs and design diagrams are not live evidence. See [FEATURE_STATUS.md](FEATURE_STATUS.md) and the [verification report](docs/verification-2026-10-20.md).
+
+## Package and release status
+
+| Source | Meaning |
+|---|---|
+| This tree: `os-core 0.6.0a1` | Unreleased alpha preparation. Clone for the demonstrated workflow/WebUI. |
+| GitHub Release `v0.5.4` (19 June 2026) | Historical title: “django_chat resolves its LLM profile”; predates the current UI and architecture. |
+| PyPI `open-swarm==0.5.4` | Historical package, Python >=3.10; not current `os-core`. |
+| PyPI `os-core` | Not available when checked on 20 October 2026. |
+| `packaging/open-swarm-alias` | Unpublished migration alias; publish only after its `os-core` dependency is available. |
+
+Main no longer reuses 0.5.4. The publish workflow recognizes this repository name and checks tag/version consistency. Index upload still needs publisher credentials or trusted-publisher setup and a deliberate release. The Python wheel does not bundle the React build: use a source checkout for WebUI. Merging a PR does not publish to PyPI. Publication work is listed in the report.
+
+## Development
+
+```bash
+uv sync --locked --extra dev --extra test
+uv run pytest tests/core/ tests/views/ -x -q
+npm --prefix webui/frontend test
+npm --prefix webui/frontend run type-check
+npm --prefix webui/frontend run build
 ```
-https://github.com/matthewhand/operating-swarm.git
-```
 
-Then **Install** → **Start** → **Open App**. Compose sets `SWARM_RUNTIME=sandbox-home` (REQ-45). Pinokio requires root `pinokio.js`; install/start/update scripts live under `pinokio/`.
-
----
-
-## Links
-
-- [docs/ANNOUNCE.md](docs/ANNOUNCE.md) — launch spiel + hero GIF (REQ-136 / #529)
-- [docs/VISION.md](docs/VISION.md) — where we are going (kinds, WebUI, remotes)
-- [docs/GLOSSARY.md](docs/GLOSSARY.md) — kinds, Team vs Profiles vs roster
-- [USERGUIDE.md](./USERGUIDE.md) — `os-cli` tasks
-- [`os-marchy-systray/`](os-marchy-systray/README.md) — desktop tray client (bots grouped by rig/team; local or remote OS)
-- [docs/REMOTE_HARNESSES.md](docs/REMOTE_HARNESSES.md) · [docs/HERDR.md](docs/HERDR.md)
-- [docs/AUTH.md](docs/AUTH.md) · [CONFIGURATION.md](./CONFIGURATION.md) (`swarm_config.example.json`)
-- [FEATURE_STATUS.md](./FEATURE_STATUS.md) · [ROADMAP.md](./ROADMAP.md)
-- [docs/DEVELOPER.md](docs/DEVELOPER.md) — gateway, `/v1/responses`, dated history, contribution pointers
-- [docs/diagrams/](docs/diagrams/README.md) — visual docs: hero overview, system architecture & trust boundaries, deployment, request/auth/async sequence diagrams, data flow, integrations, security, operations, and the legacy abstraction maps (editable HTML/SVG sources + generated previews)
-- [CONTRIBUTING.md](./CONTRIBUTING.md)
-
-Recipes and pattern diagrams stay in [docs/EXAMPLES.md](docs/EXAMPLES.md) and [docs/ORCHESTRATION_PATTERNS.md](docs/ORCHESTRATION_PATTERNS.md) — they are not the front door.
-
----
-
-## Status
-
-**Alpha** (`pyproject.toml` / PyPI classifier). `main` is ahead of published **0.5.4**. Core CLI, OpenAI-compatible API, websocket chat, and the Grok-like WebUI are working and covered by keyless pytest plus frontend unit tests. Honest gaps (true API inference seat, live mem0, MCP server mode, desktop installer): [FEATURE_STATUS.md](./FEATURE_STATUS.md).
-
-## Acknowledgements
-
-Operating Swarm began as **Open Swarm**, an extension of OpenAI’s experimental [Swarm](https://github.com/openai/swarm), and migrated to the [openai-agents SDK](https://github.com/openai/openai-agents-python) for agents, tools, and handoffs.
-
-## License
-
-MIT — see [LICENSE](LICENSE). Attribution and vendored-asset notices live in [NOTICE](NOTICE).
-
-## Contributing
-
-Issues and PRs welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) and [docs/DEVELOPER.md](docs/DEVELOPER.md).
+Some backend tests use Unix executable scripts; use Linux/WSL for the full gate. Windows regressions separately cover config isolation, process locks, safe failures and CLI exit status. [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) define contribution requirements.

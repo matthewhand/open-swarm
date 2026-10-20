@@ -155,6 +155,9 @@ def launch(
         typer.echo(f"Error launching blueprint: {e}")
         raise typer.Exit(code=1)
 
+    if result.returncode:
+        raise typer.Exit(code=result.returncode if result.returncode > 0 else 1)
+
     if listen:
         for listener_name in [bp.strip() for bp in listen.split(",") if bp.strip()]:
             listener_exe_path = _safe_hook_exe(listener_name)

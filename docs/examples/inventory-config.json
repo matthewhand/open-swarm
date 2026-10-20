@@ -1,0 +1,13 @@
+{
+  "llm": {
+    "default": {
+      "provider": "openai",
+      "model": "${OPENAI_MODEL}",
+      "base_url": "${OPENAI_BASE_URL}",
+      "api_key": "${OPENAI_API_KEY}"
+    }
+  },
+  "settings": {"default_llm_profile": "default"},
+  "remotes": {},
+  "mcpServers": {}
+}

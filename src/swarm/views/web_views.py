@@ -153,7 +153,7 @@ def spa_asset_view(request, path: str) -> HttpResponse:
         return HttpResponse("Not Found", status=404)
     root = (frontend_path / "assets").resolve()
     target = (root / path).resolve()
-    if not str(target).startswith(str(root)) or not target.is_file():
+    if not target.is_relative_to(root) or not target.is_file():
         return HttpResponse("Not Found", status=404)
     ctype, _ = mimetypes.guess_type(str(target))
     resp = asgi_file_response(target, ctype or "application/octet-stream")

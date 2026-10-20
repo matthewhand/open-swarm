@@ -251,6 +251,7 @@ local_manifests/
 *handover*manifest*
 docs/host-notes/
 .secrets/
+.runtime/
 
 docs/screenshots/overlays/
 

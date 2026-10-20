@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and platform_python_implementation == 'PyPy' and sys_platform == 'win32'",
@@ -2898,7 +2897,7 @@ wheels = [
 
 [[package]]
 name = "os-core"
-version = "0.5.4"
+version = "0.6.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "channels" },
@@ -3096,7 +3095,6 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.23.0" },
     { name = "whitenoise", specifier = ">=6.6.0" },
 ]
-provides-extras = ["google", "vector", "tasks", "wsgi", "oauth", "deploy", "scraping", "build", "tui", "sandbox", "desktop", "memory", "dev", "test", "e2e", "docs"]
 
 [package.metadata.requires-dev]
 dev = [

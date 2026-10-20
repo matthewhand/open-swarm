@@ -241,12 +241,22 @@ class ApiKindBase(KindBase):
             from swarm.core.blueprint_base import apply_agent_model_defaults
 
             mcp_servers = kwargs.get("mcp_servers", [])
-            agent = self.create_starting_agent(mcp_servers)
+            try:
+                agent = self.create_starting_agent(mcp_servers)
+            except Exception as exc:
+                logger.warning("Agent setup failed (%s)", type(exc).__name__)
+                yield {
+                    "messages": [{"role": "assistant", "content":
+                        "Agent setup failed. Check the selected LLM profile, model, "
+                        "base URL and credential environment variable."}],
+                    "error": "agent_setup_failed",
+                    "final": True,
+                }
+                return
             # #737: support-generated blueprints build bare Agent(...)s — pin
             # the framework model so non-OpenAI providers don't see gpt-4o.
             apply_agent_model_defaults(agent)
-            # #1323: Runner.run sees only the latest user turn. The About me
-            # card was prepended as a system message and would be dropped.
+            # Preserve the operator profile in the agent's instructions too.
             from swarm.core.operator_profile import apply_operator_profile_to_agent
 
             apply_operator_profile_to_agent(agent, messages)
@@ -269,7 +279,9 @@ class ApiKindBase(KindBase):
             timeout = agent_run_timeout(getattr(self, "config", None))
 
             try:
-                result = await asyncio.wait_for(Runner.run(agent, instruction), timeout=timeout)
+                # Preserve the conversation supplied by the caller. Sending only
+                # `instruction` silently forgot prior user/assistant turns.
+                result = await asyncio.wait_for(Runner.run(agent, messages), timeout=timeout)
                 response = getattr(result, "final_output", str(result))
                 yield {"messages": [{"role": "assistant", "content": response}], "final": True}
                 return
@@ -280,16 +292,18 @@ class ApiKindBase(KindBase):
                         "role": "assistant",
                         "content": f"Agent timed out after {timeout:.0f}s. Asked: {instruction[:120]!r}",
                     }],
+                    "error": "agent_timeout",
                     "final": True,
                 }
                 return
             except Exception as exc:
-                logger.warning("Agent execution error: %s", exc)
+                logger.warning("Agent execution error (%s)", type(exc).__name__)
                 yield {
                     "messages": [{
                         "role": "assistant",
-                        "content": f"Error running agent graph: {exc}",
+                        "content": "Agent execution failed. Check the model backend and server logs.",
                     }],
+                    "error": "agent_execution_failed",
                     "final": True,
                 }
                 return

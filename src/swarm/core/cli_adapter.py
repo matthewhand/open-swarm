@@ -526,6 +526,11 @@ class CliAdapter:
         resolved = which_cli(argv[0])
         if not resolved:
             return argv
+        if os.name == "nt":
+            from swarm.utils.cli_path import npm_shim_argv
+            target = npm_shim_argv(resolved)
+            if target:
+                return [*target, *argv[1:]]
         return [resolved, *argv[1:]]
 
     def _build_invocation(
@@ -910,7 +915,14 @@ class CliAdapter:
                 cleanup_mcp_config_file(mcp_path)
 
     # Always-passed vars so a locked-down CLI can still run and resolve itself.
-    _ESSENTIAL_ENV = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM")
+    _ESSENTIAL_ENV = (
+        "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM",
+        # Required by native Windows runtimes and user-local auth/config stores.
+        # These are OS locations, not an expansion of the API-key allowlist.
+        "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "PATHEXT",
+        "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP",
+        "HOMEDRIVE", "HOMEPATH", "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA",
+    )
 
     def _build_env(
         self, prompt: str, workdir: str, extra_env: dict[str, str] | None

@@ -150,14 +150,21 @@ def _hermes_poll_run(
     http_timeout = min(R._HERMES_POLL_HTTP_TIMEOUT_S, max(float(timeout), 0.5))
     job = seed if isinstance(seed, dict) else None
     while True:
-        if job is None or not _hermes_job_text(job):
+        # Partial output is not terminal. Keep refreshing a running job even
+        # after it has text, otherwise its status stays "running" forever.
+        terminal = ("", "completed", "complete", "succeeded", "success", "done", "finished",
+                    "failed", "error", "cancelled", "canceled")
+        if job is None or not _hermes_job_text(job) or _hermes_job_status(job) not in terminal:
             for path in (
                 f"{base_url}/api/jobs/{run_id}",
                 f"{base_url}/v1/runs/{run_id}",
                 f"{base_url}/api/jobs",
                 f"{base_url}/api/sessions",
             ):
-                polled = R.http_json("GET", path, headers=headers, timeout=http_timeout)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return "", "Hermes run timed out", job
+                polled = R.http_json("GET", path, headers=headers, timeout=min(http_timeout, remaining))
                 if polled.status not in R._UP:
                     continue
                 found = _hermes_find_job(polled.body, run_id)
@@ -201,6 +208,7 @@ def _hermes_send(
     if session_id:
         body["session_id"] = session_id
     timeout_s = float(timeout or R._OPERATE_SEND_TIMEOUT_S)
+    started = time.monotonic()
     start_timeout = min(timeout_s, 10.0)
     result = R.http_json(
         "POST",
@@ -250,7 +258,7 @@ def _hermes_send(
             data=payload or result.text,
             gap="hermes_run_id_missing",
         )
-    poll_budget = max(timeout_s - start_timeout, timeout_s)
+    poll_budget = max(0.0, timeout_s - (time.monotonic() - started))
     text, err, job = _hermes_poll_run(spec, run_id=run_id, timeout=poll_budget, seed=payload)
     if text:
         data: dict[str, Any] = {"run_id": run_id, "text": text, "response": text}

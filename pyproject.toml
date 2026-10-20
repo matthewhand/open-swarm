@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "os-core"
-version = "0.5.4"
+version = "0.6.0a1"
 description = "Operating Swarm (OS): provider-agnostic agent operating layer and harness (os-core). Import path remains swarm."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -244,7 +244,7 @@ docs = [
 where = ["src"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/README.md", "/LICENSE"]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/NOTICE"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/swarm"]

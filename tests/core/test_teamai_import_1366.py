@@ -91,6 +91,18 @@ def test_bundled_pack_maps_reviewers_and_drops_sonnet():
     assert baseline == plan.baseline_markdown
 
 
+def test_teamai_baseline_is_independent_of_checkout_line_endings(tmp_path):
+    root = _repo(tmp_path)
+    rule = root / "rules" / "common" / "coding-style.md"
+    text = b"# Coding Style\n\nPrefer small functions.\n"
+    rule.write_bytes(text)
+    unix = translate_teamai_repo(root).baseline_markdown
+    rule.write_bytes(text.replace(b"\n", b"\r\n"))
+    windows = translate_teamai_repo(root).baseline_markdown
+    assert windows == unix
+    assert "\r" not in windows
+
+
 def test_vendored_skills_are_in_the_catalog():
     found = discover_skills(skills_root())
     for name in (

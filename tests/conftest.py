@@ -43,6 +43,15 @@ def isolate_xdg_config(tmp_path, monkeypatch):
     xdg = tmp_path / "xdg-config-home"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
     monkeypatch.setenv("HOME", str(xdg))
+    # Explicit overlays outrank HOME/XDG, and native Windows uses APPDATA.
+    # Without clearing/pinning these, one test can mutate the caller's store
+    # and leak rosters into later tests despite the apparent XDG isolation.
+    monkeypatch.delenv("SWARM_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("SWARM_CONFIG_PATH", raising=False)
+    monkeypatch.setenv("SWARM_USER_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("APPDATA", str(xdg / "appdata"))
+    monkeypatch.setenv("LOCALAPPDATA", str(xdg / "localappdata"))
+    monkeypatch.setenv("USERPROFILE", str(xdg))
 
 
 @pytest.fixture(autouse=True)
