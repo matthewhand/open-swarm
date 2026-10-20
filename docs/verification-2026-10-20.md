@@ -126,3 +126,51 @@ The focused regression suite includes failure, timeout, path-containment, secret
 Remaining limits include failed/unavailable harnesses above, mixed Windows/WSL discovery cost, unverified deploy installers and optional backends, and incomplete proof of arbitrary cross-kind resume/context transfer. The GitHub self-hosted sync runner was offline during review; merging is not proof of a running deployment update.
 
 Verification-created remote history was reconciled separately. The timed-out Hermes job later reported `completed`. The services' exposed OpenAPI descriptions offered no applicable session/run DELETE operation, so their test history was retained rather than attempting undocumented destructive requests. Existing operator threads were not reused.
+
+## Repeatable optional integration suite — 21 October update
+
+`tests/live` now exercises the real registered HTTP adapters, rather than mock
+servers. Only explicit `SWARM_LIVE_<INSTANCE>_URL` variables enable calls;
+credentials, cookies, targets and optional second instances have separate
+environment settings. See [the suite instructions](../tests/live/README.md).
+Configured failures fail the run, while missing URLs skip. Health, discovery
+and inference are separate tests. A randomized arithmetic question must receive
+the correct model answer; a job receipt or echoed request is insufficient.
+No tools, desktop operations or arbitrary workflows are certified by this check.
+
+The development host's private configuration was mapped to process environment
+variables in memory. No host URLs or credentials were committed. A fresh OMB
+test bot was provisioned, avoiding its existing Chief of Staff conversation.
+AnythingLLM and Rakazo had no dedicated test target; their inference checks
+failed the prerequisite rather than choosing an operator conversation. Herdr's
+SSH/CLI transport is outside this HTTP suite and remains separately unverified.
+
+| Instance | Health | Discovery | Completed inference |
+|---|---|---|---|
+| TrueForge primary | Pass | Pass | Pass |
+| Hermes primary | Pass | Pass | Pass |
+| OpenMousBot | Pass | Pass | Fail with dedicated test bot |
+| AnythingLLM | Pass | Pass | Not attempted: dedicated target missing |
+| TrueForge second | Pass | Pass | Fail |
+| Open WebUI primary | Pass | Fail | Fail |
+| Rakazo | Fail | Fail | Not attempted: dedicated target missing |
+| Hermes secondary | Fail | Fail | Fail |
+| Nested Swarm | Fail | Fail | Fail |
+| Open WebUI development | Fail | Fail | Fail |
+
+Result: **2/10 configured instances working** under the three-check definition;
+**13 passed, 17 failed, 18 skipped**, 210.82 seconds. Six entries had no explicit
+URL: Flowise, n8n, Octop, OpenMuse, Herdr and the unused canonical nested-Swarm
+entry (the configured named nested instance was exercised). These are instances,
+not ten distinct implementation families. The primary Hermes result supersedes
+the earlier inference-not-established observation; intermittent timing remains
+possible. The failing run is retained as evidence, not converted into skips.
+
+Offline regression coverage checks opt-in behavior, named-instance credentials,
+URL/timeout validation, job-receipt rejection, successful answers, authentication
+errors and secret-bearing exceptions: **15 passed**. The updated README/package
+contract set adds **70 passed**. With no live variables, all **36 live checks
+skip** without constructing a network adapter. The old README assertions that
+required unverified marketing claims were updated to the user's explicit
+installation/example/compatibility requirements; technical behavior checks and
+historical asset integrity checks remain in place. New suite files pass Ruff.

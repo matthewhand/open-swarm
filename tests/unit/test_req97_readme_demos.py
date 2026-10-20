@@ -56,48 +56,31 @@ def test_four_poster_stems_exist():
         assert 'role="img"' in text
 
 
-def test_readme_embeds_four_demo_slots_in_order():
+def test_readme_prioritizes_reproducible_model_tool_workflow():
     text = _readme()
-    assert "## Demos" in text
-    # Pitch, then demos, then how to run.
-    pitch = text.find("**Operating Swarm (OS)** is a provider-agnostic")
-    demos = text.find("## Demos")
-    how_to = text.find("## WebUI (start here)")
-    assert 0 <= pitch < demos < how_to
+    assert text.index("## Install current source") < text.index("## A practical model-and-tool workflow")
+    assert "os-cli launch inventory_demo" in text
+    assert "stock_report" in text
+    assert "9 notebooks (36) and 6 folders (18), total 54" in text
+    evidence = repo_root() / "docs" / "verification-2026-10-20.md"
+    assert evidence.is_file()
+    assert "stock_report Done" in evidence.read_text(encoding="utf-8")
 
-    for stem in GIF_STEMS:
-        rel = f"docs/demo/{stem}.gif"
-        assert rel in text, f"README must embed {rel}"
-        target = (README.parent / rel).resolve()
-        assert target.is_file(), f"README embed does not resolve: {rel}"
 
-    assert "CLI Agent" in text or "CLI agents" in text
-    assert "API Agent" in text or "API agents" in text
-    assert "Remote Agent" in text or "Remote agents" in text
+def test_readme_labels_integrations_and_distinguishes_listing_from_inference():
+    text = _readme().split("## Integration limits", 1)[1].split("## Package", 1)[0]
     assert "OpenMousBot" in text
-    assert "Combined Team" in text or "Combined team" in text
-    assert re.search(r"CLI\s*\+\s*API", text, re.I)
-    assert "docs/SHOWOFF_DEMO_AGENTS.md" in text
+    assert not re.search(r"\bOMB\b", text)
+    assert "Health, listing and completed inference are different verification levels" in text
+    assert "No configured instance exercised" in text
 
 
-def test_readme_demo_copy_says_openmousbot_not_omb():
+def test_historical_gif_is_retained_without_a_live_verification_claim():
     text = _readme()
-    parts = text.split("## Demos", 1)
-    assert len(parts) >= 2, "README must contain '## Demos' section"
-    after_demos = parts[1].split("## Short history", 1)
-    assert len(after_demos) >= 2, "README must contain '## Short history' section"
-    demos = after_demos[0]
-    assert "OpenMousBot" in demos
-    # User-facing demo captions must not say OMB (internal ids stay off README).
-    assert not re.search(r"\bOMB\b", demos), "README Demos must label OpenMousBot, not OMB"
-
-
-def test_historical_gif_demoted_not_removed():
-    text = _readme()
-    assert "docs/demo/cli-and-api.gif" in text
-    assert "historical" in text.lower()
+    assert "Historical storyboards and GIFs" in text
+    assert "not current integration verification" in text
+    assert "docs/ANNOUNCE.md" in text
     assert (repo_root() / "docs" / "demo" / "cli-and-api.gif").is_file()
-    # Old "later media pass (#456)" deferral is gone — slots are wired.
     assert "later media pass" not in text
 
 

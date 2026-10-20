@@ -4,7 +4,7 @@ Operating Swarm runs Python agent workflows and connects model APIs, local agent
 
 **Experimental alpha.** Source is ahead of the published package. A model-and-tool workflow has been exercised through the CLI, API and WebUI. This does not establish that every bundled recipe or remote integration works. See the dated [verification report](docs/verification-2026-10-20.md).
 
-The project began as a derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm). It now uses the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) for agents, tools and handoffs. This is an independent project, not an OpenAI product. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Operating Swarm began as **Open Swarm**, a derivative of OpenAI's experimental [Swarm](https://github.com/openai/swarm). It now uses the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) for agents, tools and handoffs. This is an independent project, not an OpenAI product. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Architecture
 
@@ -100,7 +100,7 @@ Adapters require a separately installed, reachable and authenticated service. `o
 | Integration | Review finding |
 |---|---|
 | AnythingLLM, OpenMousBot, TrueForge | Configured instances answered health/list calls. Send results are in the report. |
-| Hermes | One instance answered health/list; a submitted turn timed out. Completed inference not established. |
+| Hermes | Primary passed health, discovery and a real model turn in the optional live suite on 21 October; secondary failed. An earlier primary turn timed out. |
 | Rakazo, Herdr, nested Swarm | Configured targets unavailable; no working inference claim. |
 | Open WebUI | Service alive; listing rejected credentials (401). Another instance was down. |
 | Flowise, n8n, Tencent Octop, OpenMuse | No configured instance exercised. Tests/catalog entries are not live proof. |
@@ -131,3 +131,9 @@ npm --prefix webui/frontend run build
 ```
 
 Some backend tests use Unix executable scripts; use Linux/WSL for the full gate. Windows regressions separately cover config isolation, process locks, safe failures and CLI exit status. [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) define contribution requirements.
+
+Optional real-service checks live in [tests/live](tests/live/README.md). Set private `SWARM_LIVE_<INSTANCE>_URL` and credential variables on your development host, then run `uv run pytest tests/live -m live_remote --no-cov -q --tb=no --show-capture=no`. Unconfigured instances skip; configured failures fail. The summary distinguishes health/discovery from a completed model answer and counts working integrations. OMB, Rakazo and AnythingLLM need dedicated test targets.
+
+Further reference: [minimal workflow configuration](docs/examples/inventory-config.json), [full example configuration](swarm_config.example.json), [configuration guide](CONFIGURATION.md), [developer map](docs/DEVELOPER.md), and [handoff graph examples](docs/examples/openai-agents-handoff-graphs/README.md).
+
+Historical storyboards and GIFs remain in [ANNOUNCE](docs/ANNOUNCE.md) and [the showoff guide](docs/SHOWOFF_DEMO_AGENTS.md). They are historical media, not current integration verification.

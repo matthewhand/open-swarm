@@ -17,51 +17,39 @@ def _developer() -> str:
     return (repo_root() / "docs" / "DEVELOPER.md").read_text(encoding="utf-8")
 
 
-def test_readme_is_webui_first_and_names_four_kinds():
+def test_readme_explains_shared_surfaces_and_real_kind_bases():
     text = _readme()
-    assert "## WebUI (start here)" in text
-    assert "## Kinds (locked)" in text
-    assert "**CLI**" in text
-    assert "**API**" in text
-    assert "**Blueprint**" in text
-    assert "**Remote**" in text
-    assert "Team" in text
-    assert "subtype" in text.lower()
-    assert "not a fifth kind" in text.lower()
-    assert "Hermes" in text
-    assert "OpenMousBot" in text
-    assert "Rakazo" in text
-    assert "Herdr" in text
+    assert "## Install current source" in text
+    assert "## API and WebUI" in text
+    assert "ApiKindBase" in text and "Django" in text
+    assert "CLI adapters" in text and "remote adapters" in text
+    assert "Team rosters" in text
+    assert "does not inject" in text
+    for name in ("Hermes", "OpenMousBot", "Rakazo", "Herdr"):
+        assert name in text
     assert "docs/DEVELOPER.md" in text
-    assert "docs/VISION.md" in text
-    assert "first-class" in text.lower()
 
 
-def test_readme_version_honesty_names_published_cut():
+def test_readme_separates_unreleased_alpha_from_published_cut():
     text = _readme()
-    assert "0.5.4" in text
-    assert "main" in text
-    assert "Orchestrating AI Agent Swarms with Django" in text
-    assert "Alpha" in text
-    assert "pip install open-swarm" in text
-    assert "## Short history" in text
+    assert "open-swarm==0.5.4" in text
+    assert "os-core 0.6.0a1" in text
+    assert "Unreleased alpha" in text
+    assert "Not available when checked" in text
+    assert "Merging a PR does not publish to PyPI" in text
+    assert "Experimental alpha" in text
 
 
-def test_readme_is_not_a_developer_novel():
+def test_readme_has_a_brief_architecture_and_practical_front_door():
     text = _readme()
-    lowered = text.lower()
-    assert "landing.png" not in text
+    architecture = text.split("## Architecture", 1)[1].split("## Install", 1)[0]
+    assert 20 < len(architecture.split()) < 220
     assert "```mermaid" not in text
-    assert "ApiKindBase" not in text
-    assert "blueprint-builder" not in lowered and "blueprint builder" not in lowered
-    assert "## Architecture" not in text
     assert "## Bundled Blueprints" not in text
     assert "## Environment Variables" not in text
-    assert "1100+" not in text
-    assert "Status: beta" not in text
-    # Historical GitHub Release title may mention django_chat; nothing else.
-    if "django_chat" in text:
-        assert "django_chat resolves its LLM profile" in text
+    assert "## A practical model-and-tool workflow" in text
+    assert "inventory_demo" in text
+    assert text.count("django_chat") == 1
 
 
 def test_developer_doc_holds_moved_internals():

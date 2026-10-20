@@ -85,34 +85,21 @@ def _screenshots_registry() -> str:
     return (repo_root() / "docs" / "SCREENSHOTS.md").read_text(encoding="utf-8")
 
 
-def test_readme_section_order_pitch_demos_webui():
+def test_readme_orders_setup_workflow_surfaces_and_compatibility():
     text = _readme()
-    pitch_pos = text.find("# Operating Swarm (OS)")
-    demos_pos = text.find("## Demos")
-    webui_pos = text.find("## WebUI (start here)")
-    kinds_pos = text.find("## Kinds (locked)")
-
-    assert pitch_pos != -1, "README must have title pitch"
-    assert demos_pos != -1, "README must have ## Demos section"
-    assert webui_pos != -1, "README must have ## WebUI (start here) section"
-    assert kinds_pos != -1, "README must have ## Kinds (locked) section"
-
-    assert pitch_pos < demos_pos < webui_pos < kinds_pos, (
-        "README order must be: short pitch -> four demos -> how to run -> kinds"
-    )
+    headings = ["# Operating Swarm", "## Install current source", "## A practical model-and-tool workflow",
+                "## API and WebUI", "## Integration limits", "## Package and release status"]
+    positions = [text.index(heading) for heading in headings]
+    assert positions == sorted(positions)
 
 
-def test_readme_four_demo_kinds_and_openmousbot_label():
+def test_readme_bounds_external_integration_claims_and_links_current_evidence():
     text = _readme()
-    demos_section = text.split("## Demos", 1)[-1].split("## WebUI (start here)", 1)[0]
-
-    assert "CLI Agent" in demos_section or "**CLI**" in demos_section
-    assert "API Agent" in demos_section or "**API**" in demos_section
-    assert "Remote Agent" in demos_section or "**Remote**" in demos_section
-    assert "Combined Team" in demos_section or "team" in demos_section.lower()
-
-    assert "OpenMousBot" in demos_section
-    assert " OMB" not in demos_section and "(OMB)" not in demos_section
+    assert "OpenMousBot" in text and "Hermes" in text and "TrueForge" in text
+    assert "No configured instance exercised" in text
+    assert "Completed inference not established" in text
+    assert "docs/verification-2026-10-20.md" in text
+    assert "fictional stock" in text
 
 
 def test_demo_gif_assets_exist_and_are_valid():
@@ -139,14 +126,16 @@ def test_demo_gif_assets_exist_and_are_valid():
             assert asset_path.exists(), f"Missing {asset_path}"
 
 
-def test_readme_demo_links_resolve():
+def test_readme_relative_reference_links_and_current_evidence_resolve():
+    import re
     text = _readme()
-    demos_section = text.split("## Demos", 1)[-1].split("## WebUI (start here)", 1)[0]
-
-    for filename in ["cli-agent.gif", "api-agent.gif", "remote-agent.gif", "combined-team.gif"]:
-        assert filename in demos_section
-        rel_path = f"docs/demo/{filename}"
-        assert (repo_root() / rel_path).exists(), f"Link target {rel_path} does not exist"
+    links = re.findall(r"!?\[[^\]]*\]\(([^)]+)\)", text)
+    relative = [link for link in links if not link.startswith(("https://", "http://", "#"))]
+    assert "docs/verification-2026-10-20.md" in relative
+    assert "docs/examples/inventory-config.json" in relative
+    for link in relative:
+        assert (repo_root() / link).is_file(), link
+    assert (repo_root() / "docs/verification/2026-10-20/inventory-webui.png").is_file()
 
 
 def test_secret_detector_flags_credential_shapes():
