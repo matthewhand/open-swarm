@@ -174,7 +174,7 @@ export const ChatHeader = function ChatHeader(props: ChatHeaderProps) {
     const displayName = optimisticName ?? selectedAgentName
     const profileTitle = storefront.title.trim()
 
-    /* #1676: the identity is a CENTERED floating pill — the primary
+    /* The identity is a navbar pill — the primary
        "who am I talking to / edit this agent" affordance. Its whole surface
        opens the one existing editor (`AgentConfigSidepane`, the same pane the
        avatar opened since #1258); no second editor is introduced here. A team
@@ -294,10 +294,8 @@ export const ChatHeader = function ChatHeader(props: ChatHeaderProps) {
   return (
     <>
       <header className={`os-chat-header gap-1.5 sm:gap-3 ${mobileHeaderHidden ? 'os-chat-header--hidden' : ''}`} data-mobile-hidden={mobileHeaderHidden ? 'true' : 'false'}>
-        {/* #1676: the rail toggle is the header's left LEAD slot. It used to
-            share a wrapper with the identity card; now that the identity is a
-            floating pill under the band) the lead stays a slim left slot so
-            the toggle never drifts toward the middle. */}
+        {/* The rail toggle keeps its own left slot; the badge and navbar
+            controls occupy separate tracks so they cannot overlap. */}
         <div className="os-chat-header__identity flex min-w-0 flex-1 items-center gap-2">
           {narrow && !isMobileViewport ? (
             // #1202 follow-up: the mobile navbar has no room for the rail
@@ -313,8 +311,8 @@ export const ChatHeader = function ChatHeader(props: ChatHeaderProps) {
             </button>
           ) : null}
         </div>
-        {/* #1676: the foreground agent's avatar + name ride a centered floating
-            pill. Clicking anywhere on the pill surface opens (or focuses) the
+        {/* The foreground agent's avatar + name share the navbar centreline.
+            Clicking anywhere on the pill surface opens (or focuses) the
             one right-side edit-agent pane for this agent. Inner controls
             (rename, folder, pencil, team editor) stopPropagation, so the pill
             handler is the fallback, never a second opinion.

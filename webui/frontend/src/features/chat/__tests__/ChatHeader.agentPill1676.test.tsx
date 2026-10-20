@@ -4,10 +4,9 @@
  *
  * Pinned contract:
  *
- * 1. Geometry. The header stays the #560 flex band; the pill floats under it with
- *    equal `1fr` side tracks, and the pill is a child of the header in the
- *    middle track. That is what makes it centered rather than left-flush, and
- *    it is asserted against `index.css` because jsdom computes no layout.
+ * 1. Geometry (#953). The badge shares the navbar centreline, centred in the
+ *    available middle track rather than below the band. Separate lead/control
+ *    tracks prevent overlap. Browser tests measure the actual boxes.
  * 2. Click to edit. A click on the pill surface opens the ONE existing editor
  *    (`AgentConfigSidepane`, the same pane the avatar has opened since #1258) —
  *    no second editor is introduced.
@@ -103,24 +102,23 @@ function stubProfileFetch() {
 beforeEach(() => stubProfileFetch())
 afterEach(() => vi.unstubAllGlobals())
 
-describe('#1676 — the header centers the agent as a floating pill', () => {
-  it('keeps the header as a flex band and floats the pill out of flow', () => {
+describe('#1676 / #953 — the badge fits the navbar beside its controls', () => {
+  it('keeps the fixed chrome height and reserves separate tracks', () => {
     const header = cssBlock('.os-chat-header')
-    // #560 pin: fixed chrome height. #1676 must not reintroduce a taller grid band.
+    // #560 pin: the aligned badge must not grow the chrome band.
     expect(header).toMatch(/height:\s*var\(--os-top-chrome-h\)/)
-    expect(header).toMatch(/display:\s*flex/)
-    expect(cssBlock('.os-agent-pill')).not.toMatch(/grid-column:\s*2/)
-    expect(cssBlock('.os-agent-pill')).toMatch(/position:\s*absolute/)
-    expect(cssBlock('.os-agent-pill')).toMatch(/left:\s*50%/)
-    expect(cssBlock('.os-agent-pill')).toMatch(/top:\s*calc\(100% \+ 0\.5rem\)/)
-    expect(cssBlock('.os-agent-pill')).toMatch(/transform:\s*translateX\(-50%\)/)
+    expect(header).toMatch(/display:\s*grid/)
+    expect(header).toMatch(/grid-template-columns:\s*auto minmax\(0, 1fr\) auto/)
+    expect(cssBlock('.os-agent-pill')).toMatch(/position:\s*relative/)
+    expect(cssBlock('.os-agent-pill')).toMatch(/justify-self:\s*center/)
+    expect(cssBlock('.os-agent-pill')).not.toMatch(/top:|left:|transform:/)
   })
 
-  it('anchors the pill under the header, not inside the left-flush identity', () => {
+  it('keeps the badge as the middle header child rather than inside the lead', () => {
     const { container } = renderHeader()
     const header = container.querySelector('header.os-chat-header')!
     const pill = screen.getByTestId('selected-agent-header')
-    // Absolute child of the header: floats under the band, not nested under lead.
+    // Direct header child: its own track, not nested under the rail toggle.
     expect(pill.parentElement).toBe(header)
     expect(pill).toHaveClass('os-agent-pill')
     expect(pill).toHaveAttribute('data-pill', 'agent')
