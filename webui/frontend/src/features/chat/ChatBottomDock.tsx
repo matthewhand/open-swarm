@@ -11,6 +11,7 @@ import { useCallback, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { enhancePrompt } from '../../lib/api'
 import { PerAgentComposerInput } from './PerAgentComposerInput'
+import { ApiComposerUsage } from '../../components/ApiComposerUsage'
 // #1347: scoped overflow fix — the dock is opaque and full-bleed to the
 // transcript edges so scrolled rows never bleed past the composer.
 import './chatTranscriptOverflow.css'
@@ -92,7 +93,7 @@ export const ChatBottomDock = function ChatBottomDock(props: ChatBottomDockProps
               </span>
             </div>
           ) : null}
-          {showContextUsage && contextUsage ? (
+          {!isApiAgent && showContextUsage && contextUsage ? (
             <div
               className="flex justify-end px-3 pt-1.5"
               data-testid="context-usage-badge-slot"
@@ -104,7 +105,8 @@ export const ChatBottomDock = function ChatBottomDock(props: ChatBottomDockProps
             </div>
           ) : null}
           <form onSubmit={handleSend} className="os-composer-wrap">
-            <div className="relative" ref={composerWrapRef}>
+            <div className={`relative${isApiAgent ? ' os-api-composer' : ''}`} ref={composerWrapRef} data-testid={isApiAgent ? 'api-composer' : undefined}>
+              {isApiAgent ? <ApiComposerUsage key={activeChatAgentId} usage={contextUsage} onOpenDetail={() => setTokenDiagOpen(true)} /> : null}
               <ComposerSlashPopup
                 open={isSlashOpen}
                 query={slashQuery}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/DaisyUI'
@@ -88,7 +88,7 @@ describe('ChatPage context-window usage (#215)', () => {
       })
 
       const badge = screen.getByTestId('context-usage-badge')
-      expect(badge).toHaveTextContent('in ~12.3k tok')
+      expect(badge).toHaveTextContent('12.3k tokens')
       expect(screen.getByTestId('chat-bottom-dock')).toContainElement(badge)
     },
   )
@@ -105,7 +105,10 @@ describe('ChatPage context-window usage (#215)', () => {
         }),
       )
     })
-    expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('in ~16k / 128k tok')
+    const badge = screen.getByTestId('context-usage-badge')
+    expect(badge).toHaveTextContent('16k tokens')
+    fireEvent.click(badge)
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '128000')
   })
 
   it('does not render the composer badge for CLI seats', async () => {

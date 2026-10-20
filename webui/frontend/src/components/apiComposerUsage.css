@@ -1,0 +1,72 @@
+/* API agents share one surface for usage, draft and primary action. */
+.os-api-composer {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--color-base-200) 80%, var(--color-base-100));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-base-content) 4%, transparent);
+}
+.os-api-composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-base-content) 12%);
+}
+.os-api-composer > .os-composer-row { padding: 0.25rem 0.4rem; }
+.os-api-composer .os-composer {
+  background: transparent;
+  border: 0;
+}
+.os-api-composer .os-composer__send { flex-shrink: 0; }
+.os-api-usage { min-width: 0; }
+.os-api-usage__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-base-content) 8%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--color-base-content) 65%, transparent);
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+.os-api-usage__toggle > svg { flex-shrink: 0; }
+.os-api-usage__toggle > strong {
+  min-width: 0;
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.os-api-usage__toggle:hover { color: var(--color-base-content); }
+.os-api-usage__toggle:focus-visible,
+.os-api-usage__footnote > button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -3px;
+  border-radius: 1rem;
+}
+.os-api-usage__details { padding: 0.85rem; max-height: min(45vh, 22rem); overflow-y: auto; }
+.os-api-usage__heading { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+.os-api-usage__source { font-size: 0.65rem; border-radius: 1rem; padding: 0.15rem 0.45rem; background: var(--color-base-300); opacity: 0.8; }
+.os-api-usage__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-top: 0.7rem; }
+.os-api-usage__stats > div { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; padding: 0.65rem; border-radius: 0.8rem; background: var(--color-base-100); }
+.os-api-usage__stats span { font-size: 0.7rem; opacity: 0.65; }
+.os-api-usage__stats strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.os-api-usage__stats small { font-size: 0.7rem; font-weight: normal; opacity: 0.7; }
+.os-api-usage__capacity { margin-top: 0.75rem; }
+.os-api-usage__capacity > div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem; font-size: 0.65rem; opacity: 0.75; }
+.os-api-usage__track { height: 0.4rem; border-radius: 1rem; background: var(--color-base-300); overflow: hidden; margin-top: 0.35rem; }
+.os-api-usage__track > span { display: block; height: 100%; border-radius: inherit; background: var(--color-success); }
+.os-api-usage[data-level="medium"] .os-api-usage__track > span { background: var(--color-warning); }
+.os-api-usage[data-level="high"] .os-api-usage__track > span { background: var(--color-error); }
+.os-api-usage__breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 1rem; margin: 0.7rem 0; font-size: 0.7rem; }
+.os-api-usage__breakdown > div { display: flex; justify-content: space-between; gap: 0.25rem; }
+.os-api-usage__breakdown dt { opacity: 0.65; }
+.os-api-usage__breakdown dd { margin: 0; font-variant-numeric: tabular-nums; }
+.os-api-usage__footnote { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.os-api-usage__note, .os-api-usage__footnote p { font-size: 0.65rem; line-height: 1.5; opacity: 0.65; margin: 0.65rem 0 0; }
+.os-api-usage__footnote p { flex: 1 1 10rem; margin: 0; }
+.os-api-usage__footnote > button { border: 0; background: transparent; padding: 0.2rem 0; font-size: 0.7rem; color: var(--color-primary); cursor: pointer; }

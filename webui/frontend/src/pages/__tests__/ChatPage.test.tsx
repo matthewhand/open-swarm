@@ -3321,14 +3321,14 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
       )
     })
     const badge = screen.getByTestId('context-usage-badge')
-    expect(badge).toHaveTextContent('in ~12k / 128k tok')
+    expect(badge).toHaveTextContent('12k tokens')
 
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
     })
     await screen.findByTestId('chat-summary')
-    expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('in ~600 / 128k tok')
+    expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('600 tokens')
   })
 
   it('hover Compress to here posts a span ending at that message', async () => {
@@ -3434,7 +3434,7 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
     expect(badge).toBeInTheDocument()
 
     fireEvent.click(badge)
-
+    fireEvent.click(screen.getByRole('button', { name: 'More details' }))
     expect(await screen.findByTestId('token-diagnostics-modal')).toBeInTheDocument()
     expect(screen.getByText('Session Token Diagnostics')).toBeInTheDocument()
   })
