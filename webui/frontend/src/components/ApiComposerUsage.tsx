@@ -13,7 +13,7 @@ export function ApiComposerUsage({ usage, onOpenDetail }: {
   const used = Math.max(0, usage?.tokens ?? 0)
   const limit = usage?.window && usage.window > 0 ? usage.window : null
   const percent = limit ? Math.round(used / limit * 1000) / 10 : null
-  const level = percent != null && percent >= 95 ? 'high' : percent != null && percent >= 80 ? 'medium' : 'low'
+  const level = percent == null ? 'none' : percent >= 95 ? 'high' : percent >= 80 ? 'medium' : 'low'
   const number = (value: number) => formatUsageTokens(value)
   const Chevron = open ? ChevronDown : ChevronUp
 

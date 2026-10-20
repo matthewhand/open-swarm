@@ -33,7 +33,9 @@ for (const width of [320, 375, 401, 768, 1280]) {
     await expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '128000')
     await expect.poll(() => frame.evaluate(element => {
       const box = element.getBoundingClientRect()
-      const send = element.querySelector('.os-composer__send')!.getBoundingClientRect()
+      const sendButton = element.querySelector('.os-composer__send')
+      if (!sendButton) return false
+      const send = sendButton.getBoundingClientRect()
       return box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight &&
         send.left >= box.left && send.right <= box.right && send.bottom <= box.bottom
     })).toBe(true)

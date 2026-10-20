@@ -35,6 +35,7 @@ describe('API composer usage disclosure', () => {
     expand()
     expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.getByText('Context capacity is not reported by this model.')).toBeVisible()
+    expect(screen.getByRole('region').parentElement).toHaveAttribute('data-level', 'none')
   })
 
   it('handles unavailable usage without presenting a zero estimate', () => {
