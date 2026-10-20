@@ -5172,6 +5172,13 @@ pre:focus-within .os-code-copy {
   }
 }
 
+/* Closed reaction menus must not intercept a neighbouring message. Keep
+   focus-open and explicitly opened proof menus interactive. */
+.os-message-reactions:not(:focus-within):not(.dropdown-open) > .dropdown-content {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /*
  * #1241 — actions & reactions in always-visible mode (touch tiers or
  * Settings → Aesthetics) stay dimmed until the operator engages them. Full
