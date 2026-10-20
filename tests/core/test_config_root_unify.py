@@ -327,6 +327,7 @@ def test_startup_migration_is_off_under_pytest(monkeypatch):
 
 
 def test_startup_migration_opt_in_and_force_off(monkeypatch):
+    monkeypatch.delenv("SWARM_CONFIG_DIR", raising=False)
     monkeypatch.setenv("SWARM_ALLOW_CONFIG_MIGRATE_IN_TESTS", "1")
     monkeypatch.delenv("SWARM_SKIP_CONFIG_MIGRATE", raising=False)
     assert startup_should_migrate_config() is True

@@ -9,18 +9,19 @@ half-finished, and where help is most useful.
 
 ## Development setup
 
-Requirements: Python >= 3.10 and [uv](https://docs.astral.sh/uv/).
+Requirements: Python >= 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/matthewhand/operating-swarm.git
 cd operating-swarm
-uv sync --all-extras
+uv sync --locked --extra dev --extra test
 ```
 
-`uv sync --all-extras` creates `.venv/` and installs the project plus the
-`dev`, `test`, `memory`, and `docs` extras from the committed `uv.lock`.
+This creates `.venv/` and installs the project plus the development and test
+dependencies from `uv.lock`. Add optional extras only for the integrations
+you intend to exercise; see `pyproject.toml`.
 
-The optional React frontend lives in `webui/frontend/` and needs Node >= 22
+The optional React frontend lives in `webui/frontend/` and needs Node >= 24
 (`dist/` is gitignored):
 
 ```bash

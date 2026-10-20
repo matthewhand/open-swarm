@@ -163,7 +163,8 @@ def _read_text(path: Path, root: Path) -> str | None:
     if len(data) > MAX_SKILL_FILE_BYTES or b"\x00" in data:
         return None
     try:
-        return data.decode("utf-8")
+        # Generate the same portable baseline from Windows and Unix checkouts.
+        return data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
     except UnicodeDecodeError:
         return None
 

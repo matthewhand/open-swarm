@@ -271,7 +271,9 @@ async def test_api_kind_run_keeps_operator_card_on_instructions(monkeypatch):
     assert seen["instructions"].startswith(OPERATOR_PROFILE_PREFIX)
     assert "Ada" in seen["instructions"]
     assert "Base instructions." in seen["instructions"]
-    assert seen["instruction"] == "hello"
+    # The operator card still reaches instructions, and the full conversation
+    # now reaches Runner instead of silently dropping earlier turns.
+    assert seen["instruction"] == messages
 
 
 @pytest.mark.asyncio

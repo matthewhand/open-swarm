@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   build:
-    if: github.repository == 'matthewhand/open-swarm'
+    if: github.repository == 'matthewhand/operating-swarm'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,6 +36,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Verify release tag matches package version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os, tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          assert os.environ["RELEASE_TAG"] == f"v{version}", "Release tag must match pyproject.toml"
+          PY
 
       - name: Install build tools
         run: python -m pip install --upgrade pip build twine
@@ -53,12 +65,12 @@ jobs:
           path: dist/
 
   publish-testpypi:
-    if: github.repository == 'matthewhand/open-swarm' && github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    if: github.repository == 'matthewhand/operating-swarm' && github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/open-swarm/
+      url: https://test.pypi.org/project/os-core/
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -74,12 +86,12 @@ jobs:
           attestations: false
 
   publish-pypi:
-    if: github.repository == 'matthewhand/open-swarm' && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi'))
+    if: github.repository == 'matthewhand/operating-swarm' && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi'))
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/open-swarm/
+      url: https://pypi.org/project/os-core/
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4

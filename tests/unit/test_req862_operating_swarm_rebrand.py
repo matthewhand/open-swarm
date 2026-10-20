@@ -103,18 +103,16 @@ def test_req862_cli_and_api_banners_name_operating_swarm():
     assert "Open Swarm OpenAI-compatible API server" not in api
 
 
-def test_req862_readme_hero_title_tagline_and_diagram():
+def test_req862_readme_identity_attribution_and_actual_entrypoints():
     text = _text(README)
-    assert text.startswith("# Operating Swarm (OS)\n")
-    assert f"> {TAGLINE}" in text.split("## ", 1)[0]
-    assert "assets/brand/operating-swarm-hero-diagram.svg" in text.split("## ", 1)[0]
-    assert HERO_SVG.is_file()
-    # Not "only a UI / wrapper / …"
-    hero = text.split("## ", 1)[0]
-    assert "not only a ui, wrapper, gateway, adapter, or supervisor" in hero.lower()
-    for name in LOCKED_COMPONENTS:
-        assert name in text, f"README must name architecture component {name}"
-    assert "operating-swarm" in text
+    assert text.startswith("# Operating Swarm\n")
+    assert HERO_SVG.is_file()  # Historical brand asset remains available.
+    assert "https://github.com/openai/swarm" in text
+    assert "independent project, not an OpenAI product" in text
+    for name in ("os-core", "os-api", "os-cli"):
+        assert name in text
+    assert "There is no `os-webui` executable" in text
+    assert "Experimental alpha" in text
     assert "Swarm Bot" not in text
 
 
@@ -164,10 +162,10 @@ def test_req862_operator_chrome_no_longer_says_open_swarm():
     assert leftover == [], f"Django templates still say Open Swarm: {leftover}"
 
     readme = _text(README)
-    assert "(and nested Operating Swarm / OS instance)" in readme
+    assert "nested Swarm" in readme
     # Historical OpenAI Swarm lineage — not product chrome.
     assert "Operating Swarm began as **Open Swarm**" in readme
-    assert "extension of OpenAI" in readme
+    assert "derivative of OpenAI's experimental [Swarm]" in readme
 
     sheet = _text(SETTINGS_SHEET)
     assert ">Operating Swarm</span>" in sheet

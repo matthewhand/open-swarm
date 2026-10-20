@@ -23,23 +23,27 @@ def _project() -> dict:
     return _data()["project"]
 
 
-def _version_tuple(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split(".")[:3])
-
-
-def test_stub_pyproject_name_version_and_inactive_classifier():
+def test_stub_pyproject_prerelease_version_and_inactive_classifier():
+    from packaging.version import Version
     project = _project()
+    core = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert project["name"] == "open-swarm"
-    assert _version_tuple(str(project["version"])) > (0, 5, 4)
+    assert Version(project["version"]) == Version(core["version"])
+    assert Version(project["version"]) > Version("0.5.4")
+    assert Version(project["version"]).is_prerelease
     assert "Development Status :: 7 - Inactive" in project["classifiers"]
 
 
-def test_stub_pyproject_depends_on_os_core():
-    project = _project()
-    deps = list(project.get("dependencies") or [])
-    names = [str(dep).split()[0].split("[")[0] for dep in deps]
-    assert "os-core" in names
-    assert "os-core" in " ".join(str(d) for d in deps)
+def test_stub_depends_on_matching_core_prerelease_with_a_bounded_series():
+    from packaging.requirements import Requirement
+    core = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    dependencies = [Requirement(dep) for dep in _project()["dependencies"]]
+    assert len(dependencies) == 1
+    requirement = dependencies[0]
+    assert requirement.name == "os-core"
+    assert core["version"] in requirement.specifier
+    assert "0.5.4" not in requirement.specifier
+    assert "0.7" not in requirement.specifier
 
 
 def test_stub_pyproject_does_not_define_swarm_cli_or_other_scripts():

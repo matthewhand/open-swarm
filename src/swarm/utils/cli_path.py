@@ -9,6 +9,44 @@ openai-agents SDK.
 from __future__ import annotations
 
 import os
+import re
+import shutil
+from pathlib import Path
+
+
+def npm_shim_argv(executable: str) -> list[str] | None:
+    """Resolve a standard Windows npm shim without invoking cmd.exe.
+
+    npm installs POSIX, .cmd and PowerShell launchers side by side. Windows
+    cannot CreateProcess the POSIX file; a command shell would reinterpret
+    untrusted prompt arguments. Read only the generated .cmd target instead.
+    Custom scripts are not interpreted, and targets must stay in node_modules.
+    """
+    path = Path(executable)
+    if path.suffix.lower() == ".exe":
+        return None
+    native = path.with_suffix(".exe")
+    if native.is_file():
+        return [str(native)]
+    shim = path if path.suffix.lower() == ".cmd" else path.with_suffix(".cmd")
+    try:
+        text = shim.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    if "SET dp0=%~dp0" not in text or "CALL :find_dp0" not in text:
+        return None
+    match = re.search(r'"%dp0%[\\/]node_modules[\\/]([^"\r\n]+\.(?:js|mjs|cjs|exe))"', text, re.I)
+    if not match:
+        return None
+    root = (shim.parent / "node_modules").resolve()
+    target = root.joinpath(*match.group(1).replace("\\", "/").split("/")).resolve()
+    if not target.is_relative_to(root) or not target.is_file():
+        return None
+    if target.suffix.lower() == ".exe":
+        return [str(target)]
+    node = shim.parent / "node.exe"
+    runtime = str(node) if node.is_file() else shutil.which("node.exe")
+    return [runtime, str(target)] if runtime else None
 
 # User-local bins Daphne often misses when started with PATH=/usr/bin:/bin.
 _EXTRA_BIN_REL = (

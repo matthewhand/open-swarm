@@ -1320,11 +1320,9 @@ def _get_frontend_path():
         frontend_path = Path("webui/frontend/build")
     return frontend_path if frontend_path.exists() else None
 
-frontend_path = _get_frontend_path()
-if frontend_path and frontend_path.exists():
-    # #714: the asset/catch-all views moved to web_views (request-time
-    # frontend lookup + explicit cache contract). Registration unchanged.
-    urlpatterns += [
-        re_path(r'^assets/(?P<path>.*)$', spa_asset_view),
-        re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/|django_chat).*$', spa_fallback_view),
-    ]
+# Register independently of build timing. The views resolve assets at request
+# time and return 404 if absent; a build appearing after startup must work too.
+urlpatterns += [
+    re_path(r'^assets/(?P<path>.*)$', spa_asset_view),
+    re_path(r'^(?!api/|admin/|static/|assets/|mcp/|marketplace/|v1/|teams/|blueprint-library/|agent-creator/|settings/|accounts/|login/|profiles/|sessions/|webui/|chat/|agents/|django_chat).*$', spa_fallback_view),
+]

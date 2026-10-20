@@ -227,6 +227,11 @@ def startup_should_migrate_config() -> bool:
     skip = (os.environ.get("SWARM_SKIP_CONFIG_MIGRATE") or "").strip().lower()
     if skip in {"1", "true", "yes", "on"}:
         return False
+    # An explicit root selects an independent configuration. Importing an
+    # unrelated home tree here defeats isolation and can copy credentials or
+    # reject startup because two legacy trees disagree.
+    if (os.environ.get(CONFIG_DIR_ENV) or "").strip():
+        return False
     under_pytest = "pytest" in sys.modules or bool(os.environ.get("PYTEST_VERSION"))
     if not under_pytest:
         return True

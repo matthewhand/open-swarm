@@ -257,11 +257,12 @@ class TestPinokioHardStops:
             for needle in FORBIDDEN_IN_SCRIPTS:
                 assert needle not in text, f"{path.name} contains forbidden {needle!r}"
 
-    def test_readme_sideload_git_url_not_catalog(self):
+    def test_readme_does_not_claim_pinokio_installation_was_verified(self):
         readme = (REPO / "README.md").read_text(encoding="utf-8")
         assert "https://github.com/matthewhand/operating-swarm.git" in readme
-        assert "sideload" in readme.lower()
-        assert "not" in readme.lower() and "public catalog" in readme.lower()
+        assert "Pinokio" in readme
+        assert "installers were not exercised" in readme
+        assert "docs/verification-2026-10-20.md" in readme
 
     def test_compose_passes_sandbox_home(self):
         compose = (REPO / "docker-compose.yml").read_text(encoding="utf-8")

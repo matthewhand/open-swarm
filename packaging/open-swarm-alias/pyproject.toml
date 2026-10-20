@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-swarm"
-version = "0.5.5"
+version = "0.6.0a1"
 description = "Deprecated alias for Operating Swarm. Installs os-core; this is not the product."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "os-core",
+    "os-core>=0.6.0a1,<0.7",
 ]
 
 [project.urls]

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0a1 — unreleased alpha preparation
+
+- Add a read-only inventory tool workflow, exercised through the CLI, API and WebUI.
+- Preserve supplied conversation history in the default API-kind runner; return safe, explicit setup/execution/timeout failures.
+- Honor an explicit configuration root without importing unrelated legacy files; use portable operator-plane process locks.
+- Propagate failed blueprint subprocess exit codes; refresh pending Hermes jobs after partial output and honor the remaining poll budget.
+- Register SPA asset/fallback routes independently of build timing.
+- Correct Python/Node installation guidance, Ollama endpoint examples, renamed-repository publication guards and package-version drift. Include NOTICE in distributions.
+- Document demonstrated behavior and limits in docs/verification-2026-10-20.md. This preparation is not a PyPI publication.
+
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]

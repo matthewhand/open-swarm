@@ -206,7 +206,7 @@ describe('#1443 bundle budget', () => {
         }
         if (!/\.(ts|tsx)$/.test(name)) continue
         if (THREE_SPEC.test(readFileSync(path, 'utf8'))) {
-          hits.push(path.slice(SRC.length + 1))
+          hits.push(path.slice(SRC.length + 1).replaceAll('\\', '/'))
         }
       }
     }

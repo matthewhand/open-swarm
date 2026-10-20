@@ -20,15 +20,15 @@ def _read(*paths: Path) -> str:
     return "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
 
-def test_happy_path_and_under_the_hood_are_documented():
+def test_verified_happy_path_and_detailed_support_guide_are_documented():
     readme = README.read_text(encoding="utf-8")
     docs = DOCS.read_text(encoding="utf-8")
     blob = f"{readme}\n{docs}"
-    assert "under the hood" in blob.lower()
+    assert "inventory_demo" in readme
     assert "Python" in blob
     assert "ApiKindBase" in blob or "blueprint class" in blob.lower()
-    assert "ask **Support**" in blob or "ask Support" in blob
-    assert "View / edit code" in blob
+    assert "docs/verification-2026-10-20.md" in readme
+    assert "`stock_report` tool" in readme
     assert "Add as agent" in docs
     assert "Save as blueprint" in docs
     assert "Socratic" in docs or "socratic" in docs.lower()

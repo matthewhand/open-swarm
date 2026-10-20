@@ -21,48 +21,33 @@ def test_developer_doc_has_forced_circular_and_harness_diagrams():
     assert "005-kind-bases.md" in text
 
 
-def test_readme_sells_openai_agents_and_points_at_developer_doc():
+def test_readme_attributes_sdk_and_bounds_external_graph_claims():
     text = (repo_root() / "README.md").read_text(encoding="utf-8")
-    assert "## Why openai-agents" in text
+    assert "https://github.com/openai/openai-agents-python" in text
+    assert "tools and handoffs" in text
+    assert "does not inject the SDK" in text
+    assert "docs/DEVELOPER.md" in text
+    assert "docs/examples/openai-agents-handoff-graphs/README.md" in text
     assert "```mermaid" not in text
-    assert "BA" in text and "Engineer" in text and "Tester" in text
-    assert "Skeptic" in text
-    assert "API" in text and "CLI" in text and "Remote" in text
-    assert "cannot inject" in text.lower() or "stay native" in text.lower()
-    assert "docs/DEVELOPER.md" in text
-    assert "docs/examples/openai-agents-handoff-graphs" in text
-    assert "#564" in text or "REQ-156" in text
-    assert "docs/adr/005-kind-bases.md" in text
 
 
-def test_readme_kinds_lock_is_visible():
-    """Matthew lock: CLI | API | Blueprint | Remote; Team is a Blueprint subtype."""
+def test_readme_names_runtime_kinds_without_claiming_universal_continuity():
     text = (repo_root() / "README.md").read_text(encoding="utf-8")
-    assert "## Kinds (locked)" in text
-    assert "**CLI**" in text
-    assert "true inference" in text.lower() or "True inference" in text
-    assert "**Blueprint**" in text
-    assert "openai-agents" in text
-    assert "Hermes" in text and "OpenMousBot" in text and "Rakazo" in text and "Herdr" in text
-    assert "subtype" in text.lower()
-    assert "not a fifth kind" in text.lower()
-    assert "docs/adr/006-api-vs-blueprint-kinds.md" in text
-    assert "## WebUI (start here)" in text
-    assert "first-class" in text.lower()
-    assert "Blueprint-Builder" not in text
-    assert "## Bundled Blueprints" not in text
-    if "django_chat" in text:
-        assert "django_chat resolves its LLM profile" in text
+    assert "`api`, `cli`, `remote` and `team` bases" in text
+    assert "ApiKindBase" in text and "blueprints" in text.lower()
+    assert "universal cross-harness continuity is not established" in text
+    assert "## API and WebUI" in text
+    assert "not full OpenAI API parity" in text
 
 
-def test_readme_version_honesty_and_history():
+def test_readme_keeps_release_lineage_and_publication_limits():
     text = (repo_root() / "README.md").read_text(encoding="utf-8")
-    assert "## Short history" in text
-    assert "0.5.4" in text
-    assert "Orchestrating AI Agent Swarms with Django" in text
-    assert "pip install open-swarm" in text
-    assert "main" in text
-    assert "docs/DEVELOPER.md" in text
+    assert "v0.5.4" in text and "19 June 2026" in text
+    assert "django_chat resolves its LLM profile" in text
+    assert "Unpublished migration alias" in text
+    assert "wheel does not bundle the React build" in text
+    assert "publisher credentials or" in text
+    assert "docs/verification-2026-10-20.md" in text
 
 
 def test_example_readme_documents_8001_seed_without_secrets():

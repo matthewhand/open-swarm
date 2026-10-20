@@ -74,20 +74,14 @@ def test_announce_sot_has_spiel_roster_and_checklist():
     assert_no_private_ip(text)
 
 
-def test_readme_embeds_spiel_and_hero_path():
+def test_readme_separates_historical_announce_media_from_live_evidence():
     text = README.read_text(encoding="utf-8")
     assert "docs/ANNOUNCE.md" in text
-    assert "docs/assets/readme/announce-bridge.gif" in text
-    assert "Grok-agnostic" in text
-    assert "remote harness" in text.lower() or "remote harnesses" in text
-    assert "Hermes" in text
-    assert "OpenMousBot" in text
-    assert "#529" in text or "REQ-136" in text
-    assert "#456" in text
+    assert "historical media, not current integration verification" in text
+    assert "docs/verification-2026-10-20.md" in text
+    assert "Hermes" in text and "OpenMousBot" in text
     assert "```mermaid" not in text
-    # README already documents a `sk-...` placeholder and a `:8001` seed pointer.
-    assert "github_pat_" not in text.lower()
-    assert "ghp_" not in text.lower()
+    assert "github_pat_" not in text.lower() and "ghp_" not in text.lower()
     assert_no_private_ip(text)
 
 

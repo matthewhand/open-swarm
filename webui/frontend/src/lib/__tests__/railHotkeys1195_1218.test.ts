@@ -41,7 +41,7 @@ describe('#1195 herdr targets chat via href, not a hard reload', () => {
 
   it('the sidebar handler has no /teams/#herdr-members override left', () => {
     const src = readFileSync(SIDEBAR, 'utf8')
-      .split('\n')
+      .split(/\r?\n/)
       .map((line) => line.replace(/\/\/.*$/, ''))
       .join('\n')
     expect(src.includes('herdr-members')).toBe(false)

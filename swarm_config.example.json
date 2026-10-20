@@ -19,8 +19,8 @@
     "local": {
       "provider": "openai",
       "model": "llama3.2:latest",
-      "base_url": "http://localhost:11434/",
-      "api_key": "",
+      "base_url": "http://localhost:11434/v1",
+      "api_key": "ollama",
       "cost": 0.1,
       "speed": 0.1,
       "intelligence": 0.1,

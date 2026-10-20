@@ -61,6 +61,14 @@ def test_spa_catchall_entry_html_is_no_cache(fake_frontend):
     assert resp["Cache-Control"] == HTML_NO_CACHE
 
 
+def test_spa_route_registered_even_when_assets_are_missing(monkeypatch):
+    from django.urls import resolve
+    from swarm.views import web_views
+    monkeypatch.setattr(web_views, "_get_frontend_path", lambda: None)
+    assert resolve("/an-unbuilt-spa-page").func is web_views.spa_fallback_view
+    assert Client().get("/an-unbuilt-spa-page").status_code == 404
+
+
 @pytest.mark.django_db
 def test_template_fallback_entry_is_no_cache(fake_frontend, monkeypatch):
     """No built dist → Django template render; still the entry pointer."""
@@ -83,3 +91,15 @@ def test_hashed_assets_are_immutable(fake_frontend):
 @pytest.mark.django_db
 def test_asset_traversal_guard_intact(fake_frontend):
     assert Client().get("/assets/../../secrets").status_code in (404, 400)
+
+
+def test_asset_guard_refuses_sibling_directory_with_shared_prefix(fake_frontend):
+    from django.test import RequestFactory
+    from swarm.views.web_views import spa_asset_view
+    sibling = fake_frontend / "assets-private"
+    sibling.mkdir()
+    (sibling / "credential.txt").write_text("private-fixture")
+    # String prefix checks confuse assets-private with assets. The resolved
+    # file must be a descendant, including for encoded traversal on the wire.
+    response = spa_asset_view(RequestFactory().get("/assets/probe"), "../assets-private/credential.txt")
+    assert response.status_code == 404
