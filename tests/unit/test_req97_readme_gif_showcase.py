@@ -97,7 +97,8 @@ def test_readme_bounds_external_integration_claims_and_links_current_evidence():
     text = _readme()
     assert "OpenMousBot" in text and "Hermes" in text and "TrueForge" in text
     assert "No configured instance exercised" in text
-    assert "Completed inference not established" in text
+    assert "Primary passed health, discovery and a real model turn" in text
+    assert "secondary failed" in text and "earlier primary turn timed out" in text
     assert "docs/verification-2026-10-20.md" in text
     assert "fictional stock" in text
 
