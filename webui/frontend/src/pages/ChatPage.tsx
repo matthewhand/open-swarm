@@ -640,7 +640,12 @@ const ChatPage = () => {
   const [contextStrategy, setContextStrategy] = useState<ContextStrategy>(DEFAULT_CONTEXT_STRATEGY)
   const [cullTriggerPct, setCullTriggerPct] = useState(DEFAULT_CULL_TRIGGER_PCT)
   const [contextMeta, setContextMeta] = useState<ContextMeta>({ start_offset: 0, last_event: null })
-  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null)
+  const [contextUsage, setContextUsageState] = useState<ContextUsage | null>(null)
+  const contextUsageRevision = useRef(0)
+  const setContextUsage = useCallback<typeof setContextUsageState>((next) => {
+    contextUsageRevision.current += 1
+    setContextUsageState(next)
+  }, [])
   // ADR-017 PR-2: SPA-side registry of the server's per-turn bookends
   // (turn_started/turn_finished), so the row stop cancels the exact turn.
   const [agentTurns, setAgentTurns] = useState<TurnSnapshot>({})
@@ -1772,14 +1777,16 @@ const ChatPage = () => {
     let cancelled = false
     const agent = teamFromUrl || agentIdFromBlueprint(selectedBlueprint)
     const modelId = (searchParams.get('model') ?? '').trim() || undefined
+    setContextUsage(null)
+    const revision = contextUsageRevision.current
     void fetchContextUsage({ agentId: agent, conversationId, modelId })
       .then((usage) => {
-        if (cancelled) return
+        if (cancelled || contextUsageRevision.current !== revision) return
         publishContextUsage(usage)
         setContextUsage(usage)
       })
       .catch(() => {
-        if (!cancelled) setContextUsage(null)
+        if (!cancelled && contextUsageRevision.current === revision) setContextUsage(null)
       })
     return () => {
       cancelled = true

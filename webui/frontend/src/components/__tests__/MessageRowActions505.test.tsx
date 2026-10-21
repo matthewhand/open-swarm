@@ -67,7 +67,7 @@ describe('#505 MessageRowActions overlay mode', () => {
     expect(base.onStartEdit).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Copy message' }))
     expect(screen.getByRole('button', { name: 'Reply to message' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Compress to here' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Compact' })).toBeInTheDocument()
   })
 
   it('user alignment className survives in overlay mode', () => {
@@ -131,9 +131,9 @@ describe('#506 action-row labels pref', () => {
       'title',
       'Copy to clipboard',
     )
-    expect(screen.getByRole('button', { name: 'Compress to here' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Compact' })).toHaveAttribute(
       'title',
-      'Compress to here',
+      'Compact',
     )
   })
 

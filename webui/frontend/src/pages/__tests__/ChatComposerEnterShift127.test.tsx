@@ -97,6 +97,15 @@ function pressEnter(shiftKey: boolean): KeyboardEvent {
 }
 
 describe('REQ-127 the composer is a newline-preserving textarea', () => {
+  it.each(['/chat?blueprint=support', '/chat?blueprint=cli_agent'])('does not submit composition Enter for %s', async path => {
+    renderChat(path)
+    const ws = await openSocket()
+    fireEvent.change(composer(), { target: { value: 'composing text' } })
+    fireEvent.keyDown(composer(), { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(composer(), { key: 'Enter', keyCode: 229 })
+    expect(composer().value).toBe('composing text')
+    expect(turnFrames(ws)).toHaveLength(0)
+  })
   beforeEach(() => {
     MockWebSocket.instances = []
     Element.prototype.scrollIntoView = vi.fn()

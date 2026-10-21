@@ -143,7 +143,7 @@ describe('ChatPage REQ-121 start context from here', () => {
     expect(await screen.findByText('first answer')).toBeInTheDocument()
     const buttons = await screen.findAllByRole('button', { name: 'Start context from here' })
     expect(buttons.length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: 'Compress to here' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Compact' })).not.toBeInTheDocument()
 
     await act(async () => {
       fireEvent.click(buttons[0])

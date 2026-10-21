@@ -237,8 +237,8 @@ describe('REQ-121: Start context from here hover action', () => {
   })
 })
 
-describe('REQ-87: Compress to here hover action', () => {
-  it('shows Compress to here on hover when canCompress is set', () => {
+describe('REQ-87: Compact hover action', () => {
+  it('shows Compact on hover when canCompress is set', () => {
     // REQ-869 moved the context action from the bubble to MessageRowActions.
     const onCompress = vi.fn()
     render(
@@ -250,7 +250,7 @@ describe('REQ-87: Compress to here hover action', () => {
         />
       </ToastProvider>,
     )
-    const button = screen.getByRole('button', { name: 'Compress to here' })
+    const button = screen.getByRole('button', { name: 'Compact' })
     fireEvent.click(button)
     expect(onCompress).toHaveBeenCalledTimes(1)
   })

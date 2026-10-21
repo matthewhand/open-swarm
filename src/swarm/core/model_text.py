@@ -25,8 +25,12 @@ _ANSI = re.compile(
 _ALNUM = re.compile(r"[A-Za-z0-9]+")
 
 
-def sanitize_model_text(text: str | None) -> str:
-    """Strip leaked tokenizer leftovers and ANSI; keep real words."""
+def sanitize_model_text(text: str | None, *, preserve_whitespace: bool = False) -> str:
+    """Strip leaked tokenizer leftovers and ANSI; keep real words.
+
+    Inline continuations can preserve spacing and indentation; transcript
+    sanitizing keeps its existing normalization by default.
+    """
     if not text:
         return ""
     cleaned = _LEAKED_SPECIAL.sub("", text)
@@ -36,6 +40,8 @@ def sanitize_model_text(text: str | None) -> str:
             break
         cleaned = nxt
     cleaned = cleaned.replace("\x1b", "").replace("\x9b", "")
+    if preserve_whitespace:
+        return cleaned
     cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()

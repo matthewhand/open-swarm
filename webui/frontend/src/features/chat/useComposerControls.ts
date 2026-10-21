@@ -475,6 +475,7 @@ export function useComposerControls(opts: UseComposerControlsOptions) {
   }
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     if (isSlashOpen) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()

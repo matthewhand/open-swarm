@@ -417,7 +417,7 @@ function App() {
         ) : null}
         <RailChromeProvider value={{ narrow, railOpen, openRail, closeRail }}>
           <div
-            className="flex h-screen min-h-0 flex-col bg-base-100 text-base-content"
+            className="os-app-shell flex min-h-0 flex-col bg-base-100 text-base-content"
             data-theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
             data-narrow-viewport={narrow ? 'true' : undefined}
           >

@@ -198,10 +198,23 @@ class TestPiSession:
             'sys.stdout.write("NOT JSON\\n"); sys.stdout.flush(); cmd = json.loads(line)',
         )
         events: list[dict] = []
-        session = PiSession(command=write_fake_pi(tmp_path, body), on_event=events.append)
+        from threading import Event
+
+        settled = Event()
+
+        def on_event(event):
+            events.append(event)
+            if event.get("type") == "agent_settled":
+                settled.set()
+
+        session = PiSession(command=write_fake_pi(tmp_path, body), on_event=on_event)
         try:
             session.prompt("hi")
+            assert settled.wait(10), "fake pi never settled after malformed output"
             assert events  # the real events still arrived
+            chunks = list(chunk_events_from_records(events))
+            assert "".join(c.get("text", "") for c in chunks) == "Hello from Pi"
+            assert chunks[-1] == {"type": "end"}
         finally:
             session.close()
 

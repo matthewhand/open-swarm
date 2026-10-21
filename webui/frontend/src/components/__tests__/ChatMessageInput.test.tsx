@@ -68,6 +68,76 @@ afterEach(() => {
 })
 
 describe('ChatMessageInput (#858/#860)', () => {
+  it.each(['disable', 'unmount'])('aborts an in-flight completion on %s and discards late results', async action => {
+    let resolve!: (value: { completion: string; duration_ms: number }) => void
+    mockFetchAutocomplete.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    const { unmount } = render(<Harness />)
+    fireEvent.change(textarea(), { target: { value: 'Hello' } })
+    await idle()
+    await waitFor(() => expect(mockFetchAutocomplete).toHaveBeenCalledOnce())
+    const signal = mockFetchAutocomplete.mock.calls[0][2]!
+    expect(signal.aborted).toBe(false)
+    if (action === 'disable') act(() => saveAutocompleteEnabled(false))
+    else unmount()
+    expect(signal.aborted).toBe(true)
+    await act(async () => { resolve({ completion: ' late', duration_ms: 1 }) })
+    expect(screen.queryByTestId('composer-ghost-text')).toBeNull()
+  })
+
+  it('does not fetch for unfinished composition and resumes after composition ends', async () => {
+    mockFetchAutocomplete.mockResolvedValue({ completion: ' next', duration_ms: 1 })
+    render(<Harness />)
+    fireEvent.compositionStart(textarea())
+    fireEvent.change(textarea(), { target: { value: 'composing' } })
+    await idle()
+    expect(mockFetchAutocomplete).not.toHaveBeenCalled()
+    fireEvent.compositionEnd(textarea())
+    await idle()
+    await waitFor(() => expect(mockFetchAutocomplete).toHaveBeenCalledOnce())
+  })
+
+  it('preserves the whitespace joining a continuation to its prefix', async () => {
+    mockFetchAutocomplete.mockResolvedValue({ completion: ' world', duration_ms: 1 })
+    render(<Harness />)
+    fireEvent.change(textarea(), { target: { value: 'Hello' } })
+    await idle()
+    await waitFor(() => expect(screen.getByTestId('composer-ghost-text')).toBeTruthy())
+    fireEvent.keyDown(textarea(), { key: 'Tab' })
+    expect(textarea().value).toBe('Hello world')
+  })
+
+  it('cancels a pending debounce when autocomplete is disabled', async () => {
+    mockFetchAutocomplete.mockResolvedValue({ completion: ' stale', duration_ms: 1 })
+    render(<Harness />)
+    fireEvent.change(textarea(), { target: { value: 'Hello' } })
+    act(() => saveAutocompleteEnabled(false))
+    await idle()
+    expect(mockFetchAutocomplete).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('composer-ghost-text')).toBeNull()
+  })
+
+  it('clears visible suggestions when autocomplete is disabled', async () => {
+    mockFetchAutocomplete.mockResolvedValue({ completion: ' stale', duration_ms: 1 })
+    render(<Harness />)
+    fireEvent.change(textarea(), { target: { value: 'Hello' } })
+    await idle()
+    await waitFor(() => expect(screen.getByTestId('composer-ghost-text')).toBeTruthy())
+    act(() => saveAutocompleteEnabled(false))
+    expect(screen.queryByTestId('composer-ghost-text')).toBeNull()
+    fireEvent.keyDown(textarea(), { key: 'Tab' })
+    expect(textarea().value).toBe('Hello')
+  })
+
+  it('leaves composition keys to the input method instead of accepting ghost text', async () => {
+    mockFetchAutocomplete.mockResolvedValue({ completion: ' stale', duration_ms: 1 })
+    render(<Harness />)
+    fireEvent.change(textarea(), { target: { value: 'Hello' } })
+    await idle()
+    await waitFor(() => expect(screen.getByTestId('composer-ghost-text')).toBeTruthy())
+    fireEvent.keyDown(textarea(), { key: 'Tab', isComposing: true })
+    expect(textarea().value).toBe('Hello')
+  })
+
   it('renders the wrapped textarea with forwarded props', () => {
     render(<Harness initial="hello" />)
     expect(textarea().value).toBe('hello')
@@ -87,6 +157,7 @@ describe('ChatMessageInput (#858/#860)', () => {
     expect(mockFetchAutocomplete).toHaveBeenCalledWith(
       'wri',
       expect.objectContaining({ agent_id: 'philosopher_team' }),
+      expect.any(AbortSignal),
     )
     await waitFor(() => expect(screen.getByTestId('composer-ghost-text')).toBeTruthy())
     // textContent (not toHaveTextContent) — the muted ghost sits after a
@@ -175,6 +246,7 @@ describe('ChatMessageInput (#858/#860)', () => {
     expect(mockFetchAutocomplete).toHaveBeenCalledWith(
       'draft one',
       expect.objectContaining({ agent_id: 'agent-a', conversation_id: 'conv-a' }),
+      expect.any(AbortSignal),
     )
     mockFetchAutocomplete.mockClear()
 

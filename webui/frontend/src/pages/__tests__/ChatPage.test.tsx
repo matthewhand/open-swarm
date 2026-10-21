@@ -3331,7 +3331,7 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
     expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('600 tokens')
   })
 
-  it('hover Compress to here posts a span ending at that message', async () => {
+  it('hover Compact posts a span ending at that message', async () => {
     const compactPayload = {
       summary: {
         id: 1,
@@ -3391,7 +3391,7 @@ describe('ChatPage Compact empty/failure toasts (REQ-37 #365)', () => {
       MockWebSocket.instances[0]?.open()
     })
     expect(await screen.findByText('first answer')).toBeInTheDocument()
-    const buttons = screen.getAllByRole('button', { name: 'Compress to here' })
+    const buttons = screen.getAllByRole('button', { name: 'Compact' })
     expect(buttons.length).toBeGreaterThan(0)
     await act(async () => {
       fireEvent.click(buttons[1])
