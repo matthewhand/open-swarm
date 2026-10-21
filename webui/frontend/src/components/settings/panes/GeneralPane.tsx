@@ -407,7 +407,7 @@ export function GeneralPane({
             Compact older turns before a send when estimated tokens reach this
             percent of the model&apos;s known context length (1–99, default 80).
             CLI and API use the same value. If the max is unknown, auto-compress
-            is skipped; Compact and Compress to here still work.
+            is skipped; manual compaction still works.
           </p>
         </div>
         <div className="form-control w-full max-w-xs space-y-1">

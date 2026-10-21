@@ -97,12 +97,14 @@ def generate_autocomplete(
             temperature=0.0,
         )
         content = (resp.choices[0].message.content or "") if resp.choices else ""
-        cleaned = sanitize_model_text(content).strip()
+        cleaned = sanitize_model_text(content, preserve_whitespace=True)
         # If the model repeated the prefix, strip it
         if cleaned.startswith(trimmed_prefix):
-            cleaned = cleaned[len(trimmed_prefix) :].strip()
+            cleaned = cleaned[len(trimmed_prefix) :]
         duration = (time.perf_counter() - start_time) * 1000
         return cleaned, round(duration, 2)
     except Exception:
         duration = (time.perf_counter() - start_time) * 1000
         return "", round(duration, 2)
+    finally:
+        client.close()

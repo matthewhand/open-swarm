@@ -72,6 +72,8 @@ export function ChatMessageInput({
   const [enabled, setEnabled] = useState(loadAutocompleteEnabled)
   const debounceRef = useRef<number | null>(null)
   const requestIdRef = useRef(0)
+  const requestRef = useRef<AbortController | null>(null)
+  const composingRef = useRef(false)
 
   // Preference changes from Settings propagate live.
   useEffect(() => {
@@ -91,12 +93,25 @@ export function ChatMessageInput({
     }
   }, [])
 
+  const cancelAutocomplete = useCallback(() => {
+    clearDebounce()
+    requestIdRef.current += 1
+    requestRef.current?.abort()
+    requestRef.current = null
+  }, [clearDebounce])
+
+  useEffect(() => {
+    if (enabled) return
+    cancelAutocomplete()
+    setGhost('')
+  }, [enabled, cancelAutocomplete])
+
   // Invalidate any in-flight completion when the draft changes shape outside
   // the debounced fetch (accept, enhance, clear) — stale ghost is worse than none.
   useEffect(() => {
-    requestIdRef.current += 1
+    cancelAutocomplete()
     setGhost('')
-  }, [value])
+  }, [value, cancelAutocomplete])
 
   // #1400: the composer stays mounted across agent and conversation changes,
   // so a completion scored for the previous target must not land on the new
@@ -111,35 +126,40 @@ export function ChatMessageInput({
   useEffect(() => {
     if (seenAutocompleteTarget.current === autocompleteTarget) return
     seenAutocompleteTarget.current = autocompleteTarget
-    clearDebounce()
-    requestIdRef.current += 1
+    cancelAutocomplete()
     setGhost('')
-  }, [autocompleteTarget, clearDebounce])
+  }, [autocompleteTarget, cancelAutocomplete])
 
   const scheduleAutocomplete = useCallback(
     (draft: string) => {
-      clearDebounce()
+      cancelAutocomplete()
       if (!draft.trim()) {
         return
       }
       debounceRef.current = window.setTimeout(() => {
+        debounceRef.current = null
         const requestId = ++requestIdRef.current
+        const controller = new AbortController()
+        requestRef.current = controller
         void fetchAutocomplete(draft, {
           agent_id: agentId || undefined,
           conversation_id: conversationId || undefined,
-        })
+        }, controller.signal)
           .then((res) => {
             if (requestId !== requestIdRef.current) return // superseded
-            const completion = (res.completion || '').trim()
+            const completion = res.completion || ''
             // A completion that merely repeats the draft tail is noise.
-            setGhost(completion && !draft.endsWith(completion) ? completion : '')
+            setGhost(completion.trim() && !draft.endsWith(completion) ? completion : '')
           })
           .catch(() => {
             /* silent — ghost text is best-effort */
           })
+          .finally(() => {
+            if (requestRef.current === controller) requestRef.current = null
+          })
       }, AUTOCOMPLETE_DEBOUNCE_MS)
     },
-    [agentId, conversationId, clearDebounce],
+    [agentId, conversationId, cancelAutocomplete],
   )
 
   // Schedule on mount-of-value changes driven by typing. The [value] reset
@@ -148,11 +168,11 @@ export function ChatMessageInput({
   useEffect(() => {
     if (lastTypedRef.current === value) return
     lastTypedRef.current = value
-    if (!enabled) return
+    if (!enabled || composingRef.current) return
     scheduleAutocomplete(value)
   }, [value, enabled, scheduleAutocomplete])
 
-  useEffect(() => clearDebounce, [clearDebounce])
+  useEffect(() => cancelAutocomplete, [cancelAutocomplete])
 
   const acceptGhost = useCallback(() => {
     if (!ghost) return
@@ -173,6 +193,10 @@ export function ChatMessageInput({
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (composingRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+        textareaProps.onKeyDown?.(event)
+        return
+      }
       if (ghost) {
         if (event.key === 'Tab') {
           event.preventDefault()
@@ -204,7 +228,18 @@ export function ChatMessageInput({
   return (
     <div className="os-composer-input-wrap" data-testid="chat-message-input">
       <div className="os-composer-ghost-stack">
-        <textarea ref={textareaRef as React.RefObject<HTMLTextAreaElement>} {...textareaProps} onKeyDown={handleKeyDown} />
+        <textarea ref={textareaRef as React.RefObject<HTMLTextAreaElement>} {...textareaProps} onKeyDown={handleKeyDown}
+          onCompositionStart={event => {
+            composingRef.current = true
+            cancelAutocomplete()
+            setGhost('')
+            textareaProps.onCompositionStart?.(event)
+          }}
+          onCompositionEnd={event => {
+            composingRef.current = false
+            textareaProps.onCompositionEnd?.(event)
+            if (enabled) scheduleAutocomplete(event.currentTarget.value)
+          }} />
         {ghost ? (
           <span
             className="os-composer-ghost"

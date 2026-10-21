@@ -15,7 +15,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ChatBottomDock } from '../ChatBottomDock'
 
 vi.mock('../../../lib/api', async () => {
@@ -130,6 +130,15 @@ describe('#856 slice H — ChatBottomDock', () => {
   it('renders suggestion chips passed down and forwards choose', () => {
     render(<ChatBottomDock {...baseProps({ showSuggestionChips: true }) as React.ComponentProps<typeof ChatBottomDock>} />)
     expect(screen.getByTestId('chips')).toHaveTextContent('alpha,beta')
+  })
+
+  it('collapses usage when changing conversations within the same agent', () => {
+    const props = baseProps({ isApiAgent: true, activeChatAgentId: 'api', conversationId: 'one' })
+    const { rerender } = render(<ChatBottomDock {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Context window usage' }))
+    expect(screen.getByRole('region', { name: 'Token usage details' })).toBeVisible()
+    rerender(<ChatBottomDock {...props} conversationId="two" />)
+    expect(screen.queryByRole('region', { name: 'Token usage details' })).toBeNull()
   })
 
   // #1096: the composer carries exactly ONE action — the submit. Stop moved
@@ -263,11 +272,24 @@ describe('#856 slice H — ChatBottomDock', () => {
       expect(btn.getAttribute('aria-disabled')).toBe('false')
       fireEvent.click(btn)
 
-      expect(mockEnhancePrompt).toHaveBeenCalledWith('test prompt')
+      expect(mockEnhancePrompt).toHaveBeenCalledWith('test prompt', expect.any(AbortSignal))
       expect(setPlusOpen).toHaveBeenCalledWith(false)
       await waitFor(() => {
         expect(setInput).toHaveBeenCalledWith('Enhanced test prompt by AI')
       })
+    })
+
+    it.each(['draft', 'agent', 'conversation', 'unmount'])('discards a rewrite after %s changes', async change => {
+      let resolve!: (value: { prompt: string; enhanced: string }) => void
+      mockEnhancePrompt.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+      const setInput = vi.fn()
+      const props = baseProps({ plusOpen: true, input: 'original', activeChatAgentId: 'one', conversationId: 'first', setInput, composerMenu: rewriteOnMenu })
+      const { rerender, unmount } = render(<ChatBottomDock {...props} />)
+      fireEvent.click(screen.getByTestId('composer-enhance-button'))
+      if (change === 'unmount') unmount()
+      else rerender(<ChatBottomDock {...props} {...(change === 'draft' ? { input: 'new draft' } : change === 'agent' ? { activeChatAgentId: 'two' } : { conversationId: 'second' })} />)
+      await act(async () => { resolve({ prompt: 'original', enhanced: 'late rewrite' }) })
+      expect(setInput).not.toHaveBeenCalled()
     })
 
     it('handles failure with an error toast', async () => {

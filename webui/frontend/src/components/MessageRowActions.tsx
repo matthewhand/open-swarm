@@ -115,7 +115,7 @@ export default function MessageRowActions({
   const { error } = useToast()
   const canCopy = messageHasCopyableText(text)
   const startFromHere = contextStrategy === 'cull'
-  const contextActionLabel = startFromHere ? 'Start context from here' : 'Compress to here'
+  const contextActionLabel = startFromHere ? 'Start context from here' : 'Compact'
 
   useEffect(() => {
     const sync = () => setLabels(loadActionRowLabels())
@@ -260,7 +260,7 @@ export default function MessageRowActions({
       type="button"
       className={btnClass}
       aria-label={contextActionLabel}
-      title={startFromHere ? 'Start context from here.' : 'Compress to here'}
+      title={startFromHere ? 'Start context from here.' : 'Compact'}
       data-testid={startFromHere ? 'start-context-from-here' : 'compress-to-here'}
       onClick={onCompressToHere}
     >

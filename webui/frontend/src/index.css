@@ -162,6 +162,12 @@ samp {
 
 /* Paint the document chrome near-black so a DaisyUI/user-agent light
    html/body cannot show as a leftover strip under min-h-screen. */
+.os-app-shell {
+  /* Mobile browser chrome consumes part of the large (100vh) viewport. */
+  height: 100vh;
+  height: 100dvh;
+}
+
 html, body, #root {
   margin: 0;
   min-height: 100%;
@@ -4210,6 +4216,15 @@ button.os-agent-row {
 /* #1703: host-CLI detected tip sits at the very top of the chat pane. */
 .os-host-cli-tip {
   padding: 0.5rem 0.75rem 0;
+}
+@media (max-height: 35rem) {
+  .os-host-cli-tip {
+    min-height: 0;
+    max-height: 25vh;
+    max-height: 25dvh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
 }
 .os-host-cli-tip__alert {
   padding: 0.65rem 0.75rem;

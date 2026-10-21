@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, act, fireEvent } from '@testing-library/react'
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/DaisyUI'
@@ -53,6 +53,28 @@ function renderChat(path: string) {
 }
 
 describe('ChatPage context-window usage (#215)', () => {
+  it.each(['stale response', 'failure'])('keeps newer socket usage after an initial fetch %s', async outcome => {
+    let resolve!: (value: Response) => void
+    let reject!: (reason: Error) => void
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/chat/context-usage/')) {
+        return new Promise<Response>((done, fail) => { resolve = done; reject = fail })
+      }
+      return { ok: true, status: 200, json: async () => ({ data: [] }) } as Response
+    }))
+    renderChat('/chat?blueprint=support')
+    await waitFor(() => expect(resolve).toBeTypeOf('function'))
+    await act(async () => {
+      MockWebSocket.instances[0]?.open()
+      MockWebSocket.instances[0]?.onmessage?.(new MessageEvent('message', { data: JSON.stringify(USAGE_FRAME) }))
+    })
+    expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('12.3k tokens')
+    await act(async () => {
+      if (outcome === 'failure') reject(new Error('delayed fetch failure'))
+      else resolve({ ok: true, status: 200, json: async () => ({ ...USAGE_FRAME, tokens: 1 }) } as Response)
+    })
+    expect(screen.getByTestId('context-usage-badge')).toHaveTextContent('12.3k tokens')
+  })
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()

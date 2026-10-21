@@ -147,14 +147,14 @@ export function ChatOverlays(props: Props): ReactNode {
                     : 'context-menu-compress-to-here'
                 }
                 title={
-                  contextStrategy === 'cull' ? START_CONTEXT_FROM_HERE_TOOLTIP : 'Compress to here'
+                  contextStrategy === 'cull' ? START_CONTEXT_FROM_HERE_TOOLTIP : 'Compact'
                 }
                 onClick={() => {
                   handleContextToHere(contextMenu.message)
                 }}
               >
                 <FoldVertical className="h-4 w-4 opacity-70" aria-hidden="true" />
-                {contextStrategy === 'cull' ? START_CONTEXT_FROM_HERE_LABEL : 'Compress to here'}
+                {contextStrategy === 'cull' ? START_CONTEXT_FROM_HERE_LABEL : 'Compact'}
               </button>
             ) : null}
             {/* #724: the bubble-theme picker moved to the rail agent

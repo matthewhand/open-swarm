@@ -7,7 +7,7 @@
  * ChatPage owns all state and passes it down as one props object.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { enhancePrompt } from '../../lib/api'
 import { PerAgentComposerInput } from './PerAgentComposerInput'
@@ -25,19 +25,36 @@ export const ChatBottomDock = function ChatBottomDock(props: ChatBottomDockProps
     const SparklesIcon = props.Sparkles || Sparkles
     const [enhancingLocal, setEnhancingLocal] = useState(false)
     const enhancing = props.enhancing ?? enhancingLocal
+    const rewriteRequest = useRef<AbortController | null>(null)
+    const latestDraft = useRef({ input, activeChatAgentId, conversationId })
+    latestDraft.current = { input, activeChatAgentId, conversationId }
+    useEffect(() => {
+      setEnhancingLocal(false)
+      return () => {
+        rewriteRequest.current?.abort()
+        rewriteRequest.current = null
+      }
+    }, [input, activeChatAgentId, conversationId])
 
     const defaultHandleEnhance = useCallback(async () => {
       const draft = (input || '').trim()
-      if (!draft || enhancing) return
+      if (!draft || enhancing || rewriteRequest.current) return
+      const controller = new AbortController()
+      rewriteRequest.current = controller
+      const isCurrent = () => rewriteRequest.current === controller && !controller.signal.aborted &&
+        latestDraft.current.input === input && latestDraft.current.activeChatAgentId === activeChatAgentId &&
+        latestDraft.current.conversationId === conversationId
       setEnhancingLocal(true)
       setPlusOpen(false)
       try {
-        const res = await enhancePrompt(draft)
+        const res = await enhancePrompt(draft, controller.signal)
+        if (!isCurrent()) return
         const enhanced = (res.enhanced || '').trim()
         if (enhanced) {
           setInput(enhanced)
           requestAnimationFrame(() => {
-            if (composerRef?.current) {
+            if (composerRef?.current && latestDraft.current.activeChatAgentId === activeChatAgentId &&
+              latestDraft.current.conversationId === conversationId && latestDraft.current.input === enhanced) {
               composerRef.current.focus()
               const len = enhanced.length
               composerRef.current.setSelectionRange(len, len)
@@ -45,15 +62,19 @@ export const ChatBottomDock = function ChatBottomDock(props: ChatBottomDockProps
           })
         }
       } catch {
+        if (!isCurrent()) return
         addToast({
           type: 'error',
           title: 'Enhance prompt',
           message: 'The model could not enhance this draft. Try again shortly.',
         })
       } finally {
-        setEnhancingLocal(false)
+        if (rewriteRequest.current === controller) {
+          rewriteRequest.current = null
+          setEnhancingLocal(false)
+        }
       }
-    }, [addToast, composerRef, enhancing, input, setInput, setPlusOpen])
+    }, [activeChatAgentId, addToast, composerRef, conversationId, enhancing, input, setInput, setPlusOpen])
 
     const handleEnhance = props.handleEnhance || defaultHandleEnhance
 
@@ -106,7 +127,7 @@ export const ChatBottomDock = function ChatBottomDock(props: ChatBottomDockProps
           ) : null}
           <form onSubmit={handleSend} className="os-composer-wrap">
             <div className={`relative${isApiAgent ? ' os-api-composer' : ''}`} ref={composerWrapRef} data-testid={isApiAgent ? 'api-composer' : undefined}>
-              {isApiAgent ? <ApiComposerUsage key={activeChatAgentId} usage={contextUsage} onOpenDetail={() => setTokenDiagOpen(true)} /> : null}
+              {isApiAgent ? <ApiComposerUsage key={`${activeChatAgentId}:${conversationId}`} usage={contextUsage} onOpenDetail={() => setTokenDiagOpen(true)} /> : null}
               <ComposerSlashPopup
                 open={isSlashOpen}
                 query={slashQuery}
@@ -224,7 +245,7 @@ export const ChatBottomDock = function ChatBottomDock(props: ChatBottomDockProps
                     </button>
                   </div>
                 ) : null}
-                <div className={`flex items-center gap-1.5 min-h-0 ${replyTarget || pendingAttachments.length > 0 || queued.rows.length > 0 ? 'w-full' : 'flex-1'}`}>
+                <div className={`flex items-center gap-1.5 min-h-0 min-w-0 ${replyTarget || pendingAttachments.length > 0 || queued.rows.length > 0 ? 'w-full' : 'flex-1'}`}>
                   <div className="relative" ref={plusRef}>
                     <input
                       ref={fileInputRef}

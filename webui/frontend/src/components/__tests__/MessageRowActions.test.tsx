@@ -82,11 +82,11 @@ describe('MessageRowActions', () => {
     expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
   })
 
-  it('shows Compress to here in the same row when canCompress is set (REQ-87)', () => {
+  it('shows Compact in the same row when canCompress is set (REQ-87)', () => {
     const onCompress = vi.fn()
     renderActions('older turn', undefined, { canCompress: true, onCompressToHere: onCompress })
     const row = screen.getByTestId('os-message-row-actions')
-    const button = within(row).getByRole('button', { name: 'Compress to here' })
+    const button = within(row).getByRole('button', { name: 'Compact' })
     fireEvent.click(button)
     expect(onCompress).toHaveBeenCalledTimes(1)
   })

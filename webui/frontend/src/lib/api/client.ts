@@ -308,11 +308,12 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
 
   return (await response.json()) as T
 }
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown, options?: { signal?: AbortSignal }): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
     headers: buildHeaders(true),
     body: JSON.stringify(body),
+    ...(options?.signal ? { signal: options.signal } : {}),
   })
 
   if (!response.ok) {

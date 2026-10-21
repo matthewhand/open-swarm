@@ -20,6 +20,7 @@ for (const width of [320, 375, 401, 768, 1280]) {
     await input.fill('Check inventory')
     await input.press('Shift+Enter')
     await expect(input).toHaveValue('Check inventory\n')
+    await expect.poll(() => page.getByRole('log', { name: 'Conversation' }).evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
     await input.press('Enter')
     await expect(page.getByRole('log', { name: 'Conversation' }).getByText('Inventory checked.')).toBeVisible()
     const frame = page.getByTestId('api-composer')

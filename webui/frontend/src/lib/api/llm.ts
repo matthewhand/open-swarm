@@ -38,8 +38,9 @@ export const LLM_TASK_CLASSES = [
 /** #858: Expand and refine a draft prompt via the tiny model. */
 export async function enhancePrompt(
   prompt: string,
+  signal?: AbortSignal,
 ): Promise<{ prompt: string; enhanced: string }> {
-  return apiPost<{ prompt: string; enhanced: string }>('/v1/assist/enhance-prompt', { prompt })
+  return apiPost<{ prompt: string; enhanced: string }>('/v1/assist/enhance-prompt', { prompt }, { signal })
 }
 /** #860: Inline ghost-text completion for the composer. */
 export async function fetchAutocomplete(
@@ -50,11 +51,12 @@ export async function fetchAutocomplete(
     conversation_id?: string
     max_tokens?: number
   },
+  signal?: AbortSignal,
 ): Promise<{ completion: string; duration_ms: number }> {
   return apiPost<{ completion: string; duration_ms: number }>('/v1/chat/autocomplete', {
     prefix,
     ...opts,
-  })
+  }, { signal })
 }
 export function fetchRateLimits(): Promise<RateLimitsPayload> {
   return apiGet<RateLimitsPayload>('/v1/rate-limits/')

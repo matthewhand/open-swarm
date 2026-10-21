@@ -134,6 +134,8 @@ Some backend tests use Unix executable scripts; use Linux/WSL for the full gate.
 
 Optional real-service checks live in [tests/live](tests/live/README.md). Set private `SWARM_LIVE_<INSTANCE>_URL` and credential variables on your development host, then run `uv run pytest tests/live -m live_remote --no-cov -q --tb=no --show-capture=no`. Unconfigured instances skip; configured failures fail. The summary distinguishes health/discovery from a completed model answer and counts working integrations. OMB, Rakazo and AnythingLLM need dedicated test targets.
 
+Optional [physical-device UI checks](docs/verification/physical-device-ui.md) use explicit device-browser URL variables and skip when unconfigured. Android Chrome was exercised on a real phone; native ChromeOS rendering remains unverified because the available ADB connection only exposed its Android runtime.
+
 Further reference: [minimal workflow configuration](docs/examples/inventory-config.json), [full example configuration](swarm_config.example.json), [configuration guide](CONFIGURATION.md), [developer map](docs/DEVELOPER.md), and [handoff graph examples](docs/examples/openai-agents-handoff-graphs/README.md).
 
 Historical storyboards and GIFs remain in [ANNOUNCE](docs/ANNOUNCE.md) and [the showoff guide](docs/SHOWOFF_DEMO_AGENTS.md). They are historical media, not current integration verification.
