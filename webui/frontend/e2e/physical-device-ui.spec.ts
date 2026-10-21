@@ -1,4 +1,4 @@
-import { chromium, expect, test } from '@playwright/test'
+import { chromium, expect, test, type Route } from '@playwright/test'
 
 const endpoint = process.env.SWARM_DEVICE_CDP_URL
 const target = process.env.SWARM_DEVICE_TEST_URL
@@ -8,6 +8,7 @@ test('physical browser keeps compact, expanded and focused composer inside its v
   const browser = await chromium.connectOverCDP(endpoint!)
   const page = browser.contexts().flatMap(context => context.pages()).find(page => page.url() === target)
   const testDraft = 'Physical device layout check\nSecond line'
+  const autocomplete = (route: Route) => route.fulfill({ json: { completion: '', duration_ms: 0 } })
   let originalDraft: string | undefined
   try {
     expect(page, 'Open the intended test URL on the device first').toBeDefined()
@@ -15,6 +16,7 @@ test('physical browser keeps compact, expanded and focused composer inside its v
     originalDraft = await input.inputValue()
     await page!.bringToFront()
     await page!.reload()
+    await page!.route('**/v1/chat/autocomplete', autocomplete)
     const toggle = page!.getByRole('button', { name: 'Context window usage' })
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
     const measure = () => page!.evaluate(() => {
@@ -51,6 +53,7 @@ test('physical browser keeps compact, expanded and focused composer inside its v
     if (page && originalDraft !== undefined && !page.isClosed()) {
       const input = page.getByRole('textbox', { name: 'Chat message' })
       if (await input.inputValue() === testDraft) await input.fill(originalDraft)
+      await page.unroute('**/v1/chat/autocomplete', autocomplete)
     }
     // connectOverCDP disconnects its transport; it does not own the device's Chrome.
     await browser.close()

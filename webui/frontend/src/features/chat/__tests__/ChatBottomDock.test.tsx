@@ -287,7 +287,11 @@ describe('#856 slice H — ChatBottomDock', () => {
       const { rerender, unmount } = render(<ChatBottomDock {...props} />)
       fireEvent.click(screen.getByTestId('composer-enhance-button'))
       if (change === 'unmount') unmount()
-      else rerender(<ChatBottomDock {...props} {...(change === 'draft' ? { input: 'new draft' } : change === 'agent' ? { activeChatAgentId: 'two' } : { conversationId: 'second' })} />)
+      else {
+        rerender(<ChatBottomDock {...props} {...(change === 'draft' ? { input: 'new draft' } : change === 'agent' ? { activeChatAgentId: 'two' } : { conversationId: 'second' })} />)
+        expect(screen.getByTestId('composer-enhance-button')).toHaveTextContent('Rewrite prompt with AI')
+        expect(screen.getByTestId('composer-enhance-button')).toHaveAttribute('aria-disabled', 'false')
+      }
       await act(async () => { resolve({ prompt: 'original', enhanced: 'late rewrite' }) })
       expect(setInput).not.toHaveBeenCalled()
     })

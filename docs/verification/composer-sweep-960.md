@@ -25,13 +25,20 @@ Focused fixes and regression coverage:
 - Bound the provider notice on short viewports so the soft keyboard cannot push
   the composer out of view. Add `min-width: 0` to the inner input row: the Esc hint
   previously caused ten pixels of horizontal scrolling while typing.
+- Keep long agent placeholders on one line without changing multiline draft
+  wrapping, avoiding a partially clipped second placeholder line on narrow inputs.
 
 Verification on Windows and the physical phone, 2026-10-21:
 
 - Four new autocomplete reproductions failed against the original code. The two
   delayed-usage tests also failed before their fix.
 - Final focused frontend run: 20 files, 273 tests passed.
-- Backend spacing, SDK cleanup, model-text and Pi driver tests: 34 passed.
+- Backend spacing, SDK cleanup, constructor errors, model-text and Pi driver tests:
+  35 passed. Constructor failure preserves its original exception because it
+  precedes the cleanup block; no unbound-client cleanup occurs.
+- Review regressions also prove that cancelling a rewrite immediately resets its
+  busy state through the scope/draft effect. Stale request finalizers remain
+  guarded so they cannot clear a newer rewrite's loading state.
 - TypeScript and production build passed.
 - Desktop Chromium layout suite: 22 passed, covering five composer widths and
   previous message-action/navbar regressions.

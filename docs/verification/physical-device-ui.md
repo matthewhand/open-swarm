@@ -2,7 +2,8 @@
 
 The suite uses an already-authorized device browser through an existing Chrome
 DevTools connection. It does not install apps, enable debugging, pair new devices,
-or launch a real model request. Use a dedicated test tab pointed at an isolated
+or send a chat message. Autocomplete is stubbed on the selected test tab so typing
+does not invoke its real model backend. Use a dedicated test tab pointed at an isolated
 WebUI with synthetic conversation data. It preserves the original message draft
 and disconnects its CDP connection without closing the user's Chrome browser.
 

@@ -46,6 +46,18 @@ def test_completion_failure_closes_client(autocomplete_client):
     autocomplete_client.close.assert_called_once_with()
 
 
+def test_constructor_failure_preserves_the_original_error(autocomplete_client, monkeypatch):
+    import openai
+
+    def fail_constructor(**kwargs):
+        raise ValueError("synthetic invalid base URL")
+
+    monkeypatch.setattr(openai, "OpenAI", fail_constructor)
+    with pytest.raises(ValueError, match="synthetic invalid base URL"):
+        generate_autocomplete("Hello")
+    autocomplete_client.close.assert_not_called()
+
+
 def test_whitespace_preservation_does_not_change_default_transcript_sanitizing():
     raw = "\n    code()<unused50>\n\n\n"
     assert sanitize_model_text(raw) == "code()"
